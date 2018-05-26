@@ -106,7 +106,7 @@ def _ParseArgs(args):
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        usage="%(prog)s {" + usage + "} ...")
+        usage="acloud {" + usage + "} ...")
     subparsers = parser.add_subparsers()
     subparser_list = []
 
@@ -367,8 +367,8 @@ def _ParseArgs(args):
     subparser_list.append(sshkey_parser)
 
     # Add common arguments.
-    for parser in subparser_list:
-        acloud_common.AddCommonArguments(parser)
+    for subparser in subparser_list:
+        acloud_common.AddCommonArguments(subparser)
 
     return parser.parse_args(args)
 
