@@ -27,12 +27,14 @@ TODO: The following APIs have not been implemented
   - CleanupStaleDevices():
 """
 
+from __future__ import print_function
 import datetime
 import logging
 import os
 import socket
 import subprocess
 
+# pylint: disable=import-error
 import dateutil.parser
 import dateutil.tz
 
@@ -62,6 +64,7 @@ SSH_TUNNEL_CMD = ("/usr/bin/ssh -i %(rsa_key_file)s -o "
 ADB_CONNECT_CMD = "adb connect 127.0.0.1:%(adb_port)d"
 
 
+# pylint: disable=invalid-name
 class AndroidVirtualDevicePool(object):
     """A class that manages a pool of devices."""
 
@@ -375,6 +378,7 @@ def _AutoConnect(device_dict, rsa_key_file):
                       vnc_port)
 
 
+# pylint: disable=too-many-locals
 def CreateAndroidVirtualDevices(cfg,
                                 build_target=None,
                                 build_id=None,
@@ -631,11 +635,11 @@ def CheckAccess(cfg):
     """
     credentials = auth.CreateCredentials(cfg, ALL_SCOPES)
     compute_client = android_compute_client.AndroidComputeClient(
-            cfg, credentials)
+        cfg, credentials)
     logger.info("Checking if user has access to project %s", cfg.project)
     if not compute_client.CheckAccess():
         logger.error("User does not have access to project %s", cfg.project)
         # Print here so that command line user can see it.
-        print "Looks like you do not have access to %s. " % cfg.project
+        print("Looks like you do not have access to %s. " % cfg.project)
         if cfg.project in cfg.no_project_access_msg_map:
-            print cfg.no_project_access_msg_map[cfg.project]
+            print(cfg.no_project_access_msg_map[cfg.project])

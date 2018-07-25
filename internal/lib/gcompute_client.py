@@ -13,7 +13,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """A client that manages Google Compute Engine.
 
 ** ComputeClient **
@@ -26,6 +25,7 @@ Design philosophy: We tried to make ComputeClient as stateless as possible,
 and it only keeps states about authentication. ComputeClient should be very
 generic, and only knows how to talk to Compute Engine APIs.
 """
+# pylint: disable=too-many-lines
 import copy
 import functools
 import logging
@@ -38,6 +38,14 @@ from acloud.public import errors
 logger = logging.getLogger(__name__)
 
 _MAX_RETRIES_ON_FINGERPRINT_CONFLICT = 10
+
+BASE_DISK_ARGS = {
+    "type": "PERSISTENT",
+    "boot": True,
+    "mode": "READ_WRITE",
+    "autoDelete": True,
+    "initializeParams": {},
+}
 
 
 class OperationScope(object):
@@ -76,14 +84,17 @@ def _IsFingerPrintError(exc):
     return isinstance(exc, errors.HttpError) and exc.code == 412
 
 
+# pylint: disable=too-many-public-methods
 class ComputeClient(base_cloud_client.BaseCloudApiClient):
     """Client that manages GCE."""
 
     # API settings, used by BaseCloudApiClient.
     API_NAME = "compute"
     API_VERSION = "v1"
-    SCOPE = " ".join(["https://www.googleapis.com/auth/compute",
-                      "https://www.googleapis.com/auth/devstorage.read_write"])
+    SCOPE = " ".join([
+        "https://www.googleapis.com/auth/compute",
+        "https://www.googleapis.com/auth/devstorage.read_write"
+    ])
     # Default settings for gce operations
     DEFAULT_INSTANCE_SCOPE = [
         "https://www.googleapis.com/auth/devstorage.read_only",
@@ -122,24 +133,26 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
         """
         operation_name = operation["name"]
         if operation_scope == OperationScope.GLOBAL:
-            api = self.service.globalOperations().get(project=self._project,
-                                                      operation=operation_name)
+            api = self.service.globalOperations().get(
+                project=self._project, operation=operation_name)
             result = self.Execute(api)
         elif operation_scope == OperationScope.ZONE:
-            api = self.service.zoneOperations().get(project=self._project,
-                                                    operation=operation_name,
-                                                    zone=scope_name)
+            api = self.service.zoneOperations().get(
+                project=self._project,
+                operation=operation_name,
+                zone=scope_name)
             result = self.Execute(api)
         elif operation_scope == OperationScope.REGION:
-            api = self.service.regionOperations().get(project=self._project,
-                                                      operation=operation_name,
-                                                      region=scope_name)
+            api = self.service.regionOperations().get(
+                project=self._project,
+                operation=operation_name,
+                region=scope_name)
             result = self.Execute(api)
 
         if result.get("error"):
             errors_list = result["error"]["errors"]
-            raise errors.DriverError("Get operation state failed, errors: %s" %
-                                     str(errors_list))
+            raise errors.DriverError(
+                "Get operation state failed, errors: %s" % str(errors_list))
         return result["status"]
 
     def WaitOnOperation(self, operation, operation_scope, scope_name=None):
@@ -185,9 +198,8 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
           An disk resource in json.
           https://cloud.google.com/compute/docs/reference/latest/disks#resource
         """
-        api = self.service.disks().get(project=self._project,
-                                       zone=zone,
-                                       disk=disk_name)
+        api = self.service.disks().get(
+            project=self._project, zone=zone, disk=disk_name)
         return self.Execute(api)
 
     def CheckDiskExists(self, disk_name, zone):
@@ -209,15 +221,20 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
                      exists)
         return exists
 
-    def CreateDisk(self, disk_name, source_image, size_gb, zone,
-                   source_project=None, disk_type=PersistentDiskType.STANDARD):
+    def CreateDisk(self,
+                   disk_name,
+                   source_image,
+                   size_gb,
+                   zone,
+                   source_project=None,
+                   disk_type=PersistentDiskType.STANDARD):
         """Create a gce disk.
 
         Args:
-            disk_name: A string
-            source_image: A string, name of the image.
+            disk_name: String
+            source_image: String, name of the image.
             size_gb: Integer, size in gb.
-            zone: Name of the zone, e.g. us-central1-b.
+            zone: String, name of the zone, e.g. us-central1-b.
             source_project: String, required if the image is located in a different
                             project.
             disk_type: String, a value from PersistentDiskType, STANDARD
@@ -231,18 +248,20 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
         body = {
             "name": disk_name,
             "sizeGb": size_gb,
-            "type": "projects/%s/zones/%s/diskTypes/%s" % (
-                self._project, zone, disk_type),
+            "type": "projects/%s/zones/%s/diskTypes/%s" % (self._project, zone,
+                                                           disk_type),
         }
-        api = self.service.disks().insert(project=self._project,
-                                          sourceImage=source_image,
-                                          zone=zone,
-                                          body=body)
+        api = self.service.disks().insert(
+            project=self._project,
+            sourceImage=source_image,
+            zone=zone,
+            body=body)
         operation = self.Execute(api)
         try:
-            self.WaitOnOperation(operation=operation,
-                                 operation_scope=OperationScope.ZONE,
-                                 scope_name=zone)
+            self.WaitOnOperation(
+                operation=operation,
+                operation_scope=OperationScope.ZONE,
+                scope_name=zone)
         except errors.DriverError:
             logger.error("Creating disk failed, cleaning up: %s", disk_name)
             if self.CheckDiskExists(disk_name, zone):
@@ -258,13 +277,13 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
             zone: A string, name of zone.
         """
         logger.info("Deleting disk %s", disk_name)
-        api = self.service.disks().delete(project=self._project,
-                                          zone=zone,
-                                          disk=disk_name)
+        api = self.service.disks().delete(
+            project=self._project, zone=zone, disk=disk_name)
         operation = self.Execute(api)
-        self.WaitOnOperation(operation=operation,
-                             operation_scope=OperationScope.ZONE,
-                             scope_name=zone)
+        self.WaitOnOperation(
+            operation=operation,
+            operation_scope=OperationScope.ZONE,
+            scope_name=zone)
         logger.info("Deleted disk %s", disk_name)
 
     def DeleteDisks(self, disk_names, zone):
@@ -287,13 +306,11 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
         logger.info("Deleting disks: %s", disk_names)
         delete_requests = {}
         for disk_name in set(disk_names):
-            request = self.service.disks().delete(project=self._project,
-                                                  disk=disk_name,
-                                                  zone=zone)
+            request = self.service.disks().delete(
+                project=self._project, disk=disk_name, zone=zone)
             delete_requests[disk_name] = request
-        return self._BatchExecuteAndWait(delete_requests,
-                                         OperationScope.ZONE,
-                                         scope_name=zone)
+        return self._BatchExecuteAndWait(
+            delete_requests, OperationScope.ZONE, scope_name=zone)
 
     def ListDisks(self, zone, disk_filter=None):
         """List disks.
@@ -308,17 +325,21 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
         Returns:
             A list of disks.
         """
-        return self.ListWithMultiPages(api_resource=self.service.disks().list,
-                                       project=self._project,
-                                       zone=zone,
-                                       filter=disk_filter)
+        return self.ListWithMultiPages(
+            api_resource=self.service.disks().list,
+            project=self._project,
+            zone=zone,
+            filter=disk_filter)
 
-    def CreateImage(self, image_name, source_uri=None, source_disk=None,
+    def CreateImage(self,
+                    image_name,
+                    source_uri=None,
+                    source_disk=None,
                     labels=None):
         """Create a Gce image.
 
         Args:
-            image_name: A string
+            image_name: String, name of image
             source_uri: Full Google Cloud Storage URL where the disk image is
                         stored.  e.g. "https://storage.googleapis.com/my-bucket/
                         avd-system-2243663.tar.gz"
@@ -329,20 +350,21 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
                               us-east1-d/disks/<disk_name>
             labels: Dict, will be added to the image's labels.
 
-        Returns:
-            A GlobalOperation resouce.
-            https://cloud.google.com/compute/docs/reference/latest/globalOperations
-
         Raises:
             errors.DriverError: For malformed request or response.
             errors.GceOperationTimeoutError: Operation takes too long to finish.
         """
-        if (source_uri and source_disk) or (not source_uri and not source_disk):
+        if self.CheckImageExists(image_name):
+            return
+        if (source_uri and source_disk) or (not source_uri
+                                            and not source_disk):
             raise errors.DriverError(
                 "Creating image %s requires either source_uri %s or "
-                "source_disk %s but not both" % (image_name, source_uri, source_disk))
+                "source_disk %s but not both" % (image_name, source_uri,
+                                                 source_disk))
         elif source_uri:
-            logger.info("Creating image %s, source_uri %s", image_name, source_uri)
+            logger.info("Creating image %s, source_uri %s", image_name,
+                        source_uri)
             body = {
                 "name": image_name,
                 "rawDisk": {
@@ -350,7 +372,8 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
                 },
             }
         else:
-            logger.info("Creating image %s, source_disk %s", image_name, source_disk)
+            logger.info("Creating image %s, source_disk %s", image_name,
+                        source_disk)
             body = {
                 "name": image_name,
                 "sourceDisk": source_disk,
@@ -360,8 +383,8 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
         api = self.service.images().insert(project=self._project, body=body)
         operation = self.Execute(api)
         try:
-            self.WaitOnOperation(operation=operation,
-                                 operation_scope=OperationScope.GLOBAL)
+            self.WaitOnOperation(
+                operation=operation, operation_scope=OperationScope.GLOBAL)
         except errors.DriverError:
             logger.error("Creating image failed, cleaning up: %s", image_name)
             if self.CheckImageExists(image_name):
@@ -396,8 +419,8 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
             "labels": labels,
             "labelFingerprint": image["labelFingerprint"]
         }
-        api = self.service.images().setLabels(project=self._project,
-                                              resource=image_name, body=body)
+        api = self.service.images().setLabels(
+            project=self._project, resource=image_name, body=body)
         return self.Execute(api)
 
     def CheckImageExists(self, image_name):
@@ -429,8 +452,8 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
             An image resource in json.
             https://cloud.google.com/compute/docs/reference/latest/images#resource
         """
-        api = self.service.images().get(project=image_project or self._project,
-                                        image=image_name)
+        api = self.service.images().get(
+            project=image_project or self._project, image=image_name)
         return self.Execute(api)
 
     def DeleteImage(self, image_name):
@@ -440,11 +463,11 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
             image_name: A string
         """
         logger.info("Deleting image %s", image_name)
-        api = self.service.images().delete(project=self._project,
-                                           image=image_name)
+        api = self.service.images().delete(
+            project=self._project, image=image_name)
         operation = self.Execute(api)
-        self.WaitOnOperation(operation=operation,
-                             operation_scope=OperationScope.GLOBAL)
+        self.WaitOnOperation(
+            operation=operation, operation_scope=OperationScope.GLOBAL)
         logger.info("Deleted image %s", image_name)
 
     def DeleteImages(self, image_names):
@@ -465,8 +488,8 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
         logger.info("Deleting images: %s", image_names)
         delete_requests = {}
         for image_name in set(image_names):
-            request = self.service.images().delete(project=self._project,
-                                                   image=image_name)
+            request = self.service.images().delete(
+                project=self._project, image=image_name)
             delete_requests[image_name] = request
         return self._BatchExecuteAndWait(delete_requests,
                                          OperationScope.GLOBAL)
@@ -491,9 +514,10 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
         Returns:
             A list of images.
         """
-        return self.ListWithMultiPages(api_resource=self.service.images().list,
-                                       project=image_project or self._project,
-                                       filter=image_filter)
+        return self.ListWithMultiPages(
+            api_resource=self.service.images().list,
+            project=image_project or self._project,
+            filter=image_filter)
 
     def GetInstance(self, instance, zone):
         """Get information about an instance.
@@ -506,9 +530,8 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
             An instance resource in json.
             https://cloud.google.com/compute/docs/reference/latest/instances#resource
         """
-        api = self.service.instances().get(project=self._project,
-                                           zone=zone,
-                                           instance=instance)
+        api = self.service.instances().get(
+            project=self._project, zone=zone, instance=instance)
         return self.Execute(api)
 
     def AttachAccelerator(self, instance, zone, accelerator_count,
@@ -532,8 +555,10 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
         """
         body = {
             "guestAccelerators": [{
-                "acceleratorType": self.GetAcceleratorUrl(accelerator_type, zone),
-                "acceleratorCount": accelerator_count
+                "acceleratorType":
+                self.GetAcceleratorUrl(accelerator_type, zone),
+                "acceleratorCount":
+                accelerator_count
             }]
         }
         api = self.service.instances().setMachineResources(
@@ -547,8 +572,8 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
         except errors.GceOperationTimeoutError:
             logger.error("Attach instance failed: %s", instance)
             raise
-        logger.info("%d x %s have been attached to instance %s.", accelerator_count,
-                    accelerator_type, instance)
+        logger.info("%d x %s have been attached to instance %s.",
+                    accelerator_count, accelerator_type, instance)
 
     def AttachDisk(self, instance, zone, **kwargs):
         """Attach the external disk to the instance.
@@ -596,12 +621,12 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
             errors.GceOperationTimeoutError: Operation takes too long to finish.
         """
         api = self.service.instances().attachDisk(
-            project=self._project, zone=zone, instance=instance,
-            body=kwargs)
+            project=self._project, zone=zone, instance=instance, body=kwargs)
         operation = self.Execute(api)
         try:
             self.WaitOnOperation(
-                operation=operation, operation_scope=OperationScope.ZONE,
+                operation=operation,
+                operation_scope=OperationScope.ZONE,
                 scope_name=zone)
         except errors.GceOperationTimeoutError:
             logger.error("Attach instance failed: %s", instance)
@@ -624,12 +649,15 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
             errors.GceOperationTimeoutError: Operation takes too long to finish.
         """
         api = self.service.instances().detachDisk(
-            project=self._project, zone=zone, instance=instance,
+            project=self._project,
+            zone=zone,
+            instance=instance,
             deviceName=disk_name)
         operation = self.Execute(api)
         try:
             self.WaitOnOperation(
-                operation=operation, operation_scope=OperationScope.ZONE,
+                operation=operation,
+                operation_scope=OperationScope.ZONE,
                 scope_name=zone)
         except errors.GceOperationTimeoutError:
             logger.error("Detach instance failed: %s", instance)
@@ -646,14 +674,14 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
         Raises:
             errors.GceOperationTimeoutError: Operation takes too long to finish.
         """
-        api = self.service.instances().start(project=self._project,
-                                             zone=zone,
-                                             instance=instance)
+        api = self.service.instances().start(
+            project=self._project, zone=zone, instance=instance)
         operation = self.Execute(api)
         try:
-            self.WaitOnOperation(operation=operation,
-                                 operation_scope=OperationScope.ZONE,
-                                 scope_name=zone)
+            self.WaitOnOperation(
+                operation=operation,
+                operation_scope=OperationScope.ZONE,
+                scope_name=zone)
         except errors.GceOperationTimeoutError:
             logger.error("Start instance failed: %s", instance)
             raise
@@ -674,9 +702,8 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
               we failed to execute.
             error_msgs: A list of string, representing the failure messages.
         """
-        action = functools.partial(self.service.instances().start,
-                                   project=self._project,
-                                   zone=zone)
+        action = functools.partial(
+            self.service.instances().start, project=self._project, zone=zone)
         return self._BatchExecuteOnInstances(instances, zone, action)
 
     def StopInstance(self, instance, zone):
@@ -689,14 +716,14 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
         Raises:
             errors.GceOperationTimeoutError: Operation takes too long to finish.
         """
-        api = self.service.instances().stop(project=self._project,
-                                            zone=zone,
-                                            instance=instance)
+        api = self.service.instances().stop(
+            project=self._project, zone=zone, instance=instance)
         operation = self.Execute(api)
         try:
-            self.WaitOnOperation(operation=operation,
-                                 operation_scope=OperationScope.ZONE,
-                                 scope_name=zone)
+            self.WaitOnOperation(
+                operation=operation,
+                operation_scope=OperationScope.ZONE,
+                scope_name=zone)
         except errors.GceOperationTimeoutError:
             logger.error("Stop instance failed: %s", instance)
             raise
@@ -717,9 +744,8 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
                     we failed to execute.
             error_msgs: A list of string, representing the failure messages.
         """
-        action = functools.partial(self.service.instances().stop,
-                                   project=self._project,
-                                   zone=zone)
+        action = functools.partial(
+            self.service.instances().stop, project=self._project, zone=zone)
         return self._BatchExecuteOnInstances(instances, zone, action)
 
     def SetScheduling(self,
@@ -744,24 +770,26 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
         Raises:
             errors.GceOperationTimeoutError: Operation takes too long to finish.
         """
-        body = {"automaticRestart": automatic_restart,
-                "onHostMaintenance": on_host_maintenance}
-        api = self.service.instances().setScheduling(project=self._project,
-                                                     zone=zone,
-                                                     instance=instance,
-                                                     body=body)
+        body = {
+            "automaticRestart": automatic_restart,
+            "onHostMaintenance": on_host_maintenance
+        }
+        api = self.service.instances().setScheduling(
+            project=self._project, zone=zone, instance=instance, body=body)
         operation = self.Execute(api)
         try:
-            self.WaitOnOperation(operation=operation,
-                                 operation_scope=OperationScope.ZONE,
-                                 scope_name=zone)
+            self.WaitOnOperation(
+                operation=operation,
+                operation_scope=OperationScope.ZONE,
+                scope_name=zone)
         except errors.GceOperationTimeoutError:
             logger.error("Set instance scheduling failed: %s", instance)
             raise
-        logger.info("Instance scheduling changed:\n"
-                    "    automaticRestart: %s\n"
-                    "    onHostMaintenance: %s\n",
-                    str(automatic_restart).lower(), on_host_maintenance)
+        logger.info(
+            "Instance scheduling changed:\n"
+            "    automaticRestart: %s\n"
+            "    onHostMaintenance: %s\n",
+            str(automatic_restart).lower(), on_host_maintenance)
 
     def ListInstances(self, zone, instance_filter=None):
         """List instances.
@@ -811,12 +839,15 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
                     we failed to execute.
             error_msgs: A list of string, representing the failure messages.
         """
-        body = {"automaticRestart": automatic_restart,
-                "OnHostMaintenance": on_host_maintenance}
-        action = functools.partial(self.service.instances().setScheduling,
-                                   project=self._project,
-                                   zone=zone,
-                                   body=body)
+        body = {
+            "automaticRestart": automatic_restart,
+            "OnHostMaintenance": on_host_maintenance
+        }
+        action = functools.partial(
+            self.service.instances().setScheduling,
+            project=self._project,
+            zone=zone,
+            body=body)
         return self._BatchExecuteOnInstances(instances, zone, action)
 
     def _BatchExecuteOnInstances(self, instances, zone, action):
@@ -845,9 +876,8 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
         requests = {}
         for instance_name in set(instances):
             requests[instance_name] = action(instance=instance_name)
-        return self._BatchExecuteAndWait(requests,
-                                         operation_scope=OperationScope.ZONE,
-                                         scope_name=zone)
+        return self._BatchExecuteAndWait(
+            requests, operation_scope=OperationScope.ZONE, scope_name=zone)
 
     def _BatchExecuteAndWait(self, requests, operation_scope, scope_name=None):
         """Batch processing requests and wait on the operation.
@@ -976,32 +1006,62 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
         """
         return {
             "network": self.GetNetworkUrl(network),
-            "accessConfigs": [{"name": "External NAT",
-                               "type": "ONE_TO_ONE_NAT"}]
+            "accessConfigs": [{
+                "name": "External NAT",
+                "type": "ONE_TO_ONE_NAT"
+            }]
         }
 
-    def _GetDiskArgs(self, disk_name, image_name, image_project=None):
+    def _GetDiskArgs(self,
+                     disk_name,
+                     image_name,
+                     image_project=None,
+                     disk_size_gb=None):
         """Helper to generate disk args that is used to create an instance.
 
         Args:
             disk_name: A string
             image_name: A string
             image_project: A string
+            disk_size_gb: An integer
 
         Returns:
-            A dictionary representing disk args.
+            List holding dict of disk args.
+        """
+        args = copy.deepcopy(BASE_DISK_ARGS)
+        args["initializeParams"] = {
+            "diskName": disk_name,
+            "sourceImage": self.GetImage(image_name,
+                                         image_project)["selfLink"],
+        }
+        # TODO: Remove this check once it's validated that we can either pass in
+        # a None diskSizeGb or we find an appropriate default val.
+        if disk_size_gb:
+            args["diskSizeGb"] = disk_size_gb
+        return [args]
+
+    def _GetExtraDiskArgs(self, extra_disk_name, zone):
+        """Get extra disk arg for given disk.
+
+        Args:
+            extra_disk_name: String, name of the disk.
+            zone: String, representing zone name, e.g. "us-central1-f"
+
+        Returns:
+            A dictionary of disk args.
         """
         return [{
             "type": "PERSISTENT",
-            "boot": True,
             "mode": "READ_WRITE",
+            "source": "projects/%s/zones/%s/disks/%s" % (self._project, zone,
+                                                         extra_disk_name),
             "autoDelete": True,
-            "initializeParams": {
-                "diskName": disk_name,
-                "sourceImage": self.GetImage(image_name, image_project)["selfLink"],
-            },
+            "boot": False,
+            "interface": "SCSI",
+            "deviceName": extra_disk_name,
         }]
 
+    # pylint: disable=too-many-locals
     def CreateInstance(self,
                        instance,
                        image_name,
@@ -1011,34 +1071,41 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
                        zone,
                        disk_args=None,
                        image_project=None,
-                       gpu=None):
+                       gpu=None,
+                       extra_disk_name=None):
         """Create a gce instance with a gce image.
 
         Args:
-            instance: instance name.
-            image_name: A source image used to create this disk.
-            machine_type: A string, representing machine_type, e.g. "n1-standard-1"
-            metadata: A dictionary that maps a metadata name to its value.
-            network: A string, representing network name, e.g. "default"
-            zone: A string, representing zone name, e.g. "us-central1-f"
-            disk_args: A list of extra disk args, see _GetDiskArgs for example,
-                       if None, will create a disk using the given image.
-            image_project: A string, name of the project where the image belongs.
-                           Assume the default project if None.
-            gpu: The type of gpu to attach. e.g. "nvidia-tesla-k80", if None no
-                 gpus will be attached. For more details see:
+            instance: String, instance name.
+            image_name: String, source image used to create this disk.
+            machine_type: String, representing machine_type,
+                          e.g. "n1-standard-1"
+            metadata: Dict, maps a metadata name to its value.
+            network: String, representing network name, e.g. "default"
+            zone: String, representing zone name, e.g. "us-central1-f"
+            disk_args: A list of extra disk args (strings), see _GetDiskArgs
+                       for example, if None, will create a disk using the given
+                       image.
+            image_project: String, name of the project where the image
+                           belongs. Assume the default project if None.
+            gpu: String, type of gpu to attach. e.g. "nvidia-tesla-k80", if
+                 None no gpus will be attached. For more details see:
                  https://cloud.google.com/compute/docs/gpus/add-gpus
+            extra_disk_name: String,the name of the extra disk to attach.
         """
-        disk_args = (disk_args or self._GetDiskArgs(instance, image_name,
-                                                    image_project))
+        disk_args = (disk_args
+                     or self._GetDiskArgs(instance, image_name, image_project))
+        if extra_disk_name:
+            disk_args.extend(self._GetExtraDiskArgs(extra_disk_name, zone))
         body = {
             "machineType": self.GetMachineType(machine_type, zone)["selfLink"],
             "name": instance,
             "networkInterfaces": [self._GetNetworkArgs(network)],
             "disks": disk_args,
-            "serviceAccounts": [
-                {"email": "default",
-                 "scopes": self.DEFAULT_INSTANCE_SCOPE}],
+            "serviceAccounts": [{
+                "email": "default",
+                "scopes": self.DEFAULT_INSTANCE_SCOPE
+            }],
         }
 
         if gpu:
@@ -1050,19 +1117,18 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
             # to specific hardware devices.
             body["scheduling"] = {"onHostMaintenance": "terminate"}
         if metadata:
-            metadata_list = [{"key": key,
-                              "value": val}
-                             for key, val in metadata.iteritems()]
+            metadata_list = [{
+                "key": key,
+                "value": val
+            } for key, val in metadata.iteritems()]
             body["metadata"] = {"items": metadata_list}
         logger.info("Creating instance: project %s, zone %s, body:%s",
-            	    self._project, zone, body)
-        api = self.service.instances().insert(project=self._project,
-                                              zone=zone,
-                                              body=body)
+                    self._project, zone, body)
+        api = self.service.instances().insert(
+            project=self._project, zone=zone, body=body)
         operation = self.Execute(api)
-        self.WaitOnOperation(operation,
-                             operation_scope=OperationScope.ZONE,
-                             scope_name=zone)
+        self.WaitOnOperation(
+            operation, operation_scope=OperationScope.ZONE, scope_name=zone)
         logger.info("Instance %s has been created.", instance)
 
     def DeleteInstance(self, instance, zone):
@@ -1073,13 +1139,11 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
             zone: A string, e.g. "us-central1-f"
         """
         logger.info("Deleting instance: %s", instance)
-        api = self.service.instances().delete(project=self._project,
-                                              zone=zone,
-                                              instance=instance)
+        api = self.service.instances().delete(
+            project=self._project, zone=zone, instance=instance)
         operation = self.Execute(api)
-        self.WaitOnOperation(operation,
-                             operation_scope=OperationScope.ZONE,
-                             scope_name=zone)
+        self.WaitOnOperation(
+            operation, operation_scope=OperationScope.ZONE, scope_name=zone)
         logger.info("Deleted instance: %s", instance)
 
     def DeleteInstances(self, instances, zone):
@@ -1095,9 +1159,8 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
             failed: A list of names of instances that we fail to delete.
             error_msgs: A list of failure messages.
         """
-        action = functools.partial(self.service.instances().delete,
-                                   project=self._project,
-                                   zone=zone)
+        action = functools.partial(
+            self.service.instances().delete, project=self._project, zone=zone)
         return self._BatchExecuteOnInstances(instances, zone, action)
 
     def ResetInstance(self, instance, zone):
@@ -1108,13 +1171,11 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
             zone: A string, e.g. "us-central1-f".
         """
         logger.info("Resetting instance: %s", instance)
-        api = self.service.instances().reset(project=self._project,
-                                             zone=zone,
-                                             instance=instance)
+        api = self.service.instances().reset(
+            project=self._project, zone=zone, instance=instance)
         operation = self.Execute(api)
-        self.WaitOnOperation(operation,
-                             operation_scope=OperationScope.ZONE,
-                             scope_name=zone)
+        self.WaitOnOperation(
+            operation, operation_scope=OperationScope.ZONE, scope_name=zone)
         logger.info("Instance has been reset: %s", instance)
 
     def GetMachineType(self, machine_type, zone):
@@ -1129,9 +1190,8 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
             https://cloud.google.com/compute/docs/reference/latest/
             machineTypes#resource
         """
-        api = self.service.machineTypes().get(project=self._project,
-                                              zone=zone,
-                                              machineType=machine_type)
+        api = self.service.machineTypes().get(
+            project=self._project, zone=zone, machineType=machine_type)
         return self.Execute(api)
 
     def GetAcceleratorUrl(self, accelerator_type, zone):
@@ -1147,9 +1207,8 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
             https://www.googleapis.com/compute/v1/projects/<project id>/zones/
             us-west1-b/acceleratorTypes/nvidia-tesla-k80
         """
-        api = self.service.acceleratorTypes().get(project=self._project,
-                                                  zone=zone,
-                                                  acceleratorType=accelerator_type)
+        api = self.service.acceleratorTypes().get(
+            project=self._project, zone=zone, acceleratorType=accelerator_type)
         result = self.Execute(api)
         return result["selfLink"]
 
@@ -1164,8 +1223,8 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
             https://www.googleapis.com/compute/v1/projects/<project id>/
             global/networks/default
         """
-        api = self.service.networks().get(project=self._project,
-                                          network=network)
+        api = self.service.networks().get(
+            project=self._project, network=network)
         result = self.Execute(api)
         return result["selfLink"]
 
@@ -1213,10 +1272,7 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
             errors.DriverError: For malformed response.
         """
         api = self.service.instances().getSerialPortOutput(
-            project=self._project,
-            zone=zone,
-            instance=instance,
-            port=port)
+            project=self._project, zone=zone, instance=instance, port=port)
         result = self.Execute(api)
         if "contents" not in result:
             raise errors.DriverError(
@@ -1298,8 +1354,8 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
             ssh_rsa_path: The absolute path to public rsa key.
         """
         if not os.path.exists(ssh_rsa_path):
-            raise errors.DriverError("RSA file %s does not exist." %
-                                     ssh_rsa_path)
+            raise errors.DriverError(
+                "RSA file %s does not exist." % ssh_rsa_path)
 
         logger.info("Adding ssh rsa key from %s to project %s for user: %s",
                     ssh_rsa_path, self._project, user)
@@ -1319,8 +1375,8 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
 
         entry = "%s:%s" % (user, rsa)
         logger.debug("New RSA entry: %s", entry)
-        sshkey_item["value"] = "\n".join([sshkey_item["value"].strip(), entry
-                                          ]).strip()
+        sshkey_item["value"] = "\n".join([sshkey_item["value"].strip(),
+                                          entry]).strip()
         self.SetCommonInstanceMetadata(metadata)
 
     def CheckAccess(self):
