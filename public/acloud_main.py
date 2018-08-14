@@ -105,7 +105,12 @@ def _ParseArgs(args):
         Parsed args.
     """
     usage = ",".join([
-        CMD_CREATE, CMD_CREATE_CUTTLEFISH, CMD_DELETE, CMD_CLEANUP, CMD_SSHKEY,
+        CMD_CLEANUP,
+        CMD_CREATE,
+        CMD_CREATE_CUTTLEFISH,
+        CMD_CREATE_GOLDFISH,
+        CMD_DELETE,
+        CMD_SSHKEY,
         setup_args.CMD_SETUP,
     ])
     parser = argparse.ArgumentParser(
@@ -475,13 +480,11 @@ def _SetupLogging(log_file, verbose, very_verbose):
     logging_level = logging.DEBUG if verbose or very_verbose else logging.INFO
     logger.setLevel(logging_level)
 
-    if not log_file:
-        handler = logging.StreamHandler()
-    else:
+    if log_file:
         handler = logging.FileHandler(filename=log_file)
-    log_formatter = logging.Formatter(LOGGING_FMT)
-    handler.setFormatter(log_formatter)
-    logger.addHandler(handler)
+        log_formatter = logging.Formatter(LOGGING_FMT)
+        handler.setFormatter(log_formatter)
+        logger.addHandler(handler)
 
 
 def main(argv):

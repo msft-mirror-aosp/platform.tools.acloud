@@ -16,8 +16,11 @@
 
 """Tests for acloud.public.config."""
 import unittest
+import os
+import tempfile
 import mock
 
+# pylint: disable=no-name-in-module,import-error
 from acloud.internal.proto import internal_config_pb2
 from acloud.internal.proto import user_config_pb2
 from acloud.public import config
@@ -121,6 +124,53 @@ valid_branch_and_min_build_id {
         self.assertEqual(
             {key: val for key, val in cfg.metadata_variable.iteritems()},
             {"metadata_1": "metadata_value_1"})
+
+    # pylint: disable=protected-access
+    @mock.patch("os.path.exists")
+    def testLoadUserConfigLogic(self, mock_file_exist):
+        """Test load user config logic.
+
+        Load user config with some special design.
+        1. User specified user config:
+            If user config didn't exist: Raise exception.
+        2. User didn't specify user config, use default config:
+            If default config didn't exist: Initialize empty data.
+        """
+        config_specify = config.AcloudConfigManager(self.config_file)
+        self.config_file.read.return_value = self.USER_CONFIG
+        self.assertEqual(config_specify._user_config_path, self.config_file)
+        mock_file_exist.return_value = False
+        with self.assertRaises(errors.ConfigError):
+            config_specify.Load()
+        # Test default config
+        config_unspecify = config.AcloudConfigManager(None)
+        cfg = config_unspecify.Load()
+        self.assertEqual(config_unspecify._user_config_path,
+                         config.GetDefaultConfigFile())
+        self.assertEqual(cfg.project, "")
+        self.assertEqual(cfg.zone, "")
+
+        # Test default user config exist
+        mock_file_exist.return_value = True
+        # Write the config data into a tmp file and have GetDefaultConfigFile
+        # return that.
+        _, temp_cfg_file_path = tempfile.mkstemp()
+        with open(temp_cfg_file_path, "w") as cfg_file:
+            cfg_file.writelines(self.USER_CONFIG)
+        default_patcher = mock.patch.object(config, "GetDefaultConfigFile",
+                                            return_value=temp_cfg_file_path)
+        default_patcher.start()
+        try:
+            config_exist = config.AcloudConfigManager(None)
+            cfg = config_exist.Load()
+            self.assertEqual(cfg.project, "fake-project")
+            self.assertEqual(cfg.zone, "us-central1-f")
+            self.assertEqual(cfg.client_id, "fake_client_id")
+            self.assertEqual(cfg.client_secret, "fake_client_secret")
+        finally:
+            # Delete tmp file
+            os.remove(temp_cfg_file_path)
+            default_patcher.stop()
 
     def testLoadInternalConfig(self):
         """Test loading internal config."""
