@@ -50,3 +50,11 @@ class GetEnvAndroidProductOutError(CreateError):
 
 class CheckPathError(CreateError):
     """Path does not exist."""
+
+
+class UnsupportedInstanceImageType(CreateError):
+    """Unsupported create action for given instance/image type."""
+
+
+class GetBuildIDError(CreateError):
+    """Can't get build id from Android Build."""
