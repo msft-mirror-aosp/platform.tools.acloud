@@ -70,12 +70,15 @@ python_test_host {
         "acloud_internal",
         "acloud_proto",
         "acloud_public",
+        "acloud_setup",
         "py-apitools",
         "py-dateutil",
         "py-google-api-python-client",
         "py-mock",
         "py-oauth2client",
     ],
+    test_config: "acloud_unittest.xml",
+    test_suites: ["general-tests"],
 }
 
 python_library_host {
