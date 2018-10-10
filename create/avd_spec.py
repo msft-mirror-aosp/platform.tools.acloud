@@ -53,11 +53,12 @@ _COMMAND_GIT_REMOTE = ["git", "remote"]
 # talking about. For instance, on an aosp remote repo in the master branch,
 # Android Build will recognize it as aosp-master.
 _BRANCH_PREFIX = {"aosp": "aosp-"}
+_DEFAULT_BRANCH_PREFIX = "git_"
 
-# The target prefix is needed to help concoct the lunch target name given an
-# avd type and device flavor:
-# (cf and phone -> cf_x86_phone -> aosp_cf_x86_phone).
-_TARGET_PREFIX = {"aosp": "aosp_"}
+# The target prefix is needed to help concoct the lunch target name given a
+# the branch, avd type and device flavor:
+# aosp, cf and phone -> aosp_cf_x86_phone.
+_BRANCH_TARGET_PREFIX = {"aosp": "aosp_"}
 
 ALL_SCOPES = [android_build_client.AndroidBuildClient.SCOPE]
 
@@ -76,6 +77,7 @@ class AVDSpec(object):
         # Let's define the private class vars here and then process the user
         # args afterwards.
         self._autoconnect = None
+        self._report_internal_ip = None
         self._avd_type = None
         self._flavor = None
         self._image_source = None
@@ -213,6 +215,7 @@ class AVDSpec(object):
             args: Namespace object from argparse.parse_args.
         """
         self._autoconnect = args.autoconnect
+        self._report_internal_ip = args.report_internal_ip
         self._avd_type = args.avd_type
         self._flavor = args.flavor
         self._instance_type = (constants.INSTANCE_TYPE_LOCAL
@@ -254,8 +257,6 @@ class AVDSpec(object):
         Args:
             args: Namespace object from argparse.parse_args.
         """
-        # TODO: We need some logic here to determine if we should infer remote
-        # build info or not.
         self._remote_image = {}
         self._remote_image[_BUILD_BRANCH] = args.branch
         if not self._remote_image[_BUILD_BRANCH]:
@@ -310,7 +311,8 @@ class AVDSpec(object):
         for line in repo_output.splitlines():
             match = _BRANCH_RE.match(line)
             if match:
-                branch_prefix = _BRANCH_PREFIX.get(self._GetGitRemote(), "git_")
+                branch_prefix = _BRANCH_PREFIX.get(self._GetGitRemote(),
+                                                   _DEFAULT_BRANCH_PREFIX)
                 return branch_prefix + match.group("branch")
         raise errors.GetBranchFromRepoInfoError(
             "No branch mentioned in repo info output: %s" % repo_output
@@ -329,8 +331,9 @@ class AVDSpec(object):
         Returns:
             build_target: String, name of build target.
         """
+        branch = re.split("-|_", self._remote_image[_BUILD_BRANCH])[0]
         return "%s%s_%s_%s-%s" % (
-            _TARGET_PREFIX.get(self._GetGitRemote(), ""),
+            _BRANCH_TARGET_PREFIX.get(branch, ""),
             constants.AVD_TYPES_MAPPING[args.avd_type],
             _DEFAULT_BUILD_BITNESS, args.flavor,
             _DEFAULT_BUILD_TYPE)
@@ -374,6 +377,11 @@ class AVDSpec(object):
     def num(self):
         """Return num of instances."""
         return self._num_of_instances
+
+    @property
+    def report_internal_ip(self):
+        """Return report internal ip."""
+        return self._report_internal_ip
 
     @property
     def kernel_build_id(self):
