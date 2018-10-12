@@ -81,7 +81,9 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                                utils.TextColors.WARNING)
         # TODO(b/117366819): Should display the correct device serial
         # according to the args --serial_number.
-        utils.PrintColorString("Device serial: 127.0.0.1:6520",
+        utils.PrintColorString("Device serial: %s:%s" %
+                               (constants.LOCALHOST_ADB_SERIAL,
+                                constants.DEFAULT_ADB_PORT),
                                utils.TextColors.WARNING)
         if avd_spec.autoconnect:
             self.LaunchVncClient()
@@ -149,7 +151,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         launch_cvd_w_args = launch_cvd_path + _CMD_LAUNCH_CVD_ARGS % (
             hw_property["cpu"], hw_property["x_res"], hw_property["y_res"],
             hw_property["dpi"], hw_property["memory"], hw_property["disk"],
-            system_image_dir, constants.VNC_PORT, _CVD_SERIAL_PREFIX+flavor)
+            system_image_dir, constants.DEFAULT_VNC_PORT,
+            _CVD_SERIAL_PREFIX+flavor)
 
         combined_launch_cmd = ""
         host_setup = host_setup_runner.CuttlefishHostSetup()
