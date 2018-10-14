@@ -95,6 +95,10 @@ DEFAULT_ADB_PORT = 6520
 VNC_PORT = "vnc_port"
 ADB_PORT = "adb_port"
 
+CMD_LAUNCH_CVD = "launch_cvd"
 ENV_ANDROID_BUILD_TOP = "ANDROID_BUILD_TOP"
 
 LOCALHOST_ADB_SERIAL = "127.0.0.1:%d"
+
+SSH_BIN = "ssh"
+ADB_BIN = "adb"

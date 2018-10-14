@@ -47,13 +47,11 @@ SSH_KEYGEN_PUB_CMD = ["ssh-keygen", "-y"]
 DEFAULT_RETRY_BACKOFF_FACTOR = 1
 DEFAULT_SLEEP_MULTIPLIER = 0
 
-SSH_BIN = "ssh"
 _SSH_TUNNEL_ARGS = ("-i %(rsa_key_file)s -o UserKnownHostsFile=/dev/null "
                     "-o StrictHostKeyChecking=no "
                     "-L %(vnc_port)d:127.0.0.1:%(target_vnc_port)d "
                     "-L %(adb_port)d:127.0.0.1:%(target_adb_port)d "
                     "-N -f -l %(ssh_user)s %(ip_addr)s")
-ADB_BIN = "adb"
 _ADB_CONNECT_ARGS = "connect 127.0.0.1:%(adb_port)d"
 # Store the ports that vnc/adb are forwarded to, both are integers.
 ForwardedPorts = collections.namedtuple("ForwardedPorts", [constants.VNC_PORT,
@@ -702,16 +700,54 @@ def AutoConnect(ip_addr, rsa_key_file, target_vnc_port, target_adb_port, ssh_use
             "target_adb_port": target_adb_port,
             "ssh_user": ssh_user,
             "ip_addr": ip_addr}
-        _ExecuteCommand(SSH_BIN, ssh_tunnel_args.split())
+        _ExecuteCommand(constants.SSH_BIN, ssh_tunnel_args.split())
     except subprocess.CalledProcessError:
         PrintColorString("Failed to create ssh tunnels, retry with '#acloud "
                          "reconnect'.", TextColors.FAIL)
     try:
         adb_connect_args = _ADB_CONNECT_ARGS % {"adb_port": local_free_adb_port}
-        _ExecuteCommand(ADB_BIN, adb_connect_args.split())
+        _ExecuteCommand(constants.ADB_BIN, adb_connect_args.split())
     except subprocess.CalledProcessError:
         PrintColorString("Failed to adb connect, retry with "
                          "'#acloud reconnect'", TextColors.FAIL)
 
     return ForwardedPorts(vnc_port=local_free_vnc_port,
                           adb_port=local_free_adb_port)
+
+
+def GetAnswerFromList(answer_list, enable_choose_all=False):
+    """Get answer from a list.
+
+    Args:
+        answer_list: list of the answers to choose from.
+
+    Return:
+        List holding the answer(s).
+    """
+    print("[0] to exit.")
+    start_index = 1
+    if enable_choose_all:
+        start_index = 2
+        print("[1] for all.")
+    for num, item in enumerate(answer_list, start_index):
+        print("[%d] %s" % (num, item))
+
+    choice = -1
+    max_choice = len(answer_list) + 1
+    while True:
+        try:
+            choice = raw_input("Enter your choice[0-%d]: " % max_choice)
+            choice = int(choice)
+        except ValueError:
+            print("'%s' is not a valid integer.", choice)
+            continue
+        # Filter out choices
+        if choice == 0:
+            print("Exiting acloud.")
+            sys.exit()
+        if enable_choose_all and choice == 1:
+            return answer_list
+        if choice < 0 or choice > max_choice:
+            print("please choose between 0 and %d" % max_choice)
+        else:
+            return [answer_list[choice-start_index]]
