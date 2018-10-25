@@ -57,17 +57,18 @@ OAUTH2_LOGGER.setLevel(logging.CRITICAL)
 OAUTH2_LOGGER.addHandler(logging.FileHandler("/dev/null"))
 
 # pylint: disable=wrong-import-position
+from acloud.create import create
+from acloud.create import create_args
+from acloud.delete import delete
+from acloud.delete import delete_args
 from acloud.internal import constants
+from acloud.metrics import metrics
 from acloud.public import acloud_common
 from acloud.public import config
 from acloud.public import device_driver
 from acloud.public import errors
 from acloud.public.actions import create_cuttlefish_action
 from acloud.public.actions import create_goldfish_action
-from acloud.create import create
-from acloud.create import create_args
-from acloud.delete import delete
-from acloud.delete import delete_args
 from acloud.setup import setup
 from acloud.setup import setup_args
 
@@ -237,30 +238,6 @@ def _ParseArgs(args):
     return parser.parse_args(args)
 
 
-# TODO(b/112803893): Delete this method once the new create method has been completed.
-def _TranslateAlias(parsed_args):
-    """Translate alias to Launch Control compatible values.
-
-    This method translates alias to Launch Control compatible values.
-     - branch: "git_" prefix will be added if branch name doesn't have it.
-     - build_target: For example, "phone" will be translated to full target
-                          name "git_x86_phone-userdebug",
-
-    Args:
-        parsed_args: Parsed args.
-
-    Returns:
-        Parsed args with its values being translated.
-    """
-    if parsed_args.which == create_args.CMD_CREATE:
-        if (parsed_args.branch and
-                not parsed_args.branch.startswith(constants.BRANCH_PREFIX)):
-            parsed_args.branch = constants.BRANCH_PREFIX + parsed_args.branch
-        parsed_args.build_target = constants.BUILD_TARGET_MAPPING.get(
-            parsed_args.build_target, parsed_args.build_target)
-    return parsed_args
-
-
 # pylint: disable=too-many-branches
 def _VerifyArgs(parsed_args):
     """Verify args.
@@ -381,8 +358,6 @@ def main(argv):
     """
     args = _ParseArgs(argv)
     _SetupLogging(args.log_file, args.verbose)
-    # Translation of the branch will happen in AvdSpec(), skip it for now.
-    #args = _TranslateAlias(args)
     _VerifyArgs(args)
 
     cfg = config.GetAcloudConfig(args)
@@ -390,6 +365,7 @@ def main(argv):
     # Check access.
     # device_driver.CheckAccess(cfg)
 
+    metrics.LogUsage()
     report = None
     if (args.which == create_args.CMD_CREATE
             and args.avd_type == constants.TYPE_GCE):
