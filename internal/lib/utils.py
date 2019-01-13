@@ -36,9 +36,8 @@ import time
 import uuid
 import zipfile
 
-from acloud import errors as root_errors
+from acloud import errors
 from acloud.internal import constants
-from acloud.public import errors
 
 logger = logging.getLogger(__name__)
 
@@ -454,7 +453,7 @@ def Decompress(sourcefile, dest=None):
         with zipfile.ZipFile(sourcefile, 'r') as compressor:
             compressor.extractall(dest_path)
     else:
-        raise root_errors.UnsupportedCompressionFileType(
+        raise errors.UnsupportedCompressionFileType(
             "Sorry, we could only support compression file type "
             "for zip or tar.gz.")
 
@@ -652,19 +651,40 @@ def DefaultEvaluator(result):
 
     Args:
         result:the return value of the target function.
+
+    Returns:
+        _EvaluatedResults namedtuple.
     """
     return _EvaluatedResult(is_result_ok=True, result_message=result)
 
 
 def ReportEvaluator(report):
-    """Evalute the the acloud operation by the report.
+    """Evalute the acloud operation by the report.
 
     Args:
-        report:acloud.public.report() object.
+        report: acloud.public.report() object.
+
+    Returns:
+        _EvaluatedResults namedtuple.
     """
     if report is None or report.errors:
-        return _EvaluatedResult(is_result_ok=False, result_message=report.errors)
+        return _EvaluatedResult(is_result_ok=False,
+                                result_message=report.errors)
 
+    return _EvaluatedResult(is_result_ok=True, result_message=None)
+
+
+def BootEvaluator(boot_dict):
+    """Evaluate if the device booted successfully.
+
+    Args:
+        boot_dict: Dict of instance_name:boot error.
+
+    Returns:
+        _EvaluatedResults namedtuple.
+    """
+    if boot_dict:
+        return _EvaluatedResult(is_result_ok=False, result_message=boot_dict)
     return _EvaluatedResult(is_result_ok=True, result_message=None)
 
 
@@ -764,7 +784,7 @@ def _ExecuteCommand(cmd, args):
     """
     bin_path = find_executable(cmd)
     if not bin_path:
-        raise root_errors.NoExecuteCmd("unable to locate %s" % cmd)
+        raise errors.NoExecuteCmd("unable to locate %s" % cmd)
     command = [bin_path] + args
     logger.debug("Running '%s'", ' '.join(command))
     with open(os.devnull, "w") as dev_null:

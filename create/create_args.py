@@ -60,14 +60,16 @@ def AddCommonCreateArgs(parser):
         action="store_true",
         dest="autoconnect",
         required=False,
-        help="For each instance created, we will automatically creates both 2 "
+        help="For each instance created, we will automatically create both 2 "
              "ssh tunnels forwarding both adb & vnc. Then add the device to "
              "adb.")
     parser.add_argument(
         "--no-autoconnect",
         action="store_false",
         dest="autoconnect",
-        required=False)
+        required=False,
+        help="Will not automatically create ssh tunnels forwarding adb & vnc "
+             "when instance created.")
     parser.set_defaults(autoconnect=True)
     parser.add_argument(
         "--report-internal-ip",
@@ -129,8 +131,6 @@ def GetCreateArgParser(subparser):
         "--flavor",
         type=str,
         dest="flavor",
-        default=constants.FLAVOR_PHONE,
-        choices=constants.ALL_FLAVORS,
         help="The device flavor of the AVD (default %s)." % constants.FLAVOR_PHONE)
     create_parser.add_argument(
         "--build-target",
@@ -202,7 +202,16 @@ def VerifyArgs(args):
 
     Raises:
         errors.CreateError: Path doesn't exist.
+        errors.UnsupportedFlavor: Flavor doesn't support.
     """
+    # Verify that user specified flavor name is in support list.
+    # We don't use argparse's builtin validation because we need to be able to
+    # tell when a user doesn't specify a flavor.
+    if args.flavor and args.flavor not in constants.ALL_FLAVORS:
+        raise errors.UnsupportedFlavor(
+            "Flavor[%s] isn't in support list: %s" % (args.flavor,
+                                                      constants.ALL_FLAVORS))
+
     if args.local_image and not os.path.exists(args.local_image):
         raise errors.CheckPathError(
             "Specified path doesn't exist: %s" % args.local_image)

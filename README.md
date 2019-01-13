@@ -16,19 +16,21 @@ Add acloud to your $PATH by lunching your environment.
 
 * Source envsetup.sh from the root of the android source checkout
 
-> $ source build/envsetup.sh
+```
+$ source build/envsetup.sh
+```
 
 * Run lunch for an AVD target
 
-> $ lunch aosp_cf_x86_phone-userdebug
+```
+$ lunch aosp_cf_x86_phone-userdebug
+```
 
 
 You should now be able to call acloud from anywhere.
 
-If you're a googler, please check these [instructions][] to ensure a smooth
-setup experience.
-
-[instructions]: https://goto.google.com/acloud-googler-setup "instructions"
+> If you're a googler, please check https://goto.google.com/acloud-googler-setup
+> to ensure a smooth setup experience.
 
 ### **Basic Usage**
 
@@ -60,7 +62,7 @@ for cuttlefish phone target in the branch of your repo)
 
 > $ acloud create
 
-* Remote instance using a locally built image
+* Remote instance using a locally built image (use `m dist` to build the image)
 
 > $ acloud create --local-image [local-image-path]
 
@@ -69,7 +71,7 @@ target in the branch of your repo)
 
 > $ acloud create --local-instance
 
-* Local instance using a locally built image
+* Local instance using a locally built image (use `m dist` to build the image)
 
 > $ acloud create --local-instance --local-image
 
