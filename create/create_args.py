@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-#
 # Copyright 2018 - The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,6 +16,11 @@ r"""Create args.
 Defines the create arg parser that holds create specific args.
 """
 
+import argparse
+import os
+
+from acloud import errors
+from acloud.create import create_common
 from acloud.internal import constants
 
 
@@ -39,33 +42,64 @@ def AddCommonCreateArgs(parser):
         default=1,
         help="Number of instances to create.")
     parser.add_argument(
-        "--serial_log_file",
+        "--serial-log-file",
         type=str,
         dest="serial_log_file",
         required=False,
         help="Path to a *tar.gz file where serial logs will be saved "
-        "when a device fails on boot.")
+             "when a device fails on boot.")
     parser.add_argument(
-        "--logcat_file",
+        "--logcat-file",
         type=str,
         dest="logcat_file",
         required=False,
         help="Path to a *tar.gz file where logcat logs will be saved "
-        "when a device fails on boot.")
+             "when a device fails on boot.")
     parser.add_argument(
         "--autoconnect",
         action="store_true",
         dest="autoconnect",
         required=False,
-        help=
-        "For each instance created, we will automatically creates both 2 ssh"
-        " tunnels forwarding both adb & vnc. Then add the device to adb.")
+        help="For each instance created, we will automatically create both 2 "
+             "ssh tunnels forwarding both adb & vnc. Then add the device to "
+             "adb.")
     parser.add_argument(
         "--no-autoconnect",
         action="store_false",
         dest="autoconnect",
-        required=False)
+        required=False,
+        help="Will not automatically create ssh tunnels forwarding adb & vnc "
+             "when instance created.")
     parser.set_defaults(autoconnect=True)
+    parser.add_argument(
+        "--report-internal-ip",
+        action="store_true",
+        dest="report_internal_ip",
+        required=False,
+        help="Report internal ip of the created instance instead of external "
+             "ip. Using the internal ip is used when connecting from another "
+             "GCE instance.")
+    parser.add_argument(
+        "--network",
+        type=str,
+        dest="network",
+        required=False,
+        help="Set the network the GCE instance will utilize.")
+
+    # TODO(b/118439885): Old arg formats to support transition, delete when
+    # transistion is done.
+    parser.add_argument(
+        "--serial_log_file",
+        type=str,
+        dest="serial_log_file",
+        required=False,
+        help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--logcat_file",
+        type=str,
+        dest="logcat_file",
+        required=False,
+        help=argparse.SUPPRESS)
 
 
 def GetCreateArgParser(subparser):
@@ -81,55 +115,110 @@ def GetCreateArgParser(subparser):
     create_parser.required = False
     create_parser.set_defaults(which=CMD_CREATE)
     create_parser.add_argument(
-        "--avd_type",
+        "--local-instance",
+        action="store_true",
+        dest="local_instance",
+        required=False,
+        help="Create a local instance of the AVD.")
+    create_parser.add_argument(
+        "--avd-type",
         type=str,
         dest="avd_type",
         default=constants.TYPE_CF,
         choices=[constants.TYPE_GCE, constants.TYPE_CF, constants.TYPE_GF],
         help="Android Virtual Device type (default %s)." % constants.TYPE_CF)
     create_parser.add_argument(
-        "--build_target",
+        "--flavor",
+        type=str,
+        dest="flavor",
+        help="The device flavor of the AVD (default %s)." % constants.FLAVOR_PHONE)
+    create_parser.add_argument(
+        "--build-target",
         type=str,
         dest="build_target",
         help="Android build target, e.g. aosp_cf_x86_phone-userdebug, "
-        "or short names: phone, tablet, or tablet_mobile.")
+             "or short names: phone, tablet, or tablet_mobile.")
     create_parser.add_argument(
         "--branch",
         type=str,
         dest="branch",
         help="Android branch, e.g. mnc-dev or git_mnc-dev")
     create_parser.add_argument(
-        "--build_id",
+        "--build-id",
         type=str,
         dest="build_id",
         help="Android build id, e.g. 2145099, P2804227")
     create_parser.add_argument(
+        "--kernel-build-id",
+        type=str,
+        dest="kernel_build_id",
+        required=False,
+        help="Android kernel build id, e.g. 4586590. This is to test a new"
+        " kernel build with a particular Android build (--build_id). If not"
+        " specified, the kernel that's bundled with the Android build would"
+        " be used.")
+    create_parser.add_argument(
+        "--local-image",
+        type=str,
+        dest="local_image",
+        nargs="?",
+        default="",
+        required=False,
+        help="Use the locally built image for the AVD. Look for the image "
+        "artifact in $ANDROID_TARGET_OUT unless a path is specified.")
+    create_parser.add_argument(
+        "--image-download-dir",
+        type=str,
+        dest="image_download_dir",
+        required=False,
+        help="Define remote image download directory, e.g. /usr/local/dl.")
+    # User should not specify --spec and --hw_property at the same time.
+    hw_spec_group = create_parser.add_mutually_exclusive_group()
+    hw_spec_group.add_argument(
+        "--hw-property",
+        type=str,
+        dest="hw_property",
+        required=False,
+        help="Supported HW properties and example values: %s" %
+        constants.HW_PROPERTIES_CMD_EXAMPLE)
+    hw_spec_group.add_argument(
         "--spec",
         type=str,
         dest="spec",
         required=False,
+        choices=constants.SPEC_NAMES,
         help="The name of a pre-configured device spec that we are "
-        "going to use. Choose from: %s" % ", ".join(constants.SPEC_NAMES))
-    create_parser.add_argument(
-        "--gce_image",
-        type=str,
-        dest="gce_image",
-        required=False,
-        help="Name of an existing compute engine image to reuse.")
-    create_parser.add_argument(
-        "--local_disk_image",
-        type=str,
-        dest="local_disk_image",
-        required=False,
-        help="Path to a local disk image to use, "
-        "e.g /tmp/avd-system.tar.gz")
-    create_parser.add_argument(
-        "--no_cleanup",
-        dest="no_cleanup",
-        default=False,
-        action="store_true",
-        help="Do not clean up temporary disk image and compute engine image. "
-        "For debugging purposes.")
+        "going to use.")
 
     AddCommonCreateArgs(create_parser)
     return create_parser
+
+
+def VerifyArgs(args):
+    """Verify args.
+
+    Args:
+        args: Namespace object from argparse.parse_args.
+
+    Raises:
+        errors.CreateError: Path doesn't exist.
+        errors.UnsupportedFlavor: Flavor doesn't support.
+    """
+    # Verify that user specified flavor name is in support list.
+    # We don't use argparse's builtin validation because we need to be able to
+    # tell when a user doesn't specify a flavor.
+    if args.flavor and args.flavor not in constants.ALL_FLAVORS:
+        raise errors.UnsupportedFlavor(
+            "Flavor[%s] isn't in support list: %s" % (args.flavor,
+                                                      constants.ALL_FLAVORS))
+
+    if args.local_image and not os.path.exists(args.local_image):
+        raise errors.CheckPathError(
+            "Specified path doesn't exist: %s" % args.local_image)
+
+    hw_properties = create_common.ParseHWPropertyArgs(args.hw_property)
+    for key in hw_properties:
+        if key not in constants.HW_PROPERTIES:
+            raise errors.InvalidHWPropertyError(
+                "[%s] is an invalid hw property, supported values are:%s. "
+                % (key, constants.HW_PROPERTIES))

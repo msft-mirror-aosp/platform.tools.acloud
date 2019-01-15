@@ -25,10 +25,10 @@ import mock
 # pylint: disable=import-error
 import apiclient.http
 
+from acloud import errors
 from acloud.internal.lib import driver_test_lib
 from acloud.internal.lib import gcompute_client
 from acloud.internal.lib import utils
-from acloud.public import errors
 
 GS_IMAGE_SOURCE_URI = "https://storage.googleapis.com/fake-bucket/fake.tar.gz"
 GS_IMAGE_SOURCE_DISK = (
@@ -51,6 +51,7 @@ class ComputeClientTest(driver_test_lib.BaseDriverTest):
     ACCELERATOR_URL = "http://speedy-gpu"
     NETWORK = "fake-network"
     NETWORK_URL = "http://fake-network-url"
+    SUBNETWORK_URL = "http://fake-subnetwork-url"
     ZONE = "fake-zone"
     REGION = "fake-region"
     OPERATION_NAME = "fake-op"
@@ -499,13 +500,16 @@ class ComputeClientTest(driver_test_lib.BaseDriverTest):
 
     @mock.patch.object(gcompute_client.ComputeClient, "GetImage")
     @mock.patch.object(gcompute_client.ComputeClient, "GetNetworkUrl")
+    @mock.patch.object(gcompute_client.ComputeClient, "GetSubnetworkUrl")
     @mock.patch.object(gcompute_client.ComputeClient, "GetMachineType")
     @mock.patch.object(gcompute_client.ComputeClient, "WaitOnOperation")
     def testCreateInstance(self, mock_wait, mock_get_mach_type,
-                           mock_get_network_url, mock_get_image):
+                           mock_get_subnetwork_url, mock_get_network_url,
+                           mock_get_image):
         """Test CreateInstance."""
         mock_get_mach_type.return_value = {"selfLink": self.MACHINE_TYPE_URL}
         mock_get_network_url.return_value = self.NETWORK_URL
+        mock_get_subnetwork_url.return_value = self.SUBNETWORK_URL
         mock_get_image.return_value = {"selfLink": self.IMAGE_URL}
         resource_mock = mock.MagicMock()
         self.compute_client._service.instances = mock.MagicMock(
@@ -525,6 +529,7 @@ class ComputeClientTest(driver_test_lib.BaseDriverTest):
             "networkInterfaces": [
                 {
                     "network": self.NETWORK_URL,
+                    "subnetwork": self.SUBNETWORK_URL,
                     "accessConfigs": [
                         {"name": "External NAT",
                          "type": "ONE_TO_ONE_NAT"}
@@ -561,14 +566,16 @@ class ComputeClientTest(driver_test_lib.BaseDriverTest):
     @mock.patch.object(gcompute_client.ComputeClient, "GetAcceleratorUrl")
     @mock.patch.object(gcompute_client.ComputeClient, "GetImage")
     @mock.patch.object(gcompute_client.ComputeClient, "GetNetworkUrl")
+    @mock.patch.object(gcompute_client.ComputeClient, "GetSubnetworkUrl")
     @mock.patch.object(gcompute_client.ComputeClient, "GetMachineType")
     @mock.patch.object(gcompute_client.ComputeClient, "WaitOnOperation")
     def testCreateInstanceWithGpu(self, mock_wait, mock_get_mach,
-                                  mock_get_network, mock_get_image,
-                                  mock_get_accel):
+                                  mock_get_subnetwork, mock_get_network,
+                                  mock_get_image, mock_get_accel):
         """Test CreateInstance with a GPU parameter not set to None."""
         mock_get_mach.return_value = {"selfLink": self.MACHINE_TYPE_URL}
         mock_get_network.return_value = self.NETWORK_URL
+        mock_get_subnetwork.return_value = self.SUBNETWORK_URL
         mock_get_accel.return_value = self.ACCELERATOR_URL
         mock_get_image.return_value = {"selfLink": self.IMAGE_URL}
 
@@ -583,8 +590,8 @@ class ComputeClientTest(driver_test_lib.BaseDriverTest):
             "name":
                 self.INSTANCE,
             "networkInterfaces": [{
-                "network":
-                    self.NETWORK_URL,
+                "network": self.NETWORK_URL,
+                "subnetwork": self.SUBNETWORK_URL,
                 "accessConfigs": [{
                     "name": "External NAT",
                     "type": "ONE_TO_ONE_NAT"
@@ -910,7 +917,19 @@ class ComputeClientTest(driver_test_lib.BaseDriverTest):
         machine_info_2 = {"guestCpus": 10, "memoryMb": 200}
         self._CompareMachineSizeTestHelper(machine_info_1, machine_info_2, -1)
 
+    def testCompareMachineSizeSmallSmallerOnSecond(self):
+        """Test CompareMachineSize where the first one is smaller."""
+        machine_info_1 = {"guestCpus": 11, "memoryMb": 100}
+        machine_info_2 = {"guestCpus": 10, "memoryMb": 200}
+        self._CompareMachineSizeTestHelper(machine_info_1, machine_info_2, -1)
+
     def testCompareMachineSizeLarge(self):
+        """Test CompareMachineSize where the first one is larger."""
+        machine_info_1 = {"guestCpus": 11, "memoryMb": 200}
+        machine_info_2 = {"guestCpus": 10, "memoryMb": 100}
+        self._CompareMachineSizeTestHelper(machine_info_1, machine_info_2, 1)
+
+    def testCompareMachineSizeLargeWithEqualElement(self):
         """Test CompareMachineSize where the first one is larger."""
         machine_info_1 = {"guestCpus": 10, "memoryMb": 200}
         machine_info_2 = {"guestCpus": 10, "memoryMb": 100}

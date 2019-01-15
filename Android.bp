@@ -40,9 +40,13 @@ python_binary_host {
     ],
     libs: [
         "acloud_create",
-        "acloud_public",
+        "acloud_delete",
+	"acloud_reconnect",
         "acloud_internal",
+        "acloud_list",
+        "acloud_metrics",
         "acloud_proto",
+        "acloud_public",
         "acloud_setup",
         "py-apitools",
         "py-dateutil",
@@ -60,19 +64,28 @@ python_test_host {
     ],
     srcs: [
         "acloud_test.py",
+        "errors.py",
         "public/*_test.py",
         "public/actions/*_test.py",
         "internal/lib/*_test.py",
     ],
     libs: [
-        "acloud_public",
+        "acloud_create",
+        "acloud_delete",
+	"acloud_reconnect",
         "acloud_internal",
+        "acloud_list",
         "acloud_proto",
+        "acloud_public",
+        "acloud_setup",
         "py-apitools",
         "py-dateutil",
         "py-google-api-python-client",
+        "py-mock",
         "py-oauth2client",
     ],
+    test_config: "acloud_unittest.xml",
+    test_suites: ["general-tests"],
 }
 
 python_library_host {
@@ -128,5 +141,40 @@ python_library_host{
     defaults: ["acloud_default"],
     srcs: [
          "create/*.py",
+    ],
+}
+
+python_library_host{
+    name: "acloud_delete",
+    defaults: ["acloud_default"],
+    srcs: [
+         "delete/*.py",
+    ],
+}
+
+python_library_host{
+    name: "acloud_list",
+    defaults: ["acloud_default"],
+    srcs: [
+         "list/*.py",
+    ],
+}
+
+python_library_host{
+    name: "acloud_reconnect",
+    defaults: ["acloud_default"],
+    srcs: [
+         "reconnect/*.py",
+    ],
+}
+
+python_library_host{
+    name: "acloud_metrics",
+    defaults: ["acloud_default"],
+    srcs: [
+         "metrics/*.py",
+    ],
+    libs: [
+         "asuite_metrics",
     ],
 }

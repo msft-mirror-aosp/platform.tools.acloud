@@ -17,6 +17,7 @@
 
 import errno
 import getpass
+import grp
 import os
 import shutil
 import subprocess
@@ -26,8 +27,32 @@ import time
 import unittest
 import mock
 
+from acloud import errors
 from acloud.internal.lib import driver_test_lib
 from acloud.internal.lib import utils
+
+# Tkinter may not be supported so mock it out.
+try:
+    import Tkinter
+except ImportError:
+    Tkinter = mock.Mock()
+
+class FakeTkinter(object):
+    """Fake implementation of Tkinter.Tk()"""
+
+    def __init__(self, width=None, height=None):
+        self.width = width
+        self.height = height
+
+    # pylint: disable=invalid-name
+    def winfo_screenheight(self):
+        """Return the screen height."""
+        return self.height
+
+    # pylint: disable=invalid-name
+    def winfo_screenwidth(self):
+        """Return the screen width."""
+        return self.width
 
 
 class UtilsTest(driver_test_lib.BaseDriverTest):
@@ -225,6 +250,130 @@ class UtilsTest(driver_test_lib.BaseDriverTest):
                 mock.call(8),
                 mock.call(16)
             ])
+
+    @mock.patch("__builtin__.raw_input")
+    def testGetAnswerFromList(self, mock_raw_input):
+        """Test GetAnswerFromList."""
+        answer_list = ["image1.zip", "image2.zip", "image3.zip"]
+        mock_raw_input.return_value = 0
+        with self.assertRaises(SystemExit):
+            utils.GetAnswerFromList(answer_list)
+        mock_raw_input.side_effect = [1, 2, 3, 1]
+        self.assertEqual(utils.GetAnswerFromList(answer_list),
+                         ["image1.zip"])
+        self.assertEqual(utils.GetAnswerFromList(answer_list),
+                         ["image2.zip"])
+        self.assertEqual(utils.GetAnswerFromList(answer_list),
+                         ["image3.zip"])
+        self.assertEqual(utils.GetAnswerFromList(answer_list,
+                                                 enable_choose_all=True),
+                         answer_list)
+
+    @unittest.skipIf(isinstance(Tkinter, mock.Mock), "Tkinter mocked out, test case not needed.")
+    @mock.patch.object(Tkinter, "Tk")
+    def testCalculateVNCScreenRatio(self, mock_tk):
+        """Test Calculating the scale ratio of VNC display."""
+        # Get scale-down ratio if screen height is smaller than AVD height.
+        mock_tk.return_value = FakeTkinter(height=800, width=1200)
+        avd_h = 1920
+        avd_w = 1080
+        self.assertEqual(utils.CalculateVNCScreenRatio(avd_w, avd_h), 0.4)
+
+        # Get scale-down ratio if screen width is smaller than AVD width.
+        mock_tk.return_value = FakeTkinter(height=800, width=1200)
+        avd_h = 900
+        avd_w = 1920
+        self.assertEqual(utils.CalculateVNCScreenRatio(avd_w, avd_h), 0.6)
+
+        # Scale ratio = 1 if screen is larger than AVD.
+        mock_tk.return_value = FakeTkinter(height=1080, width=1920)
+        avd_h = 800
+        avd_w = 1280
+        self.assertEqual(utils.CalculateVNCScreenRatio(avd_w, avd_h), 1)
+
+        # Get the scale if ratio of width is smaller than the
+        # ratio of height.
+        mock_tk.return_value = FakeTkinter(height=1200, width=800)
+        avd_h = 1920
+        avd_w = 1080
+        self.assertEqual(utils.CalculateVNCScreenRatio(avd_w, avd_h), 0.6)
+
+    # pylint: disable=protected-access
+    def testCheckUserInGroups(self):
+        """Test CheckUserInGroups."""
+        self.Patch(os, "getgroups", return_value=[1, 2, 3])
+        gr1 = mock.MagicMock()
+        gr1.gr_name = "fake_gr_1"
+        gr2 = mock.MagicMock()
+        gr2.gr_name = "fake_gr_2"
+        gr3 = mock.MagicMock()
+        gr3.gr_name = "fake_gr_3"
+        self.Patch(grp, "getgrgid", side_effect=[gr1, gr2, gr3])
+
+        # User in all required groups should return true.
+        self.assertTrue(
+            utils.CheckUserInGroups(
+                ["fake_gr_1", "fake_gr_2"]))
+
+        # User not in all required groups should return False.
+        self.Patch(grp, "getgrgid", side_effect=[gr1, gr2, gr3])
+        self.assertFalse(
+            utils.CheckUserInGroups(
+                ["fake_gr_1", "fake_gr_4"]))
+
+    @mock.patch.object(utils, "CheckUserInGroups")
+    def testAddUserGroupsToCmd(self, mock_user_group):
+        """Test AddUserGroupsToCmd."""
+        command = "test_command"
+        groups = ["group1", "group2"]
+        # Don't add user group in command
+        mock_user_group.return_value = True
+        expected_value = "test_command"
+        self.assertEqual(expected_value, utils.AddUserGroupsToCmd(command,
+                                                                  groups))
+
+        # Add user group in command
+        mock_user_group.return_value = False
+        expected_value = "sg group1 <<EOF\nsg group2\ntest_command\nEOF"
+        self.assertEqual(expected_value, utils.AddUserGroupsToCmd(command,
+                                                                  groups))
+
+    @staticmethod
+    def testScpPullFileSuccess():
+        """Test scp pull file successfully."""
+        subprocess.check_call = mock.MagicMock()
+        utils.ScpPullFile("/tmp/test", "/tmp/test_1.log", "192.168.0.1")
+        subprocess.check_call.assert_called_with(utils.SCP_CMD + [
+            "192.168.0.1:/tmp/test", "/tmp/test_1.log"])
+
+    @staticmethod
+    def testScpPullFileWithUserNameSuccess():
+        """Test scp pull file successfully."""
+        subprocess.check_call = mock.MagicMock()
+        utils.ScpPullFile("/tmp/test", "/tmp/test_1.log", "192.168.0.1",
+                          user_name="abc")
+        subprocess.check_call.assert_called_with(utils.SCP_CMD + [
+            "abc@192.168.0.1:/tmp/test", "/tmp/test_1.log"])
+
+    # pylint: disable=invalid-name
+    @staticmethod
+    def testScpPullFileWithUserNameWithRsaKeySuccess():
+        """Test scp pull file successfully."""
+        subprocess.check_call = mock.MagicMock()
+        utils.ScpPullFile("/tmp/test", "/tmp/test_1.log", "192.168.0.1",
+                          user_name="abc", rsa_key_file="/tmp/my_key")
+        subprocess.check_call.assert_called_with(utils.SCP_CMD + [
+            "-i", "/tmp/my_key", "abc@192.168.0.1:/tmp/test",
+            "/tmp/test_1.log"])
+
+    def testScpPullFileScpFailure(self):
+        """Test scp pull file failure."""
+        subprocess.check_call = mock.MagicMock(
+            side_effect=subprocess.CalledProcessError(123, "fake",
+                                                      "fake error"))
+        self.assertRaises(
+            errors.DeviceConnectionError,
+            utils.ScpPullFile, "/tmp/test", "/tmp/test_1.log", "192.168.0.1")
 
 
 if __name__ == "__main__":

@@ -28,13 +28,14 @@ from acloud.internal.lib import android_compute_client
 from acloud.internal.lib import auth
 from acloud.internal.lib import cvd_compute_client
 from acloud.internal.lib import driver_test_lib
+from acloud.internal.lib import gcompute_client
 from acloud.public.actions import create_cuttlefish_action
 
 
 class CreateCuttlefishActionTest(driver_test_lib.BaseDriverTest):
     """Test create_cuttlefish_action."""
 
-    IP = "127.0.0.1"
+    IP = gcompute_client.IP(external="127.0.0.1", internal="10.0.0.1")
     INSTANCE = "fake-instance"
     IMAGE = "fake-image"
     BUILD_TARGET = "fake-build-target"
@@ -95,9 +96,12 @@ class CreateCuttlefishActionTest(driver_test_lib.BaseDriverTest):
         # Mock build client method
         self.build_client.GetBranch.return_value = self.BRANCH
 
+        # Setup avd_spec as None to use cfg to create devices
+        none_avd_spec = None
+
         # Call CreateDevices
         report = create_cuttlefish_action.CreateDevices(
-            cfg, self.BUILD_TARGET, self.BUILD_ID, self.KERNEL_BUILD_ID)
+            none_avd_spec, cfg, self.BUILD_TARGET, self.BUILD_ID, self.KERNEL_BUILD_ID)
 
         # Verify
         self.compute_client.CreateInstance.assert_called_with(
@@ -109,13 +113,14 @@ class CreateCuttlefishActionTest(driver_test_lib.BaseDriverTest):
             build_id=self.BUILD_ID,
             kernel_branch=self.BRANCH,
             kernel_build_id=self.KERNEL_BUILD_ID,
-            blank_data_disk_size_gb=self.EXTRA_DATA_DISK_GB)
+            blank_data_disk_size_gb=self.EXTRA_DATA_DISK_GB,
+            avd_spec=none_avd_spec)
 
         self.assertEquals(report.data, {
             "devices": [
                 {
                     "instance_name": self.INSTANCE,
-                    "ip": self.IP,
+                    "ip": self.IP.external,
                 },
             ],
         })

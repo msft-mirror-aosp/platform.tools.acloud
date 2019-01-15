@@ -21,7 +21,7 @@ emulator.
 import logging
 import os
 
-from acloud.public import errors
+from acloud import errors
 from acloud.public.actions import common_operations
 from acloud.public.actions import base_device_factory
 from acloud.internal.lib import android_build_client
@@ -30,11 +30,6 @@ from acloud.internal.lib import goldfish_compute_client
 from acloud.internal.lib import utils
 
 logger = logging.getLogger(__name__)
-
-ALL_SCOPES = " ".join([
-    android_build_client.AndroidBuildClient.SCOPE,
-    goldfish_compute_client.GoldfishComputeClient.SCOPE
-])
 
 _EMULATOR_INFO_FILENAME = "emulator-info.txt"
 _EMULATOR_VERSION_PATTERN = "version-emulator"
@@ -57,6 +52,10 @@ class GoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         _branch: String, android branch name, e.g. git_master
         _emulator_branch: String, emulator branch name, e.g. "aosp-emu-master-dev"
     """
+    LOG_FILES = ["/home/vsoc-01/emulator.log",
+                 "/home/vsoc-01/log/logcat.log",
+                 "/home/vsoc-01/log/adb.log",
+                 "/var/log/daemon.log"]
 
     def __init__(self,
                  cfg,
@@ -77,7 +76,7 @@ class GoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
             gpu: String, GPU to attach to the device or None. e.g. "nvidia-tesla-k80"
         """
 
-        self.credentials = auth.CreateCredentials(cfg, ALL_SCOPES)
+        self.credentials = auth.CreateCredentials(cfg)
 
         compute_client = goldfish_compute_client.GoldfishComputeClient(
             cfg, self.credentials)
@@ -168,7 +167,7 @@ def _FetchBuildIdFromFile(cfg, build_target, build_id, pattern, filename):
         A build id or None
     """
     build_client = android_build_client.AndroidBuildClient(
-        auth.CreateCredentials(cfg, ALL_SCOPES))
+        auth.CreateCredentials(cfg))
 
     with utils.TempDir() as tempdir:
         temp_filename = os.path.join(tempdir, filename)
@@ -189,7 +188,8 @@ def CreateDevices(cfg,
                   serial_log_file=None,
                   logcat_file=None,
                   autoconnect=False,
-                  branch=None):
+                  branch=None,
+                  report_internal_ip=False):
     """Create one or multiple Goldfish devices.
 
     Args:
@@ -204,6 +204,8 @@ def CreateDevices(cfg,
         logcat_file: String, A path to a file where logcat logs should be saved.
         autoconnect: Boolean, Create ssh tunnel(s) and adb connect after device creation.
         branch: String, Branch name for system image.
+        report_internal_ip: Boolean to report the internal ip instead of
+                            external ip.
 
     Returns:
         A Report instance.
@@ -230,9 +232,6 @@ def CreateDevices(cfg,
     if build_id is None:
         raise errors.CommandArgError("Emulator system image build id not found "
                                      "in %s" % _SYSIMAGE_INFO_FILENAME)
-    # TODO: Implement copying files from the instance, including
-    # the serial log (kernel log), and logcat log files.
-    # TODO: Implement autoconnect.
     logger.info(
         "Creating a goldfish device in project %s, build_target: %s, "
         "build_id: %s, emulator_bid: %s, GPU: %s, num: %s, "
@@ -245,4 +244,5 @@ def CreateDevices(cfg,
                                            emulator_build_id, gpu)
 
     return common_operations.CreateDevices("create_gf", cfg, device_factory,
-                                           num)
+                                           num, report_internal_ip,
+                                           serial_log_file, logcat_file)

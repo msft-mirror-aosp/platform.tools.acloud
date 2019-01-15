@@ -28,9 +28,100 @@ SPEC_NAMES = {
 DEFAULT_SERIAL_PORT = 1
 LOGCAT_SERIAL_PORT = 2
 
+# Remote image parameters
+BUILD_TARGET = "build_target"
+BUILD_BRANCH = "build_branch"
+BUILD_ID = "build_id"
+
 # AVD types
 TYPE_GCE = "gce"
 TYPE_CF = "cuttlefish"
 TYPE_GF = "goldfish"
 
+# Image types
+IMAGE_SRC_REMOTE = "remote_image"
+IMAGE_SRC_LOCAL = "local_image"
+
+# AVD types in build target
+AVD_TYPES_MAPPING = {
+    TYPE_GCE: "gce",
+    TYPE_CF: "cf",
+    TYPE_GF: "sdk",
+}
+
+# Instance types
+INSTANCE_TYPE_REMOTE = "remote"
+INSTANCE_TYPE_LOCAL = "local"
+
+# Flavor types
+FLAVOR_PHONE = "phone"
+FLAVOR_AUTO = "auto"
+FLAVOR_WEAR = "wear"
+FLAVOR_TV = "tv"
+FLAVOR_IOT = "iot"
+FLAVOR_TABLET = "tablet"
+FLAVOR_TABLET_3G = "tablet_3g"
+ALL_FLAVORS = [
+    FLAVOR_PHONE, FLAVOR_AUTO, FLAVOR_WEAR, FLAVOR_TV, FLAVOR_IOT,
+    FLAVOR_TABLET, FLAVOR_TABLET_3G
+]
+
+# HW Property
+HW_ALIAS_CPUS = "cpu"
+HW_ALIAS_RESOLUTION = "resolution"
+HW_ALIAS_DPI = "dpi"
+HW_ALIAS_MEMORY = "memory"
+HW_ALIAS_DISK = "disk"
+HW_PROPERTIES_CMD_EXAMPLE = (
+    " %s:2,%s:1280x700,%s:160,%s:2g,%s:2g" %
+    (HW_ALIAS_CPUS,
+     HW_ALIAS_RESOLUTION,
+     HW_ALIAS_DPI,
+     HW_ALIAS_MEMORY,
+     HW_ALIAS_DISK)
+)
+HW_PROPERTIES = [HW_ALIAS_CPUS, HW_ALIAS_RESOLUTION, HW_ALIAS_DPI,
+                 HW_ALIAS_MEMORY, HW_ALIAS_DISK]
+HW_X_RES = "x_res"
+HW_Y_RES = "y_res"
+
 USER_ANSWER_YES = {"y", "yes", "Y"}
+
+# Cuttlefish groups
+LIST_CF_USER_GROUPS = ["kvm", "libvirt", "cvdnetwork"]
+#For the cuttlefish remote instances: adb port is 6520 and vnc is 6444.
+CF_TARGET_ADB_PORT = 6520
+CF_TARGET_VNC_PORT = 6444
+
+DEFAULT_VNC_PORT = 6444
+DEFAULT_ADB_PORT = 6520
+VNC_PORT = "vnc_port"
+ADB_PORT = "adb_port"
+
+COMMAND_PS = ["ps", "aux"]
+CMD_LAUNCH_CVD = "launch_cvd"
+CMD_STOP_CVD = "stop_cvd"
+ENV_ANDROID_BUILD_TOP = "ANDROID_BUILD_TOP"
+
+LOCALHOST = "127.0.0.1"
+LOCALHOST_ADB_SERIAL = LOCALHOST + ":%d"
+
+SSH_BIN = "ssh"
+ADB_BIN = "adb"
+
+LABEL_CREATE_BY = "created_by"
+
+# for list and delete cmd
+INS_KEY_NAME = "name"
+INS_KEY_FULLNAME = "full_name"
+INS_KEY_STATUS = "status"
+INS_KEY_DISPLAY = "display"
+INS_KEY_IP = "ip"
+INS_KEY_ADB = "adb"
+INS_KEY_VNC = "vnc"
+INS_KEY_CREATETIME = "creationTimestamp"
+INS_KEY_AVD_TYPE = "avd_type"
+INS_KEY_AVD_FLAVOR = "flavor"
+INS_KEY_IS_LOCAL = "remote"
+INS_STATUS_RUNNING = "RUNNING"
+LOCAL_INS_NAME = "local-instance"

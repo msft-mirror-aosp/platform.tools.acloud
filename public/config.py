@@ -49,9 +49,11 @@ import os
 from google.protobuf import text_format
 
 # pylint: disable=no-name-in-module,import-error
+from acloud import errors
+from acloud.internal import constants
 from acloud.internal.proto import internal_config_pb2
 from acloud.internal.proto import user_config_pb2
-from acloud.public import errors
+from acloud.create import create_args
 
 _CONFIG_DATA_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "data")
@@ -61,9 +63,27 @@ logger = logging.getLogger(__name__)
 
 
 def GetDefaultConfigFile():
-    """Get config default path."""
-    config_path = os.path.expanduser("~")
+    """Return path to default config file."""
+    config_path = os.path.join(os.path.expanduser("~"), ".config", "acloud")
+    # Create the default config dir if it doesn't exist.
+    if not os.path.exists(config_path):
+        os.makedirs(config_path)
     return os.path.join(config_path, _DEFAULT_CONFIG_FILE)
+
+
+def GetAcloudConfig(args):
+    """Helper function to initialize Config object.
+
+    Args:
+        args: Namespace object from argparse.parse_args.
+
+    Return:
+        An instance of AcloudConfig.
+    """
+    config_mgr = AcloudConfigManager(args.config_file)
+    cfg = config_mgr.Load()
+    cfg.OverrideWithArgs(args)
+    return cfg
 
 
 class AcloudConfig(object):
@@ -168,6 +188,9 @@ class AcloudConfig(object):
             usr_cfg.stable_goldfish_host_image_project or
             internal_cfg.default_usr_cfg.stable_goldfish_host_image_project)
 
+        self.common_hw_property_map = internal_cfg.common_hw_property_map
+        self.hw_property = usr_cfg.hw_property
+
         # Verify validity of configurations.
         self.Verify()
 
@@ -177,7 +200,7 @@ class AcloudConfig(object):
         Args:
             parsed_args: Args parsed from command line.
         """
-        if parsed_args.which == "create" and parsed_args.spec:
+        if parsed_args.which == create_args.CMD_CREATE and parsed_args.spec:
             if not self.resolution:
                 self.resolution = self.device_resolution_map.get(
                     parsed_args.spec, "")
@@ -191,6 +214,24 @@ class AcloudConfig(object):
                 parsed_args.service_account_json_private_key_path)
         if parsed_args.which == "create_gf" and parsed_args.base_image:
             self.stable_goldfish_host_image_name = parsed_args.base_image
+        if parsed_args.which == create_args.CMD_CREATE and not self.hw_property:
+            flavor = parsed_args.flavor or constants.FLAVOR_PHONE
+            self.hw_property = self.common_hw_property_map.get(flavor, "")
+        if parsed_args.which in [create_args.CMD_CREATE, "create_cf"]:
+            if parsed_args.network:
+                self.network = parsed_args.network
+
+    def OverrideHwPropertyWithFlavor(self, flavor):
+        """Override hw configuration values with flavor name.
+
+        HwProperty will be overrided according to the change of flavor.
+        If flavor is None, set hw configuration with phone(default flavor).
+
+        Args:
+            flavor: string of flavor name.
+        """
+        self.hw_property = self.common_hw_property_map.get(
+            flavor, constants.FLAVOR_PHONE)
 
     def Verify(self):
         """Verify configuration fields."""
@@ -221,7 +262,7 @@ class AcloudConfigManager(object):
             user_config_path: path to the user config.
             internal_config_path: path to the internal conifg.
         """
-        self._user_config_path = user_config_path
+        self.user_config_path = user_config_path
         self._internal_config_path = internal_config_path
 
     def Load(self):
@@ -244,18 +285,18 @@ class AcloudConfigManager(object):
         except OSError as e:
             raise errors.ConfigError("Could not load config files: %s" % str(e))
         # Load user config file
-        if self._user_config_path:
-            if os.path.exists(self._user_config_path):
-                with open(self._user_config_path, "r") as config_file:
+        if self.user_config_path:
+            if os.path.exists(self.user_config_path):
+                with open(self.user_config_path, "r") as config_file:
                     usr_cfg = self.LoadConfigFromProtocolBuffer(
                         config_file, user_config_pb2.UserConfig)
             else:
                 raise errors.ConfigError("The file doesn't exist: %s" %
-                                         (self._user_config_path))
+                                         (self.user_config_path))
         else:
-            self._user_config_path = GetDefaultConfigFile()
-            if os.path.exists(self._user_config_path):
-                with open(self._user_config_path, "r") as config_file:
+            self.user_config_path = GetDefaultConfigFile()
+            if os.path.exists(self.user_config_path):
+                with open(self.user_config_path, "r") as config_file:
                     usr_cfg = self.LoadConfigFromProtocolBuffer(
                         config_file, user_config_pb2.UserConfig)
             else:

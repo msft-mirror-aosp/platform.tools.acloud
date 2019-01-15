@@ -22,10 +22,7 @@ instance.
 from __future__ import print_function
 
 import getpass
-import grp
 import logging
-import os
-import platform
 
 from acloud.internal import constants
 from acloud.internal.lib import utils
@@ -36,41 +33,23 @@ logger = logging.getLogger(__name__)
 
 # Install cuttlefish-common will probably not work now.
 # TODO: update this to pull from the proper repo.
-_CUTTLEFISH_REQUIRED_PKGS = ["cuttlefish-common"]
-# dict of supported system and their distributions.
-_SUPPORTED_SYSTEMS_AND_DISTS = {"Linux": ["Ubuntu", "Debian"]}
-_LIST_OF_GROUPS = ["kvm", "libvirt", "cvdnetwork"]
+_AVD_REQUIRED_PKGS = ["cuttlefish-common", "ssvnc",
+                      # TODO(b/117613492): This is all qemu related, take this
+                      # out once they are added back in as deps for
+                      # cuttlefish-common.
+                      "qemu-kvm", "qemu-system-common", "qemu-system-x86",
+                      "qemu-utils", "libvirt-clients", "libvirt-daemon-system"]
 _LIST_OF_MODULES = ["kvm_intel", "kvm"]
+_UPDATE_APT_GET_CMD = "sudo apt-get update"
 
 
-def _IsSupportedPlatform():
-    """Check if user's os is the supported platform.
-
-    Returns:
-        Boolean, True if user is using supported platform.
-    """
-    system = platform.system()
-    dist = platform.linux_distribution()[0]
-    platform_supported = (system in _SUPPORTED_SYSTEMS_AND_DISTS and
-                          dist in _SUPPORTED_SYSTEMS_AND_DISTS[system])
-
-    logger.info("supported system and dists: %s",
-                _SUPPORTED_SYSTEMS_AND_DISTS)
-    logger.info("%s[%s] %s supported platform",
-                system,
-                dist,
-                "is a" if platform_supported else "is not a")
-
-    return platform_supported
-
-
-class CuttlefishPkgInstaller(base_task_runner.BaseTaskRunner):
+class AvdPkgInstaller(base_task_runner.BaseTaskRunner):
     """Subtask runner class for installing required packages."""
 
     WELCOME_MESSAGE_TITLE = "Install required package for host setup"
     WELCOME_MESSAGE = (
         "This step will walk you through the required packages installation for "
-        "running Android cuttlefish devices on your host.")
+        "running Android cuttlefish devices and vnc on your host.")
 
     def ShouldRun(self):
         """Check if required packages are all installed.
@@ -78,12 +57,12 @@ class CuttlefishPkgInstaller(base_task_runner.BaseTaskRunner):
         Returns:
             Boolean, True if required packages are not installed.
         """
-        if not _IsSupportedPlatform():
+        if not utils.IsSupportedPlatform():
             return False
 
         # Any required package is not installed or not up-to-date will need to
         # run installation task.
-        for pkg_name in _CUTTLEFISH_REQUIRED_PKGS:
+        for pkg_name in _AVD_REQUIRED_PKGS:
             if not setup_common.PackageInstalled(pkg_name):
                 return True
 
@@ -93,9 +72,10 @@ class CuttlefishPkgInstaller(base_task_runner.BaseTaskRunner):
         """Install Cuttlefish-common package."""
 
         logger.info("Start to install required package: %s ",
-                    _CUTTLEFISH_REQUIRED_PKGS)
+                    _AVD_REQUIRED_PKGS)
 
-        for pkg in _CUTTLEFISH_REQUIRED_PKGS:
+        setup_common.CheckCmdOutput(_UPDATE_APT_GET_CMD, shell=True)
+        for pkg in _AVD_REQUIRED_PKGS:
             setup_common.InstallPackage(pkg)
 
         logger.info("All required package are installed now.")
@@ -118,29 +98,11 @@ class CuttlefishHostSetup(base_task_runner.BaseTaskRunner):
              Boolean: False if user is in all required groups and all modules
                       are reloaded.
          """
-        if not _IsSupportedPlatform():
+        if not utils.IsSupportedPlatform():
             return False
 
-        return not (self._CheckUserInGroups(_LIST_OF_GROUPS)
+        return not (utils.CheckUserInGroups(constants.LIST_CF_USER_GROUPS)
                     and self._CheckLoadedModules(_LIST_OF_MODULES))
-
-    @staticmethod
-    def _CheckUserInGroups(group_name_list):
-        """Check if the current user is in the group.
-
-        Args:
-            group_name_list: The list of group name.
-        Returns:
-            True if current user is in all the groups.
-        """
-        logger.info("Checking if user is in following groups: %s", group_name_list)
-        current_groups = [grp.getgrgid(g).gr_name for g in os.getgroups()]
-        all_groups_present = True
-        for group in group_name_list:
-            if group not in current_groups:
-                all_groups_present = False
-                logger.info("missing group: %s", group)
-        return all_groups_present
 
     @staticmethod
     def _CheckLoadedModules(module_list):
@@ -170,7 +132,7 @@ class CuttlefishHostSetup(base_task_runner.BaseTaskRunner):
             "sudo rmmod kvm",
             "sudo modprobe kvm",
             "sudo modprobe kvm_intel"]
-        for group in _LIST_OF_GROUPS:
+        for group in constants.LIST_CF_USER_GROUPS:
             setup_cmds.append("sudo usermod -aG %s % s" % (group, username))
 
         print("Below commands will be run:")

@@ -18,20 +18,70 @@ r"""BaseAVDCreate class.
 Parent class that will hold common logic for AVD creation use cases.
 """
 
-from __future__ import print_function
+from acloud.internal import constants
+from acloud.internal.lib import utils
 
 
 class BaseAVDCreate(object):
     """Base class for all AVD intance creation classes."""
 
-    # pylint: disable=no-self-use
+    def _CreateAVD(self, avd_spec):
+        """Do the actual creation work, should be overridden by child classes.
+
+        Args:
+            avd_spec: AVDSpec object that tells us what we're going to create.
+        """
+        raise NotImplementedError
+
     def Create(self, avd_spec):
         """Create the AVD.
 
         Args:
             avd_spec: AVDSpec object that tells us what we're going to create.
         """
-        # TODO: rewrite this function to raise NotImplemented once actual device
-        # classes are here.
-        print("We will (but not yet) create an AVD with these details: %s." %
-              avd_spec)
+        self.PrintAvdDetails(avd_spec)
+        results = self._CreateAVD(avd_spec)
+        utils.PrintDeviceSummary(results)
+
+    @staticmethod
+    def PrintAvdDetails(avd_spec):
+        """Display spec information to user.
+
+        Example:
+            Creating remote AVD instance with the following details:
+            Image:
+              aosp/master - aosp_cf_x86_phone-userdebug [1234]
+            hw config:
+              cpu - 2
+              ram - 2GB
+              disk - 10GB
+              display - 1024x862 (224 DPI)
+
+        Args:
+            avd_spec: AVDSpec object that tells us what we're going to create.
+        """
+        utils.PrintColorString(
+            "Creating %s AVD instance with the following details:" %
+            avd_spec.instance_type)
+        if avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
+            utils.PrintColorString("Image (local):")
+            utils.PrintColorString("  %s" % avd_spec.local_image_dir)
+        elif avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
+            utils.PrintColorString("Image:")
+            utils.PrintColorString(
+                "  %s - %s [%s]" %
+                (avd_spec.remote_image[constants.BUILD_BRANCH],
+                 avd_spec.remote_image[constants.BUILD_TARGET],
+                 avd_spec.remote_image[constants.BUILD_ID]))
+        utils.PrintColorString("hw config:")
+        utils.PrintColorString("  cpu - %s" % (avd_spec.hw_property[constants.HW_ALIAS_CPUS]))
+        utils.PrintColorString("  ram - %dGB" % (
+            int(avd_spec.hw_property[constants.HW_ALIAS_MEMORY]) / 1024))
+        utils.PrintColorString("  disk - %dGB" % (
+            int(avd_spec.hw_property[constants.HW_ALIAS_DISK]) / 1024))
+        utils.PrintColorString(
+            "  display - %sx%s (%s DPI)" %
+            (avd_spec.hw_property[constants.HW_X_RES],
+             avd_spec.hw_property[constants.HW_Y_RES],
+             avd_spec.hw_property[constants.HW_ALIAS_DPI]))
+        utils.PrintColorString("\n")

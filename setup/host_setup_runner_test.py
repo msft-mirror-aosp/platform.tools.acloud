@@ -12,16 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Tests for host_setup_runner."""
-import grp
-import os
 import platform
 import unittest
-import mock
 
 from acloud.internal.lib import driver_test_lib
+from acloud.internal.lib import utils
 from acloud.setup import setup_common
 from acloud.setup.host_setup_runner import CuttlefishHostSetup
-from acloud.setup.host_setup_runner import CuttlefishPkgInstaller
+from acloud.setup.host_setup_runner import AvdPkgInstaller
 
 
 class CuttlefishHostSetupTest(driver_test_lib.BaseDriverTest):
@@ -43,7 +41,7 @@ lrw                    16384  1 aesni_intel"""
 
     def testShouldRunFalse(self):
         """Test ShouldRun returns False."""
-        self.Patch(CuttlefishHostSetup, "_CheckUserInGroups", return_value=True)
+        self.Patch(utils, "CheckUserInGroups", return_value=True)
         self.Patch(CuttlefishHostSetup, "_CheckLoadedModules", return_value=True)
         self.assertFalse(self.CuttlefishHostSetup.ShouldRun())
 
@@ -51,39 +49,17 @@ lrw                    16384  1 aesni_intel"""
         """Test ShouldRun returns True."""
         # 1. Checking groups fails.
         self.Patch(
-            CuttlefishHostSetup, "_CheckUserInGroups", return_value=False)
+            utils, "CheckUserInGroups", return_value=False)
         self.Patch(CuttlefishHostSetup, "_CheckLoadedModules", return_value=True)
         self.assertTrue(self.CuttlefishHostSetup.ShouldRun())
 
         # 2. Checking modules fails.
-        self.Patch(CuttlefishHostSetup, "_CheckUserInGroups", return_value=True)
+        self.Patch(utils, "CheckUserInGroups", return_value=True)
         self.Patch(
             CuttlefishHostSetup, "_CheckLoadedModules", return_value=False)
         self.assertTrue(self.CuttlefishHostSetup.ShouldRun())
 
     # pylint: disable=protected-access
-    def testCheckUserInGroups(self):
-        """Test _CheckUserInGroups."""
-        self.Patch(os, "getgroups", return_value=[1, 2, 3])
-        gr1 = mock.MagicMock()
-        gr1.gr_name = "fake_gr_1"
-        gr2 = mock.MagicMock()
-        gr2.gr_name = "fake_gr_2"
-        gr3 = mock.MagicMock()
-        gr3.gr_name = "fake_gr_3"
-        self.Patch(grp, "getgrgid", side_effect=[gr1, gr2, gr3])
-
-        # User in all required groups should return true.
-        self.assertTrue(
-            self.CuttlefishHostSetup._CheckUserInGroups(
-                ["fake_gr_1", "fake_gr_2"]))
-
-        # User not in all required groups should return False.
-        self.Patch(grp, "getgrgid", side_effect=[gr1, gr2, gr3])
-        self.assertFalse(
-            self.CuttlefishHostSetup._CheckUserInGroups(
-                ["fake_gr_1", "fake_gr_4"]))
-
     def testCheckLoadedModules(self):
         """Test _CheckLoadedModules."""
         self.Patch(
@@ -97,20 +73,20 @@ lrw                    16384  1 aesni_intel"""
             self.CuttlefishHostSetup._CheckLoadedModules(["module1", "module3"]))
 
 
-class CuttlefishPkgInstallerTest(driver_test_lib.BaseDriverTest):
-    """Test CuttlefishPkgInstaller."""
+class AvdPkgInstallerTest(driver_test_lib.BaseDriverTest):
+    """Test AvdPkgInstallerTest."""
 
     # pylint: disable=invalid-name
     def setUp(self):
         """Set up the test."""
-        super(CuttlefishPkgInstallerTest, self).setUp()
-        self.CuttlefishPkgInstaller = CuttlefishPkgInstaller()
+        super(AvdPkgInstallerTest, self).setUp()
+        self.AvdPkgInstaller = AvdPkgInstaller()
 
     def testShouldNotRun(self):
         """Test ShoudRun should raise error in non-linux os."""
         self.Patch(platform, "system", return_value="Mac")
 
-        self.assertFalse(self.CuttlefishPkgInstaller.ShouldRun())
+        self.assertFalse(self.AvdPkgInstaller.ShouldRun())
 
 
 if __name__ == "__main__":

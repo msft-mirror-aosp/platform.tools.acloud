@@ -31,15 +31,13 @@ from __future__ import print_function
 import datetime
 import logging
 import os
-import socket
-import subprocess
 
 # pylint: disable=import-error
 import dateutil.parser
 import dateutil.tz
 
+from acloud import errors
 from acloud.public import avd
-from acloud.public import errors
 from acloud.public import report
 from acloud.public.actions import common_operations
 from acloud.internal import constants
@@ -51,17 +49,12 @@ from acloud.internal.lib import utils
 
 logger = logging.getLogger(__name__)
 
-ALL_SCOPES = " ".join([android_build_client.AndroidBuildClient.SCOPE,
-                       gstorage_client.StorageClient.SCOPE,
-                       android_compute_client.AndroidComputeClient.SCOPE])
-
 MAX_BATCH_CLEANUP_COUNT = 100
 
-SSH_TUNNEL_CMD = ("/usr/bin/ssh -i %(rsa_key_file)s -o "
-                  "UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -L "
-                  "%(vnc_port)d:127.0.0.1:6444 -L %(adb_port)d:127.0.0.1:5555 "
-                  "-N -f -l root %(ip_addr)s")
-ADB_CONNECT_CMD = "adb connect 127.0.0.1:%(adb_port)d"
+#For gce_x86_phones remote instances: adb port is 5555 and vnc is 6444.
+_TARGET_VNC_PORT = 6444
+_TARGET_ADB_PORT = 5555
+_SSH_USER = "root"
 
 
 # pylint: disable=invalid-name
@@ -71,7 +64,7 @@ class AndroidVirtualDevicePool(object):
     def __init__(self, cfg, devices=None):
         self._devices = devices or []
         self._cfg = cfg
-        credentials = auth.CreateCredentials(cfg, ALL_SCOPES)
+        credentials = auth.CreateCredentials(cfg)
         self._build_client = android_build_client.AndroidBuildClient(
             credentials)
         self._storage_client = gstorage_client.StorageClient(credentials)
@@ -279,8 +272,8 @@ class AndroidVirtualDevicePool(object):
         return self._devices
 
 
-def _AddDeletionResultToReport(report_obj, deleted, failed, error_msgs,
-                               resource_name):
+def AddDeletionResultToReport(report_obj, deleted, failed, error_msgs,
+                              resource_name):
     """Adds deletion result to a Report object.
 
     This function will add the following to report.data.
@@ -336,48 +329,6 @@ def _FetchSerialLogsFromDevices(compute_client, instance_names, output_file,
         utils.MakeTarFile(src_dict, output_file)
 
 
-def _PickFreePort():
-    """Helper to pick a free port.
-
-    Returns:
-        A free port number.
-    """
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind(("", 0))
-    port = s.getsockname()[1]
-    s.close()
-    return port
-
-
-def _AutoConnect(device_dict, rsa_key_file):
-    """Autoconnect to an AVD instance.
-
-    Args:
-        device_dict: device_dict representing the device we are autoconnecting
-                     to. This dict will be updated with the adb & vnc tunnel
-                     ports.
-        rsa_key_file: Private key file to use when creating the ssh tunnels.
-    """
-    try:
-        adb_port = _PickFreePort()
-        vnc_port = _PickFreePort()
-        tunnel_cmd = SSH_TUNNEL_CMD % {"rsa_key_file": rsa_key_file,
-                                       "vnc_port": vnc_port,
-                                       "adb_port": adb_port,
-                                       "ip_addr": device_dict["ip"]}
-        logging.debug("Running '%s'", tunnel_cmd)
-        subprocess.check_call([tunnel_cmd], shell=True)
-        adb_connect_cmd = ADB_CONNECT_CMD % {"adb_port": adb_port}
-        logging.debug("Running '%s'", adb_connect_cmd)
-        device_dict["adb_tunnel_port"] = adb_port
-        device_dict["vnc_tunnel_port"] = vnc_port
-        subprocess.check_call([adb_connect_cmd], shell=True)
-    except subprocess.CalledProcessError:
-        logging.error("Failed to autoconnect %s through local adb tunnel port"
-                      " %d and vnc tunnel port %d", device_dict["ip"], adb_port,
-                      vnc_port)
-
-
 # pylint: disable=too-many-locals
 def CreateAndroidVirtualDevices(cfg,
                                 build_target=None,
@@ -388,7 +339,8 @@ def CreateAndroidVirtualDevices(cfg,
                                 cleanup=True,
                                 serial_log_file=None,
                                 logcat_file=None,
-                                autoconnect=False):
+                                autoconnect=False,
+                                report_internal_ip=False):
     """Creates one or multiple android devices.
 
     Args:
@@ -407,12 +359,14 @@ def CreateAndroidVirtualDevices(cfg,
                          be saved to.
         logcat_file: A path to a file where logcat logs should be saved.
         autoconnect: Create ssh tunnel(s) and adb connect after device creation.
+        report_internal_ip: Boolean to report the internal ip instead of
+                            external ip.
 
     Returns:
         A Report instance.
     """
     r = report.Report(command="create")
-    credentials = auth.CreateCredentials(cfg, ALL_SCOPES)
+    credentials = auth.CreateCredentials(cfg)
     compute_client = android_compute_client.AndroidComputeClient(cfg,
                                                                  credentials)
     try:
@@ -431,10 +385,20 @@ def CreateAndroidVirtualDevices(cfg,
         failures = device_pool.WaitForBoot()
         # Write result to report.
         for device in device_pool.devices:
-            device_dict = {"ip": device.ip,
-                           "instance_name": device.instance_name}
+            ip = (device.ip.internal if report_internal_ip
+                  else device.ip.external)
+            device_dict = {
+                "ip": ip,
+                "instance_name": device.instance_name
+            }
             if autoconnect:
-                _AutoConnect(device_dict, cfg.ssh_private_key_path)
+                forwarded_ports = utils.AutoConnect(ip,
+                                                    cfg.ssh_private_key_path,
+                                                    _TARGET_VNC_PORT,
+                                                    _TARGET_ADB_PORT,
+                                                    _SSH_USER)
+                device_dict[constants.VNC_PORT] = forwarded_ports.vnc_port
+                device_dict[constants.ADB_PORT] = forwarded_ports.adb_port
             if device.instance_name in failures:
                 r.AddData(key="devices_failing_boot", value=device_dict)
                 r.AddError(str(failures[device.instance_name]))
@@ -464,24 +428,25 @@ def CreateAndroidVirtualDevices(cfg,
     return r
 
 
-def DeleteAndroidVirtualDevices(cfg, instance_names):
+def DeleteAndroidVirtualDevices(cfg, instance_names, default_report=None):
     """Deletes android devices.
 
     Args:
         cfg: An AcloudConfig instance.
         instance_names: A list of names of the instances to delete.
+        default_report: A initialized Report instance.
 
     Returns:
         A Report instance.
     """
-    r = report.Report(command="delete")
-    credentials = auth.CreateCredentials(cfg, ALL_SCOPES)
+    r = default_report if default_report else report.Report(command="delete")
+    credentials = auth.CreateCredentials(cfg)
     compute_client = android_compute_client.AndroidComputeClient(cfg,
                                                                  credentials)
     try:
         deleted, failed, error_msgs = compute_client.DeleteInstances(
             instance_names, cfg.zone)
-        _AddDeletionResultToReport(
+        AddDeletionResultToReport(
             r, deleted,
             failed, error_msgs,
             resource_name="instance")
@@ -532,7 +497,7 @@ def Cleanup(cfg, expiration_mins):
         logger.info(
             "Cleaning up any gce images/instances and cached build artifacts."
             "in google storage that are older than %s", cut_time)
-        credentials = auth.CreateCredentials(cfg, ALL_SCOPES)
+        credentials = auth.CreateCredentials(cfg)
         compute_client = android_compute_client.AndroidComputeClient(
             cfg, credentials)
         storage_client = gstorage_client.StorageClient(credentials)
@@ -548,7 +513,7 @@ def Cleanup(cfg, expiration_mins):
             result = compute_client.DeleteInstances(
                 instances=cleanup_list[i:i + MAX_BATCH_CLEANUP_COUNT],
                 zone=cfg.zone)
-            _AddDeletionResultToReport(r, *result, resource_name="instance")
+            AddDeletionResultToReport(r, *result, resource_name="instance")
 
         # Cleanup expired images
         items = compute_client.ListImages()
@@ -562,7 +527,7 @@ def Cleanup(cfg, expiration_mins):
         for i in range(0, len(cleanup_list), MAX_BATCH_CLEANUP_COUNT):
             result = compute_client.DeleteImages(
                 image_names=cleanup_list[i:i + MAX_BATCH_CLEANUP_COUNT])
-            _AddDeletionResultToReport(r, *result, resource_name="image")
+            AddDeletionResultToReport(r, *result, resource_name="image")
 
         # Cleanup expired disks
         # Disks should have been attached to instances with autoDelete=True.
@@ -578,7 +543,7 @@ def Cleanup(cfg, expiration_mins):
             result = compute_client.DeleteDisks(
                 disk_names=cleanup_list[i:i + MAX_BATCH_CLEANUP_COUNT],
                 zone=cfg.zone)
-            _AddDeletionResultToReport(r, *result, resource_name="disk")
+            AddDeletionResultToReport(r, *result, resource_name="disk")
 
         # Cleanup expired google storage
         items = storage_client.List(bucket_name=cfg.storage_bucket_name)
@@ -591,7 +556,7 @@ def Cleanup(cfg, expiration_mins):
             result = storage_client.DeleteFiles(
                 bucket_name=cfg.storage_bucket_name,
                 object_names=cleanup_list[i:i + MAX_BATCH_CLEANUP_COUNT])
-            _AddDeletionResultToReport(
+            AddDeletionResultToReport(
                 r, *result, resource_name="cached_build_artifact")
 
         # Everything succeeded, write status to report.
@@ -616,7 +581,7 @@ def AddSshRsa(cfg, user, ssh_rsa_path):
     """
     r = report.Report(command="sshkey")
     try:
-        credentials = auth.CreateCredentials(cfg, ALL_SCOPES)
+        credentials = auth.CreateCredentials(cfg)
         compute_client = android_compute_client.AndroidComputeClient(
             cfg, credentials)
         compute_client.AddSshRsa(user, ssh_rsa_path)
@@ -633,7 +598,7 @@ def CheckAccess(cfg):
     Args:
          cfg: An AcloudConfig instance.
     """
-    credentials = auth.CreateCredentials(cfg, ALL_SCOPES)
+    credentials = auth.CreateCredentials(cfg)
     compute_client = android_compute_client.AndroidComputeClient(
         cfg, credentials)
     logger.info("Checking if user has access to project %s", cfg.project)

@@ -37,9 +37,9 @@ import logging
 import os
 import uuid
 
+from acloud import errors
 from acloud.internal.lib import gcompute_client
 from acloud.internal.lib import utils
-from acloud.public import errors
 
 logger = logging.getLogger(__name__)
 
@@ -226,7 +226,7 @@ class AndroidComputeClient(gcompute_client.ComputeClient):
             utils.VerifyRsaPubKey(rsa)
         return rsa
 
-    # pylint: disable=too-many-locals
+    # pylint: disable=too-many-locals,arguments-differ
     def CreateInstance(self,
                        instance,
                        image_name,
@@ -341,7 +341,7 @@ class AndroidComputeClient(gcompute_client.ComputeClient):
             zone: String, representing zone name, e.g. "us-central1-f"
 
         Returns:
-            string, IP of the instance.
+            NamedTuple of (internal, external) IP of the instance.
         """
         return super(AndroidComputeClient, self).GetInstanceIP(
             instance, zone or self._zone)

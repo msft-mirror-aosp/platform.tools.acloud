@@ -26,14 +26,15 @@ and it only keeps states about authentication. ComputeClient should be very
 generic, and only knows how to talk to Compute Engine APIs.
 """
 # pylint: disable=too-many-lines
+import collections
 import copy
 import functools
 import logging
 import os
 
+from acloud import errors
 from acloud.internal.lib import base_cloud_client
 from acloud.internal.lib import utils
-from acloud.public import errors
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,8 @@ BASE_DISK_ARGS = {
     "autoDelete": True,
     "initializeParams": {},
 }
+
+IP = collections.namedtuple("IP", ["external", "internal"])
 
 
 class OperationScope(object):
@@ -995,17 +998,19 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
         api = self.service.regions().list(project=self._project)
         return self.Execute(api)
 
-    def _GetNetworkArgs(self, network):
+    def _GetNetworkArgs(self, network, zone):
         """Helper to generate network args that is used to create an instance.
 
         Args:
             network: A string, e.g. "default".
+            zone: String, representing zone name, e.g. "us-central1-f"
 
         Returns:
             A dictionary representing network args.
         """
         return {
             "network": self.GetNetworkUrl(network),
+            "subnetwork": self.GetSubnetworkUrl(network, zone),
             "accessConfigs": [{
                 "name": "External NAT",
                 "type": "ONE_TO_ONE_NAT"
@@ -1072,7 +1077,8 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
                        disk_args=None,
                        image_project=None,
                        gpu=None,
-                       extra_disk_name=None):
+                       extra_disk_name=None,
+                       labels=None):
         """Create a gce instance with a gce image.
 
         Args:
@@ -1092,6 +1098,7 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
                  None no gpus will be attached. For more details see:
                  https://cloud.google.com/compute/docs/gpus/add-gpus
             extra_disk_name: String,the name of the extra disk to attach.
+            labels: Dict, will be added to the instance's labels.
         """
         disk_args = (disk_args
                      or self._GetDiskArgs(instance, image_name, image_project))
@@ -1100,7 +1107,7 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
         body = {
             "machineType": self.GetMachineType(machine_type, zone)["selfLink"],
             "name": instance,
-            "networkInterfaces": [self._GetNetworkArgs(network)],
+            "networkInterfaces": [self._GetNetworkArgs(network, zone)],
             "disks": disk_args,
             "serviceAccounts": [{
                 "email": "default",
@@ -1108,6 +1115,8 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
             }],
         }
 
+        if labels is not None:
+            body["labels"] = labels
         if gpu:
             body["guestAccelerators"] = [{
                 "acceleratorType": self.GetAcceleratorUrl(gpu, zone),
@@ -1228,6 +1237,36 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
         result = self.Execute(api)
         return result["selfLink"]
 
+    def GetSubnetworkUrl(self, network, zone):
+        """Get URL for a given network and zone.
+
+        Return the subnetwork for the network in the specified region that the
+        specified zone resides in. If there is no subnetwork for the specified
+        zone, raise an exception.
+
+        Args:
+            network: A string, representing network name, e.g "default"
+            zone: String, representing zone name, e.g. "us-central1-f"
+
+        Returns:
+            A URL that points to the network resource, e.g.
+            https://www.googleapis.com/compute/v1/projects/<project id>/
+            global/networks/default
+
+        Raises:
+            errors.NoSubnetwork: When no subnetwork exists for the zone
+            specified.
+        """
+        api = self.service.networks().get(
+            project=self._project, network=network)
+        result = self.Execute(api)
+        region = zone.rsplit("-", 1)[0]
+        for subnetwork in result["subnetworks"]:
+            if region in subnetwork:
+                return subnetwork
+        raise errors.NoSubnetwork("No subnetwork for network %s in region %s" %
+                                  (network, region))
+
     def CompareMachineSize(self, machine_type_1, machine_type_2, zone):
         """Compare the size of two machine types.
 
@@ -1237,25 +1276,30 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
             zone: A string representing a zone, e.g. "us-central1-f"
 
         Returns:
-            1 if size of the first type is greater than the second type.
-            2 if size of the first type is smaller than the second type.
-            0 if they are equal.
+            -1 if any metric of machine size of the first type is smaller than
+                the second type.
+            0 if all metrics of machine size are equal.
+            1 if at least one metric of machine size of the first type is
+                greater than the second type and all metrics of first type are
+                greater or equal to the second type.
 
         Raises:
             errors.DriverError: For malformed response.
         """
         machine_info_1 = self.GetMachineType(machine_type_1, zone)
         machine_info_2 = self.GetMachineType(machine_type_2, zone)
+        result = 0
         for metric in self.MACHINE_SIZE_METRICS:
             if metric not in machine_info_1 or metric not in machine_info_2:
                 raise errors.DriverError(
                     "Malformed machine size record: Can't find '%s' in %s or %s"
                     % (metric, machine_info_1, machine_info_2))
-            if machine_info_1[metric] - machine_info_2[metric] > 0:
-                return 1
-            elif machine_info_1[metric] - machine_info_2[metric] < 0:
+            cmp_result = machine_info_1[metric] - machine_info_2[metric]
+            if  cmp_result < 0:
                 return -1
-        return 0
+            elif cmp_result > 0:
+                result = 1
+        return result
 
     def GetSerialPortOutput(self, instance, zone, port=1):
         """Get serial port output.
@@ -1313,13 +1357,12 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
             zone: String, name of the zone.
 
         Returns:
-            string, IP of the instance.
+            NamedTuple of (internal, external) IP of the instance.
         """
-        # TODO(fdeng): This is for accessing external IP.
-        # We should handle internal IP as well when the script is running
-        # on a GCE instance in the same network of |instance|.
         instance = self.GetInstance(instance, zone)
-        return instance["networkInterfaces"][0]["accessConfigs"][0]["natIP"]
+        internal_ip = instance["networkInterfaces"][0]["networkIP"]
+        external_ip = instance["networkInterfaces"][0]["accessConfigs"][0]["natIP"]
+        return IP(internal=internal_ip, external=external_ip)
 
     def SetCommonInstanceMetadata(self, body):
         """Set project-wide metadata.
