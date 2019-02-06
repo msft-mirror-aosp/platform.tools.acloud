@@ -153,6 +153,15 @@ class AvdSpecTest(unittest.TestCase):
         img_path = "/fack_path/cf_x86_error-img-eng.user.zip"
         self.assertEqual(self.AvdSpec._GetFlavorFromLocalImage(img_path), None)
 
+    def testGetFlavorFromTarget(self):
+        """Test _GetFlavorFromTarget."""
+        target_name = "cf_x86_auto-userdebug"
+        self.assertEqual(self.AvdSpec._GetFlavorFromTarget(target_name), "auto")
+
+        # Target is not supported.
+        target_name = "cf_x86_error-userdebug"
+        self.assertEqual(self.AvdSpec._GetFlavorFromTarget(target_name), None)
+
     # pylint: disable=protected-access
     def testProcessRemoteBuildArgs(self):
         """Test _ProcessRemoteBuildArgs."""
@@ -196,6 +205,12 @@ class AvdSpecTest(unittest.TestCase):
         self.AvdSpec = avd_spec.AVDSpec(self.args)
         self.AvdSpec._ProcessRemoteBuildArgs(self.args)
         self.assertTrue(self.AvdSpec.avd_type == "cuttlefish")
+
+    def testEscapeAnsi(self):
+        """Test EscapeAnsi."""
+        test_string = "\033[1;32;40m Manifest branch:"
+        expected_result = " Manifest branch:"
+        self.assertEqual(avd_spec.EscapeAnsi(test_string), expected_result)
 
 
 if __name__ == "__main__":
