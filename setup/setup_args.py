@@ -38,9 +38,10 @@ def GetSetupArgParser(subparser):
         action="store_true",
         dest="host",
         required=False,
-        help="Setup host to run local instance of an Android Virtual Device.")
+        help="Setup host to run local instance of an Android Virtual Device. "
+             "Must explicitly set to kick off host setup.")
     setup_parser.add_argument(
-        "--gcp_init",
+        "--gcp-init",
         action="store_true",
         dest="gcp_init",
         required=False,
