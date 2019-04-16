@@ -466,7 +466,7 @@ class TextColors:
     HEADER = "\033[95m"
     OKBLUE = "\033[94m"
     OKGREEN = "\033[92m"
-    WARNING = "\033[93m"
+    WARNING = "\033[33m"
     FAIL = "\033[91m"
     ENDC = "\033[0m"
     BOLD = "\033[1m"
@@ -827,6 +827,8 @@ def AutoConnect(ip_addr, rsa_key_file, target_vnc_port, target_adb_port, ssh_use
     except subprocess.CalledProcessError:
         PrintColorString("Failed to create ssh tunnels, retry with '#acloud "
                          "reconnect'.", TextColors.FAIL)
+        return ForwardedPorts(vnc_port=None, adb_port=None)
+
     try:
         adb_connect_args = _ADB_CONNECT_ARGS % {"adb_port": local_free_adb_port}
         _ExecuteCommand(constants.ADB_BIN, adb_connect_args.split())
@@ -851,12 +853,11 @@ def GetAnswerFromList(answer_list, enable_choose_all=False):
     start_index = 1
     max_choice = len(answer_list)
 
-    if enable_choose_all:
-        start_index = 2
-        max_choice += 1
-        print("[1] for all.")
     for num, item in enumerate(answer_list, start_index):
         print("[%d] %s" % (num, item))
+    if enable_choose_all:
+        max_choice += 1
+        print("[%d] for all." % max_choice)
 
     choice = -1
 
@@ -871,7 +872,7 @@ def GetAnswerFromList(answer_list, enable_choose_all=False):
         if choice == 0:
             print("Exiting acloud.")
             sys.exit()
-        if enable_choose_all and choice == 1:
+        if enable_choose_all and choice == max_choice:
             return answer_list
         if choice < 0 or choice > max_choice:
             print("please choose between 0 and %d" % max_choice)
@@ -879,27 +880,33 @@ def GetAnswerFromList(answer_list, enable_choose_all=False):
             return [answer_list[choice-start_index]]
 
 
-def LaunchVNCFromReport(report, avd_spec):
+def LaunchVNCFromReport(report, avd_spec, no_prompts=False):
     """Launch vnc client according to the instances report.
 
     Args:
         report: Report object, that stores and generates report.
         avd_spec: AVDSpec object that tells us what we're going to create.
+        no_prompts: Boolean, True to skip all prompts.
     """
     for device in report.data.get("devices", []):
-        LaunchVncClient(device.get(constants.VNC_PORT),
-                        avd_width=avd_spec.hw_property["x_res"],
-                        avd_height=avd_spec.hw_property["y_res"])
-
+        if device.get(constants.VNC_PORT):
+            LaunchVncClient(device.get(constants.VNC_PORT),
+                            avd_width=avd_spec.hw_property["x_res"],
+                            avd_height=avd_spec.hw_property["y_res"],
+                            no_prompts=no_prompts)
+        else:
+            PrintColorString("No VNC port specified, skipping VNC startup.",
+                             TextColors.FAIL)
 
 def LaunchVncClient(port=constants.DEFAULT_VNC_PORT, avd_width=None,
-                    avd_height=None):
+                    avd_height=None, no_prompts=False):
     """Launch ssvnc.
 
     Args:
         port: Integer, port number.
         avd_width: String, the width of avd.
         avd_height: String, the height of avd.
+        no_prompts: Boolean, True to skip all prompts.
     """
     try:
         os.environ[_ENV_DISPLAY]
@@ -909,7 +916,7 @@ def LaunchVncClient(port=constants.DEFAULT_VNC_PORT, avd_width=None,
         return
 
     if not find_executable(_VNC_BIN):
-        if GetUserAnswerYes(_CONFIRM_CONTINUE):
+        if no_prompts or GetUserAnswerYes(_CONFIRM_CONTINUE):
             try:
                 PrintColorString("Installing ssvnc vnc client... ", end="")
                 sys.stdout.flush()

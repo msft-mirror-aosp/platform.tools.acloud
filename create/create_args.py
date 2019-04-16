@@ -100,6 +100,18 @@ def AddCommonCreateArgs(parser):
         dest="logcat_file",
         required=False,
         help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--build_id",
+        type=str,
+        dest="build_id",
+        required=False,
+        help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--build_target",
+        type=str,
+        dest="build_target",
+        required=False,
+        help=argparse.SUPPRESS)
 
 
 def GetCreateArgParser(subparser):
@@ -125,7 +137,7 @@ def GetCreateArgParser(subparser):
         type=str,
         dest="avd_type",
         default=constants.TYPE_CF,
-        choices=[constants.TYPE_GCE, constants.TYPE_CF, constants.TYPE_GF],
+        choices=[constants.TYPE_GCE, constants.TYPE_CF, constants.TYPE_GF, constants.TYPE_CHEEPS],
         help="Android Virtual Device type (default %s)." % constants.TYPE_CF)
     create_parser.add_argument(
         "--flavor",
@@ -153,10 +165,10 @@ def GetCreateArgParser(subparser):
         type=str,
         dest="kernel_build_id",
         required=False,
-        help="Android kernel build id, e.g. 4586590. This is to test a new"
-        " kernel build with a particular Android build (--build_id). If not"
-        " specified, the kernel that's bundled with the Android build would"
-        " be used.")
+        help=("Android kernel build id, e.g. 4586590. This is to test a new"
+              " kernel build with a particular Android build (--build_id). If"
+              "not specified, the kernel that's bundled with the Android build"
+              "would be used."))
     create_parser.add_argument(
         "--local-image",
         type=str,
@@ -172,6 +184,13 @@ def GetCreateArgParser(subparser):
         dest="image_download_dir",
         required=False,
         help="Define remote image download directory, e.g. /usr/local/dl.")
+    create_parser.add_argument(
+        "--yes", "-y",
+        action="store_true",
+        dest="no_prompt",
+        required=False,
+        help=("Automatic yes to prompts. Assume 'yes' as answer to all prompts "
+              "and run non-interactively."))
     # User should not specify --spec and --hw_property at the same time.
     hw_spec_group = create_parser.add_mutually_exclusive_group()
     hw_spec_group.add_argument(

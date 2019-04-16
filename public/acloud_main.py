@@ -123,8 +123,6 @@ def _ParseArgs(args):
     usage = ",".join([
         setup_args.CMD_SETUP,
         create_args.CMD_CREATE,
-        CMD_CREATE_CUTTLEFISH,
-        CMD_CREATE_GOLDFISH,
         list_args.CMD_LIST,
         delete_args.CMD_DELETE,
         reconnect_args.CMD_RECONNECT,
@@ -133,7 +131,7 @@ def _ParseArgs(args):
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
         usage="acloud {" + usage + "} ...")
-    subparsers = parser.add_subparsers()
+    subparsers = parser.add_subparsers(metavar="{" + usage + "}")
     subparser_list = []
 
     # Command "create_cf", create cuttlefish instances
@@ -141,20 +139,10 @@ def _ParseArgs(args):
     create_cf_parser.required = False
     create_cf_parser.set_defaults(which=CMD_CREATE_CUTTLEFISH)
     create_cf_parser.add_argument(
-        "--build_target",
-        type=str,
-        dest="build_target",
-        help="Android build target, should be a cuttlefish target name.")
-    create_cf_parser.add_argument(
         "--branch",
         type=str,
         dest="branch",
         help="Android branch, e.g. git_master")
-    create_cf_parser.add_argument(
-        "--build_id",
-        type=str,
-        dest="build_id",
-        help="Android build id, e.g. 2145099, P2804227")
     create_cf_parser.add_argument(
         "--kernel_build_id",
         type=str,
@@ -178,20 +166,10 @@ def _ParseArgs(args):
     create_gf_parser.required = False
     create_gf_parser.set_defaults(which=CMD_CREATE_GOLDFISH)
     create_gf_parser.add_argument(
-        "--build_target",
-        type=str,
-        dest="build_target",
-        help="Android build target, should be a goldfish target name.")
-    create_gf_parser.add_argument(
         "--branch",
         type=str,
         dest="branch",
         help="Android branch, e.g. git_master")
-    create_gf_parser.add_argument(
-        "--build_id",
-        type=str,
-        dest="build_id",
-        help="Android build id, e.g. 4669424, P2804227")
     create_gf_parser.add_argument(
         "--emulator_build_id",
         type=str,

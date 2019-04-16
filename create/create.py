@@ -29,6 +29,7 @@ import sys
 
 from acloud import errors
 from acloud.create import avd_spec
+from acloud.create import cheeps_remote_image_remote_instance
 from acloud.create import gce_local_image_remote_instance
 from acloud.create import gce_remote_image_remote_instance
 from acloud.create import local_image_local_instance
@@ -59,6 +60,9 @@ _CREATOR_CLASS_DICT = {
         remote_image_remote_instance.RemoteImageRemoteInstance,
     (constants.TYPE_CF, constants.IMAGE_SRC_REMOTE, constants.INSTANCE_TYPE_LOCAL):
         remote_image_local_instance.RemoteImageLocalInstance,
+    # Cheeps types
+    (constants.TYPE_CHEEPS, constants.IMAGE_SRC_REMOTE, constants.INSTANCE_TYPE_REMOTE):
+        cheeps_remote_image_remote_instance.CheepsRemoteImageRemoteInstance,
 }
 
 
@@ -200,6 +204,6 @@ def Run(args):
                                            spec.instance_type,
                                            spec.image_source)
     avd_creator = avd_creator_class()
-    report = avd_creator.Create(spec)
+    report = avd_creator.Create(spec, args.no_prompt)
     if report and args.report_file:
         report.Dump(args.report_file)
