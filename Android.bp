@@ -54,6 +54,7 @@ python_binary_host {
         "py-dateutil",
         "py-google-api-python-client",
         "py-oauth2client",
+        "py-pyopenssl",
     ],
     dist: {
         targets: ["droidcore"],
@@ -73,6 +74,7 @@ python_test_host {
         "public/*_test.py",
         "public/actions/*_test.py",
         "internal/lib/*_test.py",
+        "metrics/*.py",
     ],
     libs: [
         "acloud_create",
@@ -83,6 +85,7 @@ python_test_host {
         "acloud_proto",
         "acloud_public",
         "acloud_setup",
+        "asuite_cc_client",
         "py-apitools",
         "py-dateutil",
         "py-google-api-python-client",
@@ -180,6 +183,7 @@ python_library_host{
          "metrics/*.py",
     ],
     libs: [
+         "asuite_cc_client",
          "asuite_metrics",
     ],
 }
