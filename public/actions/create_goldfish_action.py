@@ -94,6 +94,7 @@ class GoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         self._gpu = gpu
         self._avd_spec = avd_spec
         self._blank_data_disk_size_gb = cfg.extra_data_disk_size_gb
+        self._extra_scopes = cfg.extra_scopes
 
         # Configure clients
         self._build_client = android_build_client.AndroidBuildClient(
@@ -126,7 +127,8 @@ class GoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
             emulator_build_id=self._emulator_build_id,
             gpu=self._gpu,
             blank_data_disk_size_gb=self._blank_data_disk_size_gb,
-            avd_spec=self._avd_spec)
+            avd_spec=self._avd_spec,
+            extra_scopes=self._extra_scopes)
 
         return instance
 
@@ -232,6 +234,9 @@ def CreateDevices(avd_spec=None,
         report_internal_ip = avd_spec.report_internal_ip
 
     if emulator_build_id is None:
+        logger.info("emulator_build_id not provided. "
+                    "Try to get %s from build %s/%s.", _EMULATOR_INFO_FILENAME,
+                    build_id, build_target)
         emulator_build_id = _FetchBuildIdFromFile(cfg,
                                                   build_target,
                                                   build_id,
@@ -264,14 +269,7 @@ def CreateDevices(avd_spec=None,
                                            cfg.emulator_build_target,
                                            emulator_build_id, gpu, avd_spec)
 
-    return common_operations.CreateDevices(
-        command="create_gf",
-        cfg=cfg,
-        device_factory=device_factory,
-        num=num,
-        report_internal_ip=report_internal_ip,
-        autoconnect=autoconnect,
-        vnc_port=constants.DEFAULT_GOLDFISH_VNC_PORT,
-        adb_port=constants.DEFAULT_GOLDFISH_ADB_PORT,
-        serial_log_file=serial_log_file,
-        logcat_file=logcat_file)
+    return common_operations.CreateDevices("create_gf", cfg, device_factory,
+                                           num, constants.TYPE_GF,
+                                           report_internal_ip, autoconnect,
+                                           serial_log_file, logcat_file)
