@@ -51,8 +51,8 @@ class CuttlefishDeviceFactory(base_device_factory.BaseDeviceFactory):
 
     def __init__(self, cfg, build_target, build_id, branch=None,
                  kernel_build_id=None, avd_spec=None, kernel_branch=None,
-                 system_branch=None, system_build_id=None,
-                 system_build_target=None):
+                 kernel_build_target=None, system_branch=None,
+                 system_build_id=None, system_build_target=None):
 
         self.credentials = auth.CreateCredentials(cfg)
 
@@ -78,7 +78,8 @@ class CuttlefishDeviceFactory(base_device_factory.BaseDeviceFactory):
         self.build_info = self._build_client.GetBuildInfo(
             build_target, build_id, branch)
         self.kernel_build_info = self._build_client.GetBuildInfo(
-            cfg.kernel_build_target, kernel_build_id, kernel_branch)
+            kernel_build_target or cfg.kernel_build_target, kernel_build_id,
+            kernel_branch)
         self.system_build_info = self._build_client.GetBuildInfo(
             system_build_target or build_target, system_build_id, system_branch)
 
@@ -100,6 +101,20 @@ class CuttlefishDeviceFactory(base_device_factory.BaseDeviceFactory):
              for key, val in self.system_build_info.__dict__.items() if val}
         )
         return build_info_dict
+
+    @staticmethod
+    def _GetGcsBucketBuildId(build_id, release_id):
+        """Get GCS Bucket Build Id.
+
+        Args:
+          build_id: The incremental build id. For example 5325535.
+          release_id: The release build id, None if not a release build.
+                      For example AAAA.190220.001.
+
+        Returns:
+          GCS bucket build id. For example: AAAA.190220.001-5325535
+        """
+        return "-".join([release_id, build_id]) if release_id else build_id
 
     def CreateInstance(self):
         """Creates singe configured cuttlefish device.
@@ -123,19 +138,24 @@ class CuttlefishDeviceFactory(base_device_factory.BaseDeviceFactory):
             image_project=self._cfg.stable_host_image_project,
             build_target=self.build_info.build_target,
             branch=self.build_info.branch,
-            build_id=self.build_info.gcs_bucket_build_id,
+            build_id=self._GetGcsBucketBuildId(
+                self.build_info.build_id, self.build_info.release_build_id),
             kernel_branch=self.kernel_build_info.branch,
             kernel_build_id=self.kernel_build_info.build_id,
+            kernel_build_target=self.kernel_build_info.build_target,
             blank_data_disk_size_gb=self._blank_data_disk_size_gb,
             avd_spec=self._avd_spec,
             extra_scopes=self._extra_scopes,
             system_build_target=self.system_build_info.build_target,
             system_branch=self.system_build_info.branch,
-            system_build_id=self.system_build_info.gcs_bucket_build_id)
+            system_build_id=self._GetGcsBucketBuildId(
+                self.system_build_info.build_id,
+                self.system_build_info.release_build_id))
 
         return instance
 
 
+#pylint: disable=too-many-locals
 def CreateDevices(avd_spec=None,
                   cfg=None,
                   build_target=None,
@@ -143,6 +163,7 @@ def CreateDevices(avd_spec=None,
                   branch=None,
                   kernel_build_id=None,
                   kernel_branch=None,
+                  kernel_build_target=None,
                   system_branch=None,
                   system_build_id=None,
                   system_build_target=None,
@@ -161,6 +182,7 @@ def CreateDevices(avd_spec=None,
         branch: Branch name, a string, e.g. aosp_master
         kernel_build_id: String, Kernel build id.
         kernel_branch: String, Kernel branch name.
+        kernel_build_target: String, Kernel build target name.
         system_branch: Branch name to consume the system.img from, a string.
         system_build_id: System branch build id, a string.
         system_build_target: System image build target, a string.
@@ -194,6 +216,7 @@ def CreateDevices(avd_spec=None,
         "branch: %s, "
         "kernel_build_id: %s, "
         "kernel_branch: %s, "
+        "kernel_build_target: %s, "
         "system_branch: %s, "
         "system_build_id: %s, "
         "system_build_target: %s, "
@@ -202,13 +225,14 @@ def CreateDevices(avd_spec=None,
         "logcat_file: %s, "
         "autoconnect: %s, "
         "report_internal_ip: %s", cfg.project, build_target,
-        build_id, branch, kernel_build_id, kernel_branch, system_branch,
-        system_build_id, system_build_target, num, serial_log_file,
-        logcat_file, autoconnect, report_internal_ip)
+        build_id, branch, kernel_build_id, kernel_branch, kernel_build_target,
+        system_branch, system_build_id, system_build_target, num,
+        serial_log_file, logcat_file, autoconnect, report_internal_ip)
     device_factory = CuttlefishDeviceFactory(
         cfg, build_target, build_id, branch=branch, avd_spec=avd_spec,
         kernel_build_id=kernel_build_id, kernel_branch=kernel_branch,
-        system_branch=system_branch, system_build_id=system_build_id,
+        kernel_build_target=kernel_build_target, system_branch=system_branch,
+        system_build_id=system_build_id,
         system_build_target=system_build_target)
     return common_operations.CreateDevices("create_cf", cfg, device_factory,
                                            num, constants.TYPE_CF,
