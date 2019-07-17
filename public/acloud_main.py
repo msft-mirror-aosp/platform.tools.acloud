@@ -166,6 +166,34 @@ def _ParseArgs(args):
         " specifying kernel_build_id, the last green build in the branch will"
         " be used. If neither kernel_branch nor kernel_build_id are specified,"
         " the kernel that's bundled with the Android build would be used.")
+    create_cf_parser.add_argument(
+        "--kernel_build_target",
+        type=str,
+        dest="kernel_build_target",
+        default="kernel",
+        help="Kernel build target, specify if different from 'kernel'")
+    create_cf_parser.add_argument(
+        "--system_branch",
+        type=str,
+        dest="system_branch",
+        help="Branch to consume the system image (system.img) from, will "
+        "default to what is defined by --branch. "
+        "That feature allows to (automatically) test various combinations "
+        "of vendor.img (CF, e.g.) and system images (GSI, e.g.). ",
+        required=False)
+    create_cf_parser.add_argument(
+        "--system_build_id",
+        type=str,
+        dest="system_build_id",
+        help="System image build id, e.g. 2145099, P2804227",
+        required=False)
+    create_cf_parser.add_argument(
+        "--system_build_target",
+        type=str,
+        dest="system_build_target",
+        help="System image build target, specify if different from "
+        "--build_target",
+        required=False)
 
     create_args.AddCommonCreateArgs(create_cf_parser)
     subparser_list.append(create_cf_parser)
@@ -191,6 +219,13 @@ def _ParseArgs(args):
         required=False,
         help="Emulator build used to run the images. e.g. 4669466.")
     create_gf_parser.add_argument(
+        "--emulator_branch",
+        type=str,
+        dest="emulator_branch",
+        required=False,
+        help="Emulator build branch name, e.g. aosp-emu-master-dev. If specified"
+        " without emulator_build_id, the last green build will be used.")
+    create_gf_parser.add_argument(
         "--gpu",
         type=str,
         dest="gpu",
@@ -213,6 +248,24 @@ def _ParseArgs(args):
         required=False,
         default=None,
         help="Tags to be set on to the created instance. e.g. https-server.")
+    create_gf_parser.add_argument(
+        "--kernel_build_id",
+        type=str,
+        dest="kernel_build_id",
+        help="Android kernel build id, e.g. 4586590. This is to test a new"
+        " kernel build with a particular Android build (--build_id). If neither"
+        " kernel_branch nor kernel_build_id are specified, the kernel that's"
+        " bundled with the Android build would be used.")
+    create_gf_parser.add_argument(
+        "--kernel_branch",
+        type=str,
+        dest="kernel_branch",
+        help="Android kernel build branch name, "
+        "e.g. kernel-common-android-4.14. This is to test a new kernel build "
+        "with a particular Android build (--build_id). If specified without "
+        "specifying kernel_build_id, the last green build in the branch will "
+        "be used. If neither kernel_branch nor kernel_build_id are specified, "
+        "the kernel that's bundled with the Android build would be used.")
 
     create_args.AddCommonCreateArgs(create_gf_parser)
     subparser_list.append(create_gf_parser)
@@ -269,9 +322,11 @@ def _VerifyArgs(parsed_args):
             raise errors.CommandArgError(
                 "Must specify --build_id and --build_target")
     if parsed_args.which == CMD_CREATE_GOLDFISH:
-        if not parsed_args.emulator_build_id and not parsed_args.build_id:
-            raise errors.CommandArgError("Must specify either "
-                                         "--emulator_build_id or --build_id")
+        if not parsed_args.emulator_build_id and not parsed_args.build_id and (
+                not parsed_args.emulator_branch and not parsed_args.branch):
+            raise errors.CommandArgError(
+                "Must specify either --build_id or --branch or "
+                "--emulator_branch or --emulator_build_id")
         if not parsed_args.build_target:
             raise errors.CommandArgError("Must specify --build_target")
 
@@ -372,25 +427,34 @@ def main(argv=None):
             cfg=cfg,
             build_target=args.build_target,
             build_id=args.build_id,
+            branch=args.branch,
             kernel_build_id=args.kernel_build_id,
             kernel_branch=args.kernel_branch,
+            kernel_build_target=args.kernel_build_target,
+            system_branch=args.system_branch,
+            system_build_id=args.system_build_id,
+            system_build_target=args.system_build_target,
             num=args.num,
             serial_log_file=args.serial_log_file,
             logcat_file=args.logcat_file,
             autoconnect=args.autoconnect,
-            report_internal_ip=args.report_internal_ip)
+            report_internal_ip=args.report_internal_ip,
+            boot_timeout_secs=args.boot_timeout_secs)
     elif args.which == CMD_CREATE_GOLDFISH:
         report = create_goldfish_action.CreateDevices(
             cfg=cfg,
             build_target=args.build_target,
             build_id=args.build_id,
             emulator_build_id=args.emulator_build_id,
+            branch=args.branch,
+            emulator_branch=args.emulator_branch,
+            kernel_build_id=args.kernel_build_id,
+            kernel_branch=args.kernel_branch,
             gpu=args.gpu,
             num=args.num,
             serial_log_file=args.serial_log_file,
             logcat_file=args.logcat_file,
             autoconnect=args.autoconnect,
-            branch=args.branch,
             tags=args.tags,
             report_internal_ip=args.report_internal_ip)
     elif args.which == delete_args.CMD_DELETE:

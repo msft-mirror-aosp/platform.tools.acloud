@@ -65,6 +65,7 @@ _COMMAND_GIT_REMOTE = ["git", "remote"]
 # Android Build will recognize it as aosp-master.
 _BRANCH_PREFIX = {"aosp": "aosp-"}
 _DEFAULT_BRANCH_PREFIX = "git_"
+_DEFAULT_BRANCH = "aosp-master"
 
 # The target prefix is needed to help concoct the lunch target name given a
 # the branch, avd type and device flavor:
@@ -86,6 +87,7 @@ def EscapeAnsi(line):
     return _RE_ANSI_ESCAPE.sub('', line)
 
 
+# pylint: disable=too-many-public-methods
 class AVDSpec(object):
     """Class to store data on the type of AVD to create."""
 
@@ -97,6 +99,7 @@ class AVDSpec(object):
         """
         # Let's define the private class vars here and then process the user
         # args afterwards.
+        self._client_adb_port = args.adb_port
         self._autoconnect = None
         self._report_internal_ip = None
         self._avd_type = None
@@ -118,6 +121,13 @@ class AVDSpec(object):
         # gpu and emulator_build_id is only used for goldfish avd_type.
         self._gpu = None
         self._emulator_build_id = None
+
+        # username and password only used for cheeps type.
+        self._username = None
+        self._password = None
+
+        # The maximum time in seconds used to wait for the AVD to boot.
+        self._boot_timeout_secs = None
 
         self._ProcessArgs(args)
 
@@ -262,6 +272,11 @@ class AVDSpec(object):
         self._emulator_build_id = args.emulator_build_id
         self._gpu = args.gpu
 
+        self._username = args.username
+        self._password = args.password
+
+        self._boot_timeout_secs = args.boot_timeout_secs
+
     @staticmethod
     def _GetFlavorFromString(flavor_string):
         """Get flavor name from flavor string.
@@ -319,7 +334,7 @@ class AVDSpec(object):
             String, image file path if exists.
 
         Raises:
-            errors.BootImgDoesNotExist if image doesn't exist.
+            errors.ImgDoesNotExist if image doesn't exist.
         """
         # IF the user specified a file, return it
         if local_image_dir and os.path.isfile(local_image_dir):
@@ -335,9 +350,9 @@ class AVDSpec(object):
             if os.path.exists(full_file_path):
                 return full_file_path
 
-        raise errors.BootImgDoesNotExist("Could not find any GCE images (%s), "
-                                         "you can build them via \"m dist\"" %
-                                         ", ".join(_GCE_LOCAL_IMAGE_CANDIDATES))
+        raise errors.ImgDoesNotExist("Could not find any GCE images (%s), you "
+                                     "can build them via \"m dist\"" %
+                                     ", ".join(_GCE_LOCAL_IMAGE_CANDIDATES))
 
     def _ProcessCFLocalImageArgs(self, local_image_arg, flavor_arg):
         """Get local built image path for cuttlefish-type AVD.
@@ -394,7 +409,8 @@ class AVDSpec(object):
         self._remote_image = {}
         self._remote_image[_BUILD_BRANCH] = args.branch
         if not self._remote_image[_BUILD_BRANCH]:
-            self._remote_image[_BUILD_BRANCH] = self._GetBranchFromRepo()
+            self._remote_image[_BUILD_BRANCH] = self._GetBuildBranch(
+                args.build_id, args.build_target)
 
         self._remote_image[_BUILD_TARGET] = args.build_target
         if not self._remote_image[_BUILD_TARGET]:
@@ -413,8 +429,8 @@ class AVDSpec(object):
 
         self._remote_image[_BUILD_ID] = args.build_id
         if not self._remote_image[_BUILD_ID]:
-            credentials = auth.CreateCredentials(self._cfg)
-            build_client = android_build_client.AndroidBuildClient(credentials)
+            build_client = android_build_client.AndroidBuildClient(
+                auth.CreateCredentials(self._cfg))
             self._remote_image[constants.BUILD_ID] = build_client.GetLKGB(
                 self._remote_image[constants.BUILD_TARGET],
                 self._remote_image[constants.BUILD_BRANCH])
@@ -442,26 +458,47 @@ class AVDSpec(object):
         return EscapeAnsi(subprocess.check_output(_COMMAND_GIT_REMOTE,
                                                   cwd=acloud_project).strip())
 
+    def _GetBuildBranch(self, build_id, build_target):
+        """Infer build branch if user didn't specify branch name.
+
+        Args:
+            build_id: String, Build id, e.g. "2263051", "P2804227"
+            build_target: String, the build target, e.g. cf_x86_phone-userdebug
+
+        Returns:
+            String, name of build branch.
+        """
+        # Infer branch from build_target and build_id
+        if build_id and build_target:
+            build_client = android_build_client.AndroidBuildClient(
+                auth.CreateCredentials(self._cfg))
+            return build_client.GetBranch(build_target, build_id)
+
+        return self._GetBranchFromRepo()
+
     def _GetBranchFromRepo(self):
         """Get branch information from command "repo info".
 
+        If branch can't get from "repo info", it will be set as default branch
+        "aosp-master".
+
         Returns:
             branch: String, git branch name. e.g. "aosp-master"
-
-        Raises:
-            errors.GetBranchFromRepoInfoError: Can't get branch from
-            output of "repo info".
         """
-        repo_output = subprocess.check_output(_COMMAND_REPO_INFO)
+        repo_output = ""
+        try:
+            repo_output = subprocess.check_output(_COMMAND_REPO_INFO)
+        except subprocess.CalledProcessError:
+            utils.PrintColorString(
+                "Unable to determine your repo branch, defaulting to %s"
+                % _DEFAULT_BRANCH, utils.TextColors.WARNING)
         for line in repo_output.splitlines():
             match = _BRANCH_RE.match(EscapeAnsi(line))
             if match:
                 branch_prefix = _BRANCH_PREFIX.get(self._GetGitRemote(),
                                                    _DEFAULT_BRANCH_PREFIX)
                 return branch_prefix + match.group("branch")
-        raise errors.GetBranchFromRepoInfoError(
-            "No branch mentioned in repo info output: %s" % repo_output
-        )
+        return _DEFAULT_BRANCH
 
     def _GetBuildTarget(self, args):
         """Infer build target if user doesn't specified target name.
@@ -577,3 +614,23 @@ class AVDSpec(object):
     def emulator_build_id(self):
         """Return emulator_build_id."""
         return self._emulator_build_id
+
+    @property
+    def client_adb_port(self):
+        """Return the client adb port."""
+        return self._client_adb_port
+
+    @property
+    def username(self):
+        """Return username."""
+        return self._username
+
+    @property
+    def password(self):
+        """Return password."""
+        return self._password
+
+    @property
+    def boot_timeout_secs(self):
+        """Return boot_timeout_secs."""
+        return self._boot_timeout_secs

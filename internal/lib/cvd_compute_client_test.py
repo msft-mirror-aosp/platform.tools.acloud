@@ -43,6 +43,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
     BUILD_ID = "2263051"
     KERNEL_BRANCH = "fake-kernel-branch"
     KERNEL_BUILD_ID = "1234567"
+    KERNEL_BUILD_TARGET = "kernel"
     DPI = 160
     X_RES = 720
     Y_RES = 1280
@@ -99,6 +100,16 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
                 branch=self.BRANCH, build_id=self.BUILD_ID),
             "cvd_01_fetch_kernel_bid": "{branch}/{build_id}".format(
                 branch=self.KERNEL_BRANCH, build_id=self.KERNEL_BUILD_ID),
+            "cvd_01_fetch_kernel_build_target": self.KERNEL_BUILD_TARGET,
+            "cvd_01_x_res": str(self.X_RES),
+            "cvd_01_y_res": str(self.Y_RES),
+            "user": "fake_user",
+            "cvd_01_data_policy":
+                self.cvd_compute_client.DATA_POLICY_CREATE_IF_MISSING,
+            "cvd_01_blank_data_disk_size": str(self.EXTRA_DATA_DISK_SIZE_GB * 1024),
+        }
+        expected_metadata_local_image = {
+            "cvd_01_dpi": str(self.DPI),
             "cvd_01_x_res": str(self.X_RES),
             "cvd_01_y_res": str(self.Y_RES),
             "user": "fake_user",
@@ -107,6 +118,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
             "cvd_01_blank_data_disk_size": str(self.EXTRA_DATA_DISK_SIZE_GB * 1024),
         }
         expected_metadata.update(self.METADATA)
+        expected_metadata_local_image.update(self.METADATA)
         remote_image_metadata = dict(expected_metadata)
         remote_image_metadata["cvd_01_launch"] = self.LAUNCH_ARGS
         expected_disk_args = [{"fake_arg": "fake_value"}]
@@ -114,8 +126,8 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.cvd_compute_client.CreateInstance(
             self.INSTANCE, self.IMAGE, self.IMAGE_PROJECT, self.TARGET,
             self.BRANCH, self.BUILD_ID, self.KERNEL_BRANCH,
-            self.KERNEL_BUILD_ID, self.EXTRA_DATA_DISK_SIZE_GB,
-            extra_scopes=self.EXTRA_SCOPES)
+            self.KERNEL_BUILD_ID, self.KERNEL_BUILD_TARGET,
+            self.EXTRA_DATA_DISK_SIZE_GB, extra_scopes=self.EXTRA_SCOPES)
         mock_create.assert_called_with(
             self.cvd_compute_client,
             instance=self.INSTANCE,
@@ -130,13 +142,14 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
             extra_scopes=self.EXTRA_SCOPES)
 
         #test use local image in the remote instance.
-        local_image_metadata = dict(expected_metadata)
+        local_image_metadata = dict(expected_metadata_local_image)
         args = mock.MagicMock()
         mock_check_img.return_value = True
         args.local_image = None
         args.config_file = ""
         args.avd_type = constants.TYPE_CF
         args.flavor = "phone"
+        args.adb_port = None
         fake_avd_spec = avd_spec.AVDSpec(args)
         fake_avd_spec.hw_property[constants.HW_X_RES] = str(self.X_RES)
         fake_avd_spec.hw_property[constants.HW_Y_RES] = str(self.Y_RES)
@@ -152,8 +165,8 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.cvd_compute_client.CreateInstance(
             self.INSTANCE, self.IMAGE, self.IMAGE_PROJECT, self.TARGET, self.BRANCH,
             self.BUILD_ID, self.KERNEL_BRANCH, self.KERNEL_BUILD_ID,
-            self.EXTRA_DATA_DISK_SIZE_GB, fake_avd_spec,
-            extra_scopes=self.EXTRA_SCOPES)
+            self.KERNEL_BUILD_TARGET, self.EXTRA_DATA_DISK_SIZE_GB,
+            fake_avd_spec, extra_scopes=self.EXTRA_SCOPES)
 
         expected_labels = {constants.LABEL_CREATE_BY: "fake_user"}
         mock_create.assert_called_with(

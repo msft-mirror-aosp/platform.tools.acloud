@@ -87,6 +87,10 @@ class DeviceConnectionError(DriverError):
     """To catch device connection errors."""
 
 
+class PortOccupied(DriverError):
+    """Raised when open port fail."""
+
+
 class DeviceBootTimeoutError(DeviceBootError):
     """Raised when an AVD defice failed to boot within timeout."""
 
@@ -143,12 +147,12 @@ class UnsupportedFlavor(CreateError):
     """Unsupported create action for given flavor name."""
 
 
+class UnsupportedMultiAdbPort(CreateError):
+    """Unsupported create action for multi AVDs and specify adb port."""
+
+
 class GetBuildIDError(CreateError):
     """Can't get build id from Android Build."""
-
-
-class GetBranchFromRepoInfoError(CreateError):
-    """Can't get branch information from output of #'repo info'."""
 
 
 class NotSupportedHWPropertyError(CreateError):
@@ -175,12 +179,8 @@ class NoCuttlefishCommonInstalled(SetupError):
     """Can't find cuttlefish_common lib."""
 
 
-class UnpackBootImageError(CreateError):
-    """Error related to unpack boot.img."""
-
-
-class BootImgDoesNotExist(CreateError):
-    """boot.img does not exist."""
+class ImgDoesNotExist(CreateError):
+    """Image does not exist."""
 
 
 class UnsupportedCompressionFileType(SetupError):
@@ -209,3 +209,7 @@ class FunctionTimeoutError(Exception):
 
 class ZipImageError(Exception):
     """Zip image error."""
+
+
+class UnknownAvdType(Exception):
+    """Unknow AVD type."""

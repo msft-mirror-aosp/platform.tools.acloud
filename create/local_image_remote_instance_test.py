@@ -30,7 +30,6 @@ import mock
 
 from acloud import errors
 from acloud.create import avd_spec
-from acloud.create import create_common
 from acloud.create import local_image_remote_instance
 from acloud.internal import constants
 from acloud.internal.lib import auth
@@ -103,19 +102,19 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(factory._ShellCmdWithRetry("fake cmd"), True)
 
     # pylint: disable=protected-access
+    @mock.patch.dict(os.environ, {constants.ENV_BUILD_TARGET:'fake-target'})
     def testCreateGceInstanceName(self):
         """test create gce instance."""
         self.Patch(utils, "GetBuildEnvironmentVariable",
                    return_value="test_environ")
         self.Patch(glob, "glob", return_vale=["fake.img"])
-        self.Patch(create_common, "ZipCFImageFiles",
-                   return_value="/fake/aosp_cf_x86_phone-img-eng.username.zip")
         # Mock uuid
         args = mock.MagicMock()
         args.config_file = ""
         args.avd_type = constants.TYPE_CF
         args.flavor = "phone"
         args.local_image = None
+        args.adb_port = None
         fake_avd_spec = avd_spec.AVDSpec(args)
 
         fake_uuid = mock.MagicMock(hex="1234")
@@ -130,12 +129,22 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             fake_host_package_name)
         self.assertEqual(factory._CreateGceInstance(), "ins-1234-userbuild-aosp-cf-x86-phone")
 
+        # Can't get target name from zip file name.
         fake_image_name = "/fake/aosp_cf_x86_phone.username.zip"
         factory = local_image_remote_instance.RemoteInstanceDeviceFactory(
             fake_avd_spec,
             fake_image_name,
             fake_host_package_name)
-        self.assertEqual(factory._CreateGceInstance(), "ins-1234-userbuild-phone")
+        self.assertEqual(factory._CreateGceInstance(), "ins-1234-userbuild-fake-target")
+
+        # No image zip path, it uses local build images.
+        fake_image_name = ""
+        factory = local_image_remote_instance.RemoteInstanceDeviceFactory(
+            fake_avd_spec,
+            fake_image_name,
+            fake_host_package_name)
+        self.assertEqual(factory._CreateGceInstance(), "ins-1234-userbuild-fake-target")
+
 
 if __name__ == "__main__":
     unittest.main()

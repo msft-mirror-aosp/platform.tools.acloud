@@ -22,6 +22,7 @@ import os
 from acloud import errors
 from acloud.create import create_common
 from acloud.internal import constants
+from acloud.internal.lib import utils
 
 
 CMD_CREATE = "create"
@@ -85,6 +86,18 @@ def AddCommonCreateArgs(parser):
         dest="network",
         required=False,
         help="Set the network the GCE instance will utilize.")
+    parser.add_argument(
+        "--skip-pre-run-check",
+        action="store_true",
+        dest="skip_pre_run_check",
+        required=False,
+        help="Skip the pre-run check.")
+    parser.add_argument(
+        "--boot-timeout",
+        dest="boot_timeout_secs",
+        type=int,
+        required=False,
+        help="The maximum time in seconds used to wait for the AVD to boot.")
 
     # TODO(b/118439885): Old arg formats to support transition, delete when
     # transistion is done.
@@ -132,6 +145,13 @@ def GetCreateArgParser(subparser):
         dest="local_instance",
         required=False,
         help="Create a local instance of the AVD.")
+    create_parser.add_argument(
+        "--adb-port", "-p",
+        type=int,
+        default=None,
+        dest="adb_port",
+        required=False,
+        help="Specify port for adb forwarding.")
     create_parser.add_argument(
         "--avd-type",
         type=str,
@@ -229,6 +249,22 @@ def GetCreateArgParser(subparser):
         help="'goldfish only' Emulator build used to run the images. "
         "e.g. 4669466.")
 
+    # Arguments for cheeps type.
+    create_parser.add_argument(
+        "--user",
+        type=str,
+        dest="username",
+        required=False,
+        default=None,
+        help="'cheeps only' username to log in to Chrome OS as.")
+    create_parser.add_argument(
+        "--password",
+        type=str,
+        dest="password",
+        required=False,
+        default=None,
+        help="'cheeps only' password to log in to Chrome OS with.")
+
     AddCommonCreateArgs(create_parser)
     return create_parser
 
@@ -242,6 +278,7 @@ def VerifyArgs(args):
     Raises:
         errors.CheckPathError: Zipped image path doesn't exist.
         errors.UnsupportedFlavor: Flavor doesn't support.
+        errors.UnsupportedMultiAdbPort: multi adb port doesn't support.
     """
     # Verify that user specified flavor name is in support list.
     # We don't use argparse's builtin validation because we need to be able to
@@ -250,6 +287,13 @@ def VerifyArgs(args):
         raise errors.UnsupportedFlavor(
             "Flavor[%s] isn't in support list: %s" % (args.flavor,
                                                       constants.ALL_FLAVORS))
+
+    if args.num > 1 and args.adb_port:
+        raise errors.UnsupportedMultiAdbPort(
+            "--adb-port is not supported for multi-devices.")
+
+    if args.adb_port:
+        utils.CheckPortFree(args.adb_port)
 
     if args.local_image and not os.path.exists(args.local_image):
         raise errors.CheckPathError(
@@ -261,3 +305,9 @@ def VerifyArgs(args):
             raise errors.InvalidHWPropertyError(
                 "[%s] is an invalid hw property, supported values are:%s. "
                 % (key, constants.HW_PROPERTIES))
+
+    if (args.username or args.password) and args.avd_type != constants.TYPE_CHEEPS:
+        raise ValueError("--username and --password are only valid with avd_type == %s"
+                         % constants.TYPE_CHEEPS)
+    if (args.username or args.password) and not (args.username and args.password):
+        raise ValueError("--username and --password must both be set")

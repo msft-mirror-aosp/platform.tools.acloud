@@ -57,7 +57,9 @@ class CheepsRemoteImageRemoteInstance(base_avd_create.BaseAVDCreate):
             num=avd_spec.num,
             report_internal_ip=avd_spec.report_internal_ip,
             autoconnect=avd_spec.autoconnect,
-            avd_type=constants.TYPE_CHEEPS)
+            avd_type=constants.TYPE_CHEEPS,
+            client_adb_port=avd_spec.client_adb_port,
+            boot_timeout_secs=avd_spec.boot_timeout_secs)
 
         # Launch vnc client if we're auto-connecting.
         if avd_spec.autoconnect:
@@ -93,6 +95,14 @@ class CheepsDeviceFactory(base_device_factory.BaseDeviceFactory):
         self._cfg = cfg
         self._build_id = build_id
         self._avd_spec = avd_spec
+
+    def GetBuildInfoDict(self):
+        """Get build info dictionary.
+
+        Returns:
+          A build info dictionary.
+        """
+        return {"build_id": self._build_id}
 
     def CreateInstance(self):
         """Creates single configured cheeps device.
