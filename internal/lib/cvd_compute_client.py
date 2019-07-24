@@ -45,6 +45,9 @@ from acloud.internal.lib import android_compute_client
 from acloud.internal.lib import gcompute_client
 from acloud.internal.lib import utils
 
+
+logger = logging.getLogger(__name__)
+
 _METADATA_TO_UNSET = ["cvd_01_launch",
                       "cvd_01_fetch_android_build_target",
                       "cvd_01_fetch_android_bid",
@@ -52,8 +55,6 @@ _METADATA_TO_UNSET = ["cvd_01_launch",
                       "cvd_01_fetch_system_build_target",
                       "cvd_01_fetch_kernel_bid",
                       "cvd_01_fetch_kernel_build_target"]
-
-logger = logging.getLogger(__name__)
 
 
 class CvdComputeClient(android_compute_client.AndroidComputeClient):
@@ -152,8 +153,9 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             metadata["cvd_01_x_res"] = avd_spec.hw_property[constants.HW_X_RES]
             metadata["cvd_01_y_res"] = avd_spec.hw_property[constants.HW_Y_RES]
             metadata["cvd_01_dpi"] = avd_spec.hw_property[constants.HW_ALIAS_DPI]
-            metadata["cvd_01_blank_data_disk_size"] = avd_spec.hw_property[
-                constants.HW_ALIAS_DISK]
+            if constants.HW_ALIAS_DISK in avd_spec.hw_property:
+                metadata["cvd_01_blank_data_disk_size"] = avd_spec.hw_property[
+                    constants.HW_ALIAS_DISK]
             # Use another METADATA_DISPLAY to record resolution which will be
             # retrieved in acloud list cmd. We try not to use cvd_01_x_res
             # since cvd_01_xxx metadata is going to deprecated by cuttlefish.

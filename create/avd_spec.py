@@ -35,6 +35,9 @@ from acloud.internal.lib import auth
 from acloud.internal.lib import utils
 from acloud.public import config
 
+
+logger = logging.getLogger(__name__)
+
 # Default values for build target.
 _BRANCH_RE = re.compile(r"^Manifest branch: (?P<branch>.+)")
 _BUILD_TARGET = "build_target"
@@ -71,8 +74,6 @@ _DEFAULT_BRANCH = "aosp-master"
 # the branch, avd type and device flavor:
 # aosp, cf and phone -> aosp_cf_x86_phone.
 _BRANCH_TARGET_PREFIX = {"aosp": "aosp_"}
-
-logger = logging.getLogger(__name__)
 
 
 def EscapeAnsi(line):
@@ -242,6 +243,7 @@ class AVDSpec(object):
         Args:
             args: Namespace object from argparse.parse_args.
         """
+        self._cfg.OverrideHwPropertyWithFlavor(self._flavor)
         self._hw_property = {}
         self._hw_property = self._ParseHWPropertyStr(self._cfg.hw_property)
         logger.debug("Default hw property for [%s] flavor: %s", self._flavor,
@@ -395,7 +397,6 @@ class AVDSpec(object):
 
         if flavor_from_build_string and not flavor_arg:
             self._flavor = flavor_from_build_string
-            self._cfg.OverrideHwPropertyWithFlavor(flavor_from_build_string)
 
     def _ProcessRemoteBuildArgs(self, args):
         """Get the remote build args.

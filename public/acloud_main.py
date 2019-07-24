@@ -102,6 +102,7 @@ from acloud.public.actions import create_goldfish_action
 from acloud.setup import setup
 from acloud.setup import setup_args
 
+
 LOGGING_FMT = "%(asctime)s |%(levelname)s| %(module)s:%(lineno)s| %(message)s"
 ACLOUD_LOGGER = "acloud"
 
@@ -484,7 +485,7 @@ if __name__ == "__main__":
     EXIT_CODE = None
     EXCEPTION_STACKTRACE = None
     EXCEPTION_LOG = None
-    metrics.LogUsage(sys.argv[1:])
+    LOG_METRICS = metrics.LogUsage(sys.argv[1:])
     try:
         EXIT_CODE = main(sys.argv[1:])
     except Exception as e:
@@ -494,6 +495,7 @@ if __name__ == "__main__":
         raise
     finally:
         # Log Exit event here to calculate the consuming time.
-        metrics.LogExitEvent(EXIT_CODE,
-                             stacktrace=EXCEPTION_STACKTRACE,
-                             logs=EXCEPTION_LOG)
+        if LOG_METRICS:
+            metrics.LogExitEvent(EXIT_CODE,
+                                 stacktrace=EXCEPTION_STACKTRACE,
+                                 logs=EXCEPTION_LOG)
