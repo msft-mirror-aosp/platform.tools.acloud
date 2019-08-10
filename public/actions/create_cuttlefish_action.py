@@ -28,6 +28,7 @@ from acloud.internal import constants
 from acloud.internal.lib import android_build_client
 from acloud.internal.lib import auth
 from acloud.internal.lib import cvd_compute_client
+from acloud.internal.lib import cvd_compute_client_multi_stage
 
 
 logger = logging.getLogger(__name__)
@@ -56,8 +57,12 @@ class CuttlefishDeviceFactory(base_device_factory.BaseDeviceFactory):
 
         self.credentials = auth.CreateCredentials(cfg)
 
-        compute_client = cvd_compute_client.CvdComputeClient(
-            cfg, self.credentials)
+        if cfg.enable_multi_stage:
+            compute_client = cvd_compute_client_multi_stage.CvdComputeClient(
+                cfg, self.credentials)
+        else:
+            compute_client = cvd_compute_client.CvdComputeClient(
+                cfg, self.credentials)
         super(CuttlefishDeviceFactory, self).__init__(compute_client)
 
         # Private creation parameters
@@ -205,7 +210,6 @@ def CreateDevices(avd_spec=None,
         cfg = avd_spec.cfg
         build_target = avd_spec.remote_image[constants.BUILD_TARGET]
         build_id = avd_spec.remote_image[constants.BUILD_ID]
-        kernel_build_id = avd_spec.kernel_build_id
         num = avd_spec.num
         autoconnect = avd_spec.autoconnect
         report_internal_ip = avd_spec.report_internal_ip
@@ -213,6 +217,12 @@ def CreateDevices(avd_spec=None,
         logcat_file = avd_spec.logcat_file
         client_adb_port = avd_spec.client_adb_port
         boot_timeout_secs = avd_spec.boot_timeout_secs
+        kernel_branch = avd_spec.kernel_build_info[constants.BUILD_BRANCH]
+        kernel_build_id = avd_spec.kernel_build_info[constants.BUILD_ID]
+        kernel_build_target = avd_spec.kernel_build_info[constants.BUILD_TARGET]
+        system_branch = avd_spec.system_build_info[constants.BUILD_BRANCH]
+        system_build_id = avd_spec.system_build_info[constants.BUILD_ID]
+        system_build_target = avd_spec.system_build_info[constants.BUILD_TARGET]
     logger.info(
         "Creating a cuttlefish device in project %s, "
         "build_target: %s, "
