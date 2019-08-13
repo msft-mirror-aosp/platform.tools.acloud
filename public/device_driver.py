@@ -47,6 +47,7 @@ from acloud.internal.lib import android_compute_client
 from acloud.internal.lib import gstorage_client
 from acloud.internal.lib import utils
 
+
 logger = logging.getLogger(__name__)
 
 MAX_BATCH_CLEANUP_COUNT = 100
@@ -337,19 +338,19 @@ def _FetchSerialLogsFromDevices(compute_client, instance_names, output_file,
 
 
 # pylint: disable=too-many-locals
-def CreateAndroidVirtualDevices(cfg,
-                                build_target=None,
-                                build_id=None,
-                                num=1,
-                                gce_image=None,
-                                local_disk_image=None,
-                                cleanup=True,
-                                serial_log_file=None,
-                                logcat_file=None,
-                                autoconnect=False,
-                                report_internal_ip=False,
-                                avd_spec=None):
-    """Creates one or multiple android devices.
+def CreateGCETypeAVD(cfg,
+                     build_target=None,
+                     build_id=None,
+                     num=1,
+                     gce_image=None,
+                     local_disk_image=None,
+                     cleanup=True,
+                     serial_log_file=None,
+                     logcat_file=None,
+                     autoconnect=False,
+                     report_internal_ip=False,
+                     avd_spec=None):
+    """Creates one or multiple gce android devices.
 
     Args:
         cfg: An AcloudConfig instance.
@@ -404,8 +405,13 @@ def CreateAndroidVirtualDevices(cfg,
             }
             if autoconnect:
                 forwarded_ports = utils.AutoConnect(
-                    ip, cfg.ssh_private_key_path, constants.GCE_VNC_PORT,
-                    constants.GCE_ADB_PORT, _SSH_USER, avd_spec.adb_port)
+                    ip_addr=ip,
+                    rsa_key_file=cfg.ssh_private_key_path,
+                    target_vnc_port=constants.GCE_VNC_PORT,
+                    target_adb_port=constants.GCE_ADB_PORT,
+                    ssh_user=_SSH_USER,
+                    client_adb_port=avd_spec.adb_port,
+                    extra_args_ssh_tunnel=cfg.extra_args_ssh_tunnel)
                 device_dict[constants.VNC_PORT] = forwarded_ports.vnc_port
                 device_dict[constants.ADB_PORT] = forwarded_ports.adb_port
             if device.instance_name in failures:

@@ -35,6 +35,7 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         """Initialize new avd_spec.AVDSpec."""
         super(AvdSpecTest, self).setUp()
         self.args = mock.MagicMock()
+        self.args.flavor = ""
         self.args.local_image = ""
         self.args.config_file = ""
         self.args.build_target = "fake_build_target"
@@ -146,21 +147,21 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
     # pylint: disable=protected-access
     def testGetBuildTarget(self):
         """Test get build target name."""
-        self.AvdSpec._remote_image[avd_spec._BUILD_BRANCH] = "git_branch"
+        self.AvdSpec._remote_image[constants.BUILD_BRANCH] = "git_branch"
         self.AvdSpec._flavor = constants.FLAVOR_IOT
         self.args.avd_type = constants.TYPE_GCE
         self.assertEqual(
             self.AvdSpec._GetBuildTarget(self.args),
             "gce_x86_iot-userdebug")
 
-        self.AvdSpec._remote_image[avd_spec._BUILD_BRANCH] = "aosp-master"
+        self.AvdSpec._remote_image[constants.BUILD_BRANCH] = "aosp-master"
         self.AvdSpec._flavor = constants.FLAVOR_PHONE
         self.args.avd_type = constants.TYPE_CF
         self.assertEqual(
             self.AvdSpec._GetBuildTarget(self.args),
             "aosp_cf_x86_phone-userdebug")
 
-        self.AvdSpec._remote_image[avd_spec._BUILD_BRANCH] = "git_branch"
+        self.AvdSpec._remote_image[constants.BUILD_BRANCH] = "git_branch"
         self.AvdSpec._flavor = constants.FLAVOR_PHONE
         self.args.avd_type = constants.TYPE_CF
         self.assertEqual(

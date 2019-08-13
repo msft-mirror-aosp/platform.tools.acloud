@@ -25,6 +25,7 @@ import grp
 import logging
 import os
 import platform
+import shlex
 import shutil
 import signal
 import struct
@@ -39,6 +40,7 @@ import zipfile
 
 from acloud import errors
 from acloud.internal import constants
+
 
 logger = logging.getLogger(__name__)
 
@@ -335,6 +337,39 @@ def ScpPullFile(src_file, dst_file, host_name, user_name=None,
     except subprocess.CalledProcessError as e:
         raise errors.DeviceConnectionError(
             "Failed to pull file %s from %s with '%s': %s" % (
+                src_file, host_name, " ".join(scp_cmd_list), e))
+
+
+def ScpPushFile(src_file, dst_file, host_name, user_name=None,
+                rsa_key_file=None):
+    """Scp push file to remote.
+
+    Args:
+        src_file: The source file path to be pulled.
+        dst_file: The destiation file path the file is pulled to.
+        host_name: The device host_name or ip to pull file from.
+        user_name: The user_name for scp session.
+        rsa_key_file: The rsa key file.
+    Raises:
+        errors.DeviceConnectionError if scp failed.
+    """
+    scp_cmd_list = SCP_CMD[:]
+    if rsa_key_file:
+        scp_cmd_list.extend(["-i", rsa_key_file])
+    else:
+        logger.warning(
+            "Rsa key file is not specified. "
+            "Will use default rsa key set in user environment")
+    scp_cmd_list.append(src_file)
+    if user_name:
+        scp_cmd_list.append("%s@%s:%s" % (user_name, host_name, dst_file))
+    else:
+        scp_cmd_list.append("%s:%s" % (host_name, dst_file))
+    try:
+        subprocess.check_output(scp_cmd_list, stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as e:
+        raise errors.DeviceConnectionError(
+            "Failed to push file %s to %s with '%s': %s" % (
                 src_file, host_name, " ".join(scp_cmd_list), e))
 
 
@@ -829,7 +864,7 @@ def _ExecuteCommand(cmd, args):
 
 # pylint: disable=too-many-locals
 def AutoConnect(ip_addr, rsa_key_file, target_vnc_port, target_adb_port,
-                ssh_user, client_adb_port=None):
+                ssh_user, client_adb_port=None, extra_args_ssh_tunnel=None):
     """Autoconnect to an AVD instance.
 
     Args:
@@ -841,6 +876,7 @@ def AutoConnect(ip_addr, rsa_key_file, target_vnc_port, target_adb_port,
         target_adb_port: Integer of target adb port number.
         ssh_user: String of user login into the instance.
         client_adb_port: Integer, Specified adb port to establish connection.
+        extra_args_ssh_tunnel: String, extra args for ssh tunnel connection.
 
     Returns:
         NamedTuple of (vnc_port, adb_port) SSHTUNNEL of the connect, both are
@@ -857,10 +893,13 @@ def AutoConnect(ip_addr, rsa_key_file, target_vnc_port, target_adb_port,
             "target_adb_port": target_adb_port,
             "ssh_user": ssh_user,
             "ip_addr": ip_addr}
-        _ExecuteCommand(constants.SSH_BIN, ssh_tunnel_args.split())
-    except subprocess.CalledProcessError:
-        PrintColorString("Failed to create ssh tunnels, retry with '#acloud "
-                         "reconnect'.", TextColors.FAIL)
+        ssh_tunnel_args_list = shlex.split(ssh_tunnel_args)
+        if extra_args_ssh_tunnel:
+            ssh_tunnel_args_list.extend(shlex.split(extra_args_ssh_tunnel))
+        _ExecuteCommand(constants.SSH_BIN, ssh_tunnel_args_list)
+    except subprocess.CalledProcessError as e:
+        PrintColorString("\n%s\nFailed to create ssh tunnels, retry with '#acloud "
+                         "reconnect'." % e, TextColors.FAIL)
         return ForwardedPorts(vnc_port=None, adb_port=None)
 
     try:

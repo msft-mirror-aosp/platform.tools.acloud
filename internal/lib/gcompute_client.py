@@ -36,6 +36,7 @@ from acloud import errors
 from acloud.internal.lib import base_cloud_client
 from acloud.internal.lib import utils
 
+
 logger = logging.getLogger(__name__)
 
 _MAX_RETRIES_ON_FINGERPRINT_CONFLICT = 10
@@ -105,6 +106,7 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
     ])
     # Default settings for gce operations
     DEFAULT_INSTANCE_SCOPE = [
+        "https://www.googleapis.com/auth/androidbuild.internal",
         "https://www.googleapis.com/auth/devstorage.read_only",
         "https://www.googleapis.com/auth/logging.write"
     ]
@@ -1139,7 +1141,7 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
         if labels is not None:
             body["labels"] = labels
         if tags:
-            body["tags"] = { "items": tags }
+            body["tags"] = {"items": tags}
         if gpu:
             body["guestAccelerators"] = [{
                 "acceleratorType": self.GetAcceleratorUrl(gpu, zone),

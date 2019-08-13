@@ -45,6 +45,9 @@ from acloud.internal.lib import android_compute_client
 from acloud.internal.lib import gcompute_client
 from acloud.internal.lib import utils
 
+
+logger = logging.getLogger(__name__)
+
 _METADATA_TO_UNSET = ["cvd_01_launch",
                       "cvd_01_fetch_android_build_target",
                       "cvd_01_fetch_android_bid",
@@ -52,8 +55,6 @@ _METADATA_TO_UNSET = ["cvd_01_launch",
                       "cvd_01_fetch_system_build_target",
                       "cvd_01_fetch_kernel_bid",
                       "cvd_01_fetch_kernel_build_target"]
-
-logger = logging.getLogger(__name__)
 
 
 class CvdComputeClient(android_compute_client.AndroidComputeClient):
@@ -124,8 +125,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         if system_branch and system_build_id:
             metadata["cvd_01_fetch_system_bid"] = "{branch}/{build_id}".format(
                 branch=system_branch, build_id=system_build_id)
-        metadata["cvd_01_launch"] = (self._launch_args
-                                     if self._launch_args else "1")
+        metadata["cvd_01_launch"] = self._GetLaunchCvdArgs(avd_spec)
 
         # For the local image, we unset the _METADATA_TO_UNSET from
         # metadata to tell server not to launch cvd and not to fetch image
@@ -152,8 +152,9 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             metadata["cvd_01_x_res"] = avd_spec.hw_property[constants.HW_X_RES]
             metadata["cvd_01_y_res"] = avd_spec.hw_property[constants.HW_Y_RES]
             metadata["cvd_01_dpi"] = avd_spec.hw_property[constants.HW_ALIAS_DPI]
-            metadata["cvd_01_blank_data_disk_size"] = avd_spec.hw_property[
-                constants.HW_ALIAS_DISK]
+            if constants.HW_ALIAS_DISK in avd_spec.hw_property:
+                metadata["cvd_01_blank_data_disk_size"] = avd_spec.hw_property[
+                    constants.HW_ALIAS_DISK]
             # Use another METADATA_DISPLAY to record resolution which will be
             # retrieved in acloud list cmd. We try not to use cvd_01_x_res
             # since cvd_01_xxx metadata is going to deprecated by cuttlefish.
@@ -195,3 +196,34 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             zone=self._zone,
             labels=labels,
             extra_scopes=extra_scopes)
+
+    def _GetLaunchCvdArgs(self, avd_spec):
+        """Define the launch_cvd args.
+
+        Set launch_cvd args with following priority.
+        -First: Set args from config.
+        -Second: Set args from cpu and memory settings.
+        -Third: Set args as "1" to don't pass any args.
+
+        Args:
+            avd_spec: An AVDSpec instance.
+
+        Returns:
+            String of launch_cvd args.
+        """
+        if self._launch_args:
+            return self._launch_args
+
+        if avd_spec:
+            cpu_arg = ""
+            mem_arg = ""
+            if constants.HW_ALIAS_CPUS in avd_spec.hw_property:
+                cpu_arg = ("-cpus=%s" %
+                           avd_spec.hw_property[constants.HW_ALIAS_CPUS])
+            if constants.HW_ALIAS_MEMORY in avd_spec.hw_property:
+                mem_arg = ("-memory_mb=%s" %
+                           avd_spec.hw_property[constants.HW_ALIAS_MEMORY])
+            if cpu_arg or mem_arg:
+                return cpu_arg + " " + mem_arg
+
+        return "1"

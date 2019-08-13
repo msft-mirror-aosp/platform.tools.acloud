@@ -102,6 +102,7 @@ from acloud.public.actions import create_goldfish_action
 from acloud.setup import setup
 from acloud.setup import setup_args
 
+
 LOGGING_FMT = "%(asctime)s |%(levelname)s| %(module)s:%(lineno)s| %(message)s"
 ACLOUD_LOGGER = "acloud"
 
@@ -139,62 +140,6 @@ def _ParseArgs(args):
     create_cf_parser = subparsers.add_parser(CMD_CREATE_CUTTLEFISH)
     create_cf_parser.required = False
     create_cf_parser.set_defaults(which=CMD_CREATE_CUTTLEFISH)
-    create_cf_parser.add_argument(
-        "--branch",
-        type=str,
-        dest="branch",
-        help="Android branch, e.g. git_master")
-    create_cf_parser.add_argument(
-        "--kernel_build_id",
-        "--kernel-build-id",
-        type=str,
-        dest="kernel_build_id",
-        required=False,
-        help="Android kernel build id, e.g. 4586590. This is to test a new"
-        " kernel build with a particular Android build (--build_id). If neither"
-        " kernel_branch nor kernel_build_id are specified, the kernel that's"
-        " bundled with the Android build would be used.")
-    create_cf_parser.add_argument(
-        "--kernel_branch",
-        "--kernel-branch",
-        type=str,
-        dest="kernel_branch",
-        required=False,
-        help="Android kernel build branch name, e.g."
-        " kernel-common-android-4.14. This is to test a new kernel build with a"
-        " particular Android build (--build-id). If specified without"
-        " specifying kernel_build_id, the last green build in the branch will"
-        " be used. If neither kernel_branch nor kernel_build_id are specified,"
-        " the kernel that's bundled with the Android build would be used.")
-    create_cf_parser.add_argument(
-        "--kernel_build_target",
-        type=str,
-        dest="kernel_build_target",
-        default="kernel",
-        help="Kernel build target, specify if different from 'kernel'")
-    create_cf_parser.add_argument(
-        "--system_branch",
-        type=str,
-        dest="system_branch",
-        help="Branch to consume the system image (system.img) from, will "
-        "default to what is defined by --branch. "
-        "That feature allows to (automatically) test various combinations "
-        "of vendor.img (CF, e.g.) and system images (GSI, e.g.). ",
-        required=False)
-    create_cf_parser.add_argument(
-        "--system_build_id",
-        type=str,
-        dest="system_build_id",
-        help="System image build id, e.g. 2145099, P2804227",
-        required=False)
-    create_cf_parser.add_argument(
-        "--system_build_target",
-        type=str,
-        dest="system_build_target",
-        help="System image build target, specify if different from "
-        "--build_target",
-        required=False)
-
     create_args.AddCommonCreateArgs(create_cf_parser)
     subparser_list.append(create_cf_parser)
 
@@ -207,11 +152,6 @@ def _ParseArgs(args):
     create_gf_parser = subparsers.add_parser(CMD_CREATE_GOLDFISH)
     create_gf_parser.required = False
     create_gf_parser.set_defaults(which=CMD_CREATE_GOLDFISH)
-    create_gf_parser.add_argument(
-        "--branch",
-        type=str,
-        dest="branch",
-        help="Android branch, e.g. git_master")
     create_gf_parser.add_argument(
         "--emulator_build_id",
         type=str,
@@ -248,24 +188,6 @@ def _ParseArgs(args):
         required=False,
         default=None,
         help="Tags to be set on to the created instance. e.g. https-server.")
-    create_gf_parser.add_argument(
-        "--kernel_build_id",
-        type=str,
-        dest="kernel_build_id",
-        help="Android kernel build id, e.g. 4586590. This is to test a new"
-        " kernel build with a particular Android build (--build_id). If neither"
-        " kernel_branch nor kernel_build_id are specified, the kernel that's"
-        " bundled with the Android build would be used.")
-    create_gf_parser.add_argument(
-        "--kernel_branch",
-        type=str,
-        dest="kernel_branch",
-        help="Android kernel build branch name, "
-        "e.g. kernel-common-android-4.14. This is to test a new kernel build "
-        "with a particular Android build (--build_id). If specified without "
-        "specifying kernel_build_id, the last green build in the branch will "
-        "be used. If neither kernel_branch nor kernel_build_id are specified, "
-        "the kernel that's bundled with the Android build would be used.")
 
     create_args.AddCommonCreateArgs(create_gf_parser)
     subparser_list.append(create_gf_parser)
@@ -314,13 +236,16 @@ def _VerifyArgs(parsed_args):
 
     Raises:
         errors.CommandArgError: If args are invalid.
+        errors.UnsupportedCreateArgs: When a create arg is specified but
+                                      unsupported for a particular avd type.
+                                      (e.g. --system-build-id for gf)
     """
     if parsed_args.which == create_args.CMD_CREATE:
         create_args.VerifyArgs(parsed_args)
     if parsed_args.which == CMD_CREATE_CUTTLEFISH:
-        if not parsed_args.build_id or not parsed_args.build_target:
+        if not parsed_args.build_id and not parsed_args.branch:
             raise errors.CommandArgError(
-                "Must specify --build_id and --build_target")
+                "Must specify --build_id or --branch")
     if parsed_args.which == CMD_CREATE_GOLDFISH:
         if not parsed_args.emulator_build_id and not parsed_args.build_id and (
                 not parsed_args.emulator_branch and not parsed_args.branch):
@@ -329,6 +254,12 @@ def _VerifyArgs(parsed_args):
                 "--emulator_branch or --emulator_build_id")
         if not parsed_args.build_target:
             raise errors.CommandArgError("Must specify --build_target")
+        if (parsed_args.system_branch
+                or parsed_args.system_build_id
+                or parsed_args.system_build_target):
+            raise errors.UnsupportedCreateArgs(
+                "--system-* args are not supported for AVD type: %s"
+                % constants.TYPE_GF)
 
     if parsed_args.which in [
             create_args.CMD_CREATE, CMD_CREATE_CUTTLEFISH, CMD_CREATE_GOLDFISH
@@ -484,7 +415,7 @@ if __name__ == "__main__":
     EXIT_CODE = None
     EXCEPTION_STACKTRACE = None
     EXCEPTION_LOG = None
-    metrics.LogUsage(sys.argv[1:])
+    LOG_METRICS = metrics.LogUsage(sys.argv[1:])
     try:
         EXIT_CODE = main(sys.argv[1:])
     except Exception as e:
@@ -494,6 +425,7 @@ if __name__ == "__main__":
         raise
     finally:
         # Log Exit event here to calculate the consuming time.
-        metrics.LogExitEvent(EXIT_CODE,
-                             stacktrace=EXCEPTION_STACKTRACE,
-                             logs=EXCEPTION_LOG)
+        if LOG_METRICS:
+            metrics.LogExitEvent(EXIT_CODE,
+                                 stacktrace=EXCEPTION_STACKTRACE,
+                                 logs=EXCEPTION_LOG)

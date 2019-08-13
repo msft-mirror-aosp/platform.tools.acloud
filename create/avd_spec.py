@@ -35,11 +35,11 @@ from acloud.internal.lib import auth
 from acloud.internal.lib import utils
 from acloud.public import config
 
+
+logger = logging.getLogger(__name__)
+
 # Default values for build target.
 _BRANCH_RE = re.compile(r"^Manifest branch: (?P<branch>.+)")
-_BUILD_TARGET = "build_target"
-_BUILD_BRANCH = "build_branch"
-_BUILD_ID = "build_id"
 _COMMAND_REPO_INFO = ["repo", "info"]
 _CF_ZIP_PATTERN = "*img*.zip"
 _DEFAULT_BUILD_BITNESS = "x86"
@@ -71,8 +71,6 @@ _DEFAULT_BRANCH = "aosp-master"
 # the branch, avd type and device flavor:
 # aosp, cf and phone -> aosp_cf_x86_phone.
 _BRANCH_TARGET_PREFIX = {"aosp": "aosp_"}
-
-logger = logging.getLogger(__name__)
 
 
 def EscapeAnsi(line):
@@ -106,12 +104,13 @@ class AVDSpec(object):
         self._flavor = None
         self._image_source = None
         self._instance_type = None
-        self._kernel_build_id = None
         self._local_image_dir = None
         self._local_image_artifact = None
         self._image_download_dir = None
         self._num_of_instances = None
         self._remote_image = None
+        self._system_build_info = None
+        self._kernel_build_info = None
         self._hw_property = None
         # Create config instance for android_build_client to query build api.
         self._cfg = config.GetAcloudConfig(args)
@@ -242,6 +241,7 @@ class AVDSpec(object):
         Args:
             args: Namespace object from argparse.parse_args.
         """
+        self._cfg.OverrideHwPropertyWithFlavor(self._flavor)
         self._hw_property = {}
         self._hw_property = self._ParseHWPropertyStr(self._cfg.hw_property)
         logger.debug("Default hw property for [%s] flavor: %s", self._flavor,
@@ -266,7 +266,6 @@ class AVDSpec(object):
                                if args.local_instance else
                                constants.INSTANCE_TYPE_REMOTE)
         self._num_of_instances = args.num
-        self._kernel_build_id = args.kernel_build_id
         self._serial_log_file = args.serial_log_file
         self._logcat_file = args.logcat_file
         self._emulator_build_id = args.emulator_build_id
@@ -395,7 +394,6 @@ class AVDSpec(object):
 
         if flavor_from_build_string and not flavor_arg:
             self._flavor = flavor_from_build_string
-            self._cfg.OverrideHwPropertyWithFlavor(flavor_from_build_string)
 
     def _ProcessRemoteBuildArgs(self, args):
         """Get the remote build args.
@@ -407,33 +405,42 @@ class AVDSpec(object):
             args: Namespace object from argparse.parse_args.
         """
         self._remote_image = {}
-        self._remote_image[_BUILD_BRANCH] = args.branch
-        if not self._remote_image[_BUILD_BRANCH]:
-            self._remote_image[_BUILD_BRANCH] = self._GetBuildBranch(
+        self._remote_image[constants.BUILD_BRANCH] = args.branch
+        if not self._remote_image[constants.BUILD_BRANCH]:
+            self._remote_image[constants.BUILD_BRANCH] = self._GetBuildBranch(
                 args.build_id, args.build_target)
 
-        self._remote_image[_BUILD_TARGET] = args.build_target
-        if not self._remote_image[_BUILD_TARGET]:
-            self._remote_image[_BUILD_TARGET] = self._GetBuildTarget(args)
+        self._remote_image[constants.BUILD_TARGET] = args.build_target
+        if not self._remote_image[constants.BUILD_TARGET]:
+            self._remote_image[constants.BUILD_TARGET] = self._GetBuildTarget(args)
         else:
             # If flavor isn't specified, try to infer it from build target,
             # if we can't, just default to phone flavor.
             self._flavor = args.flavor or self._GetFlavorFromString(
-                self._remote_image[_BUILD_TARGET]) or constants.FLAVOR_PHONE
+                self._remote_image[constants.BUILD_TARGET]) or constants.FLAVOR_PHONE
             # infer avd_type from build_target.
             for avd_type, avd_type_abbr in constants.AVD_TYPES_MAPPING.items():
                 if re.match(r"(.*_)?%s_" % avd_type_abbr,
-                            self._remote_image[_BUILD_TARGET]):
+                            self._remote_image[constants.BUILD_TARGET]):
                     self._avd_type = avd_type
                     break
 
-        self._remote_image[_BUILD_ID] = args.build_id
-        if not self._remote_image[_BUILD_ID]:
+        self._remote_image[constants.BUILD_ID] = args.build_id
+        if not self._remote_image[constants.BUILD_ID]:
             build_client = android_build_client.AndroidBuildClient(
                 auth.CreateCredentials(self._cfg))
+
             self._remote_image[constants.BUILD_ID] = build_client.GetLKGB(
                 self._remote_image[constants.BUILD_TARGET],
                 self._remote_image[constants.BUILD_BRANCH])
+
+        # Process system image and kernel image.
+        self._system_build_info = {constants.BUILD_ID: args.system_build_id,
+                                   constants.BUILD_BRANCH: args.system_branch,
+                                   constants.BUILD_TARGET: args.system_build_target}
+        self._kernel_build_info = {constants.BUILD_ID: args.kernel_build_id,
+                                   constants.BUILD_BRANCH: args.kernel_branch,
+                                   constants.BUILD_TARGET: args.kernel_build_target}
 
     @staticmethod
     def _GetGitRemote():
@@ -513,7 +520,7 @@ class AVDSpec(object):
         Returns:
             build_target: String, name of build target.
         """
-        branch = re.split("-|_", self._remote_image[_BUILD_BRANCH])[0]
+        branch = re.split("-|_", self._remote_image[constants.BUILD_BRANCH])[0]
         return "%s%s_%s_%s-%s" % (
             _BRANCH_TARGET_PREFIX.get(branch, ""),
             constants.AVD_TYPES_MAPPING[args.avd_type],
@@ -571,9 +578,9 @@ class AVDSpec(object):
         return self._report_internal_ip
 
     @property
-    def kernel_build_id(self):
-        """Return kernel build id."""
-        return self._kernel_build_id
+    def kernel_build_info(self):
+        """Return kernel build info."""
+        return self._kernel_build_info
 
     @property
     def flavor(self):
@@ -634,3 +641,8 @@ class AVDSpec(object):
     def boot_timeout_secs(self):
         """Return boot_timeout_secs."""
         return self._boot_timeout_secs
+
+    @property
+    def system_build_info(self):
+        """Return system_build_info."""
+        return self._system_build_info
