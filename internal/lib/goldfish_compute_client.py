@@ -47,6 +47,7 @@ from acloud.internal import constants
 from acloud.internal.lib import android_compute_client
 from acloud.internal.lib import gcompute_client
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -130,6 +131,8 @@ class GoldfishComputeClient(android_compute_client.AndroidComputeClient):
                        build_target,
                        branch,
                        build_id,
+                       kernel_branch=None,
+                       kernel_build_id=None,
                        emulator_branch=None,
                        emulator_build_id=None,
                        blank_data_disk_size_gb=None,
@@ -147,6 +150,8 @@ class GoldfishComputeClient(android_compute_client.AndroidComputeClient):
             build_target: String, target name, e.g. "sdk_phone_x86_64-sdk"
             branch: String, branch name, e.g. "git_pi-dev"
             build_id: String, build id, a string, e.g. "2263051", "P2804227"
+            kernel_branch: String, kernel branch name.
+            kernel_build_id: String, kernel build id.
             emulator_branch: String, emulator branch name, e.g."aosp-emu-master-dev"
             emulator_build_id: String, emulator build id, a string, e.g. "2263051", "P2804227"
             blank_data_disk_size_gb: Integer, size of the blank data disk in GB.
@@ -176,6 +181,10 @@ class GoldfishComputeClient(android_compute_client.AndroidComputeClient):
         metadata["cvd_01_fetch_android_build_target"] = build_target
         metadata["cvd_01_fetch_android_bid"] = "{branch}/{build_id}".format(
             branch=branch, build_id=build_id)
+        if kernel_branch and kernel_build_id:
+            metadata["cvd_01_fetch_kernel_bid"] = "{branch}/{build_id}".format(
+                branch=kernel_branch, build_id=kernel_build_id)
+            metadata["cvd_01_use_custom_kernel"] = "true"
         if emulator_branch and emulator_build_id:
             metadata[
                 "cvd_01_fetch_emulator_bid"] = "{branch}/{build_id}".format(
@@ -203,17 +212,6 @@ class GoldfishComputeClient(android_compute_client.AndroidComputeClient):
         # Add labels for giving the instances ability to be filter for
         # acloud list/delete cmds.
         labels = {constants.LABEL_CREATE_BY: getpass.getuser()}
-
-        # Add per-instance ssh key
-        if self._ssh_public_key_path:
-            rsa = self._LoadSshPublicKey(self._ssh_public_key_path)
-            logger.info(
-                "ssh_public_key_path is specified in config: %s, "
-                "will add the key to the instance.", self._ssh_public_key_path)
-            metadata["sshKeys"] = "%s:%s" % (getpass.getuser(), rsa)
-        else:
-            logger.warning("ssh_public_key_path is not specified in config, "
-                           "only project-wide key will be effective.")
 
         gcompute_client.ComputeClient.CreateInstance(
             self,

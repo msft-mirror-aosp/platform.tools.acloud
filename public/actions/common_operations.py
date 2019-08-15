@@ -21,7 +21,6 @@ directly.
 """
 
 from __future__ import print_function
-import getpass
 import logging
 import os
 import subprocess
@@ -31,6 +30,7 @@ from acloud.public import avd
 from acloud.public import report
 from acloud.internal import constants
 from acloud.internal.lib import utils
+
 
 logger = logging.getLogger(__name__)
 
@@ -134,8 +134,12 @@ class DevicePool(object):
 
     @utils.TimeExecute(function_description="Waiting for AVD(s) to boot up",
                        result_evaluator=utils.BootEvaluator)
-    def WaitForBoot(self):
+    def WaitForBoot(self, boot_timeout_secs):
         """Waits for all devices to boot up.
+
+        Args:
+            boot_timeout_secs: Integer, the maximum time in seconds used to
+                               wait for the AVD to boot.
 
         Returns:
             A dictionary that contains all the failures.
@@ -145,7 +149,7 @@ class DevicePool(object):
         failures = {}
         for device in self._devices:
             try:
-                self._compute_client.WaitForBoot(device.instance_name)
+                self._compute_client.WaitForBoot(device.instance_name, boot_timeout_secs)
             except errors.DeviceBootError as e:
                 failures[device.instance_name] = e
         return failures
@@ -226,6 +230,11 @@ class DevicePool(object):
                 file_dict[file_path] = file_name
             utils.MakeTarFile(file_dict, output_file)
 
+    def SetDeviceBuildInfo(self):
+        """Add devices build info."""
+        for device in self._devices:
+            device.build_info = self._device_factory.GetBuildInfoDict()
+
     @property
     def devices(self):
         """Returns a list of devices in the pool.
@@ -240,7 +249,8 @@ class DevicePool(object):
 # pylint: disable=too-many-locals
 def CreateDevices(command, cfg, device_factory, num, avd_type,
                   report_internal_ip=False, autoconnect=False,
-                  serial_log_file=None, logcat_file=None):
+                  serial_log_file=None, logcat_file=None,
+                  client_adb_port=None, boot_timeout_secs=None):
     """Create a set of devices using the given factory.
 
     Main jobs in create devices.
@@ -258,6 +268,8 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
         serial_log_file: String, the file path to tar the serial logs.
         logcat_file: String, the file path to tar the logcats.
         autoconnect: Boolean, whether to auto connect to device.
+        client_adb_port: Integer, Specify port for adb forwarding.
+        boot_timeout_secs: Integer, boot timeout secs.
 
     Raises:
         errors: Create instance fail.
@@ -270,7 +282,8 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
         CreateSshKeyPairIfNecessary(cfg)
         device_pool = DevicePool(device_factory)
         device_pool.CreateDevices(num)
-        failures = device_pool.WaitForBoot()
+        device_pool.SetDeviceBuildInfo()
+        failures = device_pool.WaitForBoot(boot_timeout_secs)
         if failures:
             reporter.SetStatus(report.Status.BOOT_FAIL)
         else:
@@ -293,18 +306,17 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
                 "ip": ip,
                 "instance_name": device.instance_name
             }
-            for attr in ("branch", "build_target", "build_id", "kernel_branch",
-                         "kernel_build_target", "kernel_build_id",
-                         "emulator_branch", "emulator_build_target",
-                         "emulator_build_id"):
-                if getattr(device_factory, "_%s" % attr, None):
-                    device_dict[attr] = getattr(device_factory, "_%s" % attr)
+            if device.build_info:
+                device_dict.update(device.build_info)
             if autoconnect:
                 forwarded_ports = utils.AutoConnect(
-                    ip, cfg.ssh_private_key_path,
-                    utils.AVD_PORT_DICT[avd_type].vnc_port,
-                    utils.AVD_PORT_DICT[avd_type].adb_port,
-                    getpass.getuser())
+                    ip_addr=ip,
+                    rsa_key_file=cfg.ssh_private_key_path,
+                    target_vnc_port=utils.AVD_PORT_DICT[avd_type].vnc_port,
+                    target_adb_port=utils.AVD_PORT_DICT[avd_type].adb_port,
+                    ssh_user=constants.GCE_USER,
+                    client_adb_port=client_adb_port,
+                    extra_args_ssh_tunnel=cfg.extra_args_ssh_tunnel)
                 device_dict[constants.VNC_PORT] = forwarded_ports.vnc_port
                 device_dict[constants.ADB_PORT] = forwarded_ports.adb_port
             if device.instance_name in failures:

@@ -22,6 +22,7 @@ import os
 from acloud import errors
 from acloud.create import create_common
 from acloud.internal import constants
+from acloud.internal.lib import utils
 
 
 CMD_CREATE = "create"
@@ -85,6 +86,96 @@ def AddCommonCreateArgs(parser):
         dest="network",
         required=False,
         help="Set the network the GCE instance will utilize.")
+    parser.add_argument(
+        "--skip-pre-run-check",
+        action="store_true",
+        dest="skip_pre_run_check",
+        required=False,
+        help="Skip the pre-run check.")
+    parser.add_argument(
+        "--boot-timeout",
+        dest="boot_timeout_secs",
+        type=int,
+        required=False,
+        help="The maximum time in seconds used to wait for the AVD to boot.")
+    parser.add_argument(
+        "--build-target",
+        type=str,
+        dest="build_target",
+        help="Android build target, e.g. aosp_cf_x86_phone-userdebug, "
+             "or short names: phone, tablet, or tablet_mobile.")
+    parser.add_argument(
+        "--branch",
+        type=str,
+        dest="branch",
+        help="Android branch, e.g. mnc-dev or git_mnc-dev")
+    parser.add_argument(
+        "--build-id",
+        type=str,
+        dest="build_id",
+        help="Android build id, e.g. 2145099, P2804227")
+    parser.add_argument(
+        "--kernel-build-id",
+        type=str,
+        dest="kernel_build_id",
+        required=False,
+        help="Android kernel build id, e.g. 4586590. This is to test a new"
+        " kernel build with a particular Android build (--build_id). If neither"
+        " kernel_branch nor kernel_build_id are specified, the kernel that's"
+        " bundled with the Android build would be used.")
+    parser.add_argument(
+        "--kernel-branch",
+        type=str,
+        dest="kernel_branch",
+        required=False,
+        help="Android kernel build branch name, e.g."
+        " kernel-common-android-4.14. This is to test a new kernel build with a"
+        " particular Android build (--build-id). If specified without"
+        " specifying kernel_build_id, the last green build in the branch will"
+        " be used. If neither kernel_branch nor kernel_build_id are specified,"
+        " the kernel that's bundled with the Android build would be used.")
+    parser.add_argument(
+        "--kernel-build-target",
+        type=str,
+        dest="kernel_build_target",
+        default="kernel",
+        help="Kernel build target, specify if different from 'kernel'")
+    parser.add_argument(
+        "--system-branch",
+        type=str,
+        dest="system_branch",
+        help="'cuttlefish only' Branch to consume the system image (system.img) "
+        "from, will default to what is defined by --branch. "
+        "That feature allows to (automatically) test various combinations "
+        "of vendor.img (CF, e.g.) and system images (GSI, e.g.). ",
+        required=False)
+    parser.add_argument(
+        "--system-build-id",
+        type=str,
+        dest="system_build_id",
+        help="'cuttlefish only' System image build id, e.g. 2145099, P2804227",
+        required=False)
+    parser.add_argument(
+        "--system-build-target",
+        type=str,
+        dest="system_build_target",
+        help="'cuttlefish only' System image build target, specify if different "
+        "from --build_target",
+        required=False)
+    parser.add_argument(
+        "--multi-stage-launch",
+        dest="multi_stage_launch",
+        action='store_true',
+        required=False,
+        default=None,
+        help="Enable the multi-stage cuttlefish launch.")
+    parser.add_argument(
+        "--no-multi-stage-launch",
+        dest="multi_stage_launch",
+        action='store_false',
+        required=False,
+        default=None,
+        help="Disable the multi-stage cuttlefish launch.")
 
     # TODO(b/118439885): Old arg formats to support transition, delete when
     # transistion is done.
@@ -112,6 +203,42 @@ def AddCommonCreateArgs(parser):
         dest="build_target",
         required=False,
         help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--system_branch",
+        type=str,
+        dest="system_branch",
+        required=False,
+        help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--system_build_id",
+        type=str,
+        dest="system_build_id",
+        required=False,
+        help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--system_build_target",
+        type=str,
+        dest="system_build_target",
+        required=False,
+        help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--kernel_build_id",
+        type=str,
+        dest="kernel_build_id",
+        required=False,
+        help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--kernel_branch",
+        type=str,
+        dest="kernel_branch",
+        required=False,
+        help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--kernel_build_target",
+        type=str,
+        dest="kernel_build_target",
+        default="kernel",
+        help=argparse.SUPPRESS)
 
 
 def GetCreateArgParser(subparser):
@@ -133,6 +260,13 @@ def GetCreateArgParser(subparser):
         required=False,
         help="Create a local instance of the AVD.")
     create_parser.add_argument(
+        "--adb-port", "-p",
+        type=int,
+        default=None,
+        dest="adb_port",
+        required=False,
+        help="Specify port for adb forwarding.")
+    create_parser.add_argument(
         "--avd-type",
         type=str,
         dest="avd_type",
@@ -144,31 +278,6 @@ def GetCreateArgParser(subparser):
         type=str,
         dest="flavor",
         help="The device flavor of the AVD (default %s)." % constants.FLAVOR_PHONE)
-    create_parser.add_argument(
-        "--build-target",
-        type=str,
-        dest="build_target",
-        help="Android build target, e.g. aosp_cf_x86_phone-userdebug, "
-             "or short names: phone, tablet, or tablet_mobile.")
-    create_parser.add_argument(
-        "--branch",
-        type=str,
-        dest="branch",
-        help="Android branch, e.g. mnc-dev or git_mnc-dev")
-    create_parser.add_argument(
-        "--build-id",
-        type=str,
-        dest="build_id",
-        help="Android build id, e.g. 2145099, P2804227")
-    create_parser.add_argument(
-        "--kernel-build-id",
-        type=str,
-        dest="kernel_build_id",
-        required=False,
-        help=("Android kernel build id, e.g. 4586590. This is to test a new"
-              " kernel build with a particular Android build (--build_id). If"
-              "not specified, the kernel that's bundled with the Android build"
-              "would be used."))
     create_parser.add_argument(
         "--local-image",
         type=str,
@@ -229,6 +338,22 @@ def GetCreateArgParser(subparser):
         help="'goldfish only' Emulator build used to run the images. "
         "e.g. 4669466.")
 
+    # Arguments for cheeps type.
+    create_parser.add_argument(
+        "--user",
+        type=str,
+        dest="username",
+        required=False,
+        default=None,
+        help="'cheeps only' username to log in to Chrome OS as.")
+    create_parser.add_argument(
+        "--password",
+        type=str,
+        dest="password",
+        required=False,
+        default=None,
+        help="'cheeps only' password to log in to Chrome OS with.")
+
     AddCommonCreateArgs(create_parser)
     return create_parser
 
@@ -242,6 +367,10 @@ def VerifyArgs(args):
     Raises:
         errors.CheckPathError: Zipped image path doesn't exist.
         errors.UnsupportedFlavor: Flavor doesn't support.
+        errors.UnsupportedMultiAdbPort: multi adb port doesn't support.
+        errors.UnsupportedCreateArgs: When a create arg is specified but
+                                      unsupported for a particular avd type.
+                                      (e.g. --system-build-id for gf)
     """
     # Verify that user specified flavor name is in support list.
     # We don't use argparse's builtin validation because we need to be able to
@@ -250,6 +379,18 @@ def VerifyArgs(args):
         raise errors.UnsupportedFlavor(
             "Flavor[%s] isn't in support list: %s" % (args.flavor,
                                                       constants.ALL_FLAVORS))
+    if args.avd_type != constants.TYPE_CF:
+        if args.system_branch or args.system_build_id or args.system_build_target:
+            raise errors.UnsupportedCreateArgs(
+                "--system-* args are not supported for AVD type: %s"
+                % args.avd_type)
+
+    if args.num > 1 and args.adb_port:
+        raise errors.UnsupportedMultiAdbPort(
+            "--adb-port is not supported for multi-devices.")
+
+    if args.adb_port:
+        utils.CheckPortFree(args.adb_port)
 
     if args.local_image and not os.path.exists(args.local_image):
         raise errors.CheckPathError(
@@ -261,3 +402,9 @@ def VerifyArgs(args):
             raise errors.InvalidHWPropertyError(
                 "[%s] is an invalid hw property, supported values are:%s. "
                 % (key, constants.HW_PROPERTIES))
+
+    if (args.username or args.password) and args.avd_type != constants.TYPE_CHEEPS:
+        raise ValueError("--username and --password are only valid with avd_type == %s"
+                         % constants.TYPE_CHEEPS)
+    if (args.username or args.password) and not (args.username and args.password):
+        raise ValueError("--username and --password must both be set")

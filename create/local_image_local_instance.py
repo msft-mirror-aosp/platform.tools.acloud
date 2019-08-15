@@ -32,13 +32,14 @@ from acloud.internal import constants
 from acloud.internal.lib import utils
 from acloud.public import report
 
+
 logger = logging.getLogger(__name__)
 
 _CMD_LAUNCH_CVD_ARGS = (" --daemon --cpus %s --x_res %s --y_res %s --dpi %s "
-                        "--memory_mb %s --blank_data_image_mb %s "
-                        "--data_policy always_create "
-                        "--system_image_dir %s "
+                        "--memory_mb %s --system_image_dir %s "
                         "--vnc_server_port %s")
+_CMD_LAUNCH_CVD_DISK_ARGS = (" --blank_data_image_mb %s "
+                             "--data_policy always_create")
 _CONFIRM_RELAUNCH = ("\nCuttlefish AVD is already running. \n"
                      "Enter 'y' to terminate current instance and launch a new "
                      "instance, enter anything else to exit out[y/N]: ")
@@ -46,6 +47,7 @@ _ENV_ANDROID_HOST_OUT = "ANDROID_HOST_OUT"
 _LAUNCH_CVD_TIMEOUT_SECS = 60  # setup timeout as 60 seconds
 _LAUNCH_CVD_TIMEOUT_ERROR = ("Cuttlefish AVD launch timeout, did not complete "
                              "within %d secs." % _LAUNCH_CVD_TIMEOUT_SECS)
+
 
 class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
     """Create class for a local image local instance AVD."""
@@ -58,6 +60,12 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         Args:
             avd_spec: AVDSpec object that tells us what we're going to create.
             no_prompts: Boolean, True to skip all prompts.
+
+        Raises:
+            errors.LaunchCVDFail: Launch AVD failed.
+
+        Returns:
+            A Report instance.
         """
         # Running instances on local is not supported on all OS.
         if not utils.IsSupportedPlatform(print_warning=True):
@@ -131,8 +139,11 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         """
         launch_cvd_w_args = launch_cvd_path + _CMD_LAUNCH_CVD_ARGS % (
             hw_property["cpu"], hw_property["x_res"], hw_property["y_res"],
-            hw_property["dpi"], hw_property["memory"], hw_property["disk"],
-            system_image_dir, constants.CF_VNC_PORT)
+            hw_property["dpi"], hw_property["memory"], system_image_dir,
+            constants.CF_VNC_PORT)
+        if constants.HW_ALIAS_DISK in hw_property:
+            launch_cvd_w_args = (launch_cvd_w_args + _CMD_LAUNCH_CVD_DISK_ARGS %
+                                 hw_property[constants.HW_ALIAS_DISK])
 
         launch_cmd = utils.AddUserGroupsToCmd(launch_cvd_w_args,
                                               constants.LIST_CF_USER_GROUPS)

@@ -39,6 +39,7 @@ from acloud.internal import constants
 from acloud.internal.lib import utils
 from acloud.internal.lib.adb_tools import AdbTools
 
+
 logger = logging.getLogger(__name__)
 
 _MSG_UNABLE_TO_CALCULATE = "Unable to calculate"
@@ -104,6 +105,7 @@ class Instance(object):
         self._avd_type = None
         self._avd_flavor = None
         self._is_local = None  # True if this is a local instance
+        self._device_information = None
 
     def __repr__(self):
         """Return full name property for print."""
@@ -125,6 +127,14 @@ class Instance(object):
         if self._adb_port:
             representation.append("%s adb serial: 127.0.0.1:%s" %
                                   (indent, self._adb_port))
+            representation.append("%s product: %s" % (
+                indent, self._device_information["product"]))
+            representation.append("%s model: %s" % (
+                indent, self._device_information["model"]))
+            representation.append("%s device: %s" % (
+                indent, self._device_information["device"]))
+            representation.append("%s transport_id: %s" % (
+                indent, self._device_information["transport_id"]))
         else:
             representation.append("%s adb serial: disconnected" % indent)
 
@@ -232,6 +242,10 @@ class LocalInstance(Instance):
                 local_instance._display = ("%sx%s (%s)" % (x_res, y_res, dpi))
                 local_instance._is_local = True
                 local_instance._ssh_tunnel_is_connected = True
+
+                adb_device = AdbTools(constants.CF_ADB_PORT)
+                if adb_device.IsAdbConnected():
+                    local_instance._device_information = adb_device.device_information
                 return local_instance
         return None
 
@@ -302,6 +316,7 @@ class RemoteInstance(Instance):
 
             adb_device = AdbTools(self._adb_port)
             if adb_device.IsAdbConnected():
+                self._device_information = adb_device.device_information
                 self._fullname = (_FULL_NAME_STRING %
                                   {"device_serial": "127.0.0.1:%d" % self._adb_port,
                                    "instance_name": self._name,
@@ -331,15 +346,17 @@ class RemoteInstance(Instance):
             NamedTuple ForwardedPorts(vnc_port, adb_port) holding the ports
             used in the ssh forwarded call. Both fields are integers.
         """
-        process_output = subprocess.check_output(constants.COMMAND_PS)
+        if avd_type not in utils.AVD_PORT_DICT:
+            return utils.ForwardedPorts(vnc_port=None, adb_port=None)
+
         default_vnc_port = utils.AVD_PORT_DICT[avd_type].vnc_port
         default_adb_port = utils.AVD_PORT_DICT[avd_type].adb_port
         re_pattern = re.compile(_RE_SSH_TUNNEL_PATTERN %
                                 (_RE_GROUP_VNC, default_vnc_port,
                                  _RE_GROUP_ADB, default_adb_port, ip))
-
         adb_port = None
         vnc_port = None
+        process_output = subprocess.check_output(constants.COMMAND_PS)
         for line in process_output.splitlines():
             match = re_pattern.match(line)
             if match:

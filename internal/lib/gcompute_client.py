@@ -36,6 +36,7 @@ from acloud import errors
 from acloud.internal.lib import base_cloud_client
 from acloud.internal.lib import utils
 
+
 logger = logging.getLogger(__name__)
 
 _MAX_RETRIES_ON_FINGERPRINT_CONFLICT = 10
@@ -105,6 +106,7 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
     ])
     # Default settings for gce operations
     DEFAULT_INSTANCE_SCOPE = [
+        "https://www.googleapis.com/auth/androidbuild.internal",
         "https://www.googleapis.com/auth/devstorage.read_only",
         "https://www.googleapis.com/auth/logging.write"
     ]
@@ -1013,14 +1015,18 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
         Returns:
             A dictionary representing network args.
         """
-        return {
+        network_args = {
             "network": self.GetNetworkUrl(network),
-            "subnetwork": self.GetSubnetworkUrl(network, zone),
             "accessConfigs": [{
                 "name": "External NAT",
                 "type": "ONE_TO_ONE_NAT"
             }]
         }
+        # default network can be blank or set to default, we don't need to
+        # specify the subnetwork for that.
+        if network and network != "default":
+            network_args["subnetwork"] = self.GetSubnetworkUrl(network, zone)
+        return network_args
 
     def _GetDiskArgs(self,
                      disk_name,
@@ -1135,7 +1141,7 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
         if labels is not None:
             body["labels"] = labels
         if tags:
-            body["tags"] = { "items": tags }
+            body["tags"] = {"items": tags}
         if gpu:
             body["guestAccelerators"] = [{
                 "acceleratorType": self.GetAcceleratorUrl(gpu, zone),
@@ -1280,7 +1286,7 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
             project=self._project, network=network)
         result = self.Execute(api)
         region = zone.rsplit("-", 1)[0]
-        for subnetwork in result["subnetworks"]:
+        for subnetwork in result.get("subnetworks", []):
             if region in subnetwork:
                 return subnetwork
         raise errors.NoSubnetwork("No subnetwork for network %s in region %s" %

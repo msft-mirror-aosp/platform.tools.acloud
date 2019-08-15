@@ -27,6 +27,7 @@ from acloud.internal.lib import android_build_client
 from acloud.internal.lib import android_compute_client
 from acloud.internal.lib import auth
 from acloud.internal.lib import cvd_compute_client
+from acloud.internal.lib import cvd_compute_client_multi_stage
 from acloud.internal.lib import driver_test_lib
 from acloud.internal.lib import gcompute_client
 from acloud.public.actions import create_cuttlefish_action
@@ -44,6 +45,9 @@ class CreateCuttlefishActionTest(driver_test_lib.BaseDriverTest):
     KERNEL_BUILD_ID = "54321"
     KERNEL_BUILD_TARGET = "kernel"
     BRANCH = "fake-branch"
+    SYSTEM_BRANCH = "fake-system-branch"
+    SYSTEM_BUILD_ID = "23456"
+    SYSTEM_BUILD_TARGET = "fake-system-build-target"
     STABLE_HOST_IMAGE_NAME = "fake-stable-host-image-name"
     STABLE_HOST_IMAGE_PROJECT = "fake-stable-host-image-project"
     EXTRA_DATA_DISK_GB = 4
@@ -60,6 +64,10 @@ class CreateCuttlefishActionTest(driver_test_lib.BaseDriverTest):
         self.compute_client = mock.MagicMock()
         self.Patch(
             cvd_compute_client,
+            "CvdComputeClient",
+            return_value=self.compute_client)
+        self.Patch(
+            cvd_compute_client_multi_stage,
             "CvdComputeClient",
             return_value=self.compute_client)
         self.Patch(
@@ -83,6 +91,7 @@ class CreateCuttlefishActionTest(driver_test_lib.BaseDriverTest):
         cfg.extra_data_disk_size_gb = self.EXTRA_DATA_DISK_GB
         cfg.kernel_build_target = self.KERNEL_BUILD_TARGET
         cfg.extra_scopes = self.EXTRA_SCOPES
+        cfg.enable_multi_stage = False
         return cfg
 
     def testCreateDevices(self):
@@ -99,15 +108,26 @@ class CreateCuttlefishActionTest(driver_test_lib.BaseDriverTest):
         self.compute_client.GenerateInstanceName.return_value = self.INSTANCE
 
         # Mock build client method
-        self.build_client.GetBranch.side_effect = [self.BRANCH,
-                                                   self.KERNEL_BRANCH]
+        self.build_client.GetBuildInfo.side_effect = [
+            android_build_client.BuildInfo(
+                self.BRANCH, self.BUILD_ID, self.BUILD_TARGET, None),
+            android_build_client.BuildInfo(
+                self.KERNEL_BRANCH, self.KERNEL_BUILD_ID,
+                self.KERNEL_BUILD_TARGET, None),
+            android_build_client.BuildInfo(
+                self.SYSTEM_BRANCH, self.SYSTEM_BUILD_ID,
+                self.SYSTEM_BUILD_TARGET, None)]
 
         # Setup avd_spec as None to use cfg to create devices
         none_avd_spec = None
 
         # Call CreateDevices
         report = create_cuttlefish_action.CreateDevices(
-            none_avd_spec, cfg, self.BUILD_TARGET, self.BUILD_ID, self.KERNEL_BUILD_ID)
+            none_avd_spec, cfg, self.BUILD_TARGET, self.BUILD_ID,
+            branch=self.BRANCH, kernel_build_id=self.KERNEL_BUILD_ID,
+            system_build_target=self.SYSTEM_BUILD_TARGET,
+            system_branch=self.SYSTEM_BRANCH,
+            system_build_id=self.SYSTEM_BUILD_ID)
 
         # Verify
         self.compute_client.CreateInstance.assert_called_with(
@@ -119,6 +139,10 @@ class CreateCuttlefishActionTest(driver_test_lib.BaseDriverTest):
             build_id=self.BUILD_ID,
             kernel_branch=self.KERNEL_BRANCH,
             kernel_build_id=self.KERNEL_BUILD_ID,
+            kernel_build_target=self.KERNEL_BUILD_TARGET,
+            system_branch=self.SYSTEM_BRANCH,
+            system_build_id=self.SYSTEM_BUILD_ID,
+            system_build_target=self.SYSTEM_BUILD_TARGET,
             blank_data_disk_size_gb=self.EXTRA_DATA_DISK_GB,
             avd_spec=none_avd_spec,
             extra_scopes=self.EXTRA_SCOPES)
@@ -132,6 +156,9 @@ class CreateCuttlefishActionTest(driver_test_lib.BaseDriverTest):
                     "kernel_branch": self.KERNEL_BRANCH,
                     "kernel_build_id": self.KERNEL_BUILD_ID,
                     "kernel_build_target": self.KERNEL_BUILD_TARGET,
+                    "system_branch": self.SYSTEM_BRANCH,
+                    "system_build_id": self.SYSTEM_BUILD_ID,
+                    "system_build_target": self.SYSTEM_BUILD_TARGET,
                     "instance_name": self.INSTANCE,
                     "ip": self.IP.external,
                 },

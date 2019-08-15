@@ -55,11 +55,12 @@ from acloud.internal.proto import internal_config_pb2
 from acloud.internal.proto import user_config_pb2
 from acloud.create import create_args
 
+
+logger = logging.getLogger(__name__)
+
 _CONFIG_DATA_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "data")
 _DEFAULT_CONFIG_FILE = "acloud.config"
-
-logger = logging.getLogger(__name__)
 
 
 def GetDefaultConfigFile():
@@ -199,6 +200,8 @@ class AcloudConfig(object):
             usr_cfg.stable_cheeps_host_image_project or
             internal_cfg.default_usr_cfg.stable_cheeps_host_image_project)
 
+        self.extra_args_ssh_tunnel = usr_cfg.extra_args_ssh_tunnel
+
         self.common_hw_property_map = internal_cfg.common_hw_property_map
         self.hw_property = usr_cfg.hw_property
 
@@ -206,7 +209,15 @@ class AcloudConfig(object):
         self.instance_name_pattern = (
             usr_cfg.instance_name_pattern or
             internal_cfg.default_usr_cfg.instance_name_pattern)
-
+        self.fetch_cvd_version = (
+            usr_cfg.fetch_cvd_version or
+            internal_cfg.default_usr_cfg.fetch_cvd_version)
+        if usr_cfg.HasField("enable_multi_stage") is not None:
+            self.enable_multi_stage = usr_cfg.enable_multi_stage
+        elif internal_cfg.default_usr_cfg.HasField("enable_multi_stage"):
+            self.enable_multi_stage = internal_cfg.default_usr_cfg.enable_multi_stage
+        else:
+            self.enable_multi_stage = False
 
         # Verify validity of configurations.
         self.Verify()
@@ -237,6 +248,8 @@ class AcloudConfig(object):
         if parsed_args.which in [create_args.CMD_CREATE, "create_cf"]:
             if parsed_args.network:
                 self.network = parsed_args.network
+            if parsed_args.multi_stage_launch is not None:
+                self.enable_multi_stage = parsed_args.multi_stage_launch
 
     def OverrideHwPropertyWithFlavor(self, flavor):
         """Override hw configuration values with flavor name.

@@ -25,6 +25,7 @@ import grp
 import logging
 import os
 import platform
+import shlex
 import shutil
 import signal
 import struct
@@ -39,6 +40,7 @@ import zipfile
 
 from acloud import errors
 from acloud.internal import constants
+
 
 logger = logging.getLogger(__name__)
 
@@ -335,6 +337,39 @@ def ScpPullFile(src_file, dst_file, host_name, user_name=None,
     except subprocess.CalledProcessError as e:
         raise errors.DeviceConnectionError(
             "Failed to pull file %s from %s with '%s': %s" % (
+                src_file, host_name, " ".join(scp_cmd_list), e))
+
+
+def ScpPushFile(src_file, dst_file, host_name, user_name=None,
+                rsa_key_file=None):
+    """Scp push file to remote.
+
+    Args:
+        src_file: The source file path to be pulled.
+        dst_file: The destiation file path the file is pulled to.
+        host_name: The device host_name or ip to pull file from.
+        user_name: The user_name for scp session.
+        rsa_key_file: The rsa key file.
+    Raises:
+        errors.DeviceConnectionError if scp failed.
+    """
+    scp_cmd_list = SCP_CMD[:]
+    if rsa_key_file:
+        scp_cmd_list.extend(["-i", rsa_key_file])
+    else:
+        logger.warning(
+            "Rsa key file is not specified. "
+            "Will use default rsa key set in user environment")
+    scp_cmd_list.append(src_file)
+    if user_name:
+        scp_cmd_list.append("%s@%s:%s" % (user_name, host_name, dst_file))
+    else:
+        scp_cmd_list.append("%s:%s" % (host_name, dst_file))
+    try:
+        subprocess.check_output(scp_cmd_list, stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as e:
+        raise errors.DeviceConnectionError(
+            "Failed to push file %s to %s with '%s': %s" % (
                 src_file, host_name, " ".join(scp_cmd_list), e))
 
 
@@ -790,6 +825,24 @@ def PickFreePort():
     return port
 
 
+def CheckPortFree(port):
+    """Check the availablity of the tcp port.
+
+    Args:
+        Integer, a port number.
+
+    Raises:
+        PortOccupied: This port is not available.
+    """
+    tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        tcp_socket.bind(("", port))
+    except socket.error:
+        raise errors.PortOccupied("Port (%d) is taken, please choose another "
+                                  "port." % port)
+    tcp_socket.close()
+
+
 def _ExecuteCommand(cmd, args):
     """Execute command.
 
@@ -810,7 +863,8 @@ def _ExecuteCommand(cmd, args):
 
 
 # pylint: disable=too-many-locals
-def AutoConnect(ip_addr, rsa_key_file, target_vnc_port, target_adb_port, ssh_user):
+def AutoConnect(ip_addr, rsa_key_file, target_vnc_port, target_adb_port,
+                ssh_user, client_adb_port=None, extra_args_ssh_tunnel=None):
     """Autoconnect to an AVD instance.
 
     Args:
@@ -821,37 +875,42 @@ def AutoConnect(ip_addr, rsa_key_file, target_vnc_port, target_adb_port, ssh_use
         target_vnc_port: Integer of target vnc port number.
         target_adb_port: Integer of target adb port number.
         ssh_user: String of user login into the instance.
+        client_adb_port: Integer, Specified adb port to establish connection.
+        extra_args_ssh_tunnel: String, extra args for ssh tunnel connection.
 
     Returns:
         NamedTuple of (vnc_port, adb_port) SSHTUNNEL of the connect, both are
         integers.
     """
     local_free_vnc_port = PickFreePort()
-    local_free_adb_port = PickFreePort()
+    local_adb_port = client_adb_port or PickFreePort()
     try:
         ssh_tunnel_args = _SSH_TUNNEL_ARGS % {
             "rsa_key_file": rsa_key_file,
             "vnc_port": local_free_vnc_port,
-            "adb_port": local_free_adb_port,
+            "adb_port": local_adb_port,
             "target_vnc_port": target_vnc_port,
             "target_adb_port": target_adb_port,
             "ssh_user": ssh_user,
             "ip_addr": ip_addr}
-        _ExecuteCommand(constants.SSH_BIN, ssh_tunnel_args.split())
-    except subprocess.CalledProcessError:
-        PrintColorString("Failed to create ssh tunnels, retry with '#acloud "
-                         "reconnect'.", TextColors.FAIL)
+        ssh_tunnel_args_list = shlex.split(ssh_tunnel_args)
+        if extra_args_ssh_tunnel:
+            ssh_tunnel_args_list.extend(shlex.split(extra_args_ssh_tunnel))
+        _ExecuteCommand(constants.SSH_BIN, ssh_tunnel_args_list)
+    except subprocess.CalledProcessError as e:
+        PrintColorString("\n%s\nFailed to create ssh tunnels, retry with '#acloud "
+                         "reconnect'." % e, TextColors.FAIL)
         return ForwardedPorts(vnc_port=None, adb_port=None)
 
     try:
-        adb_connect_args = _ADB_CONNECT_ARGS % {"adb_port": local_free_adb_port}
+        adb_connect_args = _ADB_CONNECT_ARGS % {"adb_port": local_adb_port}
         _ExecuteCommand(constants.ADB_BIN, adb_connect_args.split())
     except subprocess.CalledProcessError:
         PrintColorString("Failed to adb connect, retry with "
                          "'#acloud reconnect'", TextColors.FAIL)
 
     return ForwardedPorts(vnc_port=local_free_vnc_port,
-                          adb_port=local_free_adb_port)
+                          adb_port=local_adb_port)
 
 
 def GetAnswerFromList(answer_list, enable_choose_all=False):
@@ -956,9 +1015,9 @@ def LaunchVncClient(port, avd_width=None, avd_height=None, no_prompts=False):
 
 
 def PrintDeviceSummary(report):
-    """Display summary of devices created.
+    """Display summary of devices.
 
-    -Display created device details from the report instance.
+    -Display device details from the report instance.
         report example:
             'data': [{'devices':[{'instance_name': 'ins-f6a397-none-53363',
                                   'ip': u'35.234.10.162'}]}]
@@ -968,7 +1027,7 @@ def PrintDeviceSummary(report):
         report: A Report instance.
     """
     PrintColorString("\n")
-    PrintColorString("Device(s) created:")
+    PrintColorString("Device(s) summary:")
     for device in report.data.get("devices", []):
         adb_serial = "(None)"
         adb_port = device.get("adb_port")

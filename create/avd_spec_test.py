@@ -18,11 +18,11 @@ import os
 import unittest
 import mock
 
-
 from acloud import errors
 from acloud.create import avd_spec
-from acloud.create import create_common
 from acloud.internal import constants
+from acloud.internal.lib import android_build_client
+from acloud.internal.lib import auth
 from acloud.internal.lib import driver_test_lib
 from acloud.internal.lib import utils
 
@@ -35,16 +35,16 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         """Initialize new avd_spec.AVDSpec."""
         super(AvdSpecTest, self).setUp()
         self.args = mock.MagicMock()
+        self.args.flavor = ""
         self.args.local_image = ""
         self.args.config_file = ""
         self.args.build_target = "fake_build_target"
+        self.args.adb_port = None
         self.AvdSpec = avd_spec.AVDSpec(self.args)
 
     # pylint: disable=protected-access
     def testProcessLocalImageArgs(self):
         """Test process args.local_image."""
-        self.Patch(create_common, "ZipCFImageFiles",
-                   return_value="/path/cf_x86_phone-img-eng.user.zip")
         self.Patch(glob, "glob", return_value=["fake.img"])
         expected_image_artifact = "/path/cf_x86_phone-img-eng.user.zip"
         expected_image_dir = "/path-to-image-dir"
@@ -119,28 +119,49 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         mock_repo.return_value = "Manifest branch: master"
         self.assertEqual(self.AvdSpec._GetBranchFromRepo(), "git_master")
 
+        # Can't get branch from repo info, set it as default branch.
         mock_repo.return_value = "Manifest branch:"
-        with self.assertRaises(errors.GetBranchFromRepoInfoError):
-            self.AvdSpec._GetBranchFromRepo()
+        self.assertEqual(self.AvdSpec._GetBranchFromRepo(), "aosp-master")
+
+    def testGetBuildBranch(self):
+        """Test GetBuildBranch function"""
+        # Test infer branch from build_id and build_target.
+        build_client = mock.MagicMock()
+        build_id = "fake_build_id"
+        build_target = "fake_build_target"
+        expected_branch = "fake_build_branch"
+        self.Patch(android_build_client, "AndroidBuildClient",
+                   return_value=build_client)
+        self.Patch(auth, "CreateCredentials", return_value=mock.MagicMock())
+        self.Patch(build_client, "GetBranch", return_value=expected_branch)
+        self.assertEqual(self.AvdSpec._GetBuildBranch(build_id, build_target),
+                         expected_branch)
+        # Infer branch from "repo info" when build_id and build_target is None.
+        self.Patch(self.AvdSpec, "_GetBranchFromRepo", return_value="repo_branch")
+        build_id = None
+        build_target = None
+        expected_branch = "repo_branch"
+        self.assertEqual(self.AvdSpec._GetBuildBranch(build_id, build_target),
+                         expected_branch)
 
     # pylint: disable=protected-access
     def testGetBuildTarget(self):
         """Test get build target name."""
-        self.AvdSpec._remote_image[avd_spec._BUILD_BRANCH] = "git_branch"
+        self.AvdSpec._remote_image[constants.BUILD_BRANCH] = "git_branch"
         self.AvdSpec._flavor = constants.FLAVOR_IOT
         self.args.avd_type = constants.TYPE_GCE
         self.assertEqual(
             self.AvdSpec._GetBuildTarget(self.args),
             "gce_x86_iot-userdebug")
 
-        self.AvdSpec._remote_image[avd_spec._BUILD_BRANCH] = "aosp-master"
+        self.AvdSpec._remote_image[constants.BUILD_BRANCH] = "aosp-master"
         self.AvdSpec._flavor = constants.FLAVOR_PHONE
         self.args.avd_type = constants.TYPE_CF
         self.assertEqual(
             self.AvdSpec._GetBuildTarget(self.args),
             "aosp_cf_x86_phone-userdebug")
 
-        self.AvdSpec._remote_image[avd_spec._BUILD_BRANCH] = "git_branch"
+        self.AvdSpec._remote_image[constants.BUILD_BRANCH] = "git_branch"
         self.AvdSpec._flavor = constants.FLAVOR_PHONE
         self.args.avd_type = constants.TYPE_CF
         self.assertEqual(
@@ -278,7 +299,7 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
 
         # Both _GCE_LOCAL_IMAGE_CANDIDATE could not be found then raise error.
         self.Patch(os.path, "exists", side_effect=[False, False])
-        self.assertRaises(errors.BootImgDoesNotExist,
+        self.assertRaises(errors.ImgDoesNotExist,
                           self.AvdSpec._GetGceLocalImagePath, fake_image_path)
 
 
