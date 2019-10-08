@@ -29,6 +29,7 @@ from acloud.internal.lib import cvd_compute_client_multi_stage
 from acloud.internal.lib import driver_test_lib
 from acloud.internal.lib import gcompute_client
 from acloud.internal.lib import utils
+from acloud.internal.lib.ssh import Ssh
 
 from acloud.internal.lib.cvd_compute_client_multi_stage import _ProcessBuild
 
@@ -83,10 +84,39 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.Patch(cvd_compute_client_multi_stage.CvdComputeClient, "InitResourceHandle")
         self.Patch(android_build_client.AndroidBuildClient, "InitResourceHandle")
         self.Patch(android_build_client.AndroidBuildClient, "DownloadArtifact")
-        self.Patch(utils, "ScpPushFile")
+        self.Patch(Ssh, "ScpPushFile")
+        self.Patch(Ssh, "WaitForSsh")
+        self.Patch(Ssh, "GetBaseCmd")
         self.cvd_compute_client_multi_stage = cvd_compute_client_multi_stage.CvdComputeClient(
             self._GetFakeConfig(), mock.MagicMock())
+        self.args = mock.MagicMock()
+        self.args.local_image = None
+        self.args.config_file = ""
+        self.args.avd_type = constants.TYPE_CF
+        self.args.flavor = "phone"
+        self.args.adb_port = None
+        self.args.hw_property = "cpu:2,resolution:1080x1920,dpi:240,memory:4g"
 
+    # pylint: disable=protected-access
+    @mock.patch.object(utils, "GetBuildEnvironmentVariable", return_value="fake_env")
+    @mock.patch.object(glob, "glob", return_value=["fake.img"])
+    def testGetLaunchCvdArgs(self, _mock_check_img, _mock_env):
+        """test GetLaunchCvdArgs."""
+        # test GetLaunchCvdArgs with avd_spec
+        fake_avd_spec = avd_spec.AVDSpec(self.args)
+        expeted_args = ['-x_res=1080', '-y_res=1920', '-dpi=240', '-cpus=2',
+                        '-memory_mb=4096', '--setupwizard_mode=REQUIRED']
+        launch_cvd_args = self.cvd_compute_client_multi_stage._GetLaunchCvdArgs(fake_avd_spec)
+        self.assertEqual(launch_cvd_args, expeted_args)
+
+        # test GetLaunchCvdArgs without avd_spec
+        expeted_args = ['-x_res=720', '-y_res=1280', '-dpi=160',
+                        '--setupwizard_mode=REQUIRED']
+        launch_cvd_args = self.cvd_compute_client_multi_stage._GetLaunchCvdArgs(
+            avd_spec=None)
+        self.assertEqual(launch_cvd_args, expeted_args)
+
+    # pylint: disable=protected-access
     def testProcessBuild(self):
         """Test creating "cuttlefish build" strings."""
         self.assertEqual(_ProcessBuild(build_id="123", branch="abc", build_target="def"), "123/def")
@@ -107,8 +137,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
     @mock.patch.object(cvd_compute_client_multi_stage.CvdComputeClient, "_GetDiskArgs",
                        return_value=[{"fake_arg": "fake_value"}])
     @mock.patch("getpass.getuser", return_value="fake_user")
-    @mock.patch.object(cvd_compute_client_multi_stage.CvdComputeClient, "_SshCommand")
-    def testCreateInstance(self, _mock_ssh, _get_user, _get_disk_args, mock_create,
+    def testCreateInstance(self, _get_user, _get_disk_args, mock_create,
                            _get_image, _compare_machine_size, mock_check_img,
                            _mock_env):
         """Test CreateInstance."""
@@ -118,13 +147,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         expected_metadata_local_image.update(self.METADATA)
         remote_image_metadata = dict(expected_metadata)
         expected_disk_args = [{"fake_arg": "fake_value"}]
-        args = mock.MagicMock()
-        args.local_image = None
-        args.config_file = ""
-        args.avd_type = constants.TYPE_CF
-        args.flavor = "phone"
-        args.adb_port = None
-        fake_avd_spec = avd_spec.AVDSpec(args)
+        fake_avd_spec = avd_spec.AVDSpec(self.args)
 
         created_subprocess = mock.MagicMock()
         created_subprocess.stdout = mock.MagicMock()
@@ -152,7 +175,6 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
             machine_type=self.MACHINE_TYPE,
             network=self.NETWORK,
             zone=self.ZONE,
-            labels={constants.LABEL_CREATE_BY: "fake_user"},
             extra_scopes=self.EXTRA_SCOPES)
 
         mock_check_img.return_value = True
@@ -175,7 +197,6 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
             self.KERNEL_BUILD_TARGET, self.EXTRA_DATA_DISK_SIZE_GB,
             fake_avd_spec, extra_scopes=self.EXTRA_SCOPES)
 
-        expected_labels = {constants.LABEL_CREATE_BY: "fake_user"}
         mock_create.assert_called_with(
             self.cvd_compute_client_multi_stage,
             instance=self.INSTANCE,
@@ -186,7 +207,6 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
             machine_type=self.MACHINE_TYPE,
             network=self.NETWORK,
             zone=self.ZONE,
-            labels=expected_labels,
             extra_scopes=self.EXTRA_SCOPES)
 
 

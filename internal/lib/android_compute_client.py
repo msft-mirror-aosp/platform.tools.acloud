@@ -80,6 +80,28 @@ class AndroidComputeClient(gcompute_client.ComputeClient):
         self._ssh_public_key_path = acloud_config.ssh_public_key_path
         self._launch_args = acloud_config.launch_args
         self._instance_name_pattern = acloud_config.instance_name_pattern
+        self._AddPerInstanceSshkey()
+
+    def _AddPerInstanceSshkey(self):
+        """Add per-instance ssh key.
+
+        Assign the ssh publick key to instacne then use ssh command to
+        control remote instance via the ssh publick key. Added sshkey for two
+        users. One is vsoc01, another is current user.
+
+        """
+        if self._ssh_public_key_path:
+            rsa = self._LoadSshPublicKey(self._ssh_public_key_path)
+            logger.info("ssh_public_key_path is specified in config: %s, "
+                        "will add the key to the instance.",
+                        self._ssh_public_key_path)
+            self._metadata["sshKeys"] = "{0}:{2}\n{1}:{2}".format(getpass.getuser(),
+                                                                  constants.GCE_USER,
+                                                                  rsa)
+        else:
+            logger.warning(
+                "ssh_public_key_path is not specified in config, "
+                "only project-wide key will be effective.")
 
     @classmethod
     def _FormalizeName(cls, name):
@@ -238,7 +260,6 @@ class AndroidComputeClient(gcompute_client.ComputeClient):
                        image_project=None,
                        gpu=None,
                        extra_disk_name=None,
-                       labels=None,
                        avd_spec=None,
                        extra_scopes=None,
                        tags=None):
@@ -261,7 +282,6 @@ class AndroidComputeClient(gcompute_client.ComputeClient):
                  None no gpus will be attached. For more details see:
                  https://cloud.google.com/compute/docs/gpus/add-gpus
             extra_disk_name: String,the name of the extra disk to attach.
-            labels: Dict, will be added to the instance's labels.
             avd_spec: AVDSpec object that tells us what we're going to create.
             extra_scopes: List, extra scopes (strings) to be passed to the
                           instance.
@@ -283,25 +303,10 @@ class AndroidComputeClient(gcompute_client.ComputeClient):
             avd_spec.hw_property[constants.HW_Y_RES],
             avd_spec.hw_property[constants.HW_ALIAS_DPI]))
 
-        # Add per-instance ssh key
-        if self._ssh_public_key_path:
-            rsa = self._LoadSshPublicKey(self._ssh_public_key_path)
-            logger.info(
-                "ssh_public_key_path is specified in config: %s, "
-                "will add the key to the instance.", self._ssh_public_key_path)
-            metadata["sshKeys"] = "%s:%s" % (getpass.getuser(), rsa)
-        else:
-            logger.warning("ssh_public_key_path is not specified in config, "
-                           "only project-wide key will be effective.")
-
-        # Add labels for giving the instances ability to be filter for
-        # acloud list/delete cmds.
-        labels = {constants.LABEL_CREATE_BY: getpass.getuser()}
-
         super(AndroidComputeClient, self).CreateInstance(
             instance, image_name, self._machine_type, metadata, self._network,
             self._zone, disk_args, image_project, gpu, extra_disk_name,
-            labels=labels, extra_scopes=extra_scopes, tags=tags)
+            extra_scopes=extra_scopes, tags=tags)
 
     def CheckBootFailure(self, serial_out, instance):
         """Determine if serial output has indicated any boot failure.

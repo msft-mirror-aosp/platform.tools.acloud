@@ -209,21 +209,6 @@ class GoldfishComputeClient(android_compute_client.AndroidComputeClient):
             metadata["cvd_01_y_res"] = resolution[1]
             metadata["cvd_01_dpi"] = resolution[3]
 
-        # Add labels for giving the instances ability to be filter for
-        # acloud list/delete cmds.
-        labels = {constants.LABEL_CREATE_BY: getpass.getuser()}
-
-        # Add per-instance ssh key
-        if self._ssh_public_key_path:
-            rsa = self._LoadSshPublicKey(self._ssh_public_key_path)
-            logger.info(
-                "ssh_public_key_path is specified in config: %s, "
-                "will add the key to the instance.", self._ssh_public_key_path)
-            metadata["sshKeys"] = "%s:%s" % (getpass.getuser(), rsa)
-        else:
-            logger.warning("ssh_public_key_path is not specified in config, "
-                           "only project-wide key will be effective.")
-
         gcompute_client.ComputeClient.CreateInstance(
             self,
             instance=instance,
@@ -236,5 +221,4 @@ class GoldfishComputeClient(android_compute_client.AndroidComputeClient):
             zone=self._zone,
             gpu=gpu,
             tags=tags,
-            labels=labels,
             extra_scopes=extra_scopes)

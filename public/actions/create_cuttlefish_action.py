@@ -42,8 +42,6 @@ class CuttlefishDeviceFactory(base_device_factory.BaseDeviceFactory):
         build_target: String,Target name.
         build_id: String, Build id, e.g. "2263051", "P2804227"
         kernel_build_id: String, Kernel build id.
-        avd_spec: An AVDSpec instance.
-
     """
 
     LOG_FILES = ["/home/vsoc-01/cuttlefish_runtime/kernel.log",
@@ -51,15 +49,16 @@ class CuttlefishDeviceFactory(base_device_factory.BaseDeviceFactory):
                  "/home/vsoc-01/cuttlefish_runtime/cuttlefish_config.json"]
 
     def __init__(self, cfg, build_target, build_id, branch=None,
-                 kernel_build_id=None, avd_spec=None, kernel_branch=None,
+                 kernel_build_id=None, kernel_branch=None,
                  kernel_build_target=None, system_branch=None,
-                 system_build_id=None, system_build_target=None):
+                 system_build_id=None, system_build_target=None,
+                 boot_timeout_secs=None, report_internal_ip=None):
 
         self.credentials = auth.CreateCredentials(cfg)
 
         if cfg.enable_multi_stage:
             compute_client = cvd_compute_client_multi_stage.CvdComputeClient(
-                cfg, self.credentials)
+                cfg, self.credentials, boot_timeout_secs, report_internal_ip)
         else:
             compute_client = cvd_compute_client.CvdComputeClient(
                 cfg, self.credentials)
@@ -72,7 +71,6 @@ class CuttlefishDeviceFactory(base_device_factory.BaseDeviceFactory):
         self._branch = branch
         self._kernel_build_id = kernel_build_id
         self._blank_data_disk_size_gb = cfg.extra_data_disk_size_gb
-        self._avd_spec = avd_spec
         self._extra_scopes = cfg.extra_scopes
 
         # Configure clients for interaction with GCE/Build servers
@@ -106,6 +104,16 @@ class CuttlefishDeviceFactory(base_device_factory.BaseDeviceFactory):
              for key, val in self.system_build_info.__dict__.items() if val}
         )
         return build_info_dict
+
+    def GetFailures(self):
+        """Get failures from all devices.
+
+        Returns:
+            A dictionary that contains all the failures.
+            The key is the name of the instance that fails to boot,
+            and the value is an errors.DeviceBootError object.
+        """
+        return self._compute_client.all_failures
 
     @staticmethod
     def _GetGcsBucketBuildId(build_id, release_id):
@@ -149,7 +157,6 @@ class CuttlefishDeviceFactory(base_device_factory.BaseDeviceFactory):
             kernel_build_id=self.kernel_build_info.build_id,
             kernel_build_target=self.kernel_build_info.build_target,
             blank_data_disk_size_gb=self._blank_data_disk_size_gb,
-            avd_spec=self._avd_spec,
             extra_scopes=self._extra_scopes,
             system_build_target=self.system_build_info.build_target,
             system_branch=self.system_build_info.branch,
@@ -161,8 +168,7 @@ class CuttlefishDeviceFactory(base_device_factory.BaseDeviceFactory):
 
 
 #pylint: disable=too-many-locals
-def CreateDevices(avd_spec=None,
-                  cfg=None,
+def CreateDevices(cfg,
                   build_target=None,
                   build_id=None,
                   branch=None,
@@ -174,14 +180,12 @@ def CreateDevices(avd_spec=None,
                   system_build_target=None,
                   num=1,
                   serial_log_file=None,
-                  logcat_file=None,
                   autoconnect=False,
                   report_internal_ip=False,
                   boot_timeout_secs=None):
     """Create one or multiple Cuttlefish devices.
 
     Args:
-        avd_spec: An AVDSpec instance.
         cfg: An AcloudConfig instance.
         build_target: String, Target name.
         build_id: String, Build id, e.g. "2263051", "P2804227"
@@ -195,7 +199,6 @@ def CreateDevices(avd_spec=None,
         num: Integer, Number of devices to create.
         serial_log_file: String, A path to a tar file where serial output should
                          be saved to.
-        logcat_file: String, A path to a file where logcat logs should be saved.
         autoconnect: Boolean, Create ssh tunnel(s) and adb connect after device creation.
         report_internal_ip: Boolean to report the internal ip instead of
                             external ip.
@@ -206,23 +209,8 @@ def CreateDevices(avd_spec=None,
         A Report instance.
     """
     client_adb_port = None
-    if avd_spec:
-        cfg = avd_spec.cfg
-        build_target = avd_spec.remote_image[constants.BUILD_TARGET]
-        build_id = avd_spec.remote_image[constants.BUILD_ID]
-        num = avd_spec.num
-        autoconnect = avd_spec.autoconnect
-        report_internal_ip = avd_spec.report_internal_ip
-        serial_log_file = avd_spec.serial_log_file
-        logcat_file = avd_spec.logcat_file
-        client_adb_port = avd_spec.client_adb_port
-        boot_timeout_secs = avd_spec.boot_timeout_secs
-        kernel_branch = avd_spec.kernel_build_info[constants.BUILD_BRANCH]
-        kernel_build_id = avd_spec.kernel_build_info[constants.BUILD_ID]
-        kernel_build_target = avd_spec.kernel_build_info[constants.BUILD_TARGET]
-        system_branch = avd_spec.system_build_info[constants.BUILD_BRANCH]
-        system_build_id = avd_spec.system_build_info[constants.BUILD_ID]
-        system_build_target = avd_spec.system_build_info[constants.BUILD_TARGET]
+    unlock_screen = False
+    wait_for_boot = True
     logger.info(
         "Creating a cuttlefish device in project %s, "
         "build_target: %s, "
@@ -236,20 +224,26 @@ def CreateDevices(avd_spec=None,
         "system_build_target: %s, "
         "num: %s, "
         "serial_log_file: %s, "
-        "logcat_file: %s, "
         "autoconnect: %s, "
         "report_internal_ip: %s", cfg.project, build_target,
         build_id, branch, kernel_build_id, kernel_branch, kernel_build_target,
         system_branch, system_build_id, system_build_target, num,
-        serial_log_file, logcat_file, autoconnect, report_internal_ip)
+        serial_log_file, autoconnect, report_internal_ip)
+    # If multi_stage enable, launch_cvd don't write serial log to instance. So
+    # it doesn't go WaitForBoot function.
+    if cfg.enable_multi_stage:
+        wait_for_boot = False
     device_factory = CuttlefishDeviceFactory(
-        cfg, build_target, build_id, branch=branch, avd_spec=avd_spec,
+        cfg, build_target, build_id, branch=branch,
         kernel_build_id=kernel_build_id, kernel_branch=kernel_branch,
         kernel_build_target=kernel_build_target, system_branch=system_branch,
         system_build_id=system_build_id,
-        system_build_target=system_build_target)
+        system_build_target=system_build_target,
+        boot_timeout_secs=boot_timeout_secs,
+        report_internal_ip=report_internal_ip)
     return common_operations.CreateDevices("create_cf", cfg, device_factory,
                                            num, constants.TYPE_CF,
                                            report_internal_ip, autoconnect,
-                                           serial_log_file, logcat_file,
-                                           client_adb_port, boot_timeout_secs)
+                                           serial_log_file, client_adb_port,
+                                           boot_timeout_secs, unlock_screen,
+                                           wait_for_boot)

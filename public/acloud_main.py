@@ -42,6 +42,20 @@ This a tool to create Android Virtual Devices locally/remotely.
  - Delete instances:
    $ acloud delete
 
+ - Reconnect:
+   To reconnect adb/vnc to an existing instance that's been disconnected:
+   $ acloud reconnect
+   Or to specify a specific instance:
+   $ acloud reconnect --instance-names <instance_name like ins-123-cf-x86-phone>
+
+ - List:
+   List will retrieve all the remote instances you've created in addition to any
+   local instances created as well.
+   To show device IP address, adb port and instance name:
+   $ acloud list
+   To show more detail info on the list.
+   $ acloud list -vv
+
 Try $acloud [cmd] --help for further details.
 
 """
@@ -99,6 +113,8 @@ from acloud.public import config
 from acloud.public import device_driver
 from acloud.public.actions import create_cuttlefish_action
 from acloud.public.actions import create_goldfish_action
+from acloud.pull import pull
+from acloud.pull import pull_args
 from acloud.setup import setup
 from acloud.setup import setup_args
 
@@ -128,6 +144,7 @@ def _ParseArgs(args):
         list_args.CMD_LIST,
         delete_args.CMD_DELETE,
         reconnect_args.CMD_RECONNECT,
+        pull_args.CMD_PULL,
     ])
     parser = argparse.ArgumentParser(
         description=__doc__,
@@ -217,8 +234,11 @@ def _ParseArgs(args):
     # Command "list"
     subparser_list.append(list_args.GetListArgParser(subparsers))
 
-    # Command "Reconnect"
+    # Command "reconnect"
     subparser_list.append(reconnect_args.GetReconnectArgParser(subparsers))
+
+    # Command "pull"
+    subparser_list.append(pull_args.GetPullArgParser(subparsers))
 
     # Add common arguments.
     for subparser in subparser_list:
@@ -268,10 +288,6 @@ def _VerifyArgs(parsed_args):
                 and not parsed_args.serial_log_file.endswith(".tar.gz")):
             raise errors.CommandArgError(
                 "--serial_log_file must ends with .tar.gz")
-        if (parsed_args.logcat_file
-                and not parsed_args.logcat_file.endswith(".tar.gz")):
-            raise errors.CommandArgError(
-                "--logcat_file must ends with .tar.gz")
 
 
 def _SetupLogging(log_file, verbose):
@@ -367,7 +383,6 @@ def main(argv=None):
             system_build_target=args.system_build_target,
             num=args.num,
             serial_log_file=args.serial_log_file,
-            logcat_file=args.logcat_file,
             autoconnect=args.autoconnect,
             report_internal_ip=args.report_internal_ip,
             boot_timeout_secs=args.boot_timeout_secs)
@@ -384,7 +399,6 @@ def main(argv=None):
             gpu=args.gpu,
             num=args.num,
             serial_log_file=args.serial_log_file,
-            logcat_file=args.logcat_file,
             autoconnect=args.autoconnect,
             tags=args.tags,
             report_internal_ip=args.report_internal_ip)
@@ -396,6 +410,8 @@ def main(argv=None):
         list_instances.Run(args)
     elif args.which == reconnect_args.CMD_RECONNECT:
         reconnect.Run(args)
+    elif args.which == pull_args.CMD_PULL:
+        report = pull.Run(args)
     elif args.which == setup_args.CMD_SETUP:
         setup.Run(args)
     else:

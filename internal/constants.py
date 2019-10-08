@@ -95,6 +95,7 @@ LIST_CF_USER_GROUPS = ["kvm", "cvdnetwork"]
 
 IP = "ip"
 INSTANCE_NAME = "instance_name"
+GCE_USER = "vsoc-01"
 VNC_PORT = "vnc_port"
 ADB_PORT = "adb_port"
 # For cuttlefish remote instances
@@ -114,13 +115,16 @@ COMMAND_PS = ["ps", "aux"]
 CMD_LAUNCH_CVD = "launch_cvd"
 CMD_STOP_CVD = "stop_cvd"
 ENV_ANDROID_BUILD_TOP = "ANDROID_BUILD_TOP"
+ENV_ANDROID_EMULATOR_PREBUILTS = "ANDROID_EMULATOR_PREBUILTS"
 ENV_ANDROID_HOST_OUT = "ANDROID_HOST_OUT"
+ENV_ANDROID_PRODUCT_OUT = "ANDROID_PRODUCT_OUT"
 ENV_BUILD_TARGET = "TARGET_PRODUCT"
 
 LOCALHOST = "127.0.0.1"
 LOCALHOST_ADB_SERIAL = LOCALHOST + ":%d"
 
 SSH_BIN = "ssh"
+SCP_BIN = "scp"
 ADB_BIN = "adb"
 
 LABEL_CREATE_BY = "created_by"
