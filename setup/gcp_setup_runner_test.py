@@ -242,12 +242,14 @@ class AcloudGCPSetupTest(unittest.TestCase):
         self.gcp_env_runner._CreateStableHostImage()
         self.assertEqual(mock_update.call_count, 1)
 
+    @mock.patch.object(gcp_setup_runner.GcpTaskRunner, "_CheckBillingEnable")
     @mock.patch.object(gcp_setup_runner.GcpTaskRunner, "_NeedProjectSetup")
     @mock.patch.object(gcp_setup_runner.GcpTaskRunner, "_SetupStorageBucket")
     @mock.patch.object(gcp_setup_runner.GcpTaskRunner, "_SetupClientIDSecret")
     @mock.patch.object(gcp_setup_runner.GcpTaskRunner, "_UpdateProject")
     def testSetupProjectNoChange(self, mock_setproj, mock_setid,
-                                 mock_setstorage, mock_chkproj):
+                                 mock_setstorage, mock_chkproj,
+                                 mock_check_billing):
         """test setup project and project not be changed."""
         # Test project didn't change, and no need to setup client id/secret
         mock_chkproj.return_value = False
@@ -256,18 +258,22 @@ class AcloudGCPSetupTest(unittest.TestCase):
         self.assertEqual(mock_setproj.call_count, 0)
         self.assertEqual(mock_setid.call_count, 0)
         mock_setstorage.assert_called_once()
+        mock_check_billing.assert_called_once()
         # Test project didn't change, but client_id is empty
         self.gcp_env_runner.client_id = ""
         self.gcp_env_runner._SetupProject(self.gcloud_runner)
         self.assertEqual(mock_setproj.call_count, 0)
         mock_setid.assert_called_once()
+        self.assertEqual(mock_check_billing.call_count, 2)
 
+    @mock.patch.object(gcp_setup_runner.GcpTaskRunner, "_CheckBillingEnable")
     @mock.patch.object(gcp_setup_runner.GcpTaskRunner, "_NeedProjectSetup")
     @mock.patch.object(gcp_setup_runner.GcpTaskRunner, "_SetupStorageBucket")
     @mock.patch.object(gcp_setup_runner.GcpTaskRunner, "_SetupClientIDSecret")
     @mock.patch.object(gcp_setup_runner.GcpTaskRunner, "_UpdateProject")
     def testSetupProjectChanged(self, mock_setproj, mock_setid,
-                                mock_setstorage, mock_chkproj):
+                                mock_setstorage, mock_chkproj,
+                                mock_check_billing):
         """test setup project when project changed."""
         mock_chkproj.return_value = True
         mock_setproj.return_value = True
@@ -275,6 +281,7 @@ class AcloudGCPSetupTest(unittest.TestCase):
         mock_setproj.assert_called_once()
         mock_setid.assert_called_once()
         mock_setstorage.assert_called_once()
+        mock_check_billing.assert_called_once()
 
     @mock.patch.object(utils, "GetUserAnswerYes")
     def testNeedProjectSetup(self, mock_ans):
@@ -319,14 +326,39 @@ class AcloudGCPSetupTest(unittest.TestCase):
     @mock.patch("subprocess.check_output")
     def testEnableGcloudServices(self, mock_run):
         """test enable Gcloud services."""
+        mock_run.return_value = ""
         self.gcp_env_runner._EnableGcloudServices(self.gcloud_runner)
         mock_run.assert_has_calls([
             mock.call(["gcloud", "services", "enable",
-                       "storage-component.googleapis.com"], stderr=-2),
+                       gcp_setup_runner._GOOGLE_CLOUD_STORAGE_SERVICE], stderr=-2),
             mock.call(["gcloud", "services", "enable",
-                       "androidbuildinternal.googleapis.com"], stderr=-2),
+                       gcp_setup_runner._ANDROID_BUILD_SERVICE], stderr=-2),
             mock.call(["gcloud", "services", "enable",
-                       "compute.googleapis.com"], stderr=-2)])
+                       gcp_setup_runner._COMPUTE_ENGINE_SERVICE], stderr=-2)])
+
+    @mock.patch("subprocess.check_output")
+    def testGoogleAPIService(self, mock_run):
+        """Test GoogleAPIService"""
+        api_service = gcp_setup_runner.GoogleAPIService("service_name",
+                                                        "error_message")
+        api_service.EnableService(self.gcloud_runner)
+        mock_run.assert_has_calls([
+            mock.call(["gcloud", "services", "enable", "service_name"], stderr=-2)])
+
+    @mock.patch("subprocess.check_output")
+    def testCheckBillingEnable(self, mock_run):
+        """Test CheckBillingEnable"""
+        # Test billing account in gcp project already enabled.
+        mock_run.return_value = "billingEnabled: true"
+        self.gcp_env_runner._CheckBillingEnable(self.gcloud_runner)
+        mock_run.assert_has_calls([
+            mock.call(["gcloud", "alpha", "billing", "projects", "describe",
+                       self.gcp_env_runner.project])])
+
+        # Test billing account in gcp project was not enabled.
+        mock_run.return_value = "billingEnabled: false"
+        with self.assertRaises(errors.NoBillingError):
+            self.gcp_env_runner._CheckBillingEnable(self.gcloud_runner)
 
 
 if __name__ == "__main__":

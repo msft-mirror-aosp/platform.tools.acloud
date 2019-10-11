@@ -99,6 +99,7 @@ class AVDSpec(object):
         # args afterwards.
         self._client_adb_port = args.adb_port
         self._autoconnect = None
+        self._unlock_screen = None
         self._report_internal_ip = None
         self._avd_type = None
         self._flavor = None
@@ -116,7 +117,6 @@ class AVDSpec(object):
         self._cfg = config.GetAcloudConfig(args)
         # Reporting args.
         self._serial_log_file = None
-        self._logcat_file = None
         # gpu and emulator_build_id is only used for goldfish avd_type.
         self._gpu = None
         self._emulator_build_id = None
@@ -180,6 +180,12 @@ class AVDSpec(object):
         # If user didn't specify --local-image, infer remote image args
         if args.local_image == "":
             self._image_source = constants.IMAGE_SRC_REMOTE
+            if (self._avd_type == constants.TYPE_GF and
+                    self._instance_type != constants.INSTANCE_TYPE_REMOTE):
+                raise errors.UnsupportedInstanceImageType(
+                    "unsupported creation of avd type: %s, "
+                    "instance type: %s, image source: %s" %
+                    (self._avd_type, self._instance_type, self._image_source))
             self._ProcessRemoteBuildArgs(args)
         else:
             self._image_source = constants.IMAGE_SRC_LOCAL
@@ -259,6 +265,7 @@ class AVDSpec(object):
             args: Namespace object from argparse.parse_args.
         """
         self._autoconnect = args.autoconnect
+        self._unlock_screen = args.unlock_screen
         self._report_internal_ip = args.report_internal_ip
         self._avd_type = args.avd_type
         self._flavor = args.flavor or constants.FLAVOR_PHONE
@@ -267,7 +274,6 @@ class AVDSpec(object):
                                constants.INSTANCE_TYPE_REMOTE)
         self._num_of_instances = args.num
         self._serial_log_file = args.serial_log_file
-        self._logcat_file = args.logcat_file
         self._emulator_build_id = args.emulator_build_id
         self._gpu = args.gpu
 
@@ -310,6 +316,9 @@ class AVDSpec(object):
         """
         if self._avd_type == constants.TYPE_CF:
             self._ProcessCFLocalImageArgs(args.local_image, args.flavor)
+        elif self._avd_type == constants.TYPE_GF:
+            self._local_image_dir = self._ProcessGFLocalImageArgs(
+                args.local_image)
         elif self._avd_type == constants.TYPE_GCE:
             self._local_image_artifact = self._GetGceLocalImagePath(
                 args.local_image)
@@ -353,6 +362,32 @@ class AVDSpec(object):
                                      "can build them via \"m dist\"" %
                                      ", ".join(_GCE_LOCAL_IMAGE_CANDIDATES))
 
+    @staticmethod
+    def _ProcessGFLocalImageArgs(local_image_arg):
+        """Get local built image path for goldfish.
+
+        Args:
+            local_image_arg: The path to the unzipped SDK repository,
+                             i.e., sdk-repo-<os>-system-images-<build>.zip.
+                             If the value is None, this method finds the
+                             directory in build environment.
+
+        Returns:
+            String, the path to the image directory.
+
+        Raises:
+            errors.GetLocalImageError if the directory is not found.
+        """
+        image_dir = (local_image_arg if local_image_arg else
+                     utils.GetBuildEnvironmentVariable(
+                         constants.ENV_ANDROID_PRODUCT_OUT))
+
+        if not os.path.isdir(image_dir):
+            raise errors.GetLocalImageError(
+                "%s is not a directory." % image_dir)
+
+        return image_dir
+
     def _ProcessCFLocalImageArgs(self, local_image_arg, flavor_arg):
         """Get local built image path for cuttlefish-type AVD.
 
@@ -389,8 +424,12 @@ class AVDSpec(object):
                     "No image found(Did you choose a lunch target and run `m`?)"
                     ": %s.\n " % self.local_image_dir)
 
-            flavor_from_build_string = self._GetFlavorFromString(
-                utils.GetBuildEnvironmentVariable(constants.ENV_BUILD_TARGET))
+            try:
+                flavor_from_build_string = self._GetFlavorFromString(
+                    utils.GetBuildEnvironmentVariable(constants.ENV_BUILD_TARGET))
+            except errors.GetAndroidBuildEnvVarError:
+                logger.debug("Unable to determine flavor from env variable: %s",
+                             constants.ENV_BUILD_TARGET)
 
         if flavor_from_build_string and not flavor_arg:
             self._flavor = flavor_from_build_string
@@ -563,6 +602,11 @@ class AVDSpec(object):
         return self._autoconnect
 
     @property
+    def unlock_screen(self):
+        """Return unlock_screen."""
+        return self._unlock_screen
+
+    @property
     def remote_image(self):
         """Return the remote image."""
         return self._remote_image
@@ -606,11 +650,6 @@ class AVDSpec(object):
     def serial_log_file(self):
         """Return serial log file path."""
         return self._serial_log_file
-
-    @property
-    def logcat_file(self):
-        """Return logcat file path."""
-        return self._logcat_file
 
     @property
     def gpu(self):

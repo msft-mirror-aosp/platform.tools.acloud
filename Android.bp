@@ -46,6 +46,7 @@ python_binary_host {
         "acloud_reconnect",
         "acloud_internal",
         "acloud_list",
+        "acloud_pull",
         "acloud_metrics",
         "acloud_proto",
         "acloud_public",
@@ -54,7 +55,7 @@ python_binary_host {
         "py-dateutil",
         "py-google-api-python-client",
         "py-oauth2client",
-        "py-pyopenssl",
+	"py-pyopenssl",
     ],
     dist: {
         targets: ["droidcore"],
@@ -79,9 +80,10 @@ python_test_host {
     libs: [
         "acloud_create",
         "acloud_delete",
-	"acloud_reconnect",
+        "acloud_reconnect",
         "acloud_internal",
         "acloud_list",
+        "acloud_pull",
         "acloud_proto",
         "acloud_public",
         "acloud_setup",
@@ -173,6 +175,14 @@ python_library_host{
     defaults: ["acloud_default"],
     srcs: [
          "reconnect/*.py",
+    ],
+}
+
+python_library_host{
+    name: "acloud_pull",
+    defaults: ["acloud_default"],
+    srcs: [
+         "pull/*.py",
     ],
 }
 

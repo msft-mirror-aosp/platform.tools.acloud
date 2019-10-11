@@ -73,6 +73,9 @@ class DeviceDriverTest(driver_test_lib.BaseDriverTest):
             "AndroidComputeClient",
             return_value=self.compute_client)
         self.Patch(auth, "CreateCredentials", return_value=mock.MagicMock())
+        self.fake_avd_spec = mock.MagicMock()
+        self.fake_avd_spec.unlock_screen = False
+        self.fake_avd_spec.client_adb_port = 1234
 
     def testCreateGCETypeAVD(self):
         """Test CreateGCETypeAVD."""
@@ -99,7 +102,7 @@ class DeviceDriverTest(driver_test_lib.BaseDriverTest):
 
         # Verify
         report = device_driver.CreateGCETypeAVD(
-            cfg, fake_build_target, fake_build_id)
+            cfg, fake_build_target, fake_build_id, avd_spec=self.fake_avd_spec)
         self.build_client.CopyTo.assert_called_with(
             fake_build_target, fake_build_id, artifact_name=cfg.disk_image_name,
             destination_bucket=cfg.storage_bucket_name,
@@ -110,12 +113,12 @@ class DeviceDriverTest(driver_test_lib.BaseDriverTest):
             instance=fake_instance,
             image_name=fake_image,
             extra_disk_name=disk_name,
-            avd_spec=None,
+            avd_spec=self.fake_avd_spec,
             extra_scopes=None)
         self.compute_client.DeleteImage.assert_called_with(fake_image)
         self.storage_client.Delete(cfg.storage_bucket_name, fake_gs_object)
 
-        self.assertEquals(
+        self.assertEqual(
             report.data,
             {
                 "devices": [
@@ -126,8 +129,8 @@ class DeviceDriverTest(driver_test_lib.BaseDriverTest):
                 ],
             }
         )
-        self.assertEquals(report.command, "create")
-        self.assertEquals(report.status, "SUCCESS")
+        self.assertEqual(report.command, "create")
+        self.assertEqual(report.status, "SUCCESS")
 
     # pylint: disable=invalid-name
     def testCreateGCETypeAVDInternalIP(self):
@@ -142,9 +145,10 @@ class DeviceDriverTest(driver_test_lib.BaseDriverTest):
         self.compute_client.GenerateInstanceName.return_value = fake_instance
 
         report = device_driver.CreateGCETypeAVD(
-            cfg, fake_build_target, fake_build_id, report_internal_ip=True)
+            cfg, fake_build_target, fake_build_id, report_internal_ip=True,
+            avd_spec=self.fake_avd_spec)
 
-        self.assertEquals(
+        self.assertEqual(
             report.data,
             {
                 "devices": [
@@ -165,7 +169,7 @@ class DeviceDriverTest(driver_test_lib.BaseDriverTest):
         report = device_driver.DeleteAndroidVirtualDevices(cfg, instance_names)
         self.compute_client.DeleteInstances.assert_called_once_with(
             instance_names, cfg.zone)
-        self.assertEquals(report.data, {
+        self.assertEqual(report.data, {
             "deleted": [
                 {
                     "name": instance_names[0],
@@ -177,8 +181,8 @@ class DeviceDriverTest(driver_test_lib.BaseDriverTest):
                 },
             ],
         })
-        self.assertEquals(report.command, "delete")
-        self.assertEquals(report.status, "SUCCESS")
+        self.assertEqual(report.command, "delete")
+        self.assertEqual(report.status, "SUCCESS")
 
     def testCleanup(self):
         """Test Cleanup."""

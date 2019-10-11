@@ -50,13 +50,6 @@ def AddCommonCreateArgs(parser):
         help="Path to a *tar.gz file where serial logs will be saved "
              "when a device fails on boot.")
     parser.add_argument(
-        "--logcat-file",
-        type=str,
-        dest="logcat_file",
-        required=False,
-        help="Path to a *tar.gz file where logcat logs will be saved "
-             "when a device fails on boot.")
-    parser.add_argument(
         "--autoconnect",
         action="store_true",
         dest="autoconnect",
@@ -72,6 +65,13 @@ def AddCommonCreateArgs(parser):
         help="Will not automatically create ssh tunnels forwarding adb & vnc "
              "when instance created.")
     parser.set_defaults(autoconnect=True)
+    parser.add_argument(
+        "--unlock",
+        action="store_true",
+        dest="unlock_screen",
+        required=False,
+        default=False,
+        help="This can unlock screen after invoke vnc client.")
     parser.add_argument(
         "--report-internal-ip",
         action="store_true",
@@ -120,8 +120,8 @@ def AddCommonCreateArgs(parser):
         dest="kernel_build_id",
         required=False,
         help="Android kernel build id, e.g. 4586590. This is to test a new"
-        " kernel build with a particular Android build (--build_id). If neither"
-        " kernel_branch nor kernel_build_id are specified, the kernel that's"
+        " kernel build with a particular Android build (--build-id). If neither"
+        " kernel-branch nor kernel-build-id are specified, the kernel that's"
         " bundled with the Android build would be used.")
     parser.add_argument(
         "--kernel-branch",
@@ -131,8 +131,8 @@ def AddCommonCreateArgs(parser):
         help="Android kernel build branch name, e.g."
         " kernel-common-android-4.14. This is to test a new kernel build with a"
         " particular Android build (--build-id). If specified without"
-        " specifying kernel_build_id, the last green build in the branch will"
-        " be used. If neither kernel_branch nor kernel_build_id are specified,"
+        " specifying kernel-build-id, the last green build in the branch will"
+        " be used. If neither kernel-branch nor kernel-build-id are specified,"
         " the kernel that's bundled with the Android build would be used.")
     parser.add_argument(
         "--kernel-build-target",
@@ -160,7 +160,7 @@ def AddCommonCreateArgs(parser):
         type=str,
         dest="system_build_target",
         help="'cuttlefish only' System image build target, specify if different "
-        "from --build_target",
+        "from --build-target",
         required=False)
     parser.add_argument(
         "--multi-stage-launch",
@@ -183,12 +183,6 @@ def AddCommonCreateArgs(parser):
         "--serial_log_file",
         type=str,
         dest="serial_log_file",
-        required=False,
-        help=argparse.SUPPRESS)
-    parser.add_argument(
-        "--logcat_file",
-        type=str,
-        dest="logcat_file",
         required=False,
         help=argparse.SUPPRESS)
     parser.add_argument(
@@ -408,3 +402,6 @@ def VerifyArgs(args):
                          % constants.TYPE_CHEEPS)
     if (args.username or args.password) and not (args.username and args.password):
         raise ValueError("--username and --password must both be set")
+    if not args.autoconnect and args.unlock_screen:
+        raise ValueError("--no-autoconnect and --unlock couldn't be "
+                         "passed in together.")

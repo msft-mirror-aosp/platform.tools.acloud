@@ -30,6 +30,7 @@ from acloud.create import base_avd_create
 from acloud.delete import delete
 from acloud.internal import constants
 from acloud.internal.lib import utils
+from acloud.internal.lib.adb_tools import AdbTools
 from acloud.public import report
 
 
@@ -95,6 +96,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         # Launch vnc client if we're auto-connecting.
         if avd_spec.autoconnect:
             utils.LaunchVNCFromReport(result_report, avd_spec, no_prompts)
+        if avd_spec.unlock_screen:
+            AdbTools(constants.CF_ADB_PORT).AutoUnlockScreen()
         return result_report
 
     @staticmethod
@@ -163,7 +166,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         # different dir (e.g. downloaded image).
         os.environ[_ENV_ANDROID_HOST_OUT] = host_bins_path
         # Cuttlefish support launch single AVD at one time currently.
-        if utils.IsCommandRunning(constants.CMD_LAUNCH_CVD):
+        if (utils.IsCommandRunning(constants.CMD_LAUNCH_CVD) or
+                utils.IsCommandRunning(constants.CMD_RUN_CVD)):
             logger.info("Cuttlefish AVD is already running.")
             if no_prompts or utils.GetUserAnswerYes(_CONFIRM_RELAUNCH):
                 stop_cvd_cmd = os.path.join(host_bins_path,
