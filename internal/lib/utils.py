@@ -38,6 +38,8 @@ import time
 import uuid
 import zipfile
 
+import six
+
 from acloud import errors
 from acloud.internal import constants
 
@@ -76,7 +78,6 @@ AVD_PORT_DICT = {
 
 _VNC_BIN = "ssvnc"
 _CMD_KILL = ["pkill", "-9", "-f"]
-_CMD_PGREP = "pgrep"
 _CMD_SG = "sg "
 _CMD_START_VNC = "%(bin)s vnc://127.0.0.1:%(port)d"
 _CMD_INSTALL_SSVNC = "sudo apt-get --assume-yes install ssvnc"
@@ -739,7 +740,7 @@ class TimeExecute(object):
                 return result
             except:
                 if self._print_status:
-                    PrintColorString("Fail! (%ds)" % (time.time()-timestart),
+                    PrintColorString("Fail! (%ds)" % (time.time() - timestart),
                                      TextColors.FAIL)
                 raise
         return DecoratorFunction
@@ -1026,7 +1027,7 @@ def IsCommandRunning(command):
     """
     try:
         with open(os.devnull, "w") as dev_null:
-            subprocess.check_call([_CMD_PGREP, "-f", command],
+            subprocess.check_call([constants.CMD_PGREP, "-af", command],
                                   stderr=dev_null, stdout=dev_null)
         return True
     except subprocess.CalledProcessError:
@@ -1197,3 +1198,30 @@ def GetBuildEnvironmentVariable(variable_name):
             "Try to run 'source build/envsetup.sh && lunch <target>'"
             % variable_name
         )
+
+
+# pylint: disable=no-member
+def FindExecutable(filename):
+    """A compatibility function to find execution file path.
+
+    Args:
+        filename: String of execution filename.
+
+    Returns:
+        String: execution file path.
+    """
+    return find_executable(filename) if six.PY2 else shutil.which(filename)
+
+
+def GetDictItems(namedtuple_object):
+    """A compatibility function to access the OrdereDict object from the given namedtuple object.
+
+    Args:
+        namedtuple_object: namedtuple object.
+
+    Returns:
+        collections.namedtuple.__dict__.items() when using python2.
+        collections.namedtuple._asdict().items() when using python3.
+    """
+    return (namedtuple_object.__dict__.items() if six.PY2
+            else namedtuple_object._asdict().items())

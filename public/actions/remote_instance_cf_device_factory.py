@@ -44,7 +44,7 @@ class RemoteInstanceDeviceFactory(base_device_factory.BaseDeviceFactory):
                             connecting from another GCE instance.
         credentials: An oauth2client.OAuth2Credentials instance.
         compute_client: An object of cvd_compute_client.CvdComputeClient.
-        ip: Namedtuple of (internal, external) IP of the instance.
+        ssh: An Ssh object.
     """
     def __init__(self, avd_spec, local_image_artifact=None,
                  cvd_host_package_artifact=None):
@@ -151,8 +151,13 @@ class RemoteInstanceDeviceFactory(base_device_factory.BaseDeviceFactory):
         build_id = _USER_BUILD
         if self._avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
             build_id = self._avd_spec.remote_image[constants.BUILD_ID]
-        instance = self._compute_client.GenerateInstanceName(
-            build_target=build_target, build_id=build_id)
+
+        if self._avd_spec.instance_name_to_reuse:
+            instance = self._avd_spec.instance_name_to_reuse
+        else:
+            instance = self._compute_client.GenerateInstanceName(
+                build_target=build_target, build_id=build_id)
+
         # Create an instance from Stable Host Image
         self._compute_client.CreateInstance(
             instance=instance,
@@ -161,7 +166,7 @@ class RemoteInstanceDeviceFactory(base_device_factory.BaseDeviceFactory):
             blank_data_disk_size_gb=self._cfg.extra_data_disk_size_gb,
             avd_spec=self._avd_spec)
         ip = self._compute_client.GetInstanceIP(instance)
-        self._ssh = ssh.Ssh(ip=ssh.IP(internal=ip.internal, external=ip.external),
+        self._ssh = ssh.Ssh(ip=ip,
                             gce_user=constants.GCE_USER,
                             ssh_private_key_path=self._cfg.ssh_private_key_path,
                             extra_args_ssh_tunnel=self._cfg.extra_args_ssh_tunnel,

@@ -33,6 +33,7 @@ from acloud.internal import constants
 from acloud.internal.lib import android_build_client
 from acloud.internal.lib import auth
 from acloud.internal.lib import utils
+from acloud.list import list as list_instance
 from acloud.public import config
 
 
@@ -99,6 +100,7 @@ class AVDSpec(object):
         # args afterwards.
         self._client_adb_port = args.adb_port
         self._autoconnect = None
+        self._instance_name_to_reuse = None
         self._unlock_screen = None
         self._report_internal_ip = None
         self._avd_type = None
@@ -128,6 +130,9 @@ class AVDSpec(object):
         # The maximum time in seconds used to wait for the AVD to boot.
         self._boot_timeout_secs = None
 
+        # The local instance id
+        self._local_instance_id = None
+
         self._ProcessArgs(args)
 
     def __repr__(self):
@@ -149,6 +154,7 @@ class AVDSpec(object):
         if self._image_source == constants.IMAGE_SRC_LOCAL:
             image_summary = "local image dir"
             image_details = self._local_image_dir
+            representation.append(" - instance id: %s" % self._local_instance_id)
         elif self._image_source == constants.IMAGE_SRC_REMOTE:
             image_summary = "remote image details"
             image_details = self._remote_image
@@ -272,6 +278,7 @@ class AVDSpec(object):
         self._instance_type = (constants.INSTANCE_TYPE_LOCAL
                                if args.local_instance else
                                constants.INSTANCE_TYPE_REMOTE)
+        self._local_instance_id = args.local_instance
         self._num_of_instances = args.num
         self._serial_log_file = args.serial_log_file
         self._emulator_build_id = args.emulator_build_id
@@ -281,6 +288,15 @@ class AVDSpec(object):
         self._password = args.password
 
         self._boot_timeout_secs = args.boot_timeout_secs
+
+        if args.reuse_gce:
+            if args.reuse_gce != constants.SELECT_ONE_GCE_INSTANCE:
+                if list_instance.GetInstancesFromInstanceNames(
+                        self._cfg, [args.reuse_gce]):
+                    self._instance_name_to_reuse = args.reuse_gce
+            if self._instance_name_to_reuse is None:
+                instance = list_instance.ChooseOneRemoteInstance(self._cfg)
+                self._instance_name_to_reuse = instance.name
 
     @staticmethod
     def _GetFlavorFromString(flavor_string):
@@ -685,3 +701,13 @@ class AVDSpec(object):
     def system_build_info(self):
         """Return system_build_info."""
         return self._system_build_info
+
+    @property
+    def local_instance_id(self):
+        """Return local_instance_id."""
+        return self._local_instance_id
+
+    @property
+    def instance_name_to_reuse(self):
+        """Return instance_name_to_reuse."""
+        return self._instance_name_to_reuse

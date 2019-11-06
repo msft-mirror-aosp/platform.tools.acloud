@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Ssh Utilities."""
+from __future__ import print_function
 import logging
 
 import subprocess
@@ -29,6 +30,7 @@ _SSH_CMD = ("-i %(rsa_key_file)s "
 _SSH_IDENTITY = "-l %(login_user)s %(ip_addr)s"
 _SSH_CMD_MAX_RETRY = 4
 _SSH_CMD_RETRY_SLEEP = 3
+_WAIT_FOR_SSH_MAX_TIMEOUT = 20
 
 
 def _SshCall(cmd, timeout=None):
@@ -59,7 +61,7 @@ def _SshCall(cmd, timeout=None):
     return process.returncode
 
 
-def _SshLogOutput(cmd, timeout=None):
+def _SshLogOutput(cmd, timeout=None, show_output=False):
     """Runs a single SSH command while logging its output and processes its return code.
 
     Output is streamed to the log at the debug level for more interactive debugging.
@@ -70,6 +72,7 @@ def _SshLogOutput(cmd, timeout=None):
     Args:
         cmd: String of the full SSH command to run, including the SSH binary and its arguments.
         timeout: Optional integer, number of seconds to give.
+        show_output: Boolean, True to show command output in screen.
 
     Raises:
         errors.DeviceConnectionError: Failed to connect to the GCE instance.
@@ -90,8 +93,11 @@ def _SshLogOutput(cmd, timeout=None):
         if output == "" and process.poll() is not None:
             break
         if output:
-            # fetch_cvd and launch_cvd can be noisy, so left at debug
-            logger.debug(output.strip())
+            if show_output:
+                print(output.strip())
+            else:
+                # fetch_cvd and launch_cvd can be noisy, so left at debug
+                logger.debug(output.strip())
     if timeout:
         timer.cancel()
     process.stdout.close()
@@ -102,7 +108,7 @@ def _SshLogOutput(cmd, timeout=None):
         raise subprocess.CalledProcessError(process.returncode, cmd)
 
 
-def ShellCmdWithRetry(cmd, timeout=None):
+def ShellCmdWithRetry(cmd, timeout=None, show_output=False):
     """Runs a shell command on remote device.
 
     If the network is unstable and causes SSH connect fail, it will retry. When
@@ -113,6 +119,7 @@ def ShellCmdWithRetry(cmd, timeout=None):
     Args:
         cmd: String of the full SSH command to run, including the SSH binary and its arguments.
         timeout: Optional integer, number of seconds to give.
+        show_output: Boolean, True to show command output in screen.
 
     Raises:
         errors.DeviceConnectionError: For any non-zero return code of
@@ -125,7 +132,8 @@ def ShellCmdWithRetry(cmd, timeout=None):
         sleep_multiplier=_SSH_CMD_RETRY_SLEEP,
         retry_backoff_factor=utils.DEFAULT_RETRY_BACKOFF_FACTOR,
         cmd=cmd,
-        timeout=timeout)
+        timeout=timeout,
+        show_output=show_output)
 
 
 class IP(object):
@@ -158,7 +166,7 @@ class Ssh(object):
         self._ssh_private_key_path = ssh_private_key_path
         self._extra_args_ssh_tunnel = extra_args_ssh_tunnel
 
-    def Run(self, target_command, timeout=None):
+    def Run(self, target_command, timeout=None, show_output=False):
         """Run a shell command over SSH on a remote instance.
 
         Example:
@@ -172,8 +180,11 @@ class Ssh(object):
         Args:
             target_command: String, text of command to run on the remote instance.
             timeout: Integer, the maximum time to wait for the command to respond.
+            show_output: Boolean, True to show command output in screen.
         """
-        ShellCmdWithRetry(self.GetBaseCmd(constants.SSH_BIN) + " " + target_command, timeout)
+        ShellCmdWithRetry(self.GetBaseCmd(constants.SSH_BIN) + " " + target_command,
+                          timeout,
+                          show_output)
 
     def GetBaseCmd(self, execute_bin):
         """Get a base command over SSH on a remote instance.
@@ -207,9 +218,8 @@ class Ssh(object):
 
         raise errors.UnknownType("Don't support the execute bin %s." % execute_bin)
 
-    @utils.TimeExecute(function_description="Waiting for SSH server")
-    def WaitForSsh(self, timeout=20, max_retry=_SSH_CMD_MAX_RETRY):
-        """Wait until the remote instance is ready to accept commands over SSH.
+    def CheckSshConnection(self, timeout):
+        """Run remote 'uptime' ssh command to check ssh connection.
 
         Args:
             timeout: Integer, the maximum time to wait for the command to respond.
@@ -219,18 +229,41 @@ class Ssh(object):
         """
         remote_cmd = [self.GetBaseCmd(constants.SSH_BIN)]
         remote_cmd.append("uptime")
-        for _ in range(max_retry):
-            if _SshCall(" ".join(remote_cmd), timeout) == 0:
-                return
+
+        if _SshCall(" ".join(remote_cmd), timeout) == 0:
+            return
         raise errors.DeviceConnectionError(
             "Ssh isn't ready in the remote instance.")
+
+    @utils.TimeExecute(function_description="Waiting for SSH server")
+    def WaitForSsh(self, timeout=_WAIT_FOR_SSH_MAX_TIMEOUT,
+                   sleep_for_retry=_SSH_CMD_RETRY_SLEEP,
+                   max_retry=_SSH_CMD_MAX_RETRY):
+        """Wait until the remote instance is ready to accept commands over SSH.
+
+        Args:
+            timeout: Integer, the maximum time in seconds to wait for the
+                     command to respond.
+            sleep_for_retry: Integer, the sleep time in seconds for retry.
+            max_retry: Integer, the maximum number of retry.
+
+        Raises:
+            errors.DeviceConnectionError: Ssh isn't ready in the remote instance.
+        """
+        utils.RetryExceptionType(
+            exception_types=errors.DeviceConnectionError,
+            max_retries=max_retry,
+            functor=self.CheckSshConnection,
+            sleep_multiplier=sleep_for_retry,
+            retry_backoff_factor=utils.DEFAULT_RETRY_BACKOFF_FACTOR,
+            timeout=timeout)
 
     def ScpPushFile(self, src_file, dst_file):
         """Scp push file to remote.
 
         Args:
             src_file: The source file path to be pulled.
-            dst_file: The destiation file path the file is pulled to.
+            dst_file: The destination file path the file is pulled to.
         """
         scp_command = [self.GetBaseCmd(constants.SCP_BIN)]
         scp_command.append(src_file)
@@ -242,7 +275,7 @@ class Ssh(object):
 
         Args:
             src_file: The source file path to be pulled.
-            dst_file: The destiation file path the file is pulled to.
+            dst_file: The destination file path the file is pulled to.
         """
         scp_command = [self.GetBaseCmd(constants.SCP_BIN)]
         scp_command.append("%s@%s:%s" %(self._gce_user, self._ip, src_file))

@@ -247,12 +247,17 @@ def GetCreateArgParser(subparser):
     create_parser = subparser.add_parser(CMD_CREATE)
     create_parser.required = False
     create_parser.set_defaults(which=CMD_CREATE)
+    # Use default=0 to distinguish remote instance or local. The instance type
+    # will be remote if arg --local-instance is not provided.
     create_parser.add_argument(
         "--local-instance",
-        action="store_true",
+        type=int,
+        const=1,
+        nargs="?",
         dest="local_instance",
         required=False,
-        help="Create a local instance of the AVD.")
+        help="Create a local AVD instance with the option to specify the local "
+             "instance ID (primarily for infra usage).")
     create_parser.add_argument(
         "--adb-port", "-p",
         type=int,
@@ -296,6 +301,17 @@ def GetCreateArgParser(subparser):
         required=False,
         help=("Automatic yes to prompts. Assume 'yes' as answer to all prompts "
               "and run non-interactively."))
+    create_parser.add_argument(
+        "--reuse-gce",
+        type=str,
+        const=constants.SELECT_ONE_GCE_INSTANCE,
+        nargs="?",
+        dest="reuse_gce",
+        required=False,
+        help="'cuttlefish only' This can help users use their own instance. "
+        "Reusing specific gce instance if --reuse-gce [instance_name] is "
+        "provided. Select one gce instance to reuse if --reuse-gce is "
+        "provided.")
     # User should not specify --spec and --hw_property at the same time.
     hw_spec_group = create_parser.add_mutually_exclusive_group()
     hw_spec_group.add_argument(
@@ -405,3 +421,8 @@ def VerifyArgs(args):
     if not args.autoconnect and args.unlock_screen:
         raise ValueError("--no-autoconnect and --unlock couldn't be "
                          "passed in together.")
+
+    if args.local_instance is not None and args.local_instance < 1:
+        raise errors.UnsupportedLocalInstanceId("Local instance id can not be "
+                                                "less than 1. Actually passed:%d"
+                                                % args.local_instance)
