@@ -56,6 +56,13 @@ This a tool to create Android Virtual Devices locally/remotely.
    To show more detail info on the list.
    $ acloud list -vv
 
+-  Pull:
+   Pull will download log files or show the log file in screen from one remote
+   cuttlefish instance:
+   $ acloud pull
+   Pull from a specified instance:
+   $ acloud pull --instance-name "your_instance_name"
+
 Try $acloud [cmd] --help for further details.
 
 """
@@ -396,6 +403,7 @@ def main(argv=None):
             emulator_branch=args.emulator_branch,
             kernel_build_id=args.kernel_build_id,
             kernel_branch=args.kernel_branch,
+            kernel_build_target=args.kernel_build_target,
             gpu=args.gpu,
             num=args.num,
             serial_log_file=args.serial_log_file,
