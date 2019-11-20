@@ -117,7 +117,6 @@ from acloud.list import list_args
 from acloud.metrics import metrics
 from acloud.public import acloud_common
 from acloud.public import config
-from acloud.public import device_driver
 from acloud.public.actions import create_cuttlefish_action
 from acloud.public.actions import create_goldfish_action
 from acloud.pull import pull
@@ -132,7 +131,6 @@ ACLOUD_LOGGER = "acloud"
 # Commands
 CMD_CREATE_CUTTLEFISH = "create_cf"
 CMD_CREATE_GOLDFISH = "create_gf"
-CMD_CLEANUP = "cleanup"
 
 
 # pylint: disable=too-many-statements
@@ -215,19 +213,6 @@ def _ParseArgs(args):
 
     create_args.AddCommonCreateArgs(create_gf_parser)
     subparser_list.append(create_gf_parser)
-
-    # Command "cleanup"
-    cleanup_parser = subparsers.add_parser(CMD_CLEANUP)
-    cleanup_parser.required = False
-    cleanup_parser.set_defaults(which=CMD_CLEANUP)
-    cleanup_parser.add_argument(
-        "--expiration_mins",
-        type=int,
-        dest="expiration_mins",
-        required=True,
-        help="Garbage collect all gce instances, gce images, cached disk "
-        "images that are older than |expiration_mins|.")
-    subparser_list.append(cleanup_parser)
 
     # Command "create"
     subparser_list.append(create_args.GetCreateArgParser(subparsers))
@@ -403,6 +388,7 @@ def main(argv=None):
             emulator_branch=args.emulator_branch,
             kernel_build_id=args.kernel_build_id,
             kernel_branch=args.kernel_branch,
+            kernel_build_target=args.kernel_build_target,
             gpu=args.gpu,
             num=args.num,
             serial_log_file=args.serial_log_file,
@@ -411,8 +397,6 @@ def main(argv=None):
             report_internal_ip=args.report_internal_ip)
     elif args.which == delete_args.CMD_DELETE:
         report = delete.Run(args)
-    elif args.which == CMD_CLEANUP:
-        report = device_driver.Cleanup(cfg, args.expiration_mins)
     elif args.which == list_args.CMD_LIST:
         list_instances.Run(args)
     elif args.which == reconnect_args.CMD_RECONNECT:

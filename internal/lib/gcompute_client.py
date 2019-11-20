@@ -32,6 +32,7 @@ import getpass
 import logging
 import os
 import re
+import six
 
 from acloud import errors
 from acloud.internal import constants
@@ -846,15 +847,24 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
         Returns:
             A list of instances.
         """
-        api = self.service.instances().aggregatedList(
-            project=self._project,
-            filter=instance_filter)
-        response = self.Execute(api)
+        # aggregatedList will only return 500 results max, so if there are more,
+        # we need to send in the next page token to get the next 500 (and so on
+        # and so forth.
+        get_more_instances = True
+        page_token = None
         instances_list = []
-        for instances_data in response["items"].values():
-            if "instances" in instances_data:
-                for instance in instances_data.get("instances"):
-                    instances_list.append(instance)
+        while get_more_instances:
+            api = self.service.instances().aggregatedList(
+                project=self._project,
+                filter=instance_filter,
+                pageToken=page_token)
+            response = self.Execute(api)
+            page_token = response.get("nextPageToken")
+            get_more_instances = page_token is not None
+            for instances_data in response["items"].values():
+                if "instances" in instances_data:
+                    for instance in instances_data.get("instances"):
+                        instances_list.append(instance)
 
         return instances_list
 
@@ -956,7 +966,7 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
         done = []
         # Wait for the executing operations to finish.
         logger.info("Waiting for executing operations")
-        for resource_name in requests.iterkeys():
+        for resource_name in six.iterkeys(requests):
             operation, _ = results[resource_name]
             if operation:
                 try:
@@ -1584,7 +1594,7 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
             # in the metadata. There may not be an actual ssh key value so
             # that's why we filter for None to avoid an empty line in front.
             ssh_key_item[_METADATA_KEY_VALUE] = "\n".join(
-                filter(None, [ssh_key_item[_METADATA_KEY_VALUE], entry]))
+                list(filter(None, [ssh_key_item[_METADATA_KEY_VALUE], entry])))
         else:
             # Since there is no ssh key item in the metadata, we need to add it in.
             ssh_key_item = {_METADATA_KEY: _SSH_KEYS_NAME,

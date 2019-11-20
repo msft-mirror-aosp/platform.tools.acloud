@@ -175,7 +175,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         if avd_spec:
             if avd_spec.instance_name_to_reuse:
                 self.StopCvd()
-                self.CleanUpImages()
+                self.CleanUp()
             return instance
 
         # TODO: Remove following code after create_cf deprecated.
@@ -277,17 +277,18 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         except subprocess.CalledProcessError as e:
             logger.debug("Failed to stop_cvd (possibly no running device): %s", e)
 
-    def CleanUpImages(self):
-        """Clean up the images on the existing instance.
+    def CleanUp(self):
+        """Clean up the files/folders on the existing instance.
 
-        If previous AVD have these images, reusing the instance may have
-        side effects if didn't clean it.
+        If previous AVD have these files/folders, reusing the instance may have
+        side effects if not cleaned. The path in the instance is /home/vsoc-01/*
+        if the GCE user is vsoc-01.
         """
-        ssh_command = "/bin/rm ./*.img"
+        ssh_command = "'/bin/rm -rf /home/%s/*'" % constants.GCE_USER
         try:
             self._ssh.Run(ssh_command)
         except subprocess.CalledProcessError as e:
-            logger.debug("Failed to clean up the images failed: %s", e)
+            logger.debug("Failed to clean up the files/folders: %s", e)
 
     @utils.TimeExecute(function_description="Launching AVD(s) and waiting for boot up",
                        result_evaluator=utils.BootEvaluator)
@@ -353,11 +354,11 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             avd_spec: An AVDSpec instance.
 
         Returns:
-            Namedtuple of (internal, external) IP of the instance.
+            ssh.IP object, that stores internal and external ip of the instance.
         """
         gcompute_client.ComputeClient.AddSshRsaInstanceMetadata(
-            self, self._zone, constants.GCE_USER,
-            avd_spec.cfg.ssh_public_key_path, avd_spec.instance_name_to_reuse)
+            self, constants.GCE_USER, avd_spec.cfg.ssh_public_key_path,
+            avd_spec.instance_name_to_reuse)
         ip = gcompute_client.ComputeClient.GetInstanceIP(
             self, instance=avd_spec.instance_name_to_reuse, zone=self._zone)
 
