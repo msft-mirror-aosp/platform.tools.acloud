@@ -122,6 +122,9 @@ class GoldfishLocalImageLocalInstance(unittest.TestCase):
                         os.path.join(self._host_out_dir, "emulator")}
 
         mock_avd_spec = mock.Mock(flavor="phone",
+                                  boot_timeout_secs=100,
+                                  gpu=None,
+                                  autoconnect=True,
                                   local_instance_id=1,
                                   local_image_dir=self._image_dir,
                                   local_system_image_dir=None)
@@ -162,6 +165,9 @@ class GoldfishLocalImageLocalInstance(unittest.TestCase):
         mock_environ = {"ANDROID_HOST_OUT": self._host_out_dir}
 
         mock_avd_spec = mock.Mock(flavor="phone",
+                                  boot_timeout_secs=None,
+                                  gpu=None,
+                                  autoconnect=True,
                                   local_instance_id=2,
                                   local_image_dir=self._image_dir,
                                   local_system_image_dir=None)
@@ -217,6 +223,9 @@ class GoldfishLocalImageLocalInstance(unittest.TestCase):
             lambda key: mock_environ[key])
 
         mock_avd_spec = mock.Mock(flavor="phone",
+                                  boot_timeout_secs=None,
+                                  gpu="auto",
+                                  autoconnect=False,
                                   local_instance_id=3,
                                   local_image_dir=self._image_dir,
                                   local_system_image_dir="/unit/test")
@@ -247,7 +256,8 @@ class GoldfishLocalImageLocalInstance(unittest.TestCase):
         self.assertEqual(
             mock_popen.call_args[0][0],
             self._GetExpectedEmulatorArgs(
-                "-qemu", "-append", "androidboot.verifiedbootstate=orange"))
+                "-gpu", "auto", "-no-window", "-qemu", "-append",
+                "androidboot.verifiedbootstate=orange"))
         self._mock_proc.poll.assert_called()
 
 
