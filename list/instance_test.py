@@ -49,6 +49,7 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         constants.INS_KEY_NAME: "fake_ins_name",
         constants.INS_KEY_CREATETIME: "fake_create_time",
         constants.INS_KEY_STATUS: "fake_status",
+        constants.INS_KEY_ZONE: "test/zones/fake_zone",
         "networkInterfaces": [{"accessConfigs": [{"natIP": "1.1.1.1"}]}],
         "labels": {constants.INS_KEY_AVD_TYPE: "fake_type",
                    constants.INS_KEY_AVD_FLAVOR: "fake_flavor"},
@@ -83,6 +84,50 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(6521, local_instance.forwarding_adb_port)
         self.assertEqual(6445, local_instance.forwarding_vnc_port)
 
+    @mock.patch("acloud.list.instance.tempfile")
+    @mock.patch("acloud.list.instance.AdbTools")
+    def testCreateLocalGoldfishInstance(self, mock_adb_tools, mock_tempfile):
+        """"Test the attributes of LocalGoldfishInstance."""
+        mock_tempfile.gettempdir.return_value = "/unit/test"
+        mock_adb_tools.return_value = mock.Mock(device_information={})
+
+        inst = instance.LocalGoldfishInstance(1)
+
+        self.assertEqual(inst.name, "local-goldfish-instance-1")
+        self.assertEqual(inst.avd_type, constants.TYPE_GF)
+        self.assertEqual(inst.adb_port, 5555)
+        self.assertTrue(inst.islocal)
+        self.assertEqual(inst.console_port, 5554)
+        self.assertEqual(inst.device_serial, "emulator-5554")
+        self.assertEqual(inst.instance_dir,
+                         "/unit/test/acloud_gf_temp/instance-1")
+
+    @mock.patch("acloud.list.instance.os.listdir")
+    @mock.patch("acloud.list.instance.os.path.isdir")
+    @mock.patch("acloud.list.instance.tempfile")
+    @mock.patch("acloud.list.instance.AdbTools")
+    def testGetLocalGoldfishInstances(self, mock_adb_tools, mock_tempfile,
+                                      mock_isdir, mock_listdir):
+        """Test LocalGoldfishInstance.GetExistingInstances."""
+        mock_tempfile.gettempdir.return_value = "/unit/test"
+        mock_adb_tools.return_value = mock.Mock(device_information={})
+        mock_listdir.side_effect = lambda path: (
+            ["instance-1", "instance-3"] if
+            path == "/unit/test/acloud_gf_temp" else [])
+        mock_isdir.side_effect = lambda path: (
+            path in ("/unit/test/acloud_gf_temp",
+                     "/unit/test/acloud_gf_temp/instance-1",
+                     "/unit/test/acloud_gf_temp/instance-3"))
+
+        instances = instance.LocalGoldfishInstance.GetExistingInstances()
+
+        mock_listdir.assert_called_with("/unit/test/acloud_gf_temp")
+        mock_isdir.assert_any_call("/unit/test/acloud_gf_temp/instance-1")
+        mock_isdir.assert_any_call("/unit/test/acloud_gf_temp/instance-3")
+        self.assertEqual(len(instances), 2)
+        self.assertEqual(instances[0].console_port, 5554)
+        self.assertEqual(instances[1].console_port, 5558)
+
     def testGetElapsedTime(self):
         """Test _GetElapsedTime"""
         # Instance time can't parse
@@ -111,6 +156,7 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         """"Test Get forwarding adb and vnc port from ssh tunnel."""
         self.Patch(subprocess, "check_output", return_value=self.PS_SSH_TUNNEL)
         self.Patch(instance, "_GetElapsedTime", return_value="fake_time")
+        self.Patch(instance.RemoteInstance, "_GetZoneName", return_value="fake_zone")
         forwarded_ports = instance.RemoteInstance(
             mock.MagicMock()).GetAdbVncPortFromSSHTunnel(
                 "1.1.1.1", constants.TYPE_CF)
@@ -193,6 +239,7 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
                           "   avd type: fake_type\n "
                           "   display: None\n "
                           "   vnc: 127.0.0.1:654321\n "
+                          "   zone: fake_zone\n "
                           "   adb serial: 127.0.0.1:123456\n "
                           "   product: None\n "
                           "   model: None\n "
@@ -215,6 +262,7 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
                           "   avd type: fake_type\n "
                           "   display: None\n "
                           "   vnc: 127.0.0.1:None\n "
+                          "   zone: fake_zone\n "
                           "   adb serial: disconnected")
         self.assertEqual(remote_instance.Summary(), result_summary)
 
@@ -230,6 +278,16 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         with mock.patch.object(six.moves.builtins, "open", mock_open):
             self.assertEqual({u'y_res': 1280, u'x_res': 720, u'x_display': u':20'},
                              instance.GetCuttlefishRuntimeConfig(1))
+
+    def testGetZoneName(self):
+        """Test GetZoneName."""
+        zone_info = "v1/projects/project/zones/us-central1-c"
+        expected_result = "us-central1-c"
+        self.assertEqual(instance.RemoteInstance._GetZoneName(zone_info),
+                         expected_result)
+        # Test can't get zone name from zone info.
+        zone_info = "v1/projects/project/us-central1-c"
+        self.assertEqual(instance.RemoteInstance._GetZoneName(zone_info), None)
 
 
 if __name__ == "__main__":

@@ -54,9 +54,10 @@ def AddCommonCreateArgs(parser):
         action="store_true",
         dest="autoconnect",
         required=False,
-        help="For each instance created, we will automatically create both 2 "
-             "ssh tunnels forwarding both adb & vnc. Then add the device to "
-             "adb.")
+        help="For each remote instance, automatically create 2 ssh tunnels "
+             "forwarding both adb & vnc, and then add the device to adb. "
+             "For local cuttlefish instance, create a vnc connection. "
+             "For local goldfish instance, create a window.")
     parser.add_argument(
         "--no-autoconnect",
         action="store_false",
@@ -162,12 +163,14 @@ def AddCommonCreateArgs(parser):
         help="'cuttlefish only' System image build target, specify if different "
         "from --build-target",
         required=False)
+    # TODO(146314062): Remove --multi-stage-launch after infra don't use this
+    # args.
     parser.add_argument(
         "--multi-stage-launch",
         dest="multi_stage_launch",
         action='store_true',
         required=False,
-        default=None,
+        default=True,
         help="Enable the multi-stage cuttlefish launch.")
     parser.add_argument(
         "--no-multi-stage-launch",
@@ -322,6 +325,25 @@ def GetCreateArgParser(subparser):
         "Reusing specific gce instance if --reuse-gce [instance_name] is "
         "provided. Select one gce instance to reuse if --reuse-gce is "
         "provided.")
+    create_parser.add_argument(
+        "--host",
+        type=str,
+        dest="remote_host",
+        default=None,
+        help="'cuttlefish only' Provide host name for launch AVD on this "
+        "devices.")
+    create_parser.add_argument(
+        "--host-user",
+        type=str,
+        dest="host_user",
+        default=None,
+        help="'remote host only' Provide host user for login on this host.")
+    create_parser.add_argument(
+        "--host-ssh-private-key-path",
+        type=str,
+        dest="host_ssh_private_key_path",
+        default=None,
+        help="'remote host only' Provide host key for login on on this host.")
     # User should not specify --spec and --hw_property at the same time.
     hw_spec_group = create_parser.add_mutually_exclusive_group()
     hw_spec_group.add_argument(
@@ -411,6 +433,33 @@ def _VerifyLocalArgs(args):
                                                 % args.local_instance)
 
 
+def _VerifyHostArgs(args):
+    """Verify args starting with --host.
+
+    Args:
+        args: Namespace object from argparse.parse_args.
+
+    Raises:
+        errors.UnsupportedCreateArgs: When a create arg is specified but
+                                      unsupported for remote host mode.
+    """
+    if args.remote_host and args.local_instance is not None:
+        raise errors.UnsupportedCreateArgs(
+            "--host is not supported for local instance.")
+
+    if args.remote_host and args.num > 1:
+        raise errors.UnsupportedCreateArgs(
+            "--num is not supported for remote host.")
+
+    if args.host_user and args.remote_host is None:
+        raise errors.UnsupportedCreateArgs(
+            "--host-user only support for remote host.")
+
+    if args.host_ssh_private_key_path and args.remote_host is None:
+        raise errors.UnsupportedCreateArgs(
+            "--host-ssh-private-key-path only support for remote host.")
+
+
 def VerifyArgs(args):
     """Verify args.
 
@@ -441,6 +490,10 @@ def VerifyArgs(args):
         raise errors.UnsupportedMultiAdbPort(
             "--adb-port is not supported for multi-devices.")
 
+    if args.num > 1 and args.local_instance is not None:
+        raise errors.UnsupportedCreateArgs(
+            "--num is not supported for local instance.")
+
     if args.adb_port:
         utils.CheckPortFree(args.adb_port)
 
@@ -461,3 +514,4 @@ def VerifyArgs(args):
                          "passed in together.")
 
     _VerifyLocalArgs(args)
+    _VerifyHostArgs(args)

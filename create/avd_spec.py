@@ -54,7 +54,8 @@ _LOCAL_ZIP_WARNING_MSG = "'adb sync' will take a long time if using images " \
                          "enable a faster 'adb sync' process."
 _RE_ANSI_ESCAPE = re.compile(r"(\x9B|\x1B\[)[0-?]*[ -\/]*[@-~]")
 _RE_FLAVOR = re.compile(r"^.+_(?P<flavor>.+)-img.+")
-_RE_GBSIZE = re.compile(r"^(?P<gb_size>\d+)g$", re.IGNORECASE)
+_RE_MEMORY = re.compile(r"(?P<gb_size>\d+)g$|(?P<mb_size>\d+)m$",
+                        re.IGNORECASE)
 _RE_INT = re.compile(r"^\d+$")
 _RE_RES = re.compile(r"^(?P<x_res>\d+)x(?P<y_res>\d+)$")
 _X_RES = "x_res"
@@ -116,6 +117,9 @@ class AVDSpec(object):
         self._system_build_info = None
         self._kernel_build_info = None
         self._hw_property = None
+        self._remote_host = None
+        self._host_user = None
+        self._host_ssh_private_key_path = None
         # Create config instance for android_build_client to query build api.
         self._cfg = config.GetAcloudConfig(args)
         # Reporting args.
@@ -228,10 +232,12 @@ class AVDSpec(object):
                     raise errors.InvalidHWPropertyError(
                         "[%s] is an invalid resolution. Example:1280x800" % value)
             elif key in [constants.HW_ALIAS_MEMORY, constants.HW_ALIAS_DISK]:
-                match = _RE_GBSIZE.match(value)
-                if match:
+                match = _RE_MEMORY.match(value)
+                if match and match.group("gb_size"):
                     arg_hw_properties[key] = str(
                         int(match.group("gb_size")) * 1024)
+                elif match and match.group("mb_size"):
+                    arg_hw_properties[key] = match.group("mb_size")
                 else:
                     raise errors.InvalidHWPropertyError(
                         "Expected gb size.[%s] is not allowed. Example:4g" % value)
@@ -276,9 +282,15 @@ class AVDSpec(object):
         self._report_internal_ip = args.report_internal_ip
         self._avd_type = args.avd_type
         self._flavor = args.flavor or constants.FLAVOR_PHONE
-        self._instance_type = (constants.INSTANCE_TYPE_LOCAL
-                               if args.local_instance else
-                               constants.INSTANCE_TYPE_REMOTE)
+        if args.remote_host:
+            self._instance_type = constants.INSTANCE_TYPE_HOST
+        else:
+            self._instance_type = (constants.INSTANCE_TYPE_LOCAL
+                                   if args.local_instance else
+                                   constants.INSTANCE_TYPE_REMOTE)
+        self._remote_host = args.remote_host
+        self._host_user = args.host_user
+        self._host_ssh_private_key_path = args.host_ssh_private_key_path
         self._local_instance_id = args.local_instance
         self._num_of_instances = args.num
         self._serial_log_file = args.serial_log_file
@@ -721,3 +733,18 @@ class AVDSpec(object):
     def instance_name_to_reuse(self):
         """Return instance_name_to_reuse."""
         return self._instance_name_to_reuse
+
+    @property
+    def remote_host(self):
+        """Return host."""
+        return self._remote_host
+
+    @property
+    def host_user(self):
+        """Return host_user."""
+        return self._host_user
+
+    @property
+    def host_ssh_private_key_path(self):
+        """Return host_ssh_private_key_path."""
+        return self._host_ssh_private_key_path

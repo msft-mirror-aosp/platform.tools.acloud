@@ -228,6 +228,12 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         result_dict = self.AvdSpec._ParseHWPropertyStr(args_str)
         self.assertTrue(expected_dict == result_dict)
 
+        expected_dict = {"cpu": "2", "x_res": "1080", "y_res": "1920",
+                         "dpi": "240", "memory": "512", "disk": "4096"}
+        args_str = "cpu:2,resolution:1080x1920,dpi:240,memory:512m,disk:4g"
+        result_dict = self.AvdSpec._ParseHWPropertyStr(args_str)
+        self.assertTrue(expected_dict == result_dict)
+
     def testGetFlavorFromBuildTargetString(self):
         """Test _GetFlavorFromLocalImage."""
         img_path = "/fack_path/cf_x86_tv-img-eng.user.zip"
@@ -325,6 +331,28 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.Patch(os.path, "exists", side_effect=[False, False])
         self.assertRaises(errors.ImgDoesNotExist,
                           self.AvdSpec._GetGceLocalImagePath, fake_image_path)
+
+    def testProcessMiscArgs(self):
+        """Test process misc args."""
+        self.args.remote_host = None
+        self.args.local_instance = None
+        self.AvdSpec._ProcessMiscArgs(self.args)
+        self.assertEqual(self.AvdSpec._instance_type, constants.INSTANCE_TYPE_REMOTE)
+
+        self.args.remote_host = None
+        self.args.local_instance = True
+        self.AvdSpec._ProcessMiscArgs(self.args)
+        self.assertEqual(self.AvdSpec._instance_type, constants.INSTANCE_TYPE_LOCAL)
+
+        self.args.remote_host = "1.1.1.1"
+        self.args.local_instance = None
+        self.AvdSpec._ProcessMiscArgs(self.args)
+        self.assertEqual(self.AvdSpec._instance_type, constants.INSTANCE_TYPE_HOST)
+
+        self.args.remote_host = "1.1.1.1"
+        self.args.local_instance = True
+        self.AvdSpec._ProcessMiscArgs(self.args)
+        self.assertEqual(self.AvdSpec._instance_type, constants.INSTANCE_TYPE_HOST)
 
 
 if __name__ == "__main__":

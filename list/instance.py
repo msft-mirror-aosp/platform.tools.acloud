@@ -60,6 +60,9 @@ _RE_TIMEZONE = re.compile(r"^(?P<time>[0-9\-\.:T]*)(?P<timezone>[+-]\d+:\d+)$")
 
 _COMMAND_PS_LAUNCH_CVD = ["ps", "-wweo", "lstart,cmd"]
 _RE_RUN_CVD = re.compile(r"(?P<date_str>^[^/]+)(.*run_cvd)")
+_DISPLAY_STRING = "%(x_res)sx%(y_res)s (%(dpi)s)"
+_RE_ZONE = re.compile(r".+/zones/(?P<zone>.+)$")
+_LOCAL_ZONE = "local"
 _FULL_NAME_STRING = ("device serial: %(device_serial)s (%(instance_name)s) "
                      "elapsed time: %(elapsed_time)s")
 LocalPorts = collections.namedtuple("LocalPorts", [constants.VNC_PORT,
@@ -156,10 +159,11 @@ def _GetElapsedTime(start_time):
 class Instance(object):
     """Class to store data of instance."""
 
+    # pylint: disable=too-many-locals
     def __init__(self, name, fullname, display, ip, status=None, adb_port=None,
                  vnc_port=None, ssh_tunnel_is_connected=None, createtime=None,
                  elapsed_time=None, avd_type=None, avd_flavor=None,
-                 is_local=False, device_information=None):
+                 is_local=False, device_information=None, zone=None):
         self._name = name
         self._fullname = fullname
         self._status = status
@@ -175,6 +179,7 @@ class Instance(object):
         self._avd_flavor = avd_flavor
         self._is_local = is_local  # True if this is a local instance
         self._device_information = device_information
+        self._zone = zone
 
     def __repr__(self):
         """Return full name property for print."""
@@ -192,6 +197,7 @@ class Instance(object):
         representation.append("%s avd type: %s" % (indent, self._avd_type))
         representation.append("%s display: %s" % (indent, self._display))
         representation.append("%s vnc: 127.0.0.1:%s" % (indent, self._vnc_port))
+        representation.append("%s zone: %s" % (indent, self._zone))
 
         if self._adb_port:
             representation.append("%s adb serial: 127.0.0.1:%s" %
@@ -279,9 +285,14 @@ class Instance(object):
         """Return vnc_port."""
         return self._vnc_port
 
+    @property
+    def zone(self):
+        """Return zone."""
+        return self._zone
+
 
 class LocalInstance(Instance):
-    """Class to store data of local instance."""
+    """Class to store data of local cuttlefish instance."""
 
     def __init__(self, local_instance_id, x_res, y_res, dpi, create_time,
                  ins_dir=None):
@@ -295,7 +306,8 @@ class LocalInstance(Instance):
             date_str: String of create time.
             ins_dir: String, path of instance idr.
         """
-        display = ("%sx%s (%s)" % (x_res, y_res, dpi))
+        display = _DISPLAY_STRING % {"x_res": x_res, "y_res": y_res,
+                                     "dpi": dpi}
         elapsed_time = _GetElapsedTime(create_time) if create_time else None
         name = "%s-%d" % (constants.LOCAL_INS_NAME, local_instance_id)
         local_ports = GetLocalPortsbyInsId(local_instance_id)
@@ -313,7 +325,8 @@ class LocalInstance(Instance):
             status=constants.INS_STATUS_RUNNING, adb_port=local_ports.adb_port,
             vnc_port=local_ports.vnc_port, createtime=create_time,
             elapsed_time=elapsed_time, avd_type=constants.TYPE_CF,
-            is_local=True, device_information=device_information)
+            is_local=True, device_information=device_information,
+            zone=_LOCAL_ZONE)
 
         # LocalInstance class properties
         self._instance_dir = ins_dir
@@ -322,6 +335,90 @@ class LocalInstance(Instance):
     def instance_dir(self):
         """Return _instance_dir."""
         return self._instance_dir
+
+
+class LocalGoldfishInstance(Instance):
+    """Class to store data of local goldfish instance."""
+
+    _INSTANCE_DIR_PATTERN = re.compile(r"^instance-(?P<id>\d+)$")
+    _INSTANCE_DIR_FORMAT = "instance-%(id)s"
+    _INSTANCE_NAME_FORMAT = "local-goldfish-instance-%(id)s"
+    _EMULATOR_DEFAULT_CONSOLE_PORT = 5554
+    _GF_ADB_DEVICE_SERIAL = "emulator-%(console_port)s"
+
+    def __init__(self, local_instance_id, avd_flavor=None, x_res=None,
+                 y_res=None, dpi=None):
+        """Initialize a LocalGoldfishInstance object.
+
+        Args:
+            local_instance_id: Integer of instance id.
+            avd_flavor: String, the flavor of the virtual device.
+            x_res: Integer of x dimension.
+            y_res: Integer of y dimension.
+            dpi: Integer of dpi.
+        """
+        self._id = local_instance_id
+        # By convention, adb port is console port + 1.
+        adb_port = self.console_port + 1
+
+        name = self._INSTANCE_NAME_FORMAT % {"id": local_instance_id}
+
+        fullname = (_FULL_NAME_STRING %
+                    {"device_serial": self.device_serial,
+                     "instance_name": name,
+                     "elapsed_time": None})
+
+        if x_res and y_res and dpi:
+            display = _DISPLAY_STRING % {"x_res": x_res, "y_res": y_res,
+                                         "dpi": dpi}
+        else:
+            display = "unknown"
+
+        adb = AdbTools(adb_port)
+        device_information = (adb.device_information if
+                              adb.device_information else None)
+
+        super(LocalGoldfishInstance, self).__init__(
+            name=name, fullname=fullname, display=display, ip="127.0.0.1",
+            status=None, adb_port=adb_port, avd_type=constants.TYPE_GF,
+            avd_flavor=avd_flavor, is_local=True,
+            device_information=device_information)
+
+    @staticmethod
+    def _GetInstanceDirRoot():
+        """Return the root directory of all instance directories."""
+        return os.path.join(tempfile.gettempdir(), "acloud_gf_temp")
+
+    @property
+    def console_port(self):
+        """Return the console port as an integer"""
+        # Emulator requires the console port to be an even number.
+        return self._EMULATOR_DEFAULT_CONSOLE_PORT + (self._id - 1) * 2
+
+    @property
+    def device_serial(self):
+        """Return the serial number that contains the console port."""
+        return self._GF_ADB_DEVICE_SERIAL % {"console_port": self.console_port}
+
+    @property
+    def instance_dir(self):
+        """Return the path to instance directory."""
+        return os.path.join(self._GetInstanceDirRoot(),
+                            self._INSTANCE_DIR_FORMAT % {"id": self._id})
+
+    @classmethod
+    def GetExistingInstances(cls):
+        """Get a list of instances from existing instance directories."""
+        instance_root = cls._GetInstanceDirRoot()
+        if not os.path.isdir(instance_root):
+            return []
+        instances = []
+        for name in os.listdir(instance_root):
+            match = cls._INSTANCE_DIR_PATTERN.match(name)
+            if match and os.path.isdir(os.path.join(instance_root, name)):
+                instance_id = int(match.group("id"))
+                instances.append(LocalGoldfishInstance(instance_id))
+        return instances
 
 
 class RemoteInstance(Instance):
@@ -354,6 +451,7 @@ class RemoteInstance(Instance):
         create_time = gce_instance.get(constants.INS_KEY_CREATETIME)
         elapsed_time = _GetElapsedTime(create_time)
         status = gce_instance.get(constants.INS_KEY_STATUS)
+        zone = self._GetZoneName(gce_instance.get(constants.INS_KEY_ZONE))
 
         ip = None
         for network_interface in gce_instance.get("networkInterfaces"):
@@ -410,7 +508,29 @@ class RemoteInstance(Instance):
             ssh_tunnel_is_connected=ssh_tunnel_is_connected,
             createtime=create_time, elapsed_time=elapsed_time, avd_type=avd_type,
             avd_flavor=avd_flavor, is_local=False,
-            device_information=device_information)
+            device_information=device_information,
+            zone=zone)
+
+    @staticmethod
+    def _GetZoneName(zone_info):
+        """Get the zone name from the zone information of gce instance.
+
+        Zone information is like:
+        "https://www.googleapis.com/compute/v1/projects/project/zones/us-central1-c"
+        We want to get "us-central1-c" as zone name.
+
+        Args:
+            zone_info: String, zone information of gce instance.
+
+        Returns:
+            Zone name of gce instance. None if zone name can't find.
+        """
+        zone_match = _RE_ZONE.match(zone_info)
+        if zone_match:
+            return zone_match.group("zone")
+
+        logger.debug("Can't get zone name from %s.", zone_info)
+        return None
 
     @staticmethod
     def GetAdbVncPortFromSSHTunnel(ip, avd_type):

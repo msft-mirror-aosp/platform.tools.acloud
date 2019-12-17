@@ -21,6 +21,7 @@ import os
 
 import unittest
 import mock
+import six
 
 # pylint: disable=import-error
 import apiclient.http
@@ -150,11 +151,12 @@ class ComputeClientTest(driver_test_lib.BaseDriverTest):
         self._SetupMocksForGetOperationStatus(
             {"error": {"errors": ["error1", "error2"]}},
             gcompute_client.OperationScope.GLOBAL)
-        self.assertRaisesRegexp(errors.DriverError,
-                                "Get operation state failed.*error1.*error2",
-                                self.compute_client._GetOperationStatus,
-                                {"name": self.OPERATION_NAME},
-                                gcompute_client.OperationScope.GLOBAL)
+        six.assertRaisesRegex(self,
+                              errors.DriverError,
+                              "Get operation state failed.*error1.*error2",
+                              self.compute_client._GetOperationStatus,
+                              {"name": self.OPERATION_NAME},
+                              gcompute_client.OperationScope.GLOBAL)
 
     @mock.patch.object(errors, "GceOperationTimeoutError")
     @mock.patch.object(utils, "PollAndWait")
@@ -340,7 +342,8 @@ class ComputeClientTest(driver_test_lib.BaseDriverTest):
                 "source": GS_IMAGE_SOURCE_URI,
             },
         }
-        self.assertRaisesRegexp(
+        six.assertRaisesRegex(
+            self,
             errors.DriverError,
             "Expected fake error",
             self.compute_client.CreateImage,
@@ -1117,7 +1120,8 @@ class ComputeClientTest(driver_test_lib.BaseDriverTest):
                 instance=self.INSTANCE, zone=self.ZONE)
             self.assertEqual(result, "fake contents")
         else:
-            self.assertRaisesRegexp(
+            six.assertRaisesRegex(
+                self,
                 errors.DriverError,
                 "Malformed response.*",
                 self.compute_client.GetSerialPortOutput,
@@ -1234,17 +1238,18 @@ class ComputeClientTest(driver_test_lib.BaseDriverTest):
         """Test the rsa key path not exists."""
         fake_ssh_rsa_path = "/path/to/test_rsa.pub"
         self.Patch(os.path, "exists", return_value=False)
-        self.assertRaisesRegexp(errors.DriverError,
-                                "RSA file %s does not exist." % fake_ssh_rsa_path,
-                                gcompute_client.GetRsaKey,
-                                ssh_rsa_path=fake_ssh_rsa_path)
+        six.assertRaisesRegex(self,
+                              errors.DriverError,
+                              "RSA file %s does not exist." % fake_ssh_rsa_path,
+                              gcompute_client.GetRsaKey,
+                              ssh_rsa_path=fake_ssh_rsa_path)
 
     def testGetRsaKey(self):
         """Test get the rsa key."""
         fake_ssh_rsa_path = "/path/to/test_rsa.pub"
         self.Patch(os.path, "exists", return_value=True)
         m = mock.mock_open(read_data=self.SSHKEY)
-        with mock.patch("__builtin__.open", m):
+        with mock.patch.object(six.moves.builtins, "open", m):
             result = gcompute_client.GetRsaKey(fake_ssh_rsa_path)
             self.assertEqual(self.SSHKEY, result)
 
@@ -1376,7 +1381,7 @@ class ComputeClientTest(driver_test_lib.BaseDriverTest):
         self.Patch(
             gcompute_client.ComputeClient, "GetInstance",
             return_value=instance_metadata_key_not_exist)
-        with mock.patch("__builtin__.open", m):
+        with mock.patch.object(six.moves.builtins, "open", m):
             self.compute_client.AddSshRsaInstanceMetadata(
                 fake_user,
                 "/path/to/test_rsa.pub",
@@ -1392,7 +1397,7 @@ class ComputeClientTest(driver_test_lib.BaseDriverTest):
         self.Patch(
             gcompute_client.ComputeClient, "GetInstance",
             return_value=instance_metadata_key_exist)
-        with mock.patch("__builtin__.open", m):
+        with mock.patch.object(six.moves.builtins, "open", m):
             self.compute_client.AddSshRsaInstanceMetadata(
                 fake_user,
                 "/path/to/test_rsa.pub",
@@ -1437,6 +1442,24 @@ class ComputeClientTest(driver_test_lib.BaseDriverTest):
         result = Raise412(sentinel)
         self.assertEqual(1, sentinel.hitFingerPrintConflict.call_count)
         self.assertEqual("Passed", result)
+
+    def testCheckAccess(self):
+        """Test CheckAccess."""
+        # Checking non-403 should raise error
+        error = errors.HttpError(503, "fake retriable error.")
+        self.Patch(
+            gcompute_client.ComputeClient, "Execute",
+            side_effect=error)
+
+        with self.assertRaises(errors.HttpError):
+            self.compute_client.CheckAccess()
+
+        # Checking 403 should return False
+        error = errors.HttpError(403, "fake retriable error.")
+        self.Patch(
+            gcompute_client.ComputeClient, "Execute",
+            side_effect=error)
+        self.assertFalse(self.compute_client.CheckAccess())
 
 
 if __name__ == "__main__":

@@ -304,7 +304,7 @@ def MakeTarFile(src_dict, dest):
     """
     logger.info("Compressing %s into %s.", src_dict.keys(), dest)
     with tarfile.open(dest, "w:gz") as tar:
-        for src, arcname in src_dict.iteritems():
+        for src, arcname in six.iteritems(src_dict):
             tar.add(src, arcname=arcname)
 
 def CreateSshKeyPairIfNotExist(private_key_path, public_key_path):
@@ -488,7 +488,7 @@ def InteractWithQuestion(question, colors=TextColors.WARNING):
     Returns:
         String, input from user.
     """
-    return str(raw_input(colors + question + TextColors.ENDC).strip())
+    return str(six.moves.input(colors + question + TextColors.ENDC).strip())
 
 
 def GetUserAnswerYes(question):
@@ -576,7 +576,7 @@ class BatchHttpRequestExecutor(object):
         self._final_results.update(results)
         # Clear pending_requests
         self._pending_requests.clear()
-        for request_id, result in results.iteritems():
+        for request_id, result in six.iteritems(results):
             exception = result[1]
             if exception is not None and self._ShoudRetry(exception):
                 # If this is a retriable exception, put it in pending_requests
@@ -787,7 +787,7 @@ def _ExecuteCommand(cmd, args):
     Raises:
         errors.NoExecuteBin: Can't find the execute bin file.
     """
-    bin_path = find_executable(cmd)
+    bin_path = FindExecutable(cmd)
     if not bin_path:
         raise errors.NoExecuteCmd("unable to locate %s" % cmd)
     command = [bin_path] + args
@@ -871,7 +871,7 @@ def GetAnswerFromList(answer_list, enable_choose_all=False):
 
     while True:
         try:
-            choice = raw_input("Enter your choice[0-%d]: " % max_choice)
+            choice = six.moves.input("Enter your choice[0-%d]: " % max_choice)
             choice = int(choice)
         except ValueError:
             print("'%s' is not a valid integer.", choice)
@@ -922,7 +922,7 @@ def LaunchVncClient(port, avd_width=None, avd_height=None, no_prompts=False):
                          "Skipping VNC startup.", TextColors.FAIL)
         return
 
-    if not find_executable(_VNC_BIN):
+    if not FindExecutable(_VNC_BIN):
         if no_prompts or GetUserAnswerYes(_CONFIRM_CONTINUE):
             try:
                 PrintColorString("Installing ssvnc vnc client... ", end="")
@@ -943,7 +943,7 @@ def LaunchVncClient(port, avd_width=None, avd_height=None, no_prompts=False):
         ssvnc_env["SSVNC_SCALE"] = str(scale_ratio)
         logger.debug("SSVNC_SCALE:%s", scale_ratio)
 
-    ssvnc_args = _CMD_START_VNC % {"bin": find_executable(_VNC_BIN),
+    ssvnc_args = _CMD_START_VNC % {"bin": FindExecutable(_VNC_BIN),
                                    "port": port}
     subprocess.Popen(ssvnc_args.split(), env=ssvnc_env)
 
@@ -1103,6 +1103,8 @@ def IsSupportedPlatform(print_warning=False):
         Boolean, True if user is using supported platform.
     """
     system = platform.system()
+    # TODO(b/143197659): linux_distribution() deprecated in python 3. To fix it
+    # try to use another package "import distro".
     dist = platform.linux_distribution()[0]
     platform_supported = (system in _SUPPORTED_SYSTEMS_AND_DISTS and
                           dist in _SUPPORTED_SYSTEMS_AND_DISTS[system])
