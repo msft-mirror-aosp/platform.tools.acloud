@@ -27,14 +27,13 @@ google_sdk_bin_path = google_sdk.GetSDKBinPath()
 google_sdk.CleanUp()
 """
 
-from distutils.spawn import find_executable
 import logging
 import os
 import platform
 import shutil
 import sys
 import tempfile
-import urllib2
+from six.moves import urllib
 
 from acloud import errors
 from acloud.internal.lib import utils
@@ -44,6 +43,7 @@ logger = logging.getLogger(__name__)
 
 SDK_BIN_PATH = os.path.join("google-cloud-sdk", "bin")
 GCLOUD_BIN = "gcloud"
+GCLOUD_COMPONENT_NOT_INSTALLED = "Not Installed"
 GCP_SDK_VERSION = "209.0.0"
 GCP_SDK_TOOLS_URL = "https://dl.google.com/dl/cloudsdk/channels/rapid/downloads"
 LINUX_GCP_SDK_64_URL = "%s/google-cloud-sdk-%s-linux-x86_64.tar.gz" % (
@@ -100,7 +100,7 @@ def SDKInstalled():
     Return:
         Boolean, return True if gcloud is installed, False otherwise.
     """
-    if find_executable(GCLOUD_BIN):
+    if utils.FindExecutable(GCLOUD_BIN):
         return True
     return False
 
@@ -127,7 +127,13 @@ class GoogleSDK(object):
             gcloud_runner: A GcloudRunner class to run "gcloud" command.
             component: String, name of gcloud component.
         """
-        gcloud_runner.RunGcloud(["components", "install", "--quiet", component])
+        result = gcloud_runner.RunGcloud([
+            "components", "list", "--format", "get(state.name)", "--filter",
+            "ID=%s" % component
+        ])
+        if result.strip() == GCLOUD_COMPONENT_NOT_INSTALLED:
+            gcloud_runner.RunGcloud(
+                ["components", "install", "--quiet", component])
 
     def GetSDKBinPath(self):
         """Get google SDK tools bin path.
@@ -146,7 +152,7 @@ class GoogleSDK(object):
         Raise:
             NoGoogleSDKDetected if we can't find the sdk path.
         """
-        builtin_gcloud = find_executable(GCLOUD_BIN)
+        builtin_gcloud = utils.FindExecutable(GCLOUD_BIN)
         if builtin_gcloud:
             return os.path.dirname(builtin_gcloud)
         elif os.path.exists(self._tmp_sdk_path):
@@ -165,9 +171,9 @@ class GoogleSDK(object):
         file_path = os.path.join(self._tmp_path, filename)
         logger.info("Download file from: %s", url)
         logger.info("Save the file to: %s", file_path)
-        url_stream = urllib2.urlopen(url)
+        url_stream = urllib.request.urlopen(url)
         metadata = url_stream.info()
-        file_size = int(metadata.getheaders("Content-Length")[0])
+        file_size = int(metadata.get("Content-Length"))
         logger.info("Downloading google SDK: %s bytes.", file_size)
         with open(file_path, 'wb') as output:
             output.write(url_stream.read())

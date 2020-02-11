@@ -20,6 +20,8 @@ import mock
 from acloud.delete import delete
 from acloud.internal.lib import driver_test_lib
 from acloud.internal.lib import utils
+from acloud.list import list as list_instances
+from acloud.public import report
 
 
 # pylint: disable=invalid-name,protected-access,unused-argument,no-member
@@ -31,17 +33,22 @@ class DeleteTest(driver_test_lib.BaseDriverTest):
     @mock.patch("subprocess.check_output")
     def testGetStopcvd(self, mock_subprocess, mock_path_exist):
         """Test _GetStopCvd."""
-        mock_subprocess.side_effect = ["fack_id",
+        mock_subprocess.side_effect = ["fake_id",
                                        "/tmp/bin/run_cvd"]
         expected_value = "/tmp/bin/stop_cvd"
         self.assertEqual(expected_value, delete._GetStopCvd())
 
     @mock.patch.object(delete, "_GetStopCvd", return_value="")
     @mock.patch("subprocess.check_call")
-    def testDeleteLocalInstance(self, mock_subprocess, mock_get_stopcvd):
-        """Test DeleteLocalInstance."""
+    def testDeleteLocalCuttlefishInstance(self, mock_subprocess,
+                                          mock_get_stopcvd):
+        """Test DeleteLocalCuttlefishInstance."""
         mock_subprocess.return_value = True
-        delete_report = delete.DeleteLocalInstance()
+        instance_object = mock.MagicMock()
+        instance_object.instance_dir = "fake_instance_dir"
+        instance_object.name = "local-instance"
+        delete_report = report.Report(command="delete")
+        delete.DeleteLocalCuttlefishInstance(instance_object, delete_report)
         self.assertEqual(delete_report.data, {
             "deleted": [
                 {
@@ -50,8 +57,56 @@ class DeleteTest(driver_test_lib.BaseDriverTest):
                 },
             ],
         })
-        self.assertEqual(delete_report.command, "delete")
         self.assertEqual(delete_report.status, "SUCCESS")
+
+    @mock.patch("acloud.delete.delete.adb_tools.AdbTools")
+    def testDeleteLocalGoldfishInstanceSuccess(self, mock_adb_tools):
+        """Test DeleteLocalGoldfishInstance."""
+        mock_instance = mock.Mock(adb_port=5555,
+                                  device_serial="serial",
+                                  instance_dir="/unit/test")
+        # name is a positional argument of Mock().
+        mock_instance.name = "unittest"
+
+        mock_adb_tools_obj = mock.Mock()
+        mock_adb_tools.return_value = mock_adb_tools_obj
+        mock_adb_tools_obj.EmuCommand.return_value = 0
+
+        delete_report = report.Report(command="delete")
+        delete.DeleteLocalGoldfishInstance(mock_instance, delete_report)
+
+        mock_adb_tools_obj.EmuCommand.assert_called_with("kill")
+        mock_instance.DeleteCreationTimestamp.assert_called()
+        self.assertEqual(delete_report.data, {
+            "deleted": [
+                {
+                    "type": "instance",
+                    "name": "unittest",
+                },
+            ],
+        })
+        self.assertEqual(delete_report.status, "SUCCESS")
+
+    @mock.patch("acloud.delete.delete.adb_tools.AdbTools")
+    def testDeleteLocalGoldfishInstanceFailure(self, mock_adb_tools):
+        """Test DeleteLocalGoldfishInstance with adb command failure."""
+        mock_instance = mock.Mock(adb_port=5555,
+                                  device_serial="serial",
+                                  instance_dir="/unit/test")
+        # name is a positional argument of Mock().
+        mock_instance.name = "unittest"
+
+        mock_adb_tools_obj = mock.Mock()
+        mock_adb_tools.return_value = mock_adb_tools_obj
+        mock_adb_tools_obj.EmuCommand.return_value = 1
+
+        delete_report = report.Report(command="delete")
+        delete.DeleteLocalGoldfishInstance(mock_instance, delete_report)
+
+        mock_adb_tools_obj.EmuCommand.assert_called_with("kill")
+        mock_instance.DeleteCreationTimestamp.assert_called()
+        self.assertTrue(len(delete_report.errors) > 0)
+        self.assertEqual(delete_report.status, "FAIL")
 
     # pylint: disable=protected-access, no-member
     def testCleanupSSVncviwer(self):
@@ -67,6 +122,25 @@ class DeleteTest(driver_test_lib.BaseDriverTest):
         subprocess.check_call.call_count = 0
         self.Patch(utils, "IsCommandRunning", return_value=False)
         subprocess.check_call.assert_not_called()
+
+    @mock.patch.object(delete, "DeleteInstances", return_value="")
+    @mock.patch.object(delete, "DeleteRemoteInstances", return_value="")
+    def testDeleteInstanceByNames(self, mock_delete_remote_ins,
+                                  mock_delete_local_ins):
+        """test DeleteInstanceByNames."""
+        cfg = mock.Mock()
+        # Test delete local instances.
+        instances = ["local-instance-1", "local-instance-2"]
+        self.Patch(list_instances, "FilterInstancesByNames", return_value="")
+        self.Patch(list_instances, "GetLocalInstances", return_value=[])
+        delete.DeleteInstanceByNames(cfg, instances)
+        mock_delete_local_ins.assert_called()
+
+        # Test delete remote instances.
+        instances = ["ins-id1-cf-x86-phone-userdebug",
+                     "ins-id2-cf-x86-phone-userdebug"]
+        delete.DeleteInstanceByNames(cfg, instances)
+        mock_delete_remote_ins.assert_called()
 
 
 if __name__ == "__main__":

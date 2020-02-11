@@ -22,7 +22,6 @@ image artifacts.
 
 from __future__ import print_function
 
-from distutils.spawn import find_executable
 import os
 import subprocess
 import sys
@@ -36,8 +35,10 @@ from acloud.create import goldfish_local_image_local_instance
 from acloud.create import goldfish_remote_image_remote_instance
 from acloud.create import local_image_local_instance
 from acloud.create import local_image_remote_instance
+from acloud.create import local_image_remote_host
 from acloud.create import remote_image_remote_instance
 from acloud.create import remote_image_local_instance
+from acloud.create import remote_image_remote_host
 from acloud.internal import constants
 from acloud.internal.lib import utils
 from acloud.setup import setup
@@ -59,10 +60,14 @@ _CREATOR_CLASS_DICT = {
         local_image_local_instance.LocalImageLocalInstance,
     (constants.TYPE_CF, constants.IMAGE_SRC_LOCAL, constants.INSTANCE_TYPE_REMOTE):
         local_image_remote_instance.LocalImageRemoteInstance,
+    (constants.TYPE_CF, constants.IMAGE_SRC_LOCAL, constants.INSTANCE_TYPE_HOST):
+        local_image_remote_host.LocalImageRemoteHost,
     (constants.TYPE_CF, constants.IMAGE_SRC_REMOTE, constants.INSTANCE_TYPE_REMOTE):
         remote_image_remote_instance.RemoteImageRemoteInstance,
     (constants.TYPE_CF, constants.IMAGE_SRC_REMOTE, constants.INSTANCE_TYPE_LOCAL):
         remote_image_local_instance.RemoteImageLocalInstance,
+    (constants.TYPE_CF, constants.IMAGE_SRC_REMOTE, constants.INSTANCE_TYPE_HOST):
+        remote_image_remote_host.RemoteImageRemoteHost,
     # Cheeps types
     (constants.TYPE_CHEEPS, constants.IMAGE_SRC_REMOTE, constants.INSTANCE_TYPE_REMOTE):
         cheeps_remote_image_remote_instance.CheepsRemoteImageRemoteInstance,
@@ -110,7 +115,7 @@ def _CheckForAutoconnect(args):
     Args:
         args: Namespace object from argparse.parse_args.
     """
-    if not args.autoconnect or find_executable(constants.ADB_BIN):
+    if not args.autoconnect or utils.FindExecutable(constants.ADB_BIN):
         return
 
     disable_autoconnect = False
@@ -210,6 +215,9 @@ def Run(args):
 
     Args:
         args: Namespace object from argparse.parse_args.
+
+    Returns:
+        A Report instance.
     """
     if not args.skip_pre_run_check:
         PreRunCheck(args)
@@ -219,5 +227,4 @@ def Run(args):
                                            spec.image_source)
     avd_creator = avd_creator_class()
     report = avd_creator.Create(spec, args.no_prompt)
-    if report and args.report_file:
-        report.Dump(args.report_file)
+    return report

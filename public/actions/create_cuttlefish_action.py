@@ -29,6 +29,7 @@ from acloud.internal.lib import android_build_client
 from acloud.internal.lib import auth
 from acloud.internal.lib import cvd_compute_client
 from acloud.internal.lib import cvd_compute_client_multi_stage
+from acloud.internal.lib import utils
 
 
 logger = logging.getLogger(__name__)
@@ -42,23 +43,27 @@ class CuttlefishDeviceFactory(base_device_factory.BaseDeviceFactory):
         build_target: String,Target name.
         build_id: String, Build id, e.g. "2263051", "P2804227"
         kernel_build_id: String, Kernel build id.
+        gpu: String, GPU to attach to the device or None. e.g. "nvidia-tesla-k80"
     """
 
     LOG_FILES = ["/home/vsoc-01/cuttlefish_runtime/kernel.log",
                  "/home/vsoc-01/cuttlefish_runtime/logcat",
                  "/home/vsoc-01/cuttlefish_runtime/cuttlefish_config.json"]
 
+    #pylint: disable=too-many-locals
     def __init__(self, cfg, build_target, build_id, branch=None,
                  kernel_build_id=None, kernel_branch=None,
                  kernel_build_target=None, system_branch=None,
                  system_build_id=None, system_build_target=None,
-                 boot_timeout_secs=None, report_internal_ip=None):
+                 boot_timeout_secs=None, ins_timeout_secs=None,
+                 report_internal_ip=None, gpu=None):
 
         self.credentials = auth.CreateCredentials(cfg)
 
         if cfg.enable_multi_stage:
             compute_client = cvd_compute_client_multi_stage.CvdComputeClient(
-                cfg, self.credentials, boot_timeout_secs, report_internal_ip)
+                cfg, self.credentials, boot_timeout_secs, ins_timeout_secs,
+                report_internal_ip, gpu)
         else:
             compute_client = cvd_compute_client.CvdComputeClient(
                 cfg, self.credentials)
@@ -93,15 +98,15 @@ class CuttlefishDeviceFactory(base_device_factory.BaseDeviceFactory):
           A build info dictionary.
         """
         build_info_dict = {
-            key: val for key, val in self.build_info.__dict__.items() if val}
+            key: val for key, val in utils.GetDictItems(self.build_info) if val}
 
         build_info_dict.update(
             {"kernel_%s" % key: val
-             for key, val in self.kernel_build_info.__dict__.items() if val}
+             for key, val in utils.GetDictItems(self.kernel_build_info) if val}
         )
         build_info_dict.update(
             {"system_%s" % key: val
-             for key, val in self.system_build_info.__dict__.items() if val}
+             for key, val in utils.GetDictItems(self.system_build_info) if val}
         )
         return build_info_dict
 
@@ -144,6 +149,18 @@ class CuttlefishDeviceFactory(base_device_factory.BaseDeviceFactory):
         instance = self._compute_client.GenerateInstanceName(
             build_id=self.build_info.build_id, build_target=self._build_target)
 
+        if self._cfg.enable_multi_stage:
+            remote_build_id = self.build_info.build_id
+        else:
+            remote_build_id = self._GetGcsBucketBuildId(
+                self.build_info.build_id, self.build_info.release_build_id)
+
+        if self._cfg.enable_multi_stage:
+            remote_system_build_id = self.system_build_info.build_id
+        else:
+            remote_system_build_id = self._GetGcsBucketBuildId(
+                self.system_build_info.build_id, self.system_build_info.release_build_id)
+
         # Create an instance from Stable Host Image
         self._compute_client.CreateInstance(
             instance=instance,
@@ -151,8 +168,7 @@ class CuttlefishDeviceFactory(base_device_factory.BaseDeviceFactory):
             image_project=self._cfg.stable_host_image_project,
             build_target=self.build_info.build_target,
             branch=self.build_info.branch,
-            build_id=self._GetGcsBucketBuildId(
-                self.build_info.build_id, self.build_info.release_build_id),
+            build_id=remote_build_id,
             kernel_branch=self.kernel_build_info.branch,
             kernel_build_id=self.kernel_build_info.build_id,
             kernel_build_target=self.kernel_build_info.build_target,
@@ -160,9 +176,7 @@ class CuttlefishDeviceFactory(base_device_factory.BaseDeviceFactory):
             extra_scopes=self._extra_scopes,
             system_build_target=self.system_build_info.build_target,
             system_branch=self.system_build_info.branch,
-            system_build_id=self._GetGcsBucketBuildId(
-                self.system_build_info.build_id,
-                self.system_build_info.release_build_id))
+            system_build_id=remote_system_build_id)
 
         return instance
 
@@ -178,11 +192,13 @@ def CreateDevices(cfg,
                   system_branch=None,
                   system_build_id=None,
                   system_build_target=None,
+                  gpu=None,
                   num=1,
                   serial_log_file=None,
                   autoconnect=False,
                   report_internal_ip=False,
-                  boot_timeout_secs=None):
+                  boot_timeout_secs=None,
+                  ins_timeout_secs=None):
     """Create one or multiple Cuttlefish devices.
 
     Args:
@@ -196,14 +212,18 @@ def CreateDevices(cfg,
         system_branch: Branch name to consume the system.img from, a string.
         system_build_id: System branch build id, a string.
         system_build_target: System image build target, a string.
+        gpu: String, GPU to attach to the device or None. e.g. "nvidia-tesla-k80"
         num: Integer, Number of devices to create.
         serial_log_file: String, A path to a tar file where serial output should
                          be saved to.
-        autoconnect: Boolean, Create ssh tunnel(s) and adb connect after device creation.
+        autoconnect: Boolean, Create ssh tunnel(s) and adb connect after device
+                     creation.
         report_internal_ip: Boolean to report the internal ip instead of
                             external ip.
-        boot_timeout_secs: Integer, the maximum time in seconds used to
-                               wait for the AVD to boot.
+        boot_timeout_secs: Integer, the maximum time in seconds used to wait
+                           for the AVD to boot.
+        ins_timeout_secs: Integer, the maximum time in seconds used to wait for
+                          the instance ready.
 
     Returns:
         A Report instance.
@@ -222,12 +242,13 @@ def CreateDevices(cfg,
         "system_branch: %s, "
         "system_build_id: %s, "
         "system_build_target: %s, "
+        "gpu: %s"
         "num: %s, "
         "serial_log_file: %s, "
         "autoconnect: %s, "
         "report_internal_ip: %s", cfg.project, build_target,
         build_id, branch, kernel_build_id, kernel_branch, kernel_build_target,
-        system_branch, system_build_id, system_build_target, num,
+        system_branch, system_build_id, system_build_target, gpu, num,
         serial_log_file, autoconnect, report_internal_ip)
     # If multi_stage enable, launch_cvd don't write serial log to instance. So
     # it doesn't go WaitForBoot function.
@@ -240,7 +261,9 @@ def CreateDevices(cfg,
         system_build_id=system_build_id,
         system_build_target=system_build_target,
         boot_timeout_secs=boot_timeout_secs,
-        report_internal_ip=report_internal_ip)
+        ins_timeout_secs=ins_timeout_secs,
+        report_internal_ip=report_internal_ip,
+        gpu=gpu)
     return common_operations.CreateDevices("create_cf", cfg, device_factory,
                                            num, constants.TYPE_CF,
                                            report_internal_ip, autoconnect,

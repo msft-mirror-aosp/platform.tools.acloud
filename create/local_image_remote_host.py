@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Copyright 2018 - The Android Open Source Project
+# Copyright 2019 - The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,21 +13,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-r"""RemoteImageRemoteInstance class.
+r"""LocalImageRemoteHost class.
 
-Create class that is responsible for creating a remote instance AVD with a
-remote image.
+Create class that is responsible for creating a remote host AVD with a
+local image.
 """
 
 from acloud.create import base_avd_create
+from acloud.create import create_common
+from acloud.internal import constants
 from acloud.internal.lib import utils
 from acloud.public.actions import common_operations
 from acloud.public.actions import remote_instance_cf_device_factory
-from acloud.internal import constants
 
 
-class RemoteImageRemoteInstance(base_avd_create.BaseAVDCreate):
-    """Create class for a remote image remote instance AVD."""
+class LocalImageRemoteHost(base_avd_create.BaseAVDCreate):
+    """Create class for a local image remote host AVD."""
 
     @utils.TimeExecute(function_description="Total time: ",
                        print_before_call=False, print_status=False)
@@ -42,9 +43,11 @@ class RemoteImageRemoteInstance(base_avd_create.BaseAVDCreate):
             A Report instance.
         """
         device_factory = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
-            avd_spec)
+            avd_spec,
+            avd_spec.local_image_artifact,
+            create_common.GetCvdHostPackage())
         report = common_operations.CreateDevices(
-            "create_cf", avd_spec.cfg, device_factory, avd_spec.num,
+            "create_cf", avd_spec.cfg, device_factory, num=1,
             report_internal_ip=avd_spec.report_internal_ip,
             autoconnect=avd_spec.autoconnect,
             avd_type=constants.TYPE_CF,
@@ -54,5 +57,4 @@ class RemoteImageRemoteInstance(base_avd_create.BaseAVDCreate):
         # Launch vnc client if we're auto-connecting.
         if avd_spec.connect_vnc:
             utils.LaunchVNCFromReport(report, avd_spec, no_prompts)
-
         return report

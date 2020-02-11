@@ -32,6 +32,10 @@ class GceOperationTimeoutError(DriverError):
     """Error raised when a GCE operation timedout."""
 
 
+class GetGceZoneError(DriverError):
+    """Can't get GCE zones info."""
+
+
 class HttpError(DriverError):
     """Error related to http requests."""
 
@@ -127,10 +131,6 @@ class NotSupportedPlatformError(SetupError):
     """Error related to user using a not supported os."""
 
 
-class ParseBucketRegionError(SetupError):
-    """Raised when parsing bucket information without region information."""
-
-
 class CreateError(Exception):
     """Base Create cmd exception."""
 
@@ -203,8 +203,8 @@ class LaunchCVDFail(CreateError):
     """Cuttlefish AVD launch failed."""
 
 
-class EmulatorFail(CreateError):
-    """Goldfish AVD launch failed."""
+class SubprocessFail(CreateError):
+    """Subprocess failed."""
 
 
 class NoExecuteCmd(CreateError):
@@ -241,3 +241,7 @@ class AdbDisconnectFailed(Exception):
 
 class UnsupportedLocalInstanceId(Exception):
     """Unsupported local instance id."""
+
+
+class InvalidInstanceDir(Exception):
+    """Invalid instance dir."""

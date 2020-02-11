@@ -20,6 +20,8 @@ of an Android Virtual Device.
 from __future__ import print_function
 import getpass
 import logging
+import re
+import subprocess
 
 from acloud import errors
 from acloud.internal import constants
@@ -31,6 +33,30 @@ from acloud.public import config
 
 
 logger = logging.getLogger(__name__)
+
+_COMMAND_PS_LAUNCH_CVD = ["ps", "-wweo", "lstart,cmd"]
+_RE_LOCAL_CVD_PORT = re.compile(r"^127\.0\.0\.1:65(?P<cvd_port_suffix>\d{2})\s+")
+
+
+def GetActiveCVDIds():
+    """Get active local cvd ids from adb devices.
+
+    The adb port of local instance will be decided according to instance id.
+    The rule of adb port will be '6520 + [instance id] - 1'. So we grep last
+    two digits of port and calculate the instance id.
+
+    Return:
+        List of cvd id.
+    """
+    local_cvd_ids = []
+    adb_cmd = [constants.ADB_BIN, "devices"]
+    device_info = subprocess.check_output(adb_cmd)
+    for device in device_info.splitlines():
+        match = _RE_LOCAL_CVD_PORT.match(device)
+        if match:
+            cvd_serial = match.group("cvd_port_suffix")
+            local_cvd_ids.append(int(cvd_serial) - 19)
+    return local_cvd_ids
 
 
 def _ProcessInstances(instance_list):
@@ -102,12 +128,47 @@ def GetRemoteInstances(cfg):
     credentials = auth.CreateCredentials(cfg)
     compute_client = gcompute_client.ComputeClient(cfg, credentials)
     filter_item = "labels.%s=%s" % (constants.LABEL_CREATE_BY, getpass.getuser())
-    all_instances = compute_client.ListInstances(cfg.zone,
-                                                 instance_filter=filter_item)
-    logger.debug("Instance list from: %s (filter: %s\n%s):",
-                 cfg.zone, filter_item, all_instances)
+    all_instances = compute_client.ListInstances(instance_filter=filter_item)
+
+    logger.debug("Instance list from: (filter: %s\n%s):",
+                 filter_item, all_instances)
 
     return _ProcessInstances(all_instances)
+
+
+def _GetLocalCuttlefishInstances():
+    """Look for local cuttelfish instances.
+
+    Gather local instances information from cuttlefish runtime config.
+
+    Returns:
+        instance_list: List of local instances.
+    """
+    local_cvd_ids = GetActiveCVDIds()
+    local_instance_list = []
+    for cvd_id in local_cvd_ids:
+        try:
+            cf_runtime_cfg = instance.GetCuttlefishRuntimeConfig(cvd_id)
+            local_instance_list.append(
+                instance.LocalInstance(cvd_id, cf_runtime_cfg))
+        except errors.ConfigError:
+            logger.error("Instance[id:%d] dir not found!", cvd_id)
+
+    return local_instance_list
+
+
+def GetLocalInstances():
+    """Look for local cuttleifsh and goldfish instances.
+
+    Returns:
+        List of local instances.
+    """
+    # Running instances on local is not supported on all OS.
+    if not utils.IsSupportedPlatform():
+        return []
+
+    return (_GetLocalCuttlefishInstances() +
+            instance.LocalGoldfishInstance.GetExistingInstances())
 
 
 def GetInstances(cfg):
@@ -119,12 +180,22 @@ def GetInstances(cfg):
     Returns:
         instance_list: List of instances.
     """
-    instances_list = GetRemoteInstances(cfg)
-    local_instance = instance.LocalInstance()
-    if local_instance:
-        instances_list.append(local_instance)
+    return GetRemoteInstances(cfg) + GetLocalInstances()
 
-    return instances_list
+
+def ChooseInstancesFromList(instances):
+    """Let user choose instances from a list.
+
+    Args:
+        instances: List of Instance objects.
+
+    Returns:
+         List of Instance objects.
+    """
+    if len(instances) > 1:
+        print("Multiple instances detected, choose any one to proceed:")
+        return utils.GetAnswerFromList(instances, enable_choose_all=True)
+    return instances
 
 
 def ChooseInstances(cfg, select_all_instances=False):
@@ -139,16 +210,12 @@ def ChooseInstances(cfg, select_all_instances=False):
                               need to ask user to choose.
 
     Returns:
-        List of list.Instance() object.
+        List of Instance() object.
     """
-    instances_list = GetInstances(cfg)
-    if (len(instances_list) > 1) and not select_all_instances:
-        print("Multiple instances detected, choose any one to proceed:")
-        instances = utils.GetAnswerFromList(instances_list,
-                                            enable_choose_all=True)
-        return instances
-
-    return instances_list
+    instances = GetInstances(cfg)
+    if not select_all_instances:
+        return ChooseInstancesFromList(instances)
+    return instances
 
 
 def ChooseOneRemoteInstance(cfg):
@@ -179,6 +246,35 @@ def ChooseOneRemoteInstance(cfg):
 
     return instances_list[0]
 
+
+def FilterInstancesByNames(instances, names):
+    """Find instances by names.
+
+    Args:
+        instances: Collection of Instance objects.
+        names: Collection of strings, the names of the instances to search for.
+
+    Returns:
+        List of Instance objects.
+
+    Raises:
+        errors.NoInstancesFound if any instance is not found.
+    """
+    instance_map = {inst.name: inst for inst in instances}
+    found_instances = []
+    missing_instance_names = []
+    for name in names:
+        if name in instance_map:
+            found_instances.append(instance_map[name])
+        else:
+            missing_instance_names.append(name)
+
+    if missing_instance_names:
+        raise errors.NoInstancesFound("Did not find the following instances: %s" %
+                                      " ".join(missing_instance_names))
+    return found_instances
+
+
 def GetInstancesFromInstanceNames(cfg, instance_names):
     """Get instances from instance names.
 
@@ -189,45 +285,29 @@ def GetInstancesFromInstanceNames(cfg, instance_names):
         instance_names: list of instance name.
 
     Returns:
-        List of Instance() object.
+        List of Instance() objects.
 
     Raises:
         errors.NoInstancesFound: No instances found.
     """
-    instance_list = []
-    full_list_of_instance = GetInstances(cfg)
-    for instance_object in full_list_of_instance:
-        if instance_object.name in instance_names:
-            instance_list.append(instance_object)
-
-    #find the missing instance.
-    missing_instances = []
-    instance_list_names = [instance_object.name for instance_object in instance_list]
-    missing_instances = [
-        instance_name for instance_name in instance_names
-        if instance_name not in instance_list_names
-    ]
-    if missing_instances:
-        raise errors.NoInstancesFound("Did not find the following instances: %s" %
-                                      ' '.join(missing_instances))
-    return instance_list
+    return FilterInstancesByNames(GetInstances(cfg), instance_names)
 
 
-def GetInstanceFromAdbPort(cfg, adb_port):
-    """Get instance from adb port.
+def FilterInstancesByAdbPort(instances, adb_port):
+    """Find an instance by adb port.
 
     Args:
-        cfg: AcloudConfig object.
-        adb_port: int, adb port of instance.
+        instances: Collection of Instance objects.
+        adb_port: int, adb port of the instance to search for.
 
     Returns:
-        List of list.Instance() object.
+        List of Instance() objects.
 
     Raises:
         errors.NoInstancesFound: No instances found.
     """
     all_instance_info = []
-    for instance_object in GetInstances(cfg):
+    for instance_object in instances:
         if instance_object.forwarding_adb_port == adb_port:
             return [instance_object]
         all_instance_info.append(instance_object.fullname)
@@ -260,6 +340,9 @@ def Run(args):
     Args:
         args: Namespace object from argparse.parse_args.
     """
+    instances = GetLocalInstances()
     cfg = config.GetAcloudConfig(args)
-    instance_list = GetInstances(cfg)
-    PrintInstancesDetails(instance_list, args.verbose)
+    if not args.local_only and cfg.SupportRemoteInstance():
+        instances.extend(GetRemoteInstances(cfg))
+
+    PrintInstancesDetails(instances, args.verbose)

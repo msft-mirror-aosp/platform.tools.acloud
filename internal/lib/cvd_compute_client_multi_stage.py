@@ -40,6 +40,7 @@ import os
 import stat
 import subprocess
 import tempfile
+import time
 
 from acloud import errors
 from acloud.internal import constants
@@ -48,15 +49,19 @@ from acloud.internal.lib import android_compute_client
 from acloud.internal.lib import gcompute_client
 from acloud.internal.lib import utils
 from acloud.internal.lib.ssh import Ssh
-from acloud.internal.lib.ssh import IP
 from acloud.pull import pull
 
 
 logger = logging.getLogger(__name__)
 
+_DECOMPRESS_KERNEL_ARG = "-decompress_kernel=true"
 _DEFAULT_BRANCH = "aosp-master"
 _FETCHER_BUILD_TARGET = "aosp_cf_x86_phone-userdebug"
 _FETCHER_NAME = "fetch_cvd"
+# Time info to write in report.
+_FETCH_ARTIFACT = "fetch_artifact_time"
+_GCE_CREATE = "gce_create_time"
+_LAUNCH_CVD = "launch_cvd_time"
 
 
 def _ProcessBuild(build_id=None, branch=None, build_target=None):
@@ -86,16 +91,21 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                  acloud_config,
                  oauth2_credentials,
                  boot_timeout_secs=None,
-                 report_internal_ip=None):
+                 ins_timeout_secs=None,
+                 report_internal_ip=None,
+                 gpu=None):
         """Initialize.
 
         Args:
             acloud_config: An AcloudConfig object.
             oauth2_credentials: An oauth2client.OAuth2Credentials instance.
-            boot_timeout_secs: Integer, the maximum time to wait for the
-                               command to respond.
+            boot_timeout_secs: Integer, the maximum time to wait for the AVD
+                               to boot up.
+            ins_timeout_secs: Integer, the maximum time to wait for the
+                              instance ready.
             report_internal_ip: Boolean to report the internal ip instead of
                                 external ip.
+            gpu: String, GPU to attach to the device.
         """
         super(CvdComputeClient, self).__init__(acloud_config, oauth2_credentials)
 
@@ -104,13 +114,37 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             android_build_client.AndroidBuildClient(oauth2_credentials))
         self._ssh_private_key_path = acloud_config.ssh_private_key_path
         self._boot_timeout_secs = boot_timeout_secs
+        self._ins_timeout_secs = ins_timeout_secs
         self._report_internal_ip = report_internal_ip
+        self._gpu = gpu
         # Store all failures result when creating one or multiple instances.
         self._all_failures = dict()
         self._extra_args_ssh_tunnel = acloud_config.extra_args_ssh_tunnel
         self._ssh = None
+        self._ip = None
+        self._user = constants.GCE_USER
+        self._execution_time = {_FETCH_ARTIFACT: 0, _GCE_CREATE: 0, _LAUNCH_CVD: 0}
 
-    # pylint: disable=arguments-differ,too-many-locals
+    def InitRemoteHost(self, ssh, ip, user):
+        """Init remote host.
+
+        Check if we can ssh to the remote host, stop any cf instances running
+        on it, and remove existing files.
+
+        Args:
+            ssh: Ssh object.
+            ip: namedtuple (internal, external) that holds IP address of the
+                remote host, e.g. "external:140.110.20.1, internal:10.0.0.1"
+            user: String of user log in to the instance.
+        """
+        self._ssh = ssh
+        self._ip = ip
+        self._user = user
+        self._ssh.WaitForSsh(timeout=self._ins_timeout_secs)
+        self.StopCvd()
+        self.CleanUp()
+
+    # pylint: disable=arguments-differ,too-many-locals,broad-except
     def CreateInstance(self, instance, image_name, image_project,
                        build_target=None, branch=None, build_id=None,
                        kernel_branch=None, kernel_build_id=None,
@@ -119,8 +153,9 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                        system_build_target=None, system_branch=None,
                        system_build_id=None):
 
-        """Create a single configured cuttlefish device.
-        1. Create gcp instance.
+        """Create/Reuse a single configured cuttlefish device.
+        1. Prepare GCE instance.
+           Create a new instnace or get IP address for reusing the specific instance.
         2. Put fetch_cvd on the instance.
         3. Invoke fetch_cvd to fetch and run the instance.
 
@@ -153,42 +188,53 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             int(self.GetImage(image_name, image_project)["diskSizeGb"]) +
             blank_data_disk_size_gb)
 
-        ip = self._CreateGceInstance(instance, image_name, image_project,
-                                     extra_scopes, boot_disk_size_gb, avd_spec)
-        self._ssh = Ssh(ip=IP(internal=ip.internal, external=ip.external),
-                        gce_user=constants.GCE_USER,
+        if avd_spec and avd_spec.instance_name_to_reuse:
+            self._ip = self._ReusingGceInstance(avd_spec)
+        else:
+            self._ip = self._CreateGceInstance(instance, image_name, image_project,
+                                               extra_scopes, boot_disk_size_gb,
+                                               avd_spec)
+        self._ssh = Ssh(ip=self._ip,
+                        user=constants.GCE_USER,
                         ssh_private_key_path=self._ssh_private_key_path,
                         extra_args_ssh_tunnel=self._extra_args_ssh_tunnel,
                         report_internal_ip=self._report_internal_ip)
-        self._ssh.WaitForSsh()
+        try:
+            self._ssh.WaitForSsh(timeout=self._ins_timeout_secs)
+            if avd_spec:
+                if avd_spec.instance_name_to_reuse:
+                    self.StopCvd()
+                    self.CleanUp()
+                return instance
 
-        if avd_spec:
+            # TODO: Remove following code after create_cf deprecated.
+            self.UpdateFetchCvd()
+
+            self.FetchBuild(build_id, branch, build_target, system_build_id,
+                            system_branch, system_build_target, kernel_build_id,
+                            kernel_branch, kernel_build_target)
+            kernel_build = self.GetKernelBuild(kernel_build_id,
+                                               kernel_branch,
+                                               kernel_build_target)
+            self.LaunchCvd(instance,
+                           blank_data_disk_size_gb=blank_data_disk_size_gb,
+                           kernel_build=kernel_build,
+                           boot_timeout_secs=self._boot_timeout_secs)
+
+            return instance
+        except Exception as e:
+            self._all_failures[instance] = e
             return instance
 
-        # TODO: Remove following code after create_cf deprecated.
-        self.UpdateFetchCvd()
-
-        self.FetchBuild(build_id, branch, build_target, system_build_id,
-                        system_branch, system_build_target, kernel_build_id,
-                        kernel_branch, kernel_build_target)
-        kernel_build = self.GetKernelBuild(kernel_build_id,
-                                           kernel_branch,
-                                           kernel_build_target)
-        self.LaunchCvd(instance,
-                       blank_data_disk_size_gb=blank_data_disk_size_gb,
-                       kernel_build=kernel_build,
-                       boot_timeout_secs=self._boot_timeout_secs)
-
-        return instance
-
     def _GetLaunchCvdArgs(self, avd_spec=None, blank_data_disk_size_gb=None,
-                          kernel_build=None):
+                          kernel_build=None, decompress_kernel=None):
         """Get launch_cvd args.
 
         Args:
             avd_spec: An AVDSpec instance.
             blank_data_disk_size_gb: Size of the blank data disk in GB.
             kernel_build: String, kernel build info.
+            decompress_kernel: Boolean, if true decompress the kernel.
 
         Returns:
             String, args of launch_cvd.
@@ -231,6 +277,10 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
 
         if self._launch_args:
             launch_cvd_args.append(self._launch_args)
+
+        if decompress_kernel:
+            launch_cvd_args.append(_DECOMPRESS_KERNEL_ARG)
+
         return launch_cvd_args
 
     @staticmethod
@@ -252,21 +302,49 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             return _ProcessBuild(kernel_build_id, kernel_branch, kernel_build_target)
         return None
 
+    def StopCvd(self):
+        """Stop CVD.
+
+        If stop_cvd fails, assume that it's because there was no previously
+        running device.
+        """
+        ssh_command = "./bin/stop_cvd"
+        try:
+            self._ssh.Run(ssh_command)
+        except subprocess.CalledProcessError as e:
+            logger.debug("Failed to stop_cvd (possibly no running device): %s", e)
+
+    def CleanUp(self):
+        """Clean up the files/folders on the existing instance.
+
+        If previous AVD have these files/folders, reusing the instance may have
+        side effects if not cleaned. The path in the instance is /home/vsoc-01/*
+        if the GCE user is vsoc-01.
+        """
+
+        ssh_command = "'/bin/rm -rf /home/%s/*'" % self._user
+        try:
+            self._ssh.Run(ssh_command)
+        except subprocess.CalledProcessError as e:
+            logger.debug("Failed to clean up the files/folders: %s", e)
+
     @utils.TimeExecute(function_description="Launching AVD(s) and waiting for boot up",
                        result_evaluator=utils.BootEvaluator)
     def LaunchCvd(self, instance, avd_spec=None,
                   blank_data_disk_size_gb=None, kernel_build=None,
+                  decompress_kernel=None,
                   boot_timeout_secs=None):
         """Launch CVD.
 
         Launch AVD with launch_cvd. If the process is failed, acloud would show
-        error messages and atuo download log files from remote instance.
+        error messages and auto download log files from remote instance.
 
         Args:
             instance: String, instance name.
             avd_spec: An AVDSpec instance.
             blank_data_disk_size_gb: Size of the blank data disk in GB.
             kernel_build: String, kernel build info.
+            decompress_kernel: Boolean, if true decompress the kernel.
             boot_timeout_secs: Integer, the maximum time to wait for the
                                command to respond.
 
@@ -274,10 +352,12 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
            dict of faliures, return this dict for BootEvaluator to handle
            LaunchCvd success or fail messages.
         """
+        timestart = time.time()
         error_msg = ""
         launch_cvd_args = self._GetLaunchCvdArgs(avd_spec,
                                                  blank_data_disk_size_gb,
-                                                 kernel_build)
+                                                 kernel_build,
+                                                 decompress_kernel)
         boot_timeout_secs = boot_timeout_secs or self.BOOT_TIMEOUT_SECS
         ssh_command = "./bin/launch_cvd -daemon " + " ".join(launch_cvd_args)
         try:
@@ -289,8 +369,10 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                          % (instance, boot_timeout_secs))
             self._all_failures[instance] = error_msg
             utils.PrintColorString(str(e), utils.TextColors.FAIL)
-            self._PullAllLogFiles(instance)
+            if avd_spec and not avd_spec.no_pull_log:
+                self._PullAllLogFiles(instance)
 
+        self._execution_time[_LAUNCH_CVD] = round(time.time() - timestart, 2)
         return {instance: error_msg} if error_msg else {}
 
     def _PullAllLogFiles(self, instance):
@@ -305,6 +387,24 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         log_files = pull.GetAllLogFilePaths(self._ssh)
         download_folder = pull.GetDownloadLogFolder(instance)
         pull.PullLogs(self._ssh, log_files, download_folder)
+
+    @utils.TimeExecute(function_description="Reusing GCE instance")
+    def _ReusingGceInstance(self, avd_spec):
+        """Reusing a cuttlefish existing instance.
+
+        Args:
+            avd_spec: An AVDSpec instance.
+
+        Returns:
+            ssh.IP object, that stores internal and external ip of the instance.
+        """
+        gcompute_client.ComputeClient.AddSshRsaInstanceMetadata(
+            self, constants.GCE_USER, avd_spec.cfg.ssh_public_key_path,
+            avd_spec.instance_name_to_reuse)
+        ip = gcompute_client.ComputeClient.GetInstanceIP(
+            self, instance=avd_spec.instance_name_to_reuse, zone=self._zone)
+
+        return ip
 
     @utils.TimeExecute(function_description="Creating GCE instance")
     def _CreateGceInstance(self, instance, image_name, image_project,
@@ -321,8 +421,9 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             avd_spec: An AVDSpec instance.
 
         Returns:
-            Namedtuple of (internal, external) IP of the instance.
+            ssh.IP object, that stores internal and external ip of the instance.
         """
+        timestart = time.time()
         metadata = self._metadata.copy()
 
         if avd_spec:
@@ -345,10 +446,14 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             machine_type=self._machine_type,
             network=self._network,
             zone=self._zone,
+            gpu=self._gpu,
             extra_scopes=extra_scopes)
         ip = gcompute_client.ComputeClient.GetInstanceIP(
             self, instance=instance, zone=self._zone)
+        logger.debug("'instance_ip': %s", ip.internal
+                     if self._report_internal_ip else ip.external)
 
+        self._execution_time[_GCE_CREATE] = round(time.time() - timestart, 2)
         return ip
 
     @utils.TimeExecute(function_description="Uploading build fetcher to instance")
@@ -384,6 +489,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         Args:
             fetch_args: String of arguments to pass to fetch_cvd.
         """
+        timestart = time.time()
         fetch_cvd_args = ["-credential_source=gce"]
 
         default_build = _ProcessBuild(build_id, branch, build_target)
@@ -399,8 +505,31 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             fetch_cvd_args.append("-kernel_build=" + kernel_build)
 
         self._ssh.Run("./fetch_cvd " + " ".join(fetch_cvd_args))
+        self._execution_time[_FETCH_ARTIFACT] = round(time.time() - timestart, 2)
+
+    def GetInstanceIP(self, instance=None):
+        """Override method from parent class.
+
+        It need to get the IP address in the common_operation. If the class
+        already defind the ip address, return the ip address.
+
+        Args:
+            instance: String, representing instance name.
+
+        Returns:
+            ssh.IP object, that stores internal and external ip of the instance.
+        """
+        if self._ip:
+            return self._ip
+        return gcompute_client.ComputeClient.GetInstanceIP(
+            self, instance=instance, zone=self._zone)
 
     @property
     def all_failures(self):
         """Return all_failures"""
         return self._all_failures
+
+    @property
+    def execution_time(self):
+        """Return execution_time"""
+        return self._execution_time

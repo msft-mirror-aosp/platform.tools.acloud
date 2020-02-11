@@ -33,6 +33,7 @@ from acloud.internal import constants
 from acloud.internal.lib import android_build_client
 from acloud.internal.lib import auth
 from acloud.internal.lib import utils
+from acloud.list import list as list_instance
 from acloud.public import config
 
 
@@ -53,7 +54,8 @@ _LOCAL_ZIP_WARNING_MSG = "'adb sync' will take a long time if using images " \
                          "enable a faster 'adb sync' process."
 _RE_ANSI_ESCAPE = re.compile(r"(\x9B|\x1B\[)[0-?]*[ -\/]*[@-~]")
 _RE_FLAVOR = re.compile(r"^.+_(?P<flavor>.+)-img.+")
-_RE_GBSIZE = re.compile(r"^(?P<gb_size>\d+)g$", re.IGNORECASE)
+_RE_MEMORY = re.compile(r"(?P<gb_size>\d+)g$|(?P<mb_size>\d+)m$",
+                        re.IGNORECASE)
 _RE_INT = re.compile(r"^\d+$")
 _RE_RES = re.compile(r"^(?P<x_res>\d+)x(?P<y_res>\d+)$")
 _X_RES = "x_res"
@@ -99,6 +101,7 @@ class AVDSpec(object):
         # args afterwards.
         self._client_adb_port = args.adb_port
         self._autoconnect = None
+        self._instance_name_to_reuse = None
         self._unlock_screen = None
         self._report_internal_ip = None
         self._avd_type = None
@@ -107,12 +110,18 @@ class AVDSpec(object):
         self._instance_type = None
         self._local_image_dir = None
         self._local_image_artifact = None
+        self._local_system_image_dir = None
+        self._local_tool_dirs = None
         self._image_download_dir = None
         self._num_of_instances = None
+        self._no_pull_log = None
         self._remote_image = None
         self._system_build_info = None
         self._kernel_build_info = None
         self._hw_property = None
+        self._remote_host = None
+        self._host_user = None
+        self._host_ssh_private_key_path = None
         # Create config instance for android_build_client to query build api.
         self._cfg = config.GetAcloudConfig(args)
         # Reporting args.
@@ -121,12 +130,16 @@ class AVDSpec(object):
         self._gpu = None
         self._emulator_build_id = None
 
-        # username and password only used for cheeps type.
+        # Fields only used for cheeps type.
+        self._stable_cheeps_host_image_name = None
+        self._stable_cheeps_host_image_project = None
         self._username = None
         self._password = None
 
         # The maximum time in seconds used to wait for the AVD to boot.
         self._boot_timeout_secs = None
+        # The maximum time in seconds used to wait for the instance ready.
+        self._ins_timeout_secs = None
 
         # The local instance id
         self._local_instance_id = None
@@ -225,10 +238,12 @@ class AVDSpec(object):
                     raise errors.InvalidHWPropertyError(
                         "[%s] is an invalid resolution. Example:1280x800" % value)
             elif key in [constants.HW_ALIAS_MEMORY, constants.HW_ALIAS_DISK]:
-                match = _RE_GBSIZE.match(value)
-                if match:
+                match = _RE_MEMORY.match(value)
+                if match and match.group("gb_size"):
                     arg_hw_properties[key] = str(
                         int(match.group("gb_size")) * 1024)
+                elif match and match.group("mb_size"):
+                    arg_hw_properties[key] = match.group("mb_size")
                 else:
                     raise errors.InvalidHWPropertyError(
                         "Expected gb size.[%s] is not allowed. Example:4g" % value)
@@ -273,19 +288,39 @@ class AVDSpec(object):
         self._report_internal_ip = args.report_internal_ip
         self._avd_type = args.avd_type
         self._flavor = args.flavor or constants.FLAVOR_PHONE
-        self._instance_type = (constants.INSTANCE_TYPE_LOCAL
-                               if args.local_instance else
-                               constants.INSTANCE_TYPE_REMOTE)
+        if args.remote_host:
+            self._instance_type = constants.INSTANCE_TYPE_HOST
+        else:
+            self._instance_type = (constants.INSTANCE_TYPE_LOCAL
+                                   if args.local_instance else
+                                   constants.INSTANCE_TYPE_REMOTE)
+        self._remote_host = args.remote_host
+        self._host_user = args.host_user
+        self._host_ssh_private_key_path = args.host_ssh_private_key_path
         self._local_instance_id = args.local_instance
+        self._local_tool_dirs = args.local_tool
         self._num_of_instances = args.num
+        self._no_pull_log = args.no_pull_log
         self._serial_log_file = args.serial_log_file
         self._emulator_build_id = args.emulator_build_id
         self._gpu = args.gpu
 
+        self._stable_cheeps_host_image_name = args.stable_cheeps_host_image_name
+        self._stable_cheeps_host_image_project = args.stable_cheeps_host_image_project
         self._username = args.username
         self._password = args.password
 
         self._boot_timeout_secs = args.boot_timeout_secs
+        self._ins_timeout_secs = args.ins_timeout_secs
+
+        if args.reuse_gce:
+            if args.reuse_gce != constants.SELECT_ONE_GCE_INSTANCE:
+                if list_instance.GetInstancesFromInstanceNames(
+                        self._cfg, [args.reuse_gce]):
+                    self._instance_name_to_reuse = args.reuse_gce
+            if self._instance_name_to_reuse is None:
+                instance = list_instance.ChooseOneRemoteInstance(self._cfg)
+                self._instance_name_to_reuse = instance.name
 
     @staticmethod
     def _GetFlavorFromString(flavor_string):
@@ -324,6 +359,9 @@ class AVDSpec(object):
         elif self._avd_type == constants.TYPE_GF:
             self._local_image_dir = self._ProcessGFLocalImageArgs(
                 args.local_image)
+            if args.local_system_image != "":
+                self._local_system_image_dir = self._ProcessGFLocalImageArgs(
+                    args.local_system_image)
         elif self._avd_type == constants.TYPE_GCE:
             self._local_image_artifact = self._GetGceLocalImagePath(
                 args.local_image)
@@ -372,10 +410,11 @@ class AVDSpec(object):
         """Get local built image path for goldfish.
 
         Args:
-            local_image_arg: The path to the unzipped SDK repository,
-                             i.e., sdk-repo-<os>-system-images-<build>.zip.
-                             If the value is None, this method finds the
-                             directory in build environment.
+            local_image_arg: The path to the unzipped update package or SDK
+                             repository, i.e., <target>-img-<build>.zip or
+                             sdk-repo-<os>-system-images-<build>.zip.
+                             If the value is empty, this method returns
+                             ANDROID_PRODUCT_OUT in build environment.
 
         Returns:
             String, the path to the image directory.
@@ -597,14 +636,37 @@ class AVDSpec(object):
         return self._local_image_artifact
 
     @property
+    def local_system_image_dir(self):
+        """Return local system image dir."""
+        return self._local_system_image_dir
+
+    @property
+    def local_tool_dirs(self):
+        """Return a list of local tool directories."""
+        return self._local_tool_dirs
+
+    @property
     def avd_type(self):
         """Return the avd type."""
         return self._avd_type
 
     @property
     def autoconnect(self):
-        """Return autoconnect."""
-        return self._autoconnect
+        """autoconnect.
+
+        args.autoconnect could pass as Boolean or String.
+
+        Return: Boolean, True only if self._autoconnect is not False.
+        """
+        return self._autoconnect is not False
+
+    @property
+    def connect_vnc(self):
+        """launch vnc.
+
+        Return: Boolean, True if self._autoconnect is 'vnc'.
+        """
+        return self._autoconnect == constants.INS_KEY_VNC
 
     @property
     def unlock_screen(self):
@@ -672,6 +734,16 @@ class AVDSpec(object):
         return self._client_adb_port
 
     @property
+    def stable_cheeps_host_image_name(self):
+        """Return the Cheeps host image name."""
+        return self._stable_cheeps_host_image_name
+
+    @property
+    def stable_cheeps_host_image_project(self):
+        """Return the project hosting the Cheeps host image."""
+        return self._stable_cheeps_host_image_project
+
+    @property
     def username(self):
         """Return username."""
         return self._username
@@ -687,6 +759,11 @@ class AVDSpec(object):
         return self._boot_timeout_secs
 
     @property
+    def ins_timeout_secs(self):
+        """Return ins_timeout_secs."""
+        return self._ins_timeout_secs
+
+    @property
     def system_build_info(self):
         """Return system_build_info."""
         return self._system_build_info
@@ -695,3 +772,28 @@ class AVDSpec(object):
     def local_instance_id(self):
         """Return local_instance_id."""
         return self._local_instance_id
+
+    @property
+    def instance_name_to_reuse(self):
+        """Return instance_name_to_reuse."""
+        return self._instance_name_to_reuse
+
+    @property
+    def remote_host(self):
+        """Return host."""
+        return self._remote_host
+
+    @property
+    def host_user(self):
+        """Return host_user."""
+        return self._host_user
+
+    @property
+    def host_ssh_private_key_path(self):
+        """Return host_ssh_private_key_path."""
+        return self._host_ssh_private_key_path
+
+    @property
+    def no_pull_log(self):
+        """Return no_pull_log."""
+        return self._no_pull_log

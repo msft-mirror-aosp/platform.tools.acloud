@@ -46,6 +46,7 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         constants.INS_KEY_NAME: "fake_ins_name",
         constants.INS_KEY_CREATETIME: "fake_create_time",
         constants.INS_KEY_STATUS: "fake_status",
+        constants.INS_KEY_ZONE: "test/zones/fake_zone",
         "networkInterfaces": [{"accessConfigs": [{"natIP": "1.1.1.1"}]}],
         "labels": {constants.INS_KEY_AVD_TYPE: "fake_type",
                    constants.INS_KEY_AVD_FLAVOR: "fake_flavor"},
@@ -60,22 +61,98 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
     def testCreateLocalInstance(self):
         """"Test get local instance info from launch_cvd process."""
         self.Patch(subprocess, "check_output", return_value=self.PS_LAUNCH_CVD)
-        self.Patch(instance, "_GetElapsedTime", return_value="fake_time")
-        self.Patch(instance, "GetCuttlefishRuntimeConfig",
-                   return_value=self.PS_RUNTIME_CF_CONFIG)
-        local_instance = instance.LocalInstance()
-        self.assertEqual(constants.LOCAL_INS_NAME, local_instance.name)
+        cf_config = mock.MagicMock(
+            x_res=1080,
+            y_res=1920,
+            dpi=480,
+            instance_dir="fake_instance_dir",
+            adb_port=6521,
+            vnc_port=6445
+        )
+
+        local_instance = instance.LocalInstance(2, cf_config)
+
+        self.assertEqual(constants.LOCAL_INS_NAME + "-2", local_instance.name)
         self.assertEqual(True, local_instance.islocal)
         self.assertEqual("1080x1920 (480)", local_instance.display)
-        self.assertEqual("Sat Nov 10 21:55:10 2018", local_instance.createtime)
-        expected_full_name = "device serial: 127.0.0.1:%s (%s) elapsed time: %s" % (
-            constants.CF_ADB_PORT, constants.LOCAL_INS_NAME, "fake_time")
+        expected_full_name = ("device serial: 127.0.0.1:%s (%s) elapsed time: %s"
+                              % ("6521",
+                                 constants.LOCAL_INS_NAME + "-2",
+                                 "None"))
         self.assertEqual(expected_full_name, local_instance.fullname)
+        self.assertEqual(6521, local_instance.forwarding_adb_port)
+        self.assertEqual(6445, local_instance.forwarding_vnc_port)
 
-        # test return None if no launch_cvd process found
-        self.Patch(subprocess, "check_output", return_value="no launch_cvd "
-                                                            "found")
-        self.assertEqual(None, instance.LocalInstance())
+    @mock.patch("acloud.list.instance.tempfile")
+    @mock.patch("acloud.list.instance.AdbTools")
+    def testCreateLocalGoldfishInstance(self, mock_adb_tools, mock_tempfile):
+        """"Test the attributes of LocalGoldfishInstance."""
+        mock_tempfile.gettempdir.return_value = "/unit/test"
+        mock_adb_tools.return_value = mock.Mock(device_information={})
+
+        inst = instance.LocalGoldfishInstance(1)
+
+        self.assertEqual(inst.name, "local-goldfish-instance-1")
+        self.assertEqual(inst.avd_type, constants.TYPE_GF)
+        self.assertEqual(inst.adb_port, 5555)
+        self.assertTrue(inst.islocal)
+        self.assertEqual(inst.console_port, 5554)
+        self.assertEqual(inst.device_serial, "emulator-5554")
+        self.assertEqual(inst.instance_dir,
+                         "/unit/test/acloud_gf_temp/local-goldfish-instance-1")
+
+    @mock.patch("acloud.list.instance.open",
+                mock.mock_open(read_data="test createtime"))
+    @mock.patch("acloud.list.instance.os.path.isfile")
+    @mock.patch("acloud.list.instance.os.listdir")
+    @mock.patch("acloud.list.instance.os.path.isdir")
+    @mock.patch("acloud.list.instance.tempfile")
+    @mock.patch("acloud.list.instance.AdbTools")
+    @mock.patch("acloud.list.instance._GetElapsedTime")
+    def testGetLocalGoldfishInstances(self, mock_get_elapsed_time,
+                                      mock_adb_tools, mock_tempfile,
+                                      mock_isdir, mock_listdir, mock_isfile):
+        """Test LocalGoldfishInstance.GetExistingInstances."""
+        mock_get_elapsed_time.return_value = datetime.timedelta(hours=10)
+        mock_adb_tools.return_value = mock.Mock(device_information={})
+        mock_tempfile.gettempdir.return_value = "/unit/test"
+        acloud_gf_temp_path = "/unit/test/acloud_gf_temp"
+        subdir_names = (
+            "local-goldfish-instance-1",
+            "local-goldfish-instance-2",
+            "local-goldfish-instance-3")
+        timestamp_paths = (
+            "/unit/test/acloud_gf_temp/local-goldfish-instance-1/"
+            "creation_timestamp.txt",
+            "/unit/test/acloud_gf_temp/local-goldfish-instance-2/"
+            "creation_timestamp.txt",
+            "/unit/test/acloud_gf_temp/local-goldfish-instance-3/"
+            "creation_timestamp.txt")
+        mock_isdir.side_effect = lambda path: path == acloud_gf_temp_path
+        mock_listdir.side_effect = lambda path: (
+            subdir_names if path == acloud_gf_temp_path else [])
+        mock_isfile.side_effect = lambda path: (
+            path in (timestamp_paths[0], timestamp_paths[2]))
+
+        instances = instance.LocalGoldfishInstance.GetExistingInstances()
+
+        mock_isdir.assert_called_with(acloud_gf_temp_path)
+        mock_listdir.assert_called_with(acloud_gf_temp_path)
+        for timestamp_path in timestamp_paths:
+            mock_isfile.assert_any_call(timestamp_path)
+        self.assertEqual(len(instances), 2)
+        self.assertEqual(instances[0].console_port, 5554)
+        self.assertEqual(instances[0].createtime, "test createtime")
+        self.assertEqual(instances[0].fullname,
+                         "device serial: emulator-5554 "
+                         "(local-goldfish-instance-1) "
+                         "elapsed time: 10:00:00")
+        self.assertEqual(instances[1].console_port, 5558)
+        self.assertEqual(instances[1].createtime, "test createtime")
+        self.assertEqual(instances[1].fullname,
+                         "device serial: emulator-5558 "
+                         "(local-goldfish-instance-3) "
+                         "elapsed time: 10:00:00")
 
     def testGetElapsedTime(self):
         """Test _GetElapsedTime"""
@@ -105,11 +182,19 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         """"Test Get forwarding adb and vnc port from ssh tunnel."""
         self.Patch(subprocess, "check_output", return_value=self.PS_SSH_TUNNEL)
         self.Patch(instance, "_GetElapsedTime", return_value="fake_time")
+        self.Patch(instance.RemoteInstance, "_GetZoneName", return_value="fake_zone")
         forwarded_ports = instance.RemoteInstance(
             mock.MagicMock()).GetAdbVncPortFromSSHTunnel(
                 "1.1.1.1", constants.TYPE_CF)
         self.assertEqual(54321, forwarded_ports.adb_port)
         self.assertEqual(12345, forwarded_ports.vnc_port)
+
+        # If avd_type is undefined in utils.AVD_PORT_DICT.
+        forwarded_ports = instance.RemoteInstance(
+            mock.MagicMock()).GetAdbVncPortFromSSHTunnel(
+                "1.1.1.1", "undefined_avd_type")
+        self.assertEqual(None, forwarded_ports.adb_port)
+        self.assertEqual(None, forwarded_ports.vnc_port)
 
     # pylint: disable=protected-access
     def testProcessGceInstance(self):
@@ -180,6 +265,7 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
                           "   avd type: fake_type\n "
                           "   display: None\n "
                           "   vnc: 127.0.0.1:654321\n "
+                          "   zone: fake_zone\n "
                           "   adb serial: 127.0.0.1:123456\n "
                           "   product: None\n "
                           "   model: None\n "
@@ -202,8 +288,19 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
                           "   avd type: fake_type\n "
                           "   display: None\n "
                           "   vnc: 127.0.0.1:None\n "
+                          "   zone: fake_zone\n "
                           "   adb serial: disconnected")
         self.assertEqual(remote_instance.Summary(), result_summary)
+
+    def testGetZoneName(self):
+        """Test GetZoneName."""
+        zone_info = "v1/projects/project/zones/us-central1-c"
+        expected_result = "us-central1-c"
+        self.assertEqual(instance.RemoteInstance._GetZoneName(zone_info),
+                         expected_result)
+        # Test can't get zone name from zone info.
+        zone_info = "v1/projects/project/us-central1-c"
+        self.assertEqual(instance.RemoteInstance._GetZoneName(zone_info), None)
 
 
 if __name__ == "__main__":

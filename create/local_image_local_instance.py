@@ -17,12 +17,12 @@ r"""LocalImageLocalInstance class.
 
 Create class that is responsible for creating a local instance AVD with a
 local image. For launching multiple local instances under the same user,
-The cuttlefish tool requires the 3 variables. acloud user must set
-ANDROID_HOST_OUT. acloud sets the other 2 variables for each local instance.
-- Environment variable [ANDROID_HOST_OUT]: To locate the launch_cvd tool.
-- Environment variable [HOME]: To specify the temporary folder of launch_cvd.
-- Environment variable [CUTTLEFISH_INSTANCE]: To specify the instance id.
-- Argument -instance_dir: To specify the runtime folder of launch_cvd.
+The cuttlefish tool requires 3 variables:
+- ANDROID_HOST_OUT: To locate the launch_cvd tool.
+- HOME: To specify the temporary folder of launch_cvd.
+- CUTTLEFISH_INSTANCE: To specify the instance id.
+Acloud user must either set ANDROID_HOST_OUT or run acloud with --local-tool.
+Acloud sets the other 2 variables for each local instance.
 
 The adb port and vnc port of local instance will be decided according to
 instance id. The rule of adb port will be '6520 + [instance id] - 1' and the vnc
@@ -34,15 +34,13 @@ To delete the local instance, we will call stop_cvd with the environment variabl
 [CUTTLEFISH_CONFIG_FILE] which is pointing to the runtime cuttlefish json.
 """
 
-from __future__ import print_function
 import json
 import logging
 import os
-import re
 import shutil
 import subprocess
+import threading
 import sys
-import tempfile
 
 from acloud import errors
 from acloud.create import base_avd_create
@@ -50,13 +48,13 @@ from acloud.delete import delete
 from acloud.internal import constants
 from acloud.internal.lib import utils
 from acloud.internal.lib.adb_tools import AdbTools
+from acloud.list import list as list_instance
 from acloud.list import instance
 from acloud.public import report
 
 
 logger = logging.getLogger(__name__)
 
-_ACLOUD_CVD_TEMP = os.path.join(tempfile.gettempdir(), "acloud_cvd_temp")
 _CMD_LAUNCH_CVD_ARGS = (" -daemon -cpus %s -x_res %s -y_res %s -dpi %s "
                         "-memory_mb %s -system_image_dir %s "
                         "-instance_dir %s")
@@ -65,16 +63,11 @@ _CMD_LAUNCH_CVD_DISK_ARGS = (" -blank_data_image_mb %s "
 _CONFIRM_RELAUNCH = ("\nCuttlefish AVD[id:%d] is already running. \n"
                      "Enter 'y' to terminate current instance and launch a new "
                      "instance, enter anything else to exit out[y/N]: ")
-_CVD_RUNTIME_FOLDER_NAME = "cuttlefish_runtime"
-_CVD_CONFIG_NAME = "cuttlefish_config.json"
-_ENV_ANDROID_HOST_OUT = "ANDROID_HOST_OUT"
 _ENV_CVD_HOME = "HOME"
 _ENV_CUTTLEFISH_INSTANCE = "CUTTLEFISH_INSTANCE"
-_LAUNCH_CVD_TIMEOUT_SECS = 60  # setup timeout as 60 seconds
+_LAUNCH_CVD_TIMEOUT_SECS = 120  # default timeout as 120 seconds
 _LAUNCH_CVD_TIMEOUT_ERROR = ("Cuttlefish AVD launch timeout, did not complete "
-                             "within %d secs." % _LAUNCH_CVD_TIMEOUT_SECS)
-_LOCAL_INSTANCE_HOME = "instance_home_%s"
-_RE_LOCAL_CVD_PORT = re.compile(r"^127\.0\.0\.1:65(?P<cvd_port_suffix>\d{2})\s+")
+                             "within %d secs.")
 _VIRTUAL_DISK_PATHS = "virtual_disk_paths"
 
 
@@ -98,7 +91,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         """
         # Running instances on local is not supported on all OS.
         if not utils.IsSupportedPlatform(print_warning=True):
-            result_report = report.Report(constants.LOCAL_INS_NAME)
+            result_report = report.Report(command="create")
             result_report.SetStatus(report.Status.FAIL)
             return result_report
 
@@ -111,28 +104,51 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                                        avd_spec.hw_property,
                                        local_image_path,
                                        avd_spec.local_instance_id)
-        try:
-            self.CheckLaunchCVD(cmd, host_bins_path, avd_spec.local_instance_id,
-                                local_image_path, no_prompts)
-        except errors.LaunchCVDFail as launch_error:
-            raise launch_error
 
-        result_report = report.Report(constants.LOCAL_INS_NAME)
-        result_report.SetStatus(report.Status.SUCCESS)
+        result_report = report.Report(command="create")
+        instance_name = instance.GetLocalInstanceName(
+            avd_spec.local_instance_id)
         local_ports = instance.GetLocalPortsbyInsId(avd_spec.local_instance_id)
-        result_report.AddData(
-            key="devices",
-            value={constants.ADB_PORT: local_ports.adb_port,
-                   constants.VNC_PORT: local_ports.vnc_port})
+        try:
+            self.CheckLaunchCVD(
+                cmd, host_bins_path, avd_spec.local_instance_id, local_image_path,
+                no_prompts, avd_spec.boot_timeout_secs or _LAUNCH_CVD_TIMEOUT_SECS)
+        except errors.LaunchCVDFail as launch_error:
+            result_report.SetStatus(report.Status.BOOT_FAIL)
+            result_report.AddDeviceBootFailure(
+                instance_name, constants.LOCALHOST, local_ports.adb_port,
+                local_ports.vnc_port, str(launch_error))
+            return result_report
+
+        result_report.SetStatus(report.Status.SUCCESS)
+        result_report.AddDevice(instance_name, constants.LOCALHOST,
+                                local_ports.adb_port, local_ports.vnc_port)
         # Launch vnc client if we're auto-connecting.
-        if avd_spec.autoconnect:
+        if avd_spec.connect_vnc:
             utils.LaunchVNCFromReport(result_report, avd_spec, no_prompts)
         if avd_spec.unlock_screen:
             AdbTools(local_ports.adb_port).AutoUnlockScreen()
         return result_report
 
     @staticmethod
-    def GetImageArtifactsPath(avd_spec):
+    def _FindCvdHostBinaries(search_paths):
+        """Return the directory that contains CVD host binaries."""
+        for search_path in search_paths:
+            if os.path.isfile(os.path.join(search_path, "bin",
+                                           constants.CMD_LAUNCH_CVD)):
+                return search_path
+
+        host_out_dir = os.environ.get(constants.ENV_ANDROID_HOST_OUT)
+        if (host_out_dir and
+                os.path.isfile(os.path.join(host_out_dir, "bin",
+                                            constants.CMD_LAUNCH_CVD))):
+            return host_out_dir
+
+        raise errors.GetCvdLocalHostPackageError(
+            "CVD host binaries are not found. Please run `make hosttar`, or "
+            "set --local-tool to an extracted CVD host package.")
+
+    def GetImageArtifactsPath(self, avd_spec):
         """Get image artifacts path.
 
         This method will check if launch_cvd is exist and return the tuple path
@@ -146,17 +162,11 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         Returns:
             Tuple of (local image file, host bins package) paths.
         """
-        # Check if launch_cvd is exist.
-        host_bins_path = os.environ.get(_ENV_ANDROID_HOST_OUT)
-        launch_cvd_path = os.path.join(host_bins_path, "bin",
-                                       constants.CMD_LAUNCH_CVD)
-        if not os.path.exists(launch_cvd_path):
-            raise errors.GetCvdLocalHostPackageError(
-                "No launch_cvd found. Please run \"m launch_cvd\" first")
+        return (avd_spec.local_image_dir,
+                self._FindCvdHostBinaries(avd_spec.local_tool_dirs))
 
-        return avd_spec.local_image_dir, host_bins_path
-
-    def PrepareLaunchCVDCmd(self, launch_cvd_path, hw_property, system_image_dir,
+    @staticmethod
+    def PrepareLaunchCVDCmd(launch_cvd_path, hw_property, system_image_dir,
                             local_instance_id):
         """Prepare launch_cvd command.
 
@@ -172,7 +182,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         Returns:
             String, launch_cvd cmd.
         """
-        instance_dir = self.GetLocalInstanceRuntimeDir(local_instance_id)
+        instance_dir = instance.GetLocalInstanceRuntimeDir(local_instance_id)
         launch_cvd_w_args = launch_cvd_path + _CMD_LAUNCH_CVD_ARGS % (
             hw_property["cpu"], hw_property["x_res"], hw_property["y_res"],
             hw_property["dpi"], hw_property["memory"], system_image_dir,
@@ -187,7 +197,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         return launch_cmd
 
     def CheckLaunchCVD(self, cmd, host_bins_path, local_instance_id,
-                       local_image_path, no_prompts=False):
+                       local_image_path, no_prompts=False,
+                       timeout_secs=_LAUNCH_CVD_TIMEOUT_SECS):
         """Execute launch_cvd command and wait for boot up completed.
 
         1. Check if the provided image files are in use by any launch_cvd process.
@@ -200,11 +211,12 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             local_instance_id: Integer of instance id.
             local_image_path: String of local image directory.
             no_prompts: Boolean, True to skip all prompts.
+            timeout_secs: Integer, the number of seconds to wait for the AVD to boot up.
         """
         # launch_cvd assumes host bins are in $ANDROID_HOST_OUT, let's overwrite
         # it to wherever we're running launch_cvd since they could be in a
         # different dir (e.g. downloaded image).
-        os.environ[_ENV_ANDROID_HOST_OUT] = host_bins_path
+        os.environ[constants.ENV_ANDROID_HOST_OUT] = host_bins_path
         # Check if the instance with same id is running.
         if self.IsLocalCVDRunning(local_instance_id):
             if no_prompts or utils.GetUserAnswerYes(_CONFIRM_RELAUNCH %
@@ -224,9 +236,10 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                     utils.TextColors.FAIL)
                 sys.exit(constants.EXIT_BY_USER)
 
-        self._LaunchCvd(cmd, local_instance_id)
+        self._LaunchCvd(cmd, local_instance_id, timeout=timeout_secs)
 
-    def _StopCvd(self, host_bins_path, local_instance_id):
+    @staticmethod
+    def _StopCvd(host_bins_path, local_instance_id):
         """Execute stop_cvd to stop cuttlefish instance.
 
         Args:
@@ -239,7 +252,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         with open(os.devnull, "w") as dev_null:
             cvd_env = os.environ.copy()
             cvd_env[constants.ENV_CUTTLEFISH_CONFIG_FILE] = os.path.join(
-                self.GetLocalInstanceRuntimeDir(local_instance_id),
+                instance.GetLocalInstanceRuntimeDir(local_instance_id),
                 constants.CUTTLEFISH_CONFIG_FILE)
             subprocess.check_call(
                 utils.AddUserGroupsToCmd(
@@ -255,9 +268,9 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         # sure adb device is completely gone since it will use the same adb port
         adb_cmd.DisconnectAdb(retry=True)
 
+    @staticmethod
     @utils.TimeExecute(function_description="Waiting for AVD(s) to boot up")
-    @utils.TimeoutException(_LAUNCH_CVD_TIMEOUT_SECS, _LAUNCH_CVD_TIMEOUT_ERROR)
-    def _LaunchCvd(self, cmd, local_instance_id):
+    def _LaunchCvd(cmd, local_instance_id, timeout=None):
         """Execute Launch CVD.
 
         Kick off the launch_cvd command and log the output.
@@ -265,30 +278,36 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         Args:
             cmd: String, launch_cvd command.
             local_instance_id: Integer of instance id.
+            timeout: Integer, the number of seconds to wait for the AVD to boot up.
 
         Raises:
             errors.LaunchCVDFail when any CalledProcessError.
         """
         # Delete the cvd home/runtime temp if exist. The runtime folder is
         # under the cvd home dir, so we only delete them from home dir.
-        cvd_home_dir = self.GetLocalInstanceHomeDir(local_instance_id)
-        cvd_runtime_dir = self.GetLocalInstanceRuntimeDir(local_instance_id)
+        cvd_home_dir = instance.GetLocalInstanceHomeDir(local_instance_id)
+        cvd_runtime_dir = instance.GetLocalInstanceRuntimeDir(local_instance_id)
         shutil.rmtree(cvd_home_dir, ignore_errors=True)
         os.makedirs(cvd_runtime_dir)
 
         cvd_env = os.environ.copy()
         cvd_env[_ENV_CVD_HOME] = cvd_home_dir
         cvd_env[_ENV_CUTTLEFISH_INSTANCE] = str(local_instance_id)
-        try:
-            # Check the result of launch_cvd command.
-            # An exit code of 0 is equivalent to VIRTUAL_DEVICE_BOOT_COMPLETED
-            logger.debug(subprocess.check_output(cmd, shell=True,
-                                                 stderr=subprocess.STDOUT,
-                                                 env=cvd_env))
-        except subprocess.CalledProcessError as error:
-            raise errors.LaunchCVDFail(
-                "Can't launch cuttlefish AVD.%s. \nFor more detail: "
-                "%s/launcher.log" % (str(error), cvd_runtime_dir))
+        # Check the result of launch_cvd command.
+        # An exit code of 0 is equivalent to VIRTUAL_DEVICE_BOOT_COMPLETED
+        process = subprocess.Popen(cmd, shell=True, stderr=subprocess.STDOUT,
+                                   env=cvd_env)
+        if timeout:
+            timer = threading.Timer(timeout, process.kill)
+            timer.start()
+        process.wait()
+        if timeout:
+            timer.cancel()
+        if process.returncode == 0:
+            return
+        raise errors.LaunchCVDFail(
+            "Can't launch cuttlefish AVD. Return code:%s. \nFor more detail: "
+            "%s/launcher.log" % (str(process.returncode), cvd_runtime_dir))
 
     @staticmethod
     def PrintDisclaimer():
@@ -297,31 +316,6 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             "(Disclaimer: Local cuttlefish instance is not a fully supported\n"
             "runtime configuration, fixing breakages is on a best effort SLO.)\n",
             utils.TextColors.WARNING)
-
-    @staticmethod
-    def GetLocalInstanceHomeDir(local_instance_id):
-        """Get instance home dir
-
-        Args:
-            local_instance_id: Integer of instance id.
-
-        Return:
-            String, path of instance home dir.
-        """
-        return os.path.join(_ACLOUD_CVD_TEMP,
-                            _LOCAL_INSTANCE_HOME % local_instance_id)
-
-    def GetLocalInstanceRuntimeDir(self, local_instance_id):
-        """Get instance runtime dir
-
-        Args:
-            local_instance_id: Integer of instance id.
-
-        Return:
-            String, path of instance runtime dir.
-        """
-        return os.path.join(self.GetLocalInstanceHomeDir(local_instance_id),
-                            _CVD_RUNTIME_FOLDER_NAME)
 
     @staticmethod
     def IsLocalCVDRunning(local_instance_id):
@@ -336,7 +330,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         local_ports = instance.GetLocalPortsbyInsId(local_instance_id)
         return AdbTools(local_ports.adb_port).IsAdbConnected()
 
-    def IsLocalImageOccupied(self, local_image_dir):
+    @staticmethod
+    def IsLocalImageOccupied(local_image_dir):
         """Check if the given image path is being used by a running CVD process.
 
         Args:
@@ -345,10 +340,10 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         Return:
             Integer of instance id which using the same image path.
         """
-        local_cvd_ids = self._GetActiveCVDIds()
+        local_cvd_ids = list_instance.GetActiveCVDIds()
         for cvd_id in local_cvd_ids:
-            cvd_config_path = os.path.join(self.GetLocalInstanceRuntimeDir(
-                cvd_id), _CVD_CONFIG_NAME)
+            cvd_config_path = os.path.join(instance.GetLocalInstanceRuntimeDir(
+                cvd_id), constants.CUTTLEFISH_CONFIG_FILE)
             if not os.path.isfile(cvd_config_path):
                 continue
             with open(cvd_config_path, "r") as config_file:
@@ -357,24 +352,3 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                     if local_image_dir in disk_path:
                         return cvd_id
         return None
-
-    @staticmethod
-    def _GetActiveCVDIds():
-        """Get active cvd ids from adb devices.
-
-        The adb port of local instance will be decided according to instance id.
-        The rule of adb port will be '6520 + [instance id] - 1'. So we grep last
-        two digits of port and calculate the instance id.
-
-        Return:
-            List of cvd id.
-        """
-        local_cvd_ids = []
-        adb_cmd = [constants.ADB_BIN, "devices"]
-        device_info = subprocess.check_output(adb_cmd)
-        for device in device_info.splitlines():
-            match = _RE_LOCAL_CVD_PORT.match(device)
-            if match:
-                cvd_serial = match.group("cvd_port_suffix")
-                local_cvd_ids.append(int(cvd_serial) - 19)
-        return local_cvd_ids

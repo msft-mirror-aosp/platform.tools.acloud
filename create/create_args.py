@@ -51,12 +51,17 @@ def AddCommonCreateArgs(parser):
              "when a device fails on boot.")
     parser.add_argument(
         "--autoconnect",
-        action="store_true",
+        type=str,
+        nargs="?",
+        const=constants.INS_KEY_VNC,
         dest="autoconnect",
         required=False,
-        help="For each instance created, we will automatically create both 2 "
-             "ssh tunnels forwarding both adb & vnc. Then add the device to "
-             "adb.")
+        choices=[constants.INS_KEY_VNC, constants.INS_KEY_ADB],
+        help="For each remote instance, automatically create 2 ssh tunnels "
+             "forwarding both adb & vnc, and then add the device to adb. "
+             "For local cuttlefish instance, create a vnc connection. "
+             "For local goldfish instance, create a window."
+             "If need adb only, you can pass in 'adb' here.")
     parser.add_argument(
         "--no-autoconnect",
         action="store_false",
@@ -64,7 +69,7 @@ def AddCommonCreateArgs(parser):
         required=False,
         help="Will not automatically create ssh tunnels forwarding adb & vnc "
              "when instance created.")
-    parser.set_defaults(autoconnect=True)
+    parser.set_defaults(autoconnect=constants.INS_KEY_VNC)
     parser.add_argument(
         "--unlock",
         action="store_true",
@@ -98,6 +103,13 @@ def AddCommonCreateArgs(parser):
         type=int,
         required=False,
         help="The maximum time in seconds used to wait for the AVD to boot.")
+    parser.add_argument(
+        "--wait-for-ins-stable",
+        dest="ins_timeout_secs",
+        type=int,
+        required=False,
+        help="The maximum time in seconds used to wait for the instance boot "
+             "up. The default value to wait for instance up time is 300 secs.")
     parser.add_argument(
         "--build-target",
         type=str,
@@ -162,20 +174,38 @@ def AddCommonCreateArgs(parser):
         help="'cuttlefish only' System image build target, specify if different "
         "from --build-target",
         required=False)
+    # TODO(146314062): Remove --multi-stage-launch after infra don't use this
+    # args.
     parser.add_argument(
         "--multi-stage-launch",
         dest="multi_stage_launch",
-        action='store_true',
+        action="store_true",
         required=False,
-        default=None,
+        default=True,
         help="Enable the multi-stage cuttlefish launch.")
     parser.add_argument(
         "--no-multi-stage-launch",
         dest="multi_stage_launch",
-        action='store_false',
+        action="store_false",
         required=False,
         default=None,
         help="Disable the multi-stage cuttlefish launch.")
+    parser.add_argument(
+        "--no-pull-log",
+        dest="no_pull_log",
+        action="store_true",
+        required=False,
+        default=None,
+        help="Disable auto download logs when AVD booting up failed.")
+    # TODO(147335651): Add gpu in user config.
+    # TODO(147335651): Support "--gpu" without giving any value.
+    parser.add_argument(
+        "--gpu",
+        type=str,
+        dest="gpu",
+        required=False,
+        default=None,
+        help="GPU accelerator to use if any. e.g. nvidia-tesla-k80.")
 
     # TODO(b/118439885): Old arg formats to support transition, delete when
     # transistion is done.
@@ -289,6 +319,26 @@ def GetCreateArgParser(subparser):
         "e.g --local-image or --local-image /path/to/dir or --local-image "
         "/path/to/file")
     create_parser.add_argument(
+        "--local-system-image",
+        type=str,
+        dest="local_system_image",
+        nargs="?",
+        default="",
+        required=False,
+        help="Use the locally built system images for the AVD. Look for the "
+        "images in $ANDROID_PRODUCT_OUT if no args value is provided. "
+        "e.g., --local-system-image or --local-system-image /path/to/dir")
+    create_parser.add_argument(
+        "--local-tool",
+        type=str,
+        dest="local_tool",
+        action="append",
+        default=[],
+        required=False,
+        help="Use the tools in the specified directory to create local "
+        "instances. The directory structure follows $ANDROID_HOST_OUT or "
+        "$ANDROID_EMULATOR_PREBUILTS.")
+    create_parser.add_argument(
         "--image-download-dir",
         type=str,
         dest="image_download_dir",
@@ -301,6 +351,38 @@ def GetCreateArgParser(subparser):
         required=False,
         help=("Automatic yes to prompts. Assume 'yes' as answer to all prompts "
               "and run non-interactively."))
+    create_parser.add_argument(
+        "--reuse-gce",
+        type=str,
+        const=constants.SELECT_ONE_GCE_INSTANCE,
+        nargs="?",
+        dest="reuse_gce",
+        required=False,
+        help="'cuttlefish only' This can help users use their own instance. "
+        "Reusing specific gce instance if --reuse-gce [instance_name] is "
+        "provided. Select one gce instance to reuse if --reuse-gce is "
+        "provided.")
+    create_parser.add_argument(
+        "--host",
+        type=str,
+        dest="remote_host",
+        default=None,
+        help="'cuttlefish only' Provide host name to clean up the remote host. "
+        "For example: '--host 1.1.1.1'")
+    create_parser.add_argument(
+        "--host-user",
+        type=str,
+        dest="host_user",
+        default=constants.GCE_USER,
+        help="'remote host only' Provide host user for logging in to the host. "
+        "The default value is vsoc-01. For example: '--host 1.1.1.1 --host-user "
+        "vsoc-02'")
+    create_parser.add_argument(
+        "--host-ssh-private-key-path",
+        type=str,
+        dest="host_ssh_private_key_path",
+        default=None,
+        help="'remote host only' Provide host key for login on on this host.")
     # User should not specify --spec and --hw_property at the same time.
     hw_spec_group = create_parser.add_mutually_exclusive_group()
     hw_spec_group.add_argument(
@@ -322,14 +404,6 @@ def GetCreateArgParser(subparser):
     # TODO(b/118439885): Verify args that are used in wrong avd_type.
     # e.g. $acloud create --avd-type cuttlefish --emulator-build-id
     create_parser.add_argument(
-        "--gpu",
-        type=str,
-        dest="gpu",
-        required=False,
-        default=None,
-        help="'goldfish only' GPU accelerator to use if any. "
-        "e.g. nvidia-tesla-k80, omit to use swiftshader")
-    create_parser.add_argument(
         "--emulator-build-id",
         type=int,
         dest="emulator_build_id",
@@ -338,6 +412,24 @@ def GetCreateArgParser(subparser):
         "e.g. 4669466.")
 
     # Arguments for cheeps type.
+    create_parser.add_argument(
+        "--stable-cheeps-host-image-name",
+        type=str,
+        dest="stable_cheeps_host_image_name",
+        required=False,
+        default=None,
+        help=("'cheeps only' The Cheeps host image from which instances are "
+              "launched. If specified here, the value set in Acloud config "
+              "file will be overridden."))
+    create_parser.add_argument(
+        "--stable-cheeps-host-image-project",
+        type=str,
+        dest="stable_cheeps_host_image_project",
+        required=False,
+        default=None,
+        help=("'cheeps only' The project hosting the specified Cheeps host "
+              "image. If specified here, the value set in Acloud config file "
+              "will be overridden."))
     create_parser.add_argument(
         "--user",
         type=str,
@@ -357,6 +449,71 @@ def GetCreateArgParser(subparser):
     return create_parser
 
 
+def _VerifyLocalArgs(args):
+    """Verify args starting with --local.
+
+    Args:
+        args: Namespace object from argparse.parse_args.
+
+    Raises:
+        errors.CheckPathError: Image path doesn't exist.
+        errors.UnsupportedCreateArgs: The specified avd type does not support
+                                      --local-system-image.
+        errors.UnsupportedLocalInstanceId: Local instance ID is invalid.
+    """
+    if args.local_image and not os.path.exists(args.local_image):
+        raise errors.CheckPathError(
+            "Specified path doesn't exist: %s" % args.local_image)
+
+    # TODO(b/133211308): Support TYPE_CF.
+    if args.local_system_image != "" and args.avd_type != constants.TYPE_GF:
+        raise errors.UnsupportedCreateArgs("%s instance does not support "
+                                           "--local-system-image" %
+                                           args.avd_type)
+
+    if (args.local_system_image and
+            not os.path.exists(args.local_system_image)):
+        raise errors.CheckPathError(
+            "Specified path doesn't exist: %s" % args.local_system_image)
+
+    if args.local_instance is not None and args.local_instance < 1:
+        raise errors.UnsupportedLocalInstanceId("Local instance id can not be "
+                                                "less than 1. Actually passed:%d"
+                                                % args.local_instance)
+
+    for tool_dir in args.local_tool:
+        if not os.path.exists(tool_dir):
+            raise errors.CheckPathError(
+                "Specified path doesn't exist: %s" % tool_dir)
+
+
+def _VerifyHostArgs(args):
+    """Verify args starting with --host.
+
+    Args:
+        args: Namespace object from argparse.parse_args.
+
+    Raises:
+        errors.UnsupportedCreateArgs: When a create arg is specified but
+                                      unsupported for remote host mode.
+    """
+    if args.remote_host and args.local_instance is not None:
+        raise errors.UnsupportedCreateArgs(
+            "--host is not supported for local instance.")
+
+    if args.remote_host and args.num > 1:
+        raise errors.UnsupportedCreateArgs(
+            "--num is not supported for remote host.")
+
+    if args.host_user != constants.GCE_USER and args.remote_host is None:
+        raise errors.UnsupportedCreateArgs(
+            "--host-user only support for remote host.")
+
+    if args.host_ssh_private_key_path and args.remote_host is None:
+        raise errors.UnsupportedCreateArgs(
+            "--host-ssh-private-key-path only support for remote host.")
+
+
 def VerifyArgs(args):
     """Verify args.
 
@@ -364,7 +521,6 @@ def VerifyArgs(args):
         args: Namespace object from argparse.parse_args.
 
     Raises:
-        errors.CheckPathError: Zipped image path doesn't exist.
         errors.UnsupportedFlavor: Flavor doesn't support.
         errors.UnsupportedMultiAdbPort: multi adb port doesn't support.
         errors.UnsupportedCreateArgs: When a create arg is specified but
@@ -388,12 +544,12 @@ def VerifyArgs(args):
         raise errors.UnsupportedMultiAdbPort(
             "--adb-port is not supported for multi-devices.")
 
+    if args.num > 1 and args.local_instance is not None:
+        raise errors.UnsupportedCreateArgs(
+            "--num is not supported for local instance.")
+
     if args.adb_port:
         utils.CheckPortFree(args.adb_port)
-
-    if args.local_image and not os.path.exists(args.local_image):
-        raise errors.CheckPathError(
-            "Specified path doesn't exist: %s" % args.local_image)
 
     hw_properties = create_common.ParseHWPropertyArgs(args.hw_property)
     for key in hw_properties:
@@ -402,16 +558,18 @@ def VerifyArgs(args):
                 "[%s] is an invalid hw property, supported values are:%s. "
                 % (key, constants.HW_PROPERTIES))
 
-    if (args.username or args.password) and args.avd_type != constants.TYPE_CHEEPS:
-        raise ValueError("--username and --password are only valid with avd_type == %s"
-                         % constants.TYPE_CHEEPS)
+    if args.avd_type != constants.TYPE_CHEEPS and (
+            args.stable_cheeps_host_image_name or
+            args.stable_cheeps_host_image_project or
+            args.username or args.password):
+        raise errors.UnsupportedCreateArgs(
+            "--stable-cheeps-*, --username and --password are only valid with "
+            "avd_type == %s" % constants.TYPE_CHEEPS)
     if (args.username or args.password) and not (args.username and args.password):
         raise ValueError("--username and --password must both be set")
     if not args.autoconnect and args.unlock_screen:
         raise ValueError("--no-autoconnect and --unlock couldn't be "
                          "passed in together.")
 
-    if args.local_instance is not None and args.local_instance < 1:
-        raise errors.UnsupportedLocalInstanceId("Local instance id can not be "
-                                                "less than 1. Actually passed:%d"
-                                                % args.local_instance)
+    _VerifyLocalArgs(args)
+    _VerifyHostArgs(args)

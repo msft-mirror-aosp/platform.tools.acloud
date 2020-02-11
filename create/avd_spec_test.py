@@ -25,6 +25,7 @@ from acloud.internal.lib import android_build_client
 from acloud.internal.lib import auth
 from acloud.internal.lib import driver_test_lib
 from acloud.internal.lib import utils
+from acloud.list import list as list_instances
 
 
 # pylint: disable=invalid-name,protected-access
@@ -40,6 +41,8 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.args.config_file = ""
         self.args.build_target = "fake_build_target"
         self.args.adb_port = None
+        self.Patch(list_instances, "ChooseOneRemoteInstance", return_value=mock.MagicMock())
+        self.Patch(list_instances, "GetInstancesFromInstanceNames", return_value=mock.MagicMock())
         self.AvdSpec = avd_spec.AVDSpec(self.args)
 
     # pylint: disable=protected-access
@@ -194,6 +197,7 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         # Checking wrong resolution.
         args = mock.MagicMock()
         args.hw_property = "cpu:3,resolution:1280"
+        args.reuse_instance_name = None
         with self.assertRaises(errors.InvalidHWPropertyError):
             self.AvdSpec._ProcessHWPropertyArgs(args)
 
@@ -221,6 +225,12 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         expected_dict = {"cpu": "2", "x_res": "1080", "y_res": "1920",
                          "dpi": "240", "memory": "4096", "disk": "4096"}
         args_str = "cpu:2,resolution:1080x1920,dpi:240,memory:4g,disk:4g"
+        result_dict = self.AvdSpec._ParseHWPropertyStr(args_str)
+        self.assertTrue(expected_dict == result_dict)
+
+        expected_dict = {"cpu": "2", "x_res": "1080", "y_res": "1920",
+                         "dpi": "240", "memory": "512", "disk": "4096"}
+        args_str = "cpu:2,resolution:1080x1920,dpi:240,memory:512m,disk:4g"
         result_dict = self.AvdSpec._ParseHWPropertyStr(args_str)
         self.assertTrue(expected_dict == result_dict)
 
@@ -321,6 +331,44 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.Patch(os.path, "exists", side_effect=[False, False])
         self.assertRaises(errors.ImgDoesNotExist,
                           self.AvdSpec._GetGceLocalImagePath, fake_image_path)
+
+    def testProcessMiscArgs(self):
+        """Test process misc args."""
+        self.args.remote_host = None
+        self.args.local_instance = None
+        self.AvdSpec._ProcessMiscArgs(self.args)
+        self.assertEqual(self.AvdSpec._instance_type, constants.INSTANCE_TYPE_REMOTE)
+
+        self.args.remote_host = None
+        self.args.local_instance = True
+        self.AvdSpec._ProcessMiscArgs(self.args)
+        self.assertEqual(self.AvdSpec._instance_type, constants.INSTANCE_TYPE_LOCAL)
+
+        self.args.remote_host = "1.1.1.1"
+        self.args.local_instance = None
+        self.AvdSpec._ProcessMiscArgs(self.args)
+        self.assertEqual(self.AvdSpec._instance_type, constants.INSTANCE_TYPE_HOST)
+
+        self.args.remote_host = "1.1.1.1"
+        self.args.local_instance = True
+        self.AvdSpec._ProcessMiscArgs(self.args)
+        self.assertEqual(self.AvdSpec._instance_type, constants.INSTANCE_TYPE_HOST)
+
+        # Test avd_spec.autoconnect and avd_spec.connect_vnc
+        self.args.autoconnect = constants.INS_KEY_VNC
+        self.AvdSpec._ProcessMiscArgs(self.args)
+        self.assertEqual(self.AvdSpec.autoconnect, True)
+        self.assertEqual(self.AvdSpec.connect_vnc, True)
+
+        self.args.autoconnect = False
+        self.AvdSpec._ProcessMiscArgs(self.args)
+        self.assertEqual(self.AvdSpec.autoconnect, False)
+        self.assertEqual(self.AvdSpec.connect_vnc, False)
+
+        self.args.autoconnect = constants.INS_KEY_ADB
+        self.AvdSpec._ProcessMiscArgs(self.args)
+        self.assertEqual(self.AvdSpec.autoconnect, True)
+        self.assertEqual(self.AvdSpec.connect_vnc, False)
 
 
 if __name__ == "__main__":

@@ -21,6 +21,7 @@ import os
 
 import unittest
 import mock
+import six
 
 # pylint: disable=import-error
 import apiclient.http
@@ -150,11 +151,12 @@ class ComputeClientTest(driver_test_lib.BaseDriverTest):
         self._SetupMocksForGetOperationStatus(
             {"error": {"errors": ["error1", "error2"]}},
             gcompute_client.OperationScope.GLOBAL)
-        self.assertRaisesRegexp(errors.DriverError,
-                                "Get operation state failed.*error1.*error2",
-                                self.compute_client._GetOperationStatus,
-                                {"name": self.OPERATION_NAME},
-                                gcompute_client.OperationScope.GLOBAL)
+        six.assertRaisesRegex(self,
+                              errors.DriverError,
+                              "Get operation state failed.*error1.*error2",
+                              self.compute_client._GetOperationStatus,
+                              {"name": self.OPERATION_NAME},
+                              gcompute_client.OperationScope.GLOBAL)
 
     @mock.patch.object(errors, "GceOperationTimeoutError")
     @mock.patch.object(utils, "PollAndWait")
@@ -340,7 +342,8 @@ class ComputeClientTest(driver_test_lib.BaseDriverTest):
                 "source": GS_IMAGE_SOURCE_URI,
             },
         }
-        self.assertRaisesRegexp(
+        six.assertRaisesRegex(
+            self,
             errors.DriverError,
             "Expected fake error",
             self.compute_client.CreateImage,
@@ -482,34 +485,69 @@ class ComputeClientTest(driver_test_lib.BaseDriverTest):
 
     def testListInstances(self):
         """Test ListInstances."""
-        fake_token = "fake_next_page_token"
         instance_1 = "instance_1"
         instance_2 = "instance_2"
-        response_1 = {"items": [instance_1], "nextPageToken": fake_token}
-        response_2 = {"items": [instance_2]}
+        response = {"items": {'zones/fake_zone': {"instances": [instance_1, instance_2]}}}
         self.Patch(
             gcompute_client.ComputeClient,
             "Execute",
-            side_effect=[response_1, response_2])
+            side_effect=[response])
         resource_mock = mock.MagicMock()
         self.compute_client._service.instances = mock.MagicMock(
             return_value=resource_mock)
-        resource_mock.list = mock.MagicMock()
-        instances = self.compute_client.ListInstances(self.ZONE)
+        resource_mock.aggregatedList = mock.MagicMock()
+        instances = self.compute_client.ListInstances()
         calls = [
             mock.call(
                 project=PROJECT,
-                zone=self.ZONE,
                 filter=None,
                 pageToken=None),
-            mock.call(
-                project=PROJECT,
-                zone=self.ZONE,
-                filter=None,
-                pageToken=fake_token),
         ]
-        resource_mock.list.assert_has_calls(calls)
+        resource_mock.aggregatedList.assert_has_calls(calls)
         self.assertEqual(instances, [instance_1, instance_2])
+
+    def testGetZoneByInstance(self):
+        """Test GetZoneByInstance."""
+        instance_1 = "instance_1"
+        response = {"items": {'zones/fake_zone': {"instances": [instance_1]}}}
+        self.Patch(
+            gcompute_client.ComputeClient,
+            "Execute",
+            side_effect=[response])
+        expected_zone = "fake_zone"
+        self.assertEqual(self.compute_client.GetZoneByInstance(instance_1),
+                         expected_zone)
+
+        # Test unable to find 'zone' from instance name.
+        response = {"items": {'zones/fake_zone': {"warning": "No instances."}}}
+        self.Patch(
+            gcompute_client.ComputeClient,
+            "Execute",
+            side_effect=[response])
+        with self.assertRaises(errors.GetGceZoneError):
+            self.compute_client.GetZoneByInstance(instance_1)
+
+    def testGetZonesByInstances(self):
+        """Test GetZonesByInstances."""
+        instances = ["instance_1", "instance_2"]
+        # Test instances in the same zone.
+        self.Patch(
+            gcompute_client.ComputeClient,
+            "GetZoneByInstance",
+            side_effect=["zone_1", "zone_1"])
+        expected_result = {"zone_1": ["instance_1", "instance_2"]}
+        self.assertEqual(self.compute_client.GetZonesByInstances(instances),
+                         expected_result)
+
+        # Test instances in different zones.
+        self.Patch(
+            gcompute_client.ComputeClient,
+            "GetZoneByInstance",
+            side_effect=["zone_1", "zone_2"])
+        expected_result = {"zone_1": ["instance_1"],
+                           "zone_2": ["instance_2"]}
+        self.assertEqual(self.compute_client.GetZonesByInstances(instances),
+                         expected_result)
 
     @mock.patch.object(gcompute_client.ComputeClient, "GetImage")
     @mock.patch.object(gcompute_client.ComputeClient, "GetNetworkUrl")
@@ -1082,7 +1120,8 @@ class ComputeClientTest(driver_test_lib.BaseDriverTest):
                 instance=self.INSTANCE, zone=self.ZONE)
             self.assertEqual(result, "fake contents")
         else:
-            self.assertRaisesRegexp(
+            six.assertRaisesRegex(
+                self,
                 errors.DriverError,
                 "Malformed response.*",
                 self.compute_client.GetSerialPortOutput,
@@ -1122,7 +1161,7 @@ class ComputeClientTest(driver_test_lib.BaseDriverTest):
             "ListInstances",
             return_value=[good_instance, bad_instance])
         ip_name_map = self.compute_client.GetInstanceNamesByIPs(
-            ips=["172.22.22.22", "172.22.22.23"], zone=self.ZONE)
+            ips=["172.22.22.22", "172.22.22.23"])
         self.assertEqual(ip_name_map, {"172.22.22.22": "instance_1",
                                        "172.22.22.23": None})
 
@@ -1199,17 +1238,18 @@ class ComputeClientTest(driver_test_lib.BaseDriverTest):
         """Test the rsa key path not exists."""
         fake_ssh_rsa_path = "/path/to/test_rsa.pub"
         self.Patch(os.path, "exists", return_value=False)
-        self.assertRaisesRegexp(errors.DriverError,
-                                "RSA file %s does not exist." % fake_ssh_rsa_path,
-                                gcompute_client.GetRsaKey,
-                                ssh_rsa_path=fake_ssh_rsa_path)
+        six.assertRaisesRegex(self,
+                              errors.DriverError,
+                              "RSA file %s does not exist." % fake_ssh_rsa_path,
+                              gcompute_client.GetRsaKey,
+                              ssh_rsa_path=fake_ssh_rsa_path)
 
     def testGetRsaKey(self):
         """Test get the rsa key."""
         fake_ssh_rsa_path = "/path/to/test_rsa.pub"
         self.Patch(os.path, "exists", return_value=True)
         m = mock.mock_open(read_data=self.SSHKEY)
-        with mock.patch("__builtin__.open", m):
+        with mock.patch.object(six.moves.builtins, "open", m):
             result = gcompute_client.GetRsaKey(fake_ssh_rsa_path)
             self.assertEqual(self.SSHKEY, result)
 
@@ -1330,6 +1370,8 @@ class ComputeClientTest(driver_test_lib.BaseDriverTest):
         self.Patch(os.path, "exists", return_value=True)
         m = mock.mock_open(read_data=self.SSHKEY)
         self.Patch(gcompute_client.ComputeClient, "WaitOnOperation")
+        self.Patch(gcompute_client.ComputeClient, "GetZoneByInstance",
+                   return_value="fake_zone")
         resource_mock = mock.MagicMock()
         self.compute_client._service.instances = mock.MagicMock(
             return_value=resource_mock)
@@ -1339,9 +1381,8 @@ class ComputeClientTest(driver_test_lib.BaseDriverTest):
         self.Patch(
             gcompute_client.ComputeClient, "GetInstance",
             return_value=instance_metadata_key_not_exist)
-        with mock.patch("__builtin__.open", m):
+        with mock.patch.object(six.moves.builtins, "open", m):
             self.compute_client.AddSshRsaInstanceMetadata(
-                "fake_zone",
                 fake_user,
                 "/path/to/test_rsa.pub",
                 "fake_instance")
@@ -1356,9 +1397,8 @@ class ComputeClientTest(driver_test_lib.BaseDriverTest):
         self.Patch(
             gcompute_client.ComputeClient, "GetInstance",
             return_value=instance_metadata_key_exist)
-        with mock.patch("__builtin__.open", m):
+        with mock.patch.object(six.moves.builtins, "open", m):
             self.compute_client.AddSshRsaInstanceMetadata(
-                "fake_zone",
                 fake_user,
                 "/path/to/test_rsa.pub",
                 "fake_instance")
@@ -1402,6 +1442,24 @@ class ComputeClientTest(driver_test_lib.BaseDriverTest):
         result = Raise412(sentinel)
         self.assertEqual(1, sentinel.hitFingerPrintConflict.call_count)
         self.assertEqual("Passed", result)
+
+    def testCheckAccess(self):
+        """Test CheckAccess."""
+        # Checking non-403 should raise error
+        error = errors.HttpError(503, "fake retriable error.")
+        self.Patch(
+            gcompute_client.ComputeClient, "Execute",
+            side_effect=error)
+
+        with self.assertRaises(errors.HttpError):
+            self.compute_client.CheckAccess()
+
+        # Checking 403 should return False
+        error = errors.HttpError(403, "fake retriable error.")
+        self.Patch(
+            gcompute_client.ComputeClient, "Execute",
+            side_effect=error)
+        self.assertFalse(self.compute_client.CheckAccess())
 
 
 if __name__ == "__main__":

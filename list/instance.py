@@ -28,24 +28,26 @@ The details include:
 
 import collections
 import datetime
-import json
 import logging
 import os
 import re
 import subprocess
+import tempfile
 
 # pylint: disable=import-error
 import dateutil.parser
 import dateutil.tz
 
-from acloud import errors
 from acloud.internal import constants
+from acloud.internal.lib import cvd_runtime_config
 from acloud.internal.lib import utils
 from acloud.internal.lib.adb_tools import AdbTools
 
 
 logger = logging.getLogger(__name__)
 
+_ACLOUD_CVD_TEMP = os.path.join(tempfile.gettempdir(), "acloud_cvd_temp")
+_CVD_RUNTIME_FOLDER_NAME = "cuttlefish_runtime"
 _MSG_UNABLE_TO_CALCULATE = "Unable to calculate"
 _RE_GROUP_ADB = "local_adb_port"
 _RE_GROUP_VNC = "local_vnc_port"
@@ -56,10 +58,65 @@ _RE_TIMEZONE = re.compile(r"^(?P<time>[0-9\-\.:T]*)(?P<timezone>[+-]\d+:\d+)$")
 
 _COMMAND_PS_LAUNCH_CVD = ["ps", "-wweo", "lstart,cmd"]
 _RE_RUN_CVD = re.compile(r"(?P<date_str>^[^/]+)(.*run_cvd)")
+_DISPLAY_STRING = "%(x_res)sx%(y_res)s (%(dpi)s)"
+_RE_ZONE = re.compile(r".+/zones/(?P<zone>.+)$")
+_LOCAL_ZONE = "local"
 _FULL_NAME_STRING = ("device serial: %(device_serial)s (%(instance_name)s) "
                      "elapsed time: %(elapsed_time)s")
 LocalPorts = collections.namedtuple("LocalPorts", [constants.VNC_PORT,
                                                    constants.ADB_PORT])
+
+
+def GetLocalInstanceName(local_instance_id):
+    """Get local cuttlefish instance name by instance id.
+
+    Args:
+        local_instance_id: Integer of instance id.
+
+    Return:
+        String, the instance name.
+    """
+    return "%s-%d" % (constants.LOCAL_INS_NAME, local_instance_id)
+
+
+def GetLocalInstanceHomeDir(local_instance_id):
+    """Get local instance home dir accroding to instance id.
+
+    Args:
+        local_instance_id: Integer of instance id.
+
+    Return:
+        String, path of instance home dir.
+    """
+    return os.path.join(_ACLOUD_CVD_TEMP,
+                        GetLocalInstanceName(local_instance_id))
+
+
+def GetLocalInstanceRuntimeDir(local_instance_id):
+    """Get instance runtime dir
+
+    Args:
+        local_instance_id: Integer of instance id.
+
+    Return:
+        String, path of instance runtime dir.
+    """
+    return os.path.join(GetLocalInstanceHomeDir(local_instance_id),
+                        _CVD_RUNTIME_FOLDER_NAME)
+
+
+def GetCuttlefishRuntimeConfig(local_instance_id):
+    """Get and parse cuttlefish_config.json.
+
+    Args:
+        local_instance_id: Integer of instance id.
+
+    Returns:
+        A CvdRuntimeConfig instance.
+    """
+    runtime_cf_config_path = os.path.join(GetLocalInstanceRuntimeDir(
+        local_instance_id), constants.CUTTLEFISH_CONFIG_FILE)
+    return cvd_runtime_config.CvdRuntimeConfig(runtime_cf_config_path)
 
 
 def GetLocalPortsbyInsId(local_instance_id):
@@ -74,6 +131,11 @@ def GetLocalPortsbyInsId(local_instance_id):
     """
     return LocalPorts(vnc_port=constants.CF_VNC_PORT + local_instance_id - 1,
                       adb_port=constants.CF_ADB_PORT + local_instance_id - 1)
+
+
+def _GetCurrentLocalTime():
+    """Return a datetime object for current time in local time zone."""
+    return datetime.datetime.now(dateutil.tz.tzlocal())
 
 
 def _GetElapsedTime(start_time):
@@ -91,12 +153,10 @@ def _GetElapsedTime(start_time):
         # Check start_time has timezone or not. If timezone can't be found,
         # use local timezone to get elapsed time.
         if match:
-            return datetime.datetime.now(
-                dateutil.tz.tzlocal()) - dateutil.parser.parse(start_time)
+            return _GetCurrentLocalTime() - dateutil.parser.parse(start_time)
 
-        return datetime.datetime.now(
-            dateutil.tz.tzlocal()) - dateutil.parser.parse(
-                start_time).replace(tzinfo=dateutil.tz.tzlocal())
+        return _GetCurrentLocalTime() - dateutil.parser.parse(
+            start_time).replace(tzinfo=dateutil.tz.tzlocal())
     except ValueError:
         logger.debug(("Can't parse datetime string(%s)."), start_time)
         return _MSG_UNABLE_TO_CALCULATE
@@ -105,21 +165,27 @@ def _GetElapsedTime(start_time):
 class Instance(object):
     """Class to store data of instance."""
 
-    def __init__(self):
-        self._name = None
-        self._fullname = None
-        self._status = None
-        self._display = None  # Resolution and dpi
-        self._ip = None
-        self._adb_port = None  # adb port which is forwarding to remote
-        self._vnc_port = None  # vnc port which is forwarding to remote
-        self._ssh_tunnel_is_connected = None  # True if ssh tunnel is still connected
-        self._createtime = None
-        self._elapsed_time = None
-        self._avd_type = None
-        self._avd_flavor = None
-        self._is_local = None  # True if this is a local instance
-        self._device_information = None
+    # pylint: disable=too-many-locals
+    def __init__(self, name, fullname, display, ip, status=None, adb_port=None,
+                 vnc_port=None, ssh_tunnel_is_connected=None, createtime=None,
+                 elapsed_time=None, avd_type=None, avd_flavor=None,
+                 is_local=False, device_information=None, zone=None):
+        self._name = name
+        self._fullname = fullname
+        self._status = status
+        self._display = display  # Resolution and dpi
+        self._ip = ip
+        self._adb_port = adb_port  # adb port which is forwarding to remote
+        self._vnc_port = vnc_port  # vnc port which is forwarding to remote
+        # True if ssh tunnel is still connected
+        self._ssh_tunnel_is_connected = ssh_tunnel_is_connected
+        self._createtime = createtime
+        self._elapsed_time = elapsed_time
+        self._avd_type = avd_type
+        self._avd_flavor = avd_flavor
+        self._is_local = is_local  # True if this is a local instance
+        self._device_information = device_information
+        self._zone = zone
 
     def __repr__(self):
         """Return full name property for print."""
@@ -137,6 +203,7 @@ class Instance(object):
         representation.append("%s avd type: %s" % (indent, self._avd_type))
         representation.append("%s display: %s" % (indent, self._display))
         representation.append("%s vnc: 127.0.0.1:%s" % (indent, self._vnc_port))
+        representation.append("%s zone: %s" % (indent, self._zone))
 
         if self._adb_port:
             representation.append("%s adb serial: 127.0.0.1:%s" %
@@ -214,94 +281,196 @@ class Instance(object):
         """Return if it is a local instance."""
         return self._is_local
 
+    @property
+    def adb_port(self):
+        """Return adb_port."""
+        return self._adb_port
+
+    @property
+    def vnc_port(self):
+        """Return vnc_port."""
+        return self._vnc_port
+
+    @property
+    def zone(self):
+        """Return zone."""
+        return self._zone
+
 
 class LocalInstance(Instance):
-    """Class to store data of local instance."""
+    """Class to store data of local cuttlefish instance."""
 
-    # pylint: disable=protected-access
-    def __new__(cls):
+    def __init__(self, local_instance_id, cf_runtime_cfg):
         """Initialize a localInstance object.
 
-        Gather local instance information from launch_cvd process.
-
-        returns:
-            Instance object if launch_cvd process is found otherwise return None.
+        Args:
+            local_instance_id: Integer of instance id.
+            cf_runtime_cfg: A CvdRuntimeConfig instance.
         """
-        # Running instances on local is not supported on all OS.
-        if not utils.IsSupportedPlatform():
-            return None
+        display = _DISPLAY_STRING % {"x_res": cf_runtime_cfg.x_res,
+                                     "y_res": cf_runtime_cfg.y_res,
+                                     "dpi": cf_runtime_cfg.dpi}
+        # TODO(143063678), there's no createtime info in
+        # cuttlefish_config.json so far.
+        name = GetLocalInstanceName(local_instance_id)
+        fullname = (_FULL_NAME_STRING %
+                    {"device_serial": "127.0.0.1:%d" % cf_runtime_cfg.adb_port,
+                     "instance_name": name,
+                     "elapsed_time": None})
+        adb_device = AdbTools(cf_runtime_cfg.adb_port)
+        device_information = None
+        if adb_device.IsAdbConnected():
+            device_information = adb_device.device_information
 
-        process_output = subprocess.check_output(_COMMAND_PS_LAUNCH_CVD)
-        for line in process_output.splitlines():
-            match = _RE_RUN_CVD.match(line)
-            if match:
-                local_instance = Instance()
-                cf_runtime_config_dict = GetCuttlefishRuntimeConfig()
-                x_res = cf_runtime_config_dict["x_res"]
-                y_res = cf_runtime_config_dict["y_res"]
-                dpi = cf_runtime_config_dict["dpi"]
-                date_str = match.group("date_str").strip()
-                local_instance._name = constants.LOCAL_INS_NAME
-                local_instance._createtime = date_str
-                local_instance._elapsed_time = _GetElapsedTime(date_str)
-                local_instance._fullname = (_FULL_NAME_STRING %
-                                            {"device_serial": "127.0.0.1:%d" %
-                                                              constants.CF_ADB_PORT,
-                                             "instance_name": local_instance._name,
-                                             "elapsed_time": local_instance._elapsed_time})
-                local_instance._avd_type = constants.TYPE_CF
-                local_instance._ip = "127.0.0.1"
-                local_instance._status = constants.INS_STATUS_RUNNING
-                local_instance._adb_port = constants.CF_ADB_PORT
-                local_instance._vnc_port = constants.CF_VNC_PORT
-                local_instance._display = ("%sx%s (%s)" % (x_res, y_res, dpi))
-                local_instance._is_local = True
-                local_instance._ssh_tunnel_is_connected = True
+        super(LocalInstance, self).__init__(
+            name=name, fullname=fullname, display=display, ip="127.0.0.1",
+            status=constants.INS_STATUS_RUNNING,
+            adb_port=cf_runtime_cfg.adb_port, vnc_port=cf_runtime_cfg.vnc_port,
+            createtime=None, elapsed_time=None, avd_type=constants.TYPE_CF,
+            is_local=True, device_information=device_information,
+            zone=_LOCAL_ZONE)
 
-                adb_device = AdbTools(constants.CF_ADB_PORT)
-                if adb_device.IsAdbConnected():
-                    local_instance._device_information = adb_device.device_information
-                return local_instance
-        return None
+        # LocalInstance class properties
+        self._instance_dir = cf_runtime_cfg.instance_dir
 
-def GetCuttlefishRuntimeConfig():
-    """Get and parse cuttlefish_config.json.
+    @property
+    def instance_dir(self):
+        """Return _instance_dir."""
+        return self._instance_dir
 
-    Returns:
-        Dict parsing json file from cuttlefish runtime config.
 
-    Raises:
-        errors.ConfigError: if file not found or config load failed.
-    """
-    runtime_cf_config_path = os.path.join(os.path.expanduser("~"),
-                                          "cuttlefish_runtime",
-                                          "cuttlefish_config.json")
-    if os.path.exists(runtime_cf_config_path):
-        with open(runtime_cf_config_path, "r") as cf_config:
-            return json.load(cf_config)
-    else:
-        raise errors.ConfigError("file does not exist: %s" % runtime_cf_config_path)
-    raise errors.ConfigError("Could not load cuttlefish_config.json.")
+class LocalGoldfishInstance(Instance):
+    """Class to store data of local goldfish instance."""
+
+    _INSTANCE_NAME_PATTERN = re.compile(
+        r"^local-goldfish-instance-(?P<id>\d+)$")
+    _CREATION_TIMESTAMP_FILE_NAME = "creation_timestamp.txt"
+    _INSTANCE_NAME_FORMAT = "local-goldfish-instance-%(id)s"
+    _EMULATOR_DEFAULT_CONSOLE_PORT = 5554
+    _GF_ADB_DEVICE_SERIAL = "emulator-%(console_port)s"
+
+    def __init__(self, local_instance_id, avd_flavor=None, create_time=None,
+                 x_res=None, y_res=None, dpi=None):
+        """Initialize a LocalGoldfishInstance object.
+
+        Args:
+            local_instance_id: Integer of instance id.
+            avd_flavor: String, the flavor of the virtual device.
+            create_time: String, the creation date and time.
+            x_res: Integer of x dimension.
+            y_res: Integer of y dimension.
+            dpi: Integer of dpi.
+        """
+        self._id = local_instance_id
+        # By convention, adb port is console port + 1.
+        adb_port = self.console_port + 1
+
+        name = self._INSTANCE_NAME_FORMAT % {"id": local_instance_id}
+
+        elapsed_time = _GetElapsedTime(create_time) if create_time else None
+
+        fullname = _FULL_NAME_STRING % {"device_serial": self.device_serial,
+                                        "instance_name": name,
+                                        "elapsed_time": elapsed_time}
+
+        if x_res and y_res and dpi:
+            display = _DISPLAY_STRING % {"x_res": x_res, "y_res": y_res,
+                                         "dpi": dpi}
+        else:
+            display = "unknown"
+
+        adb = AdbTools(adb_port)
+        device_information = (adb.device_information if
+                              adb.device_information else None)
+
+        super(LocalGoldfishInstance, self).__init__(
+            name=name, fullname=fullname, display=display, ip="127.0.0.1",
+            status=None, adb_port=adb_port, avd_type=constants.TYPE_GF,
+            createtime=create_time, elapsed_time=elapsed_time,
+            avd_flavor=avd_flavor, is_local=True,
+            device_information=device_information)
+
+    @staticmethod
+    def _GetInstanceDirRoot():
+        """Return the root directory of all instance directories."""
+        return os.path.join(tempfile.gettempdir(), "acloud_gf_temp")
+
+    @property
+    def console_port(self):
+        """Return the console port as an integer"""
+        # Emulator requires the console port to be an even number.
+        return self._EMULATOR_DEFAULT_CONSOLE_PORT + (self._id - 1) * 2
+
+    @property
+    def device_serial(self):
+        """Return the serial number that contains the console port."""
+        return self._GF_ADB_DEVICE_SERIAL % {"console_port": self.console_port}
+
+    @property
+    def instance_dir(self):
+        """Return the path to instance directory."""
+        return os.path.join(self._GetInstanceDirRoot(),
+                            self._INSTANCE_NAME_FORMAT % {"id": self._id})
+
+    @property
+    def creation_timestamp_path(self):
+        """Return the file path containing the creation timestamp."""
+        return os.path.join(self.instance_dir,
+                            self._CREATION_TIMESTAMP_FILE_NAME)
+
+    def WriteCreationTimestamp(self):
+        """Write creation timestamp to file."""
+        with open(self.creation_timestamp_path, "w") as timestamp_file:
+            timestamp_file.write(str(_GetCurrentLocalTime()))
+
+    def DeleteCreationTimestamp(self, ignore_errors):
+        """Delete the creation timestamp file.
+
+        Args:
+            ignore_errors: Boolean, whether to ignore the errors.
+
+        Raises:
+            OSError if fails to delete the file.
+        """
+        try:
+            os.remove(self.creation_timestamp_path)
+        except OSError as e:
+            if not ignore_errors:
+                raise
+            logger.warning("Can't delete creation timestamp: %s", e)
+
+    @classmethod
+    def GetExistingInstances(cls):
+        """Get a list of instances that have creation timestamp files."""
+        instance_root = cls._GetInstanceDirRoot()
+        if not os.path.isdir(instance_root):
+            return []
+
+        instances = []
+        for name in os.listdir(instance_root):
+            match = cls._INSTANCE_NAME_PATTERN.match(name)
+            timestamp_path = os.path.join(instance_root, name,
+                                          cls._CREATION_TIMESTAMP_FILE_NAME)
+            if match and os.path.isfile(timestamp_path):
+                instance_id = int(match.group("id"))
+                with open(timestamp_path, "r") as timestamp_file:
+                    timestamp = timestamp_file.read().strip()
+                instances.append(LocalGoldfishInstance(instance_id,
+                                                       create_time=timestamp))
+        return instances
+
 
 class RemoteInstance(Instance):
     """Class to store data of remote instance."""
 
+    # pylint: disable=too-many-locals
     def __init__(self, gce_instance):
         """Process the args into class vars.
 
-        RemoteInstace initialized by gce dict object.
+        RemoteInstace initialized by gce dict object. We parse the required data
+        from gce_instance to local variables.
         Reference:
         https://cloud.google.com/compute/docs/reference/rest/v1/instances/get
-
-        Args:
-            gce_instance: dict object queried from gce.
-        """
-        super(RemoteInstance, self).__init__()
-        self._ProcessGceInstance(gce_instance)
-        self._is_local = False
-
-    def _ProcessGceInstance(self, gce_instance):
-        """Parse the required data from gce_instance to local variables.
 
         We also gather more details on client side including the forwarding adb
         port and vnc port which will be used to determine the status of ssh
@@ -314,13 +483,14 @@ class RemoteInstance(Instance):
         - Terminated: If we can't retrieve the public ip from gce instance.
 
         Args:
-           gce_instance: dict object queried from gce.
+            gce_instance: dict object queried from gce.
         """
-        self._name = gce_instance.get(constants.INS_KEY_NAME)
+        name = gce_instance.get(constants.INS_KEY_NAME)
 
-        self._createtime = gce_instance.get(constants.INS_KEY_CREATETIME)
-        self._elapsed_time = _GetElapsedTime(self._createtime)
-        self._status = gce_instance.get(constants.INS_KEY_STATUS)
+        create_time = gce_instance.get(constants.INS_KEY_CREATETIME)
+        elapsed_time = _GetElapsedTime(create_time)
+        status = gce_instance.get(constants.INS_KEY_STATUS)
+        zone = self._GetZoneName(gce_instance.get(constants.INS_KEY_ZONE))
 
         ip = None
         for network_interface in gce_instance.get("networkInterfaces"):
@@ -328,44 +498,78 @@ class RemoteInstance(Instance):
                 ip = access_config.get("natIP")
 
         # Get metadata
+        display = None
+        avd_type = None
+        avd_flavor = None
         for metadata in gce_instance.get("metadata", {}).get("items", []):
             key = metadata["key"]
             value = metadata["value"]
             if key == constants.INS_KEY_DISPLAY:
-                self._display = value
+                display = value
             elif key == constants.INS_KEY_AVD_TYPE:
-                self._avd_type = value
+                avd_type = value
             elif key == constants.INS_KEY_AVD_FLAVOR:
-                self._avd_flavor = value
+                avd_flavor = value
 
         # Find ssl tunnel info.
+        adb_port = None
+        vnc_port = None
+        device_information = None
         if ip:
-            forwarded_ports = self.GetAdbVncPortFromSSHTunnel(ip,
-                                                              self._avd_type)
-            self._ip = ip
-            self._adb_port = forwarded_ports.adb_port
-            self._vnc_port = forwarded_ports.vnc_port
-            self._ssh_tunnel_is_connected = self._adb_port is not None
+            forwarded_ports = self.GetAdbVncPortFromSSHTunnel(ip, avd_type)
+            adb_port = forwarded_ports.adb_port
+            vnc_port = forwarded_ports.vnc_port
+            ssh_tunnel_is_connected = adb_port is not None
 
-            adb_device = AdbTools(self._adb_port)
+            adb_device = AdbTools(adb_port)
             if adb_device.IsAdbConnected():
-                self._device_information = adb_device.device_information
-                self._fullname = (_FULL_NAME_STRING %
-                                  {"device_serial": "127.0.0.1:%d" % self._adb_port,
-                                   "instance_name": self._name,
-                                   "elapsed_time": self._elapsed_time})
+                device_information = adb_device.device_information
+                fullname = (_FULL_NAME_STRING %
+                            {"device_serial": "127.0.0.1:%d" % adb_port,
+                             "instance_name": name,
+                             "elapsed_time": elapsed_time})
             else:
-                self._fullname = (_FULL_NAME_STRING %
-                                  {"device_serial": "not connected",
-                                   "instance_name": self._name,
-                                   "elapsed_time": self._elapsed_time})
+                fullname = (_FULL_NAME_STRING %
+                            {"device_serial": "not connected",
+                             "instance_name": name,
+                             "elapsed_time": elapsed_time})
         # If instance is terminated, its ip is None.
         else:
-            self._ssh_tunnel_is_connected = False
-            self._fullname = (_FULL_NAME_STRING %
-                              {"device_serial": "terminated",
-                               "instance_name": self._name,
-                               "elapsed_time": self._elapsed_time})
+            ssh_tunnel_is_connected = False
+            fullname = (_FULL_NAME_STRING %
+                        {"device_serial": "terminated",
+                         "instance_name": name,
+                         "elapsed_time": elapsed_time})
+
+        super(RemoteInstance, self).__init__(
+            name=name, fullname=fullname, display=display, ip=ip, status=status,
+            adb_port=adb_port, vnc_port=vnc_port,
+            ssh_tunnel_is_connected=ssh_tunnel_is_connected,
+            createtime=create_time, elapsed_time=elapsed_time, avd_type=avd_type,
+            avd_flavor=avd_flavor, is_local=False,
+            device_information=device_information,
+            zone=zone)
+
+    @staticmethod
+    def _GetZoneName(zone_info):
+        """Get the zone name from the zone information of gce instance.
+
+        Zone information is like:
+        "https://www.googleapis.com/compute/v1/projects/project/zones/us-central1-c"
+        We want to get "us-central1-c" as zone name.
+
+        Args:
+            zone_info: String, zone information of gce instance.
+
+        Returns:
+            Zone name of gce instance. None if zone name can't find.
+        """
+        zone_match = _RE_ZONE.match(zone_info)
+        if zone_match:
+            return zone_match.group("zone")
+
+        logger.debug("Can't get zone name from %s.", zone_info)
+        return None
 
     @staticmethod
     def GetAdbVncPortFromSSHTunnel(ip, avd_type):

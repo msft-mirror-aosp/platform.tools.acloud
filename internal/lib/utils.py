@@ -38,6 +38,8 @@ import time
 import uuid
 import zipfile
 
+import six
+
 from acloud import errors
 from acloud.internal import constants
 
@@ -76,7 +78,6 @@ AVD_PORT_DICT = {
 
 _VNC_BIN = "ssvnc"
 _CMD_KILL = ["pkill", "-9", "-f"]
-_CMD_PGREP = "pgrep"
 _CMD_SG = "sg "
 _CMD_START_VNC = "%(bin)s vnc://127.0.0.1:%(port)d"
 _CMD_INSTALL_SSVNC = "sudo apt-get --assume-yes install ssvnc"
@@ -303,7 +304,7 @@ def MakeTarFile(src_dict, dest):
     """
     logger.info("Compressing %s into %s.", src_dict.keys(), dest)
     with tarfile.open(dest, "w:gz") as tar:
-        for src, arcname in src_dict.iteritems():
+        for src, arcname in six.iteritems(src_dict):
             tar.add(src, arcname=arcname)
 
 def CreateSshKeyPairIfNotExist(private_key_path, public_key_path):
@@ -487,7 +488,7 @@ def InteractWithQuestion(question, colors=TextColors.WARNING):
     Returns:
         String, input from user.
     """
-    return str(raw_input(colors + question + TextColors.ENDC).strip())
+    return str(six.moves.input(colors + question + TextColors.ENDC).strip())
 
 
 def GetUserAnswerYes(question):
@@ -575,7 +576,7 @@ class BatchHttpRequestExecutor(object):
         self._final_results.update(results)
         # Clear pending_requests
         self._pending_requests.clear()
-        for request_id, result in results.iteritems():
+        for request_id, result in six.iteritems(results):
             exception = result[1]
             if exception is not None and self._ShoudRetry(exception):
                 # If this is a retriable exception, put it in pending_requests
@@ -739,7 +740,7 @@ class TimeExecute(object):
                 return result
             except:
                 if self._print_status:
-                    PrintColorString("Fail! (%ds)" % (time.time()-timestart),
+                    PrintColorString("Fail! (%ds)" % (time.time() - timestart),
                                      TextColors.FAIL)
                 raise
         return DecoratorFunction
@@ -786,7 +787,7 @@ def _ExecuteCommand(cmd, args):
     Raises:
         errors.NoExecuteBin: Can't find the execute bin file.
     """
-    bin_path = find_executable(cmd)
+    bin_path = FindExecutable(cmd)
     if not bin_path:
         raise errors.NoExecuteCmd("unable to locate %s" % cmd)
     command = [bin_path] + args
@@ -870,7 +871,7 @@ def GetAnswerFromList(answer_list, enable_choose_all=False):
 
     while True:
         try:
-            choice = raw_input("Enter your choice[0-%d]: " % max_choice)
+            choice = six.moves.input("Enter your choice[0-%d]: " % max_choice)
             choice = int(choice)
         except ValueError:
             print("'%s' is not a valid integer.", choice)
@@ -921,7 +922,7 @@ def LaunchVncClient(port, avd_width=None, avd_height=None, no_prompts=False):
                          "Skipping VNC startup.", TextColors.FAIL)
         return
 
-    if not find_executable(_VNC_BIN):
+    if IsSupportedPlatform() and not FindExecutable(_VNC_BIN):
         if no_prompts or GetUserAnswerYes(_CONFIRM_CONTINUE):
             try:
                 PrintColorString("Installing ssvnc vnc client... ", end="")
@@ -942,7 +943,7 @@ def LaunchVncClient(port, avd_width=None, avd_height=None, no_prompts=False):
         ssvnc_env["SSVNC_SCALE"] = str(scale_ratio)
         logger.debug("SSVNC_SCALE:%s", scale_ratio)
 
-    ssvnc_args = _CMD_START_VNC % {"bin": find_executable(_VNC_BIN),
+    ssvnc_args = _CMD_START_VNC % {"bin": FindExecutable(_VNC_BIN),
                                    "port": port}
     subprocess.Popen(ssvnc_args.split(), env=ssvnc_env)
 
@@ -960,7 +961,7 @@ def PrintDeviceSummary(report):
         report: A Report instance.
     """
     PrintColorString("\n")
-    PrintColorString("Device(s) summary:")
+    PrintColorString("Device summary:")
     for device in report.data.get("devices", []):
         adb_serial = "(None)"
         adb_port = device.get("adb_port")
@@ -972,6 +973,7 @@ def PrintDeviceSummary(report):
             instance_name, instance_ip)
         PrintColorString(" - device serial: %s %s" % (adb_serial,
                                                       instance_details))
+        PrintColorString("   export ANDROID_SERIAL=%s" % adb_serial)
 
     # TODO(b/117245508): Help user to delete instance if it got created.
     if report.errors:
@@ -1026,7 +1028,7 @@ def IsCommandRunning(command):
     """
     try:
         with open(os.devnull, "w") as dev_null:
-            subprocess.check_call([_CMD_PGREP, "-af", command],
+            subprocess.check_call([constants.CMD_PGREP, "-af", command],
                                   stderr=dev_null, stdout=dev_null)
         return True
     except subprocess.CalledProcessError:
@@ -1102,6 +1104,8 @@ def IsSupportedPlatform(print_warning=False):
         Boolean, True if user is using supported platform.
     """
     system = platform.system()
+    # TODO(b/143197659): linux_distribution() deprecated in python 3. To fix it
+    # try to use another package "import distro".
     dist = platform.linux_distribution()[0]
     platform_supported = (system in _SUPPORTED_SYSTEMS_AND_DISTS and
                           dist in _SUPPORTED_SYSTEMS_AND_DISTS[system])
@@ -1197,3 +1201,30 @@ def GetBuildEnvironmentVariable(variable_name):
             "Try to run 'source build/envsetup.sh && lunch <target>'"
             % variable_name
         )
+
+
+# pylint: disable=no-member
+def FindExecutable(filename):
+    """A compatibility function to find execution file path.
+
+    Args:
+        filename: String of execution filename.
+
+    Returns:
+        String: execution file path.
+    """
+    return find_executable(filename) if six.PY2 else shutil.which(filename)
+
+
+def GetDictItems(namedtuple_object):
+    """A compatibility function to access the OrdereDict object from the given namedtuple object.
+
+    Args:
+        namedtuple_object: namedtuple object.
+
+    Returns:
+        collections.namedtuple.__dict__.items() when using python2.
+        collections.namedtuple._asdict().items() when using python3.
+    """
+    return (namedtuple_object.__dict__.items() if six.PY2
+            else namedtuple_object._asdict().items())

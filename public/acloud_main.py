@@ -56,6 +56,13 @@ This a tool to create Android Virtual Devices locally/remotely.
    To show more detail info on the list.
    $ acloud list -vv
 
+-  Pull:
+   Pull will download log files or show the log file in screen from one remote
+   cuttlefish instance:
+   $ acloud pull
+   Pull from a specified instance:
+   $ acloud pull --instance-name "your_instance_name"
+
 Try $acloud [cmd] --help for further details.
 
 """
@@ -110,7 +117,6 @@ from acloud.list import list_args
 from acloud.metrics import metrics
 from acloud.public import acloud_common
 from acloud.public import config
-from acloud.public import device_driver
 from acloud.public.actions import create_cuttlefish_action
 from acloud.public.actions import create_goldfish_action
 from acloud.pull import pull
@@ -121,11 +127,11 @@ from acloud.setup import setup_args
 
 LOGGING_FMT = "%(asctime)s |%(levelname)s| %(module)s:%(lineno)s| %(message)s"
 ACLOUD_LOGGER = "acloud"
+NO_ERROR_MESSAGE = ""
 
 # Commands
 CMD_CREATE_CUTTLEFISH = "create_cf"
 CMD_CREATE_GOLDFISH = "create_gf"
-CMD_CLEANUP = "cleanup"
 
 
 # pylint: disable=too-many-statements
@@ -183,14 +189,6 @@ def _ParseArgs(args):
         help="Emulator build branch name, e.g. aosp-emu-master-dev. If specified"
         " without emulator_build_id, the last green build will be used.")
     create_gf_parser.add_argument(
-        "--gpu",
-        type=str,
-        dest="gpu",
-        required=False,
-        default=None,
-        help="GPU accelerator to use if any."
-        " e.g. nvidia-tesla-k80, omit to use swiftshader")
-    create_gf_parser.add_argument(
         "--base_image",
         type=str,
         dest="base_image",
@@ -208,19 +206,6 @@ def _ParseArgs(args):
 
     create_args.AddCommonCreateArgs(create_gf_parser)
     subparser_list.append(create_gf_parser)
-
-    # Command "cleanup"
-    cleanup_parser = subparsers.add_parser(CMD_CLEANUP)
-    cleanup_parser.required = False
-    cleanup_parser.set_defaults(which=CMD_CLEANUP)
-    cleanup_parser.add_argument(
-        "--expiration_mins",
-        type=int,
-        dest="expiration_mins",
-        required=True,
-        help="Garbage collect all gce instances, gce images, cached disk "
-        "images that are older than |expiration_mins|.")
-    subparser_list.append(cleanup_parser)
 
     # Command "create"
     subparser_list.append(create_args.GetCreateArgParser(subparsers))
@@ -352,7 +337,8 @@ def main(argv=None):
         argv: A list of system arguments.
 
     Returns:
-        0 if success. None-zero if fails.
+        Job status: Integer, 0 if success. None-zero if fails.
+        Stack trace: String of errors.
     """
     if argv is None:
         argv = sys.argv[1:]
@@ -368,7 +354,7 @@ def main(argv=None):
 
     report = None
     if args.which == create_args.CMD_CREATE:
-        create.Run(args)
+        report = create.Run(args)
     elif args.which == CMD_CREATE_CUTTLEFISH:
         report = create_cuttlefish_action.CreateDevices(
             cfg=cfg,
@@ -381,11 +367,13 @@ def main(argv=None):
             system_branch=args.system_branch,
             system_build_id=args.system_build_id,
             system_build_target=args.system_build_target,
+            gpu=args.gpu,
             num=args.num,
             serial_log_file=args.serial_log_file,
             autoconnect=args.autoconnect,
             report_internal_ip=args.report_internal_ip,
-            boot_timeout_secs=args.boot_timeout_secs)
+            boot_timeout_secs=args.boot_timeout_secs,
+            ins_timeout_secs=args.ins_timeout_secs)
     elif args.which == CMD_CREATE_GOLDFISH:
         report = create_goldfish_action.CreateDevices(
             cfg=cfg,
@@ -396,6 +384,7 @@ def main(argv=None):
             emulator_branch=args.emulator_branch,
             kernel_build_id=args.kernel_build_id,
             kernel_branch=args.kernel_branch,
+            kernel_build_target=args.kernel_build_target,
             gpu=args.gpu,
             num=args.num,
             serial_log_file=args.serial_log_file,
@@ -404,8 +393,6 @@ def main(argv=None):
             report_internal_ip=args.report_internal_ip)
     elif args.which == delete_args.CMD_DELETE:
         report = delete.Run(args)
-    elif args.which == CMD_CLEANUP:
-        report = device_driver.Cleanup(cfg, args.expiration_mins)
     elif args.which == list_args.CMD_LIST:
         list_instances.Run(args)
     elif args.which == reconnect_args.CMD_RECONNECT:
@@ -415,16 +402,17 @@ def main(argv=None):
     elif args.which == setup_args.CMD_SETUP:
         setup.Run(args)
     else:
-        sys.stderr.write("Invalid command %s" % args.which)
-        return 2
+        error_msg = "Invalid command %s" % args.which
+        sys.stderr.write(error_msg)
+        return constants.EXIT_BY_WRONG_CMD, error_msg
 
     if report and args.report_file:
         report.Dump(args.report_file)
-        if report.errors:
-            msg = "\n".join(report.errors)
-            sys.stderr.write("Encountered the following errors:\n%s\n" % msg)
-            return 1
-    return 0
+    if report and report.errors:
+        error_msg = "\n".join(report.errors)
+        sys.stderr.write("Encountered the following errors:\n%s\n" % error_msg)
+        return constants.EXIT_BY_FAIL_REPORT, error_msg
+    return constants.EXIT_SUCCESS, NO_ERROR_MESSAGE
 
 
 if __name__ == "__main__":
@@ -433,7 +421,7 @@ if __name__ == "__main__":
     EXCEPTION_LOG = None
     LOG_METRICS = metrics.LogUsage(sys.argv[1:])
     try:
-        EXIT_CODE = main(sys.argv[1:])
+        EXIT_CODE, EXCEPTION_STACKTRACE = main(sys.argv[1:])
     except Exception as e:
         EXIT_CODE = constants.EXIT_BY_ERROR
         EXCEPTION_STACKTRACE = traceback.format_exc()
