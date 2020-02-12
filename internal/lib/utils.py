@@ -922,7 +922,7 @@ def LaunchVncClient(port, avd_width=None, avd_height=None, no_prompts=False):
                          "Skipping VNC startup.", TextColors.FAIL)
         return
 
-    if not FindExecutable(_VNC_BIN):
+    if IsSupportedPlatform() and not FindExecutable(_VNC_BIN):
         if no_prompts or GetUserAnswerYes(_CONFIRM_CONTINUE):
             try:
                 PrintColorString("Installing ssvnc vnc client... ", end="")
@@ -961,7 +961,7 @@ def PrintDeviceSummary(report):
         report: A Report instance.
     """
     PrintColorString("\n")
-    PrintColorString("Device(s) summary:")
+    PrintColorString("Device summary:")
     for device in report.data.get("devices", []):
         adb_serial = "(None)"
         adb_port = device.get("adb_port")
@@ -973,6 +973,7 @@ def PrintDeviceSummary(report):
             instance_name, instance_ip)
         PrintColorString(" - device serial: %s %s" % (adb_serial,
                                                       instance_details))
+        PrintColorString("   export ANDROID_SERIAL=%s" % adb_serial)
 
     # TODO(b/117245508): Help user to delete instance if it got created.
     if report.errors:
