@@ -36,6 +36,7 @@ import tarfile
 import tempfile
 import time
 import uuid
+import webbrowser
 import zipfile
 
 import six
@@ -86,6 +87,10 @@ _SSVNC_ENV_VARS = {"SSVNC_NO_ENC_WARN": "1", "SSVNC_SCALE": "auto", "VNCVIEWER_X
 _DEFAULT_DISPLAY_SCALE = 1.0
 _DIST_DIR = "DIST_DIR"
 
+# For webrtc
+_WEBRTC_URL = "https://"
+_WEBRTC_PORT = "8443"
+
 _CONFIRM_CONTINUE = ("In order to display the screen to the AVD, we'll need to "
                      "install a vnc client (ssvnc). \nWould you like acloud to "
                      "install it for you? (%s) \nPress 'y' to continue or "
@@ -95,6 +100,7 @@ _EvaluatedResult = collections.namedtuple("EvaluatedResult",
 # dict of supported system and their distributions.
 _SUPPORTED_SYSTEMS_AND_DISTS = {"Linux": ["Ubuntu", "Debian"]}
 _DEFAULT_TIMEOUT_ERR = "Function did not complete within %d secs."
+_SSVNC_VIEWER_PATTERN = "vnc://127.0.0.1:%(vnc_port)d"
 
 
 class TempDir(object):
@@ -796,6 +802,7 @@ def _ExecuteCommand(cmd, args):
         subprocess.check_call(command, stderr=dev_null, stdout=dev_null)
 
 
+# TODO(147337696): create ssh tunnels tear down as adb and vnc.
 # pylint: disable=too-many-locals
 def AutoConnect(ip_addr, rsa_key_file, target_vnc_port, target_adb_port,
                 ssh_user, client_adb_port=None, extra_args_ssh_tunnel=None):
@@ -905,6 +912,31 @@ def LaunchVNCFromReport(report, avd_spec, no_prompts=False):
             PrintColorString("No VNC port specified, skipping VNC startup.",
                              TextColors.FAIL)
 
+def LaunchBrowserFromReport(report):
+    """Open browser when autoconnect to webrtc according to the instances report.
+
+    Args:
+        report: Report object, that stores and generates report.
+    """
+    PrintColorString("(This is an experimental project for webrtc, and since "
+                     "the certificate is self-signed, Chrome will mark it as "
+                     "an insecure website. keep going.)",
+                     TextColors.WARNING)
+
+    for device in report.data.get("devices", []):
+        if device.get("ip"):
+            webrtc_link = "%s%s:%s" % (_WEBRTC_URL, device.get("ip"),
+                                       _WEBRTC_PORT)
+            if os.environ.get(_ENV_DISPLAY, None):
+                webbrowser.open_new_tab(webrtc_link)
+            else:
+                PrintColorString("Remote terminal can't support launch webbrowser.",
+                                 TextColors.FAIL)
+                PrintColorString("Open %s to remotely control AVD on the "
+                                 "browser." % webrtc_link)
+        else:
+            PrintColorString("Auto-launch devices webrtc in browser failed!",
+                             TextColors.FAIL)
 
 def LaunchVncClient(port, avd_width=None, avd_height=None, no_prompts=False):
     """Launch ssvnc.
@@ -922,7 +954,7 @@ def LaunchVncClient(port, avd_width=None, avd_height=None, no_prompts=False):
                          "Skipping VNC startup.", TextColors.FAIL)
         return
 
-    if not FindExecutable(_VNC_BIN):
+    if IsSupportedPlatform() and not FindExecutable(_VNC_BIN):
         if no_prompts or GetUserAnswerYes(_CONFIRM_CONTINUE):
             try:
                 PrintColorString("Installing ssvnc vnc client... ", end="")
@@ -961,7 +993,7 @@ def PrintDeviceSummary(report):
         report: A Report instance.
     """
     PrintColorString("\n")
-    PrintColorString("Device(s) summary:")
+    PrintColorString("Device summary:")
     for device in report.data.get("devices", []):
         adb_serial = "(None)"
         adb_port = device.get("adb_port")
@@ -973,6 +1005,7 @@ def PrintDeviceSummary(report):
             instance_name, instance_ip)
         PrintColorString(" - device serial: %s %s" % (adb_serial,
                                                       instance_details))
+        PrintColorString("   export ANDROID_SERIAL=%s" % adb_serial)
 
     # TODO(b/117245508): Help user to delete instance if it got created.
     if report.errors:
@@ -1227,3 +1260,13 @@ def GetDictItems(namedtuple_object):
     """
     return (namedtuple_object.__dict__.items() if six.PY2
             else namedtuple_object._asdict().items())
+
+
+def CleanupSSVncviewer(vnc_port):
+    """Cleanup the old disconnected ssvnc viewer.
+
+    Args:
+        vnc_port: Integer, port number of vnc.
+    """
+    ssvnc_viewer_pattern = _SSVNC_VIEWER_PATTERN % {"vnc_port":vnc_port}
+    CleanupProcess(ssvnc_viewer_pattern)
