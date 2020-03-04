@@ -55,6 +55,7 @@ from acloud.pull import pull
 logger = logging.getLogger(__name__)
 
 _DECOMPRESS_KERNEL_ARG = "-decompress_kernel=true"
+_GPU_ARG = "-gpu_mode=drm_virgl"
 _DEFAULT_BRANCH = "aosp-master"
 _FETCHER_BUILD_TARGET = "aosp_cf_x86_phone-userdebug"
 _FETCHER_NAME = "fetch_cvd"
@@ -62,6 +63,12 @@ _FETCHER_NAME = "fetch_cvd"
 _FETCH_ARTIFACT = "fetch_artifact_time"
 _GCE_CREATE = "gce_create_time"
 _LAUNCH_CVD = "launch_cvd_time"
+# WebRTC args for launching AVD
+_GUEST_ENFORCE_SECURITY_FALSE = "--guest_enforce_security=false"
+_START_WEBRTC = "--start_webrtc"
+_VM_MANAGER = "--vm_manager=crosvm"
+_WEBRTC_ARGS = [_GUEST_ENFORCE_SECURITY_FALSE, _START_WEBRTC, _VM_MANAGER]
+_WEBRTC_PUBLIC_IP = "--webrtc_public_ip=%s"
 
 
 def _ProcessBuild(build_id=None, branch=None, build_target=None):
@@ -266,6 +273,9 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             if constants.HW_ALIAS_MEMORY in avd_spec.hw_property:
                 launch_cvd_args.append(
                     "-memory_mb=%s" % avd_spec.hw_property[constants.HW_ALIAS_MEMORY])
+            if avd_spec.connect_webrtc:
+                launch_cvd_args.append(_WEBRTC_PUBLIC_IP % self._ip.external)
+                launch_cvd_args.extend(_WEBRTC_ARGS)
         else:
             resolution = self._resolution.split("x")
             launch_cvd_args.append("-x_res=" + resolution[0])
@@ -280,6 +290,9 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
 
         if decompress_kernel:
             launch_cvd_args.append(_DECOMPRESS_KERNEL_ARG)
+
+        if self._gpu:
+            launch_cvd_args.append(_GPU_ARG)
 
         return launch_cvd_args
 
@@ -447,7 +460,9 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             network=self._network,
             zone=self._zone,
             gpu=self._gpu,
-            extra_scopes=extra_scopes)
+            extra_scopes=extra_scopes,
+            tags=["appstreaming"] if (
+                avd_spec and avd_spec.connect_webrtc) else None)
         ip = gcompute_client.ComputeClient.GetInstanceIP(
             self, instance=instance, zone=self._zone)
         logger.debug("'instance_ip': %s", ip.internal
@@ -504,7 +519,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         if kernel_build:
             fetch_cvd_args.append("-kernel_build=" + kernel_build)
 
-        self._ssh.Run("./fetch_cvd " + " ".join(fetch_cvd_args))
+        self._ssh.Run("./fetch_cvd " + " ".join(fetch_cvd_args),
+                      timeout=constants.DEFAULT_SSH_TIMEOUT)
         self._execution_time[_FETCH_ARTIFACT] = round(time.time() - timestart, 2)
 
     def GetInstanceIP(self, instance=None):

@@ -15,6 +15,7 @@
 
 import glob
 import os
+import subprocess
 import unittest
 import mock
 
@@ -129,21 +130,32 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
                          "/test_path_to_dir/avd-system.tar.gz")
 
     @mock.patch.object(avd_spec.AVDSpec, "_GetGitRemote")
-    @mock.patch("subprocess.check_output")
-    def testGetBranchFromRepo(self, mock_repo, mock_gitremote):
+    def testGetBranchFromRepo(self, mock_gitremote):
         """Test get branch name from repo info."""
         # Check aosp repo gets proper branch prefix.
+        fake_subprocess = mock.MagicMock()
+        fake_subprocess.stdout = mock.MagicMock()
+        fake_subprocess.stdout.readline = mock.MagicMock(return_value='')
+        fake_subprocess.poll = mock.MagicMock(return_value=0)
+        fake_subprocess.returncode = 0
+        return_value = "Manifest branch: master"
+        fake_subprocess.communicate = mock.MagicMock(return_value=(return_value, ''))
+        self.Patch(subprocess, "Popen", return_value=fake_subprocess)
+
         mock_gitremote.return_value = "aosp"
-        mock_repo.return_value = "Manifest branch: master"
         self.assertEqual(self.AvdSpec._GetBranchFromRepo(), "aosp-master")
 
         # Check default repo gets default branch prefix.
         mock_gitremote.return_value = ""
-        mock_repo.return_value = "Manifest branch: master"
+        return_value = "Manifest branch: master"
+        fake_subprocess.communicate = mock.MagicMock(return_value=(return_value, ''))
+        self.Patch(subprocess, "Popen", return_value=fake_subprocess)
         self.assertEqual(self.AvdSpec._GetBranchFromRepo(), "git_master")
 
         # Can't get branch from repo info, set it as default branch.
-        mock_repo.return_value = "Manifest branch:"
+        return_value = "Manifest branch:"
+        fake_subprocess.communicate = mock.MagicMock(return_value=(return_value, ''))
+        self.Patch(subprocess, "Popen", return_value=fake_subprocess)
         self.assertEqual(self.AvdSpec._GetBranchFromRepo(), "aosp-master")
 
     def testGetBuildBranch(self):
@@ -354,21 +366,34 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.AvdSpec._ProcessMiscArgs(self.args)
         self.assertEqual(self.AvdSpec._instance_type, constants.INSTANCE_TYPE_HOST)
 
-        # Test avd_spec.autoconnect and avd_spec.connect_vnc
-        self.args.autoconnect = constants.INS_KEY_VNC
-        self.AvdSpec._ProcessMiscArgs(self.args)
-        self.assertEqual(self.AvdSpec.autoconnect, True)
-        self.assertEqual(self.AvdSpec.connect_vnc, True)
-
+        # Test avd_spec.autoconnect
         self.args.autoconnect = False
         self.AvdSpec._ProcessMiscArgs(self.args)
         self.assertEqual(self.AvdSpec.autoconnect, False)
+        self.assertEqual(self.AvdSpec.connect_adb, False)
         self.assertEqual(self.AvdSpec.connect_vnc, False)
+        self.assertEqual(self.AvdSpec.connect_webrtc, False)
+
+        self.args.autoconnect = constants.INS_KEY_VNC
+        self.AvdSpec._ProcessMiscArgs(self.args)
+        self.assertEqual(self.AvdSpec.autoconnect, True)
+        self.assertEqual(self.AvdSpec.connect_adb, True)
+        self.assertEqual(self.AvdSpec.connect_vnc, True)
+        self.assertEqual(self.AvdSpec.connect_webrtc, False)
 
         self.args.autoconnect = constants.INS_KEY_ADB
         self.AvdSpec._ProcessMiscArgs(self.args)
         self.assertEqual(self.AvdSpec.autoconnect, True)
+        self.assertEqual(self.AvdSpec.connect_adb, True)
         self.assertEqual(self.AvdSpec.connect_vnc, False)
+        self.assertEqual(self.AvdSpec.connect_webrtc, False)
+
+        self.args.autoconnect = constants.INS_KEY_WEBRTC
+        self.AvdSpec._ProcessMiscArgs(self.args)
+        self.assertEqual(self.AvdSpec.autoconnect, True)
+        self.assertEqual(self.AvdSpec.connect_adb, True)
+        self.assertEqual(self.AvdSpec.connect_vnc, False)
+        self.assertEqual(self.AvdSpec.connect_webrtc, True)
 
 
 if __name__ == "__main__":
