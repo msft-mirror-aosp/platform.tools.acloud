@@ -56,6 +56,7 @@ logger = logging.getLogger(__name__)
 _CMD_LAUNCH_CVD_ARGS = (" -daemon -cpus %s -x_res %s -y_res %s -dpi %s "
                         "-memory_mb %s -run_adb_connector=%s "
                         "-system_image_dir %s -instance_dir %s")
+_CMD_LAUNCH_CVD_GPU_ARG = " -gpu_mode=drm_virgl"
 _CMD_LAUNCH_CVD_DISK_ARGS = (" -blank_data_image_mb %s "
                              "-data_policy always_create")
 _CMD_LAUNCH_CVD_WEBRTC_ARGS = (" -guest_enforce_security=false "
@@ -65,7 +66,6 @@ _CMD_LAUNCH_CVD_WEBRTC_ARGS = (" -guest_enforce_security=false "
 _CONFIRM_RELAUNCH = ("\nCuttlefish AVD[id:%d] is already running. \n"
                      "Enter 'y' to terminate current instance and launch a new "
                      "instance, enter anything else to exit out[y/N]: ")
-_LAUNCH_CVD_TIMEOUT_SECS = 120  # default timeout as 120 seconds
 _LAUNCH_CVD_TIMEOUT_ERROR = ("Cuttlefish AVD launch timeout, did not complete "
                              "within %d secs.")
 _VIRTUAL_DISK_PATHS = "virtual_disk_paths"
@@ -95,7 +95,6 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             result_report.SetStatus(report.Status.FAIL)
             return result_report
 
-        self.PrintDisclaimer()
         local_image_path, host_bins_path = self.GetImageArtifactsPath(avd_spec)
 
         launch_cvd_path = os.path.join(host_bins_path, "bin",
@@ -105,15 +104,17 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                                        avd_spec.connect_adb,
                                        local_image_path,
                                        avd_spec.local_instance_id,
-                                       avd_spec.connect_webrtc)
+                                       avd_spec.connect_webrtc,
+                                       avd_spec.gpu)
 
         result_report = report.Report(command="create")
         instance_name = instance.GetLocalInstanceName(
             avd_spec.local_instance_id)
         try:
             self.CheckLaunchCVD(
-                cmd, host_bins_path, avd_spec.local_instance_id, local_image_path,
-                no_prompts, avd_spec.boot_timeout_secs or _LAUNCH_CVD_TIMEOUT_SECS)
+                cmd, host_bins_path, avd_spec.local_instance_id,
+                local_image_path, no_prompts,
+                avd_spec.boot_timeout_secs or constants.DEFAULT_CF_BOOT_TIMEOUT)
         except errors.LaunchCVDFail as launch_error:
             result_report.SetStatus(report.Status.BOOT_FAIL)
             result_report.AddDeviceBootFailure(
@@ -178,7 +179,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
 
     @staticmethod
     def PrepareLaunchCVDCmd(launch_cvd_path, hw_property, connect_adb,
-                            system_image_dir, local_instance_id, connect_webrtc):
+                            system_image_dir, local_instance_id, connect_webrtc,
+                            gpu):
         """Prepare launch_cvd command.
 
         Create the launch_cvd commands with all the required args and add
@@ -191,6 +193,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             connect_adb: Boolean flag that enables adb_connector.
             local_instance_id: Integer of instance id.
             connect_webrtc: Boolean of connect_webrtc.
+            gpu: String of gpu name, the gpu name of local instance should be
+                 "default" if gpu is enabled.
 
         Returns:
             String, launch_cvd cmd.
@@ -205,7 +209,10 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             launch_cvd_w_args = (launch_cvd_w_args + _CMD_LAUNCH_CVD_DISK_ARGS %
                                  hw_property[constants.HW_ALIAS_DISK])
         if connect_webrtc:
-            launch_cvd_w_args += _CMD_LAUNCH_CVD_WEBRTC_ARGS
+            launch_cvd_w_args = launch_cvd_w_args + _CMD_LAUNCH_CVD_WEBRTC_ARGS
+
+        if gpu:
+            launch_cvd_w_args = launch_cvd_w_args + _CMD_LAUNCH_CVD_GPU_ARG
 
         launch_cmd = utils.AddUserGroupsToCmd(launch_cvd_w_args,
                                               constants.LIST_CF_USER_GROUPS)
@@ -214,7 +221,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
 
     def CheckLaunchCVD(self, cmd, host_bins_path, local_instance_id,
                        local_image_path, no_prompts=False,
-                       timeout_secs=_LAUNCH_CVD_TIMEOUT_SECS):
+                       timeout_secs=constants.DEFAULT_CF_BOOT_TIMEOUT):
         """Execute launch_cvd command and wait for boot up completed.
 
         1. Check if the provided image files are in use by any launch_cvd process.
@@ -295,14 +302,6 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         raise errors.LaunchCVDFail(
             "Can't launch cuttlefish AVD. Return code:%s. \nFor more detail: "
             "%s/launcher.log" % (str(process.returncode), cvd_runtime_dir))
-
-    @staticmethod
-    def PrintDisclaimer():
-        """Print Disclaimer."""
-        utils.PrintColorString(
-            "(Disclaimer: Local cuttlefish instance is not a fully supported\n"
-            "runtime configuration, fixing breakages is on a best effort SLO.)\n",
-            utils.TextColors.WARNING)
 
     @staticmethod
     def IsLocalImageOccupied(local_image_dir):
