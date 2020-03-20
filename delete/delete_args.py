@@ -19,6 +19,9 @@ Defines the delete arg parser that holds delete specific args.
 """
 import argparse
 
+from acloud.internal import constants
+
+
 CMD_DELETE = "delete"
 
 
@@ -40,8 +43,8 @@ def GetDeleteArgParser(subparser):
         dest="instance_names",
         nargs="+",
         required=False,
-        help="The names of the instances that need to delete, "
-        "separated by spaces, e.g. --instance-names instance-1 local-instance-1")
+        help="The names of the instances that need to delete, separated by "
+        "spaces, e.g. --instance-names instance-1 local-instance-1")
     delete_group.add_argument(
         "--all",
         action="store_true",
@@ -60,6 +63,29 @@ def GetDeleteArgParser(subparser):
         dest="local_only",
         required=False,
         help="Do not authenticate and query remote instances.")
+    delete_parser.add_argument(
+        "--host",
+        type=str,
+        dest="remote_host",
+        default=None,
+        help="'cuttlefish only' Provide host name to clean up the remote host. "
+        "For example: '--host 1.1.1.1'")
+    delete_parser.add_argument(
+        "--host-user",
+        type=str,
+        dest="host_user",
+        default=constants.GCE_USER,
+        help="'remote host only' Provide host user for logging in to the host. "
+        "The default value is vsoc-01. For example: '--host 1.1.1.1 --host-user "
+        "vsoc-02'")
+    delete_parser.add_argument(
+        "--host-ssh-private-key-path",
+        type=str,
+        dest="host_ssh_private_key_path",
+        default=None,
+        help="'remote host only' Provide host ssh private key path for logging "
+        "in to the host. For exmaple: '--host-ssh-private-key-path "
+        "~/.ssh/acloud_rsa'")
 
     # TODO(b/118439885): Old arg formats to support transition, delete when
     # transistion is done.

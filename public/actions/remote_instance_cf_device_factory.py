@@ -15,12 +15,13 @@
 """RemoteInstanceDeviceFactory provides basic interface to create a cuttlefish
 device factory."""
 
-from __future__ import print_function
 import glob
 import logging
 import os
+import shutil
+import tempfile
 
-from acloud import errors
+from acloud.create import create_common
 from acloud.internal import constants
 from acloud.internal.lib import auth
 from acloud.internal.lib import cvd_compute_client_multi_stage
@@ -49,23 +50,25 @@ class RemoteInstanceDeviceFactory(base_device_factory.BaseDeviceFactory):
         ssh: An Ssh object.
     """
     def __init__(self, avd_spec, local_image_artifact=None,
-                 cvd_host_package_artifact=None, local_image_dir=None):
+                 cvd_host_package_artifact=None):
         """Constructs a new remote instance device factory."""
         self._avd_spec = avd_spec
         self._cfg = avd_spec.cfg
         self._local_image_artifact = local_image_artifact
         self._cvd_host_package_artifact = cvd_host_package_artifact
-        self._local_image_dir = local_image_dir
         self._report_internal_ip = avd_spec.report_internal_ip
         self.credentials = auth.CreateCredentials(avd_spec.cfg)
         # Control compute_client with enable_multi_stage
         compute_client = cvd_compute_client_multi_stage.CvdComputeClient(
             acloud_config=avd_spec.cfg,
             oauth2_credentials=self.credentials,
-            report_internal_ip=avd_spec.report_internal_ip)
+            ins_timeout_secs=avd_spec.ins_timeout_secs,
+            report_internal_ip=avd_spec.report_internal_ip,
+            gpu=avd_spec.gpu)
         super(RemoteInstanceDeviceFactory, self).__init__(compute_client)
         self._ssh = None
 
+    # pylint: disable=broad-except
     def CreateInstance(self):
         """Create a single configured cuttlefish device.
 
@@ -98,7 +101,7 @@ class RemoteInstanceDeviceFactory(base_device_factory.BaseDeviceFactory):
                 self._ProcessArtifacts(self._avd_spec.image_source)
                 self._LaunchCvd(instance=instance,
                                 boot_timeout_secs=self._avd_spec.boot_timeout_secs)
-            except errors.DeviceConnectionError as e:
+            except Exception as e:
                 self._SetFailures(instance, e)
 
         return instance
@@ -132,7 +135,7 @@ class RemoteInstanceDeviceFactory(base_device_factory.BaseDeviceFactory):
         ip = ssh.IP(ip=self._avd_spec.remote_host)
         self._ssh = ssh.Ssh(
             ip=ip,
-            gce_user=self._avd_spec.host_user or constants.GCE_USER,
+            user=self._avd_spec.host_user,
             ssh_private_key_path=(self._avd_spec.host_ssh_private_key_path or
                                   self._cfg.ssh_private_key_path),
             extra_args_ssh_tunnel=self._cfg.extra_args_ssh_tunnel,
@@ -140,6 +143,30 @@ class RemoteInstanceDeviceFactory(base_device_factory.BaseDeviceFactory):
         self._compute_client.InitRemoteHost(
             self._ssh, ip, self._avd_spec.host_user)
         return instance
+
+    @utils.TimeExecute(function_description="Downloading Android Build artifact")
+    def _DownloadArtifacts(self, extract_path):
+        """Download the CF image artifacts and process them.
+
+        - Download image from the Android Build system, then decompress it.
+        - Download cvd host package from the Android Build system.
+
+        Args:
+            extract_path: String, a path include extracted files.
+        """
+        cfg = self._avd_spec.cfg
+        build_id = self._avd_spec.remote_image[constants.BUILD_ID]
+        build_target = self._avd_spec.remote_image[constants.BUILD_TARGET]
+
+        # Image zip
+        remote_image = "%s-img-%s.zip" % (build_target.split('-')[0], build_id)
+        create_common.DownloadRemoteArtifact(
+            cfg, build_target, build_id, remote_image, extract_path, decompress=True)
+
+        # Cvd host package
+        create_common.DownloadRemoteArtifact(
+            cfg, build_target, build_id, constants.CVD_HOST_PACKAGE,
+            extract_path)
 
     def _ProcessRemoteHostArtifacts(self):
         """Process remote host artifacts.
@@ -150,9 +177,21 @@ class RemoteInstanceDeviceFactory(base_device_factory.BaseDeviceFactory):
           build to local and unzip it then upload to remote host, because there
           is no permission to fetch build rom on the remote host.
         """
-        self._UploadArtifacts(
-            self._local_image_artifact, self._cvd_host_package_artifact,
-            self._local_image_dir or self._avd_spec.local_image_dir)
+        if self._avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
+            self._UploadArtifacts(
+                self._local_image_artifact, self._cvd_host_package_artifact,
+                self._avd_spec.local_image_dir)
+        else:
+            try:
+                artifacts_path = tempfile.mkdtemp()
+                logger.debug("Extracted path of artifacts: %s", artifacts_path)
+                self._DownloadArtifacts(artifacts_path)
+                self._UploadArtifacts(
+                    None,
+                    os.path.join(artifacts_path, constants.CVD_HOST_PACKAGE),
+                    artifacts_path)
+            finally:
+                shutil.rmtree(artifacts_path)
 
     def _ProcessArtifacts(self, image_source):
         """Process artifacts.
@@ -242,7 +281,7 @@ class RemoteInstanceDeviceFactory(base_device_factory.BaseDeviceFactory):
             avd_spec=self._avd_spec)
         ip = self._compute_client.GetInstanceIP(instance)
         self._ssh = ssh.Ssh(ip=ip,
-                            gce_user=constants.GCE_USER,
+                            user=constants.GCE_USER,
                             ssh_private_key_path=self._cfg.ssh_private_key_path,
                             extra_args_ssh_tunnel=self._cfg.extra_args_ssh_tunnel,
                             report_internal_ip=self._report_internal_ip)
@@ -267,8 +306,6 @@ class RemoteInstanceDeviceFactory(base_device_factory.BaseDeviceFactory):
             images_dir: String, directory of local images which build
                         from 'm'.
         """
-        # TODO(b/133461252) Deprecate acloud create with local image zip.
-        # Upload local image zip file
         if local_image_zip:
             remote_cmd = ("/usr/bin/install_zip.sh . < %s" % local_image_zip)
             logger.debug("remote_cmd:\n %s", remote_cmd)

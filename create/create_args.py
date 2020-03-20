@@ -25,6 +25,7 @@ from acloud.internal import constants
 from acloud.internal.lib import utils
 
 
+_DEFAULT_GPU = "default"
 CMD_CREATE = "create"
 
 
@@ -51,13 +52,20 @@ def AddCommonCreateArgs(parser):
              "when a device fails on boot.")
     parser.add_argument(
         "--autoconnect",
-        action="store_true",
+        type=str,
+        nargs="?",
+        const=constants.INS_KEY_VNC,
         dest="autoconnect",
         required=False,
-        help="For each remote instance, automatically create 2 ssh tunnels "
-             "forwarding both adb & vnc, and then add the device to adb. "
-             "For local cuttlefish instance, create a vnc connection. "
-             "For local goldfish instance, create a window.")
+        choices=[constants.INS_KEY_VNC, constants.INS_KEY_ADB,
+                 constants.INS_KEY_WEBRTC],
+        help="Determines to establish a tunnel forwarding adb/vnc and "
+             "launch VNC/webrtc. Establish a tunnel forwarding adb and vnc "
+             "then launch vnc if --autoconnect vnc is provided. Establish a "
+             "tunnel forwarding adb if --autoconnect adb is provided. "
+             "Establish a tunnel forwarding adb and auto-launch on the browser "
+             "if --autoconnect webrtc is provided. For local goldfish "
+             "instance, create a window.")
     parser.add_argument(
         "--no-autoconnect",
         action="store_false",
@@ -65,7 +73,7 @@ def AddCommonCreateArgs(parser):
         required=False,
         help="Will not automatically create ssh tunnels forwarding adb & vnc "
              "when instance created.")
-    parser.set_defaults(autoconnect=True)
+    parser.set_defaults(autoconnect=constants.INS_KEY_VNC)
     parser.add_argument(
         "--unlock",
         action="store_true",
@@ -99,6 +107,13 @@ def AddCommonCreateArgs(parser):
         type=int,
         required=False,
         help="The maximum time in seconds used to wait for the AVD to boot.")
+    parser.add_argument(
+        "--wait-for-ins-stable",
+        dest="ins_timeout_secs",
+        type=int,
+        required=False,
+        help="The maximum time in seconds used to wait for the instance boot "
+             "up. The default value to wait for instance up time is 300 secs.")
     parser.add_argument(
         "--build-target",
         type=str,
@@ -168,17 +183,37 @@ def AddCommonCreateArgs(parser):
     parser.add_argument(
         "--multi-stage-launch",
         dest="multi_stage_launch",
-        action='store_true',
+        action="store_true",
         required=False,
         default=True,
         help="Enable the multi-stage cuttlefish launch.")
     parser.add_argument(
         "--no-multi-stage-launch",
         dest="multi_stage_launch",
-        action='store_false',
+        action="store_false",
         required=False,
         default=None,
         help="Disable the multi-stage cuttlefish launch.")
+    parser.add_argument(
+        "--no-pull-log",
+        dest="no_pull_log",
+        action="store_true",
+        required=False,
+        default=None,
+        help="Disable auto download logs when AVD booting up failed.")
+    # TODO(147335651): Add gpu in user config.
+    # TODO(147335651): Support "--gpu" without giving any value.
+    parser.add_argument(
+        "--gpu",
+        type=str,
+        const=_DEFAULT_GPU,
+        nargs="?",
+        dest="gpu",
+        required=False,
+        default=None,
+        help="GPU accelerator to use if any. e.g. nvidia-tesla-k80. For local "
+             "instances, this arg without assigning any value is to enable "
+             "local gpu support.")
 
     # TODO(b/118439885): Old arg formats to support transition, delete when
     # transistion is done.
@@ -302,6 +337,16 @@ def GetCreateArgParser(subparser):
         "images in $ANDROID_PRODUCT_OUT if no args value is provided. "
         "e.g., --local-system-image or --local-system-image /path/to/dir")
     create_parser.add_argument(
+        "--local-tool",
+        type=str,
+        dest="local_tool",
+        action="append",
+        default=[],
+        required=False,
+        help="Use the tools in the specified directory to create local "
+        "instances. The directory structure follows $ANDROID_HOST_OUT or "
+        "$ANDROID_EMULATOR_PREBUILTS.")
+    create_parser.add_argument(
         "--image-download-dir",
         type=str,
         dest="image_download_dir",
@@ -330,14 +375,16 @@ def GetCreateArgParser(subparser):
         type=str,
         dest="remote_host",
         default=None,
-        help="'cuttlefish only' Provide host name for launch AVD on this "
-        "devices.")
+        help="'cuttlefish only' Provide host name to clean up the remote host. "
+        "For example: '--host 1.1.1.1'")
     create_parser.add_argument(
         "--host-user",
         type=str,
         dest="host_user",
-        default=None,
-        help="'remote host only' Provide host user for login on this host.")
+        default=constants.GCE_USER,
+        help="'remote host only' Provide host user for logging in to the host. "
+        "The default value is vsoc-01. For example: '--host 1.1.1.1 --host-user "
+        "vsoc-02'")
     create_parser.add_argument(
         "--host-ssh-private-key-path",
         type=str,
@@ -365,14 +412,6 @@ def GetCreateArgParser(subparser):
     # TODO(b/118439885): Verify args that are used in wrong avd_type.
     # e.g. $acloud create --avd-type cuttlefish --emulator-build-id
     create_parser.add_argument(
-        "--gpu",
-        type=str,
-        dest="gpu",
-        required=False,
-        default=None,
-        help="'goldfish only' GPU accelerator to use if any. "
-        "e.g. nvidia-tesla-k80, omit to use swiftshader")
-    create_parser.add_argument(
         "--emulator-build-id",
         type=int,
         dest="emulator_build_id",
@@ -381,6 +420,24 @@ def GetCreateArgParser(subparser):
         "e.g. 4669466.")
 
     # Arguments for cheeps type.
+    create_parser.add_argument(
+        "--stable-cheeps-host-image-name",
+        type=str,
+        dest="stable_cheeps_host_image_name",
+        required=False,
+        default=None,
+        help=("'cheeps only' The Cheeps host image from which instances are "
+              "launched. If specified here, the value set in Acloud config "
+              "file will be overridden."))
+    create_parser.add_argument(
+        "--stable-cheeps-host-image-project",
+        type=str,
+        dest="stable_cheeps_host_image_project",
+        required=False,
+        default=None,
+        help=("'cheeps only' The project hosting the specified Cheeps host "
+              "image. If specified here, the value set in Acloud config file "
+              "will be overridden."))
     create_parser.add_argument(
         "--user",
         type=str,
@@ -432,6 +489,16 @@ def _VerifyLocalArgs(args):
                                                 "less than 1. Actually passed:%d"
                                                 % args.local_instance)
 
+    for tool_dir in args.local_tool:
+        if not os.path.exists(tool_dir):
+            raise errors.CheckPathError(
+                "Specified path doesn't exist: %s" % tool_dir)
+
+    if args.autoconnect == constants.INS_KEY_WEBRTC:
+        if args.avd_type != constants.TYPE_CF:
+            raise errors.UnsupportedCreateArgs(
+                "'--autoconnect webrtc' only support cuttlefish.")
+
 
 def _VerifyHostArgs(args):
     """Verify args starting with --host.
@@ -451,7 +518,7 @@ def _VerifyHostArgs(args):
         raise errors.UnsupportedCreateArgs(
             "--num is not supported for remote host.")
 
-    if args.host_user and args.remote_host is None:
+    if args.host_user != constants.GCE_USER and args.remote_host is None:
         raise errors.UnsupportedCreateArgs(
             "--host-user only support for remote host.")
 
@@ -494,6 +561,11 @@ def VerifyArgs(args):
         raise errors.UnsupportedCreateArgs(
             "--num is not supported for local instance.")
 
+    if args.local_instance is None and args.gpu == _DEFAULT_GPU:
+        raise errors.UnsupportedCreateArgs(
+            "Please assign one gpu model for GCE instance. Reference: "
+            "https://cloud.google.com/compute/docs/gpus")
+
     if args.adb_port:
         utils.CheckPortFree(args.adb_port)
 
@@ -504,9 +576,13 @@ def VerifyArgs(args):
                 "[%s] is an invalid hw property, supported values are:%s. "
                 % (key, constants.HW_PROPERTIES))
 
-    if (args.username or args.password) and args.avd_type != constants.TYPE_CHEEPS:
-        raise ValueError("--username and --password are only valid with avd_type == %s"
-                         % constants.TYPE_CHEEPS)
+    if args.avd_type != constants.TYPE_CHEEPS and (
+            args.stable_cheeps_host_image_name or
+            args.stable_cheeps_host_image_project or
+            args.username or args.password):
+        raise errors.UnsupportedCreateArgs(
+            "--stable-cheeps-*, --username and --password are only valid with "
+            "avd_type == %s" % constants.TYPE_CHEEPS)
     if (args.username or args.password) and not (args.username and args.password):
         raise ValueError("--username and --password must both be set")
     if not args.autoconnect and args.unlock_screen:

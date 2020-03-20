@@ -20,15 +20,16 @@ of an Android Virtual Device.
 from __future__ import print_function
 
 import logging
-import os
 import re
-import shutil
 import subprocess
 
 from acloud import errors
 from acloud.internal import constants
+from acloud.internal.lib import auth
 from acloud.internal.lib import adb_tools
+from acloud.internal.lib import cvd_compute_client_multi_stage
 from acloud.internal.lib import utils
+from acloud.internal.lib import ssh as ssh_object
 from acloud.list import list as list_instances
 from acloud.public import config
 from acloud.public import device_driver
@@ -40,50 +41,7 @@ logger = logging.getLogger(__name__)
 _COMMAND_GET_PROCESS_ID = ["pgrep", "run_cvd"]
 _COMMAND_GET_PROCESS_COMMAND = ["ps", "-o", "command", "-p"]
 _RE_RUN_CVD = re.compile(r"^(?P<run_cvd>.+run_cvd)")
-_SSVNC_VIEWER_PATTERN = "vnc://127.0.0.1:%(vnc_port)d"
-
-
-def _GetStopCvd():
-    """Get stop_cvd path.
-
-    "stop_cvd" and "run_cvd" are in the same folder(host package folder).
-    Try to get directory of "run_cvd" by "ps -o command -p <pid>." command.
-    For example: "/tmp/bin/run_cvd"
-
-    Returns:
-        String of stop_cvd file path.
-
-    Raises:
-        errors.NoExecuteCmd: Can't find stop_cvd.
-    """
-    process_id = subprocess.check_output(_COMMAND_GET_PROCESS_ID)
-    process_info = subprocess.check_output(
-        _COMMAND_GET_PROCESS_COMMAND + process_id.splitlines())
-    for process in process_info.splitlines():
-        match = _RE_RUN_CVD.match(process)
-        if match:
-            run_cvd_path = match.group("run_cvd")
-            stop_cvd_cmd = os.path.join(os.path.dirname(run_cvd_path),
-                                        constants.CMD_STOP_CVD)
-            if os.path.exists(stop_cvd_cmd):
-                logger.debug("stop_cvd command: %s", stop_cvd_cmd)
-                return stop_cvd_cmd
-
-    default_stop_cvd = utils.FindExecutable(constants.CMD_STOP_CVD)
-    if default_stop_cvd:
-        return default_stop_cvd
-
-    raise errors.NoExecuteCmd("Cannot find stop_cvd binary.")
-
-
-def CleanupSSVncviewer(vnc_port):
-    """Cleanup the old disconnected ssvnc viewer.
-
-    Args:
-        vnc_port: Integer, port number of vnc.
-    """
-    ssvnc_viewer_pattern = _SSVNC_VIEWER_PATTERN % {"vnc_port":vnc_port}
-    utils.CleanupProcess(ssvnc_viewer_pattern)
+_LOCAL_INSTANCE_PREFIX = "local-"
 
 
 def DeleteInstances(cfg, instances_to_delete):
@@ -115,8 +73,8 @@ def DeleteInstances(cfg, instances_to_delete):
         else:
             remote_instance_list.append(instance.name)
         # Delete ssvnc viewer
-        if instance.forwarding_vnc_port:
-            CleanupSSVncviewer(instance.forwarding_vnc_port)
+        if instance.vnc_port:
+            utils.CleanupSSVncviewer(instance.vnc_port)
 
     if remote_instance_list:
         # TODO(119283708): We should move DeleteAndroidVirtualDevices into
@@ -140,7 +98,14 @@ def DeleteRemoteInstances(cfg, instances_to_delete, delete_report=None):
 
     Returns:
         Report instance if there are instances to delete, None otherwise.
+
+    Raises:
+        error.ConfigError: when config doesn't support remote instances.
     """
+    if not cfg.SupportRemoteInstance():
+        raise errors.ConfigError("No gcp project info found in config! "
+                                 "The execution of deleting remote instances "
+                                 "has been aborted.")
     utils.PrintColorString("")
     for instance in instances_to_delete:
         utils.PrintColorString(" - %s" % instance, utils.TextColors.WARNING)
@@ -161,7 +126,7 @@ def DeleteRemoteInstances(cfg, instances_to_delete, delete_report=None):
 def DeleteLocalCuttlefishInstance(instance, delete_report):
     """Delete a local cuttlefish instance.
 
-    Delete local instance with stop_cvd command and write delete instance
+    Delete local instance and write delete instance
     information to report.
 
     Args:
@@ -172,21 +137,12 @@ def DeleteLocalCuttlefishInstance(instance, delete_report):
         delete_report.
     """
     try:
-        with open(os.devnull, "w") as dev_null:
-            cvd_env = os.environ.copy()
-            if instance.instance_dir:
-                cvd_env[constants.ENV_CUTTLEFISH_CONFIG_FILE] = os.path.join(
-                    instance.instance_dir, constants.CUTTLEFISH_CONFIG_FILE)
-            subprocess.check_call(
-                utils.AddUserGroupsToCmd(_GetStopCvd(),
-                                         constants.LIST_CF_USER_GROUPS),
-                stderr=dev_null, stdout=dev_null, shell=True, env=cvd_env)
-            delete_report.SetStatus(report.Status.SUCCESS)
-            device_driver.AddDeletionResultToReport(
-                delete_report, [instance.name], failed=[],
-                error_msgs=[],
-                resource_name="instance")
-            CleanupSSVncviewer(instance.vnc_port)
+        instance.Delete()
+        delete_report.SetStatus(report.Status.SUCCESS)
+        device_driver.AddDeletionResultToReport(
+            delete_report, [instance.name], failed=[],
+            error_msgs=[],
+            resource_name="instance")
     except subprocess.CalledProcessError as e:
         delete_report.AddError(str(e))
         delete_report.SetStatus(report.Status.FAIL)
@@ -218,7 +174,71 @@ def DeleteLocalGoldfishInstance(instance, delete_report):
         delete_report.AddError("Cannot kill %s." % instance.device_serial)
         delete_report.SetStatus(report.Status.FAIL)
 
-    shutil.rmtree(instance.instance_dir, ignore_errors=True)
+    instance.DeleteCreationTimestamp(ignore_errors=True)
+    return delete_report
+
+
+def CleanUpRemoteHost(cfg, remote_host, host_user,
+                      host_ssh_private_key_path=None):
+    """Clean up the remote host.
+
+    Args:
+        cfg: An AcloudConfig instance.
+        remote_host : String, ip address or host name of the remote host.
+        host_user: String of user login into the instance.
+        host_ssh_private_key_path: String of host key for logging in to the
+                                   host.
+
+    Returns:
+        A Report instance.
+    """
+    delete_report = report.Report(command="delete")
+    credentials = auth.CreateCredentials(cfg)
+    compute_client = cvd_compute_client_multi_stage.CvdComputeClient(
+        acloud_config=cfg,
+        oauth2_credentials=credentials)
+    ssh = ssh_object.Ssh(
+        ip=ssh_object.IP(ip=remote_host),
+        user=host_user,
+        ssh_private_key_path=(
+            host_ssh_private_key_path or cfg.ssh_private_key_path))
+    try:
+        compute_client.InitRemoteHost(ssh, remote_host, host_user)
+        delete_report.SetStatus(report.Status.SUCCESS)
+        device_driver.AddDeletionResultToReport(
+            delete_report, [remote_host], failed=[],
+            error_msgs=[],
+            resource_name="remote host")
+    except subprocess.CalledProcessError as e:
+        delete_report.AddError(str(e))
+        delete_report.SetStatus(report.Status.FAIL)
+
+    return delete_report
+
+
+def DeleteInstanceByNames(cfg, instances):
+    """Delete instances by the names of these instances.
+
+    Args:
+        cfg: AcloudConfig object.
+        instances: List of instance name.
+
+    Returns:
+        A Report instance.
+    """
+    delete_report = report.Report(command="delete")
+    local_instances = [
+        ins for ins in instances if ins.startswith(_LOCAL_INSTANCE_PREFIX)
+    ]
+    remote_instances = list(set(instances) - set(local_instances))
+    if local_instances:
+        utils.PrintColorString("Deleting local instances")
+        delete_report = DeleteInstances(cfg, list_instances.FilterInstancesByNames(
+            list_instances.GetLocalInstances(), local_instances))
+    if remote_instances:
+        delete_report = DeleteRemoteInstances(cfg,
+                                              remote_instances,
+                                              delete_report)
     return delete_report
 
 
@@ -234,17 +254,21 @@ def Run(args):
     Returns:
         A Report instance.
     """
+    # Prioritize delete instances by names without query all instance info from
+    # GCP project.
+    cfg = config.GetAcloudConfig(args)
+    if args.instance_names:
+        return DeleteInstanceByNames(cfg,
+                                     args.instance_names)
+    if args.remote_host:
+        return CleanUpRemoteHost(cfg, args.remote_host, args.host_user,
+                                 args.host_ssh_private_key_path)
+
     instances = list_instances.GetLocalInstances()
-    if args.local_only:
-        cfg = None
-    else:
-        cfg = config.GetAcloudConfig(args)
+    if not args.local_only and cfg.SupportRemoteInstance():
         instances.extend(list_instances.GetRemoteInstances(cfg))
 
-    if args.instance_names:
-        instances = list_instances.FilterInstancesByNames(instances,
-                                                          args.instance_names)
-    elif args.adb_port:
+    if args.adb_port:
         instances = list_instances.FilterInstancesByAdbPort(instances,
                                                             args.adb_port)
     elif not args.all:

@@ -45,7 +45,7 @@ class LocalImageRemoteHost(base_avd_create.BaseAVDCreate):
         device_factory = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
             avd_spec,
             avd_spec.local_image_artifact,
-            create_common.VerifyHostPackageArtifactsExist())
+            create_common.GetCvdHostPackage())
         report = common_operations.CreateDevices(
             "create_cf", avd_spec.cfg, device_factory, num=1,
             report_internal_ip=avd_spec.report_internal_ip,
@@ -53,8 +53,9 @@ class LocalImageRemoteHost(base_avd_create.BaseAVDCreate):
             avd_type=constants.TYPE_CF,
             boot_timeout_secs=avd_spec.boot_timeout_secs,
             unlock_screen=avd_spec.unlock_screen,
-            wait_for_boot=False)
+            wait_for_boot=False,
+            connect_webrtc=avd_spec.connect_webrtc)
         # Launch vnc client if we're auto-connecting.
-        if avd_spec.autoconnect:
+        if avd_spec.connect_vnc:
             utils.LaunchVNCFromReport(report, avd_spec, no_prompts)
         return report

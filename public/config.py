@@ -63,6 +63,28 @@ logger = logging.getLogger(__name__)
 _CONFIG_DATA_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "data")
 _DEFAULT_CONFIG_FILE = "acloud.config"
+_DEFAULT_HW_PROPERTY = "cpu:2,resolution:720x1280,dpi:320,memory:4g"
+
+# VERSION
+_VERSION_FILE = "VERSION"
+_UNKNOWN = "UNKNOWN"
+_NUM_INSTANCES_ARG = "-num_instances"
+
+
+def GetVersion():
+    """Print the version of acloud.
+
+    The VERSION file is built into the acloud binary. The version file path is
+    under "public/data".
+
+    Returns:
+        String of the acloud version.
+    """
+    version_file_path = os.path.join(_CONFIG_DATA_PATH, _VERSION_FILE)
+    if os.path.exists(version_file_path):
+        with open(version_file_path) as version_file:
+            return version_file.read()
+    return _UNKNOWN
 
 
 def GetDefaultConfigFile():
@@ -252,18 +274,32 @@ class AcloudConfig(object):
                 self.network = parsed_args.network
             if parsed_args.multi_stage_launch is not None:
                 self.enable_multi_stage = parsed_args.multi_stage_launch
+        if (parsed_args.which == "create_cf" and
+                parsed_args.num_avds_per_instance > 1):
+            scrubbed_args = [arg for arg in self.launch_args.split()
+                             if _NUM_INSTANCES_ARG not in arg]
+            scrubbed_args.append("%s=%d" % (_NUM_INSTANCES_ARG,
+                                            parsed_args.num_avds_per_instance))
 
-    def OverrideHwPropertyWithFlavor(self, flavor):
-        """Override hw configuration values with flavor name.
+            self.launch_args = " ".join(scrubbed_args)
 
-        HwProperty will be overrided according to the change of flavor.
-        If flavor is None, set hw configuration with phone(default flavor).
+    def OverrideHwProperty(self, flavor, instance_type=None):
+        """Override hw configuration values.
+
+        HwProperty will be overrided according to the change of flavor and
+        instance type. The format of key is flavor or instance_type-flavor.
+        e.g: 'phone' or 'local-phone'.
+        If the giving key is not found, set hw configuration with a default
+        phone property.
 
         Args:
-            flavor: string of flavor name.
+            flavor: String of flavor name.
+            instance_type: String of instance type.
         """
+        hw_key = ("%s-%s" % (instance_type, flavor)
+                  if instance_type == constants.INSTANCE_TYPE_LOCAL else flavor)
         self.hw_property = self.common_hw_property_map.get(
-            flavor, constants.FLAVOR_PHONE)
+            hw_key, _DEFAULT_HW_PROPERTY)
 
     def Verify(self):
         """Verify configuration fields."""
@@ -277,6 +313,10 @@ class AcloudConfig(object):
                 "Supported extra_data_disk_size_gb options(gb): %s, "
                 "invalid value: %d" % (self.precreated_data_image_map.keys(),
                                        self.extra_data_disk_size_gb))
+
+    def SupportRemoteInstance(self):
+        """Return True if gcp project is provided in config."""
+        return True if self.project else False
 
 
 class AcloudConfigManager(object):

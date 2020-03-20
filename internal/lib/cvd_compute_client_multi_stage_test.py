@@ -59,6 +59,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
     BOOT_DISK_SIZE_GB = 10
     LAUNCH_ARGS = "--setupwizard_mode=REQUIRED"
     EXTRA_SCOPES = ["scope1"]
+    GPU = "fake-gpu"
 
     def _GetFakeConfig(self):
         """Create a fake configuration object.
@@ -91,7 +92,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.Patch(Ssh, "WaitForSsh")
         self.Patch(Ssh, "GetBaseCmd")
         self.cvd_compute_client_multi_stage = cvd_compute_client_multi_stage.CvdComputeClient(
-            self._GetFakeConfig(), mock.MagicMock())
+            self._GetFakeConfig(), mock.MagicMock(), gpu=self.GPU)
         self.args = mock.MagicMock()
         self.args.local_image = None
         self.args.config_file = ""
@@ -107,14 +108,18 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         """test GetLaunchCvdArgs."""
         # test GetLaunchCvdArgs with avd_spec
         fake_avd_spec = avd_spec.AVDSpec(self.args)
-        expeted_args = ['-x_res=1080', '-y_res=1920', '-dpi=240', '-cpus=2',
-                        '-memory_mb=4096', '--setupwizard_mode=REQUIRED']
+        expeted_args = ["-x_res=1080", "-y_res=1920", "-dpi=240", "-cpus=2",
+                        "-memory_mb=4096", "--setupwizard_mode=REQUIRED",
+                        "-gpu_mode=drm_virgl", "-undefok=report_anonymous_usage_stats",
+                        "-report_anonymous_usage_stats=y"]
         launch_cvd_args = self.cvd_compute_client_multi_stage._GetLaunchCvdArgs(fake_avd_spec)
         self.assertEqual(launch_cvd_args, expeted_args)
 
         # test GetLaunchCvdArgs without avd_spec
-        expeted_args = ['-x_res=720', '-y_res=1280', '-dpi=160',
-                        '--setupwizard_mode=REQUIRED']
+        expeted_args = ["-x_res=720", "-y_res=1280", "-dpi=160",
+                        "--setupwizard_mode=REQUIRED", "-gpu_mode=drm_virgl",
+                        "-undefok=report_anonymous_usage_stats",
+                        "-report_anonymous_usage_stats=y"]
         launch_cvd_args = self.cvd_compute_client_multi_stage._GetLaunchCvdArgs(
             avd_spec=None)
         self.assertEqual(launch_cvd_args, expeted_args)
@@ -155,9 +160,10 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
 
         created_subprocess = mock.MagicMock()
         created_subprocess.stdout = mock.MagicMock()
-        created_subprocess.stdout.readline = mock.MagicMock(return_value='')
+        created_subprocess.stdout.readline = mock.MagicMock(return_value=b"")
         created_subprocess.poll = mock.MagicMock(return_value=0)
         created_subprocess.returncode = 0
+        created_subprocess.communicate = mock.MagicMock(return_value=('', ''))
         self.Patch(subprocess, "Popen", return_value=created_subprocess)
         self.Patch(subprocess, "check_call")
         self.Patch(os, "chmod")
@@ -179,7 +185,9 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
             machine_type=self.MACHINE_TYPE,
             network=self.NETWORK,
             zone=self.ZONE,
-            extra_scopes=self.EXTRA_SCOPES)
+            extra_scopes=self.EXTRA_SCOPES,
+            gpu=self.GPU,
+            tags=None)
 
         mock_check_img.return_value = True
         #test use local image in the remote instance.
@@ -211,7 +219,9 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
             machine_type=self.MACHINE_TYPE,
             network=self.NETWORK,
             zone=self.ZONE,
-            extra_scopes=self.EXTRA_SCOPES)
+            extra_scopes=self.EXTRA_SCOPES,
+            gpu=self.GPU,
+            tags=None)
 
 
 if __name__ == "__main__":

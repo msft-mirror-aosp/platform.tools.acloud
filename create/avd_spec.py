@@ -26,6 +26,7 @@ import os
 import re
 import subprocess
 import tempfile
+import threading
 
 from acloud import errors
 from acloud.create import create_common
@@ -41,7 +42,8 @@ logger = logging.getLogger(__name__)
 
 # Default values for build target.
 _BRANCH_RE = re.compile(r"^Manifest branch: (?P<branch>.+)")
-_COMMAND_REPO_INFO = ["repo", "info"]
+_COMMAND_REPO_INFO = "repo info platform/tools/acloud"
+_REPO_TIMEOUT = 3
 _CF_ZIP_PATTERN = "*img*.zip"
 _DEFAULT_BUILD_BITNESS = "x86"
 _DEFAULT_BUILD_TYPE = "userdebug"
@@ -111,8 +113,10 @@ class AVDSpec(object):
         self._local_image_dir = None
         self._local_image_artifact = None
         self._local_system_image_dir = None
+        self._local_tool_dirs = None
         self._image_download_dir = None
         self._num_of_instances = None
+        self._no_pull_log = None
         self._remote_image = None
         self._system_build_info = None
         self._kernel_build_info = None
@@ -128,12 +132,16 @@ class AVDSpec(object):
         self._gpu = None
         self._emulator_build_id = None
 
-        # username and password only used for cheeps type.
+        # Fields only used for cheeps type.
+        self._stable_cheeps_host_image_name = None
+        self._stable_cheeps_host_image_project = None
         self._username = None
         self._password = None
 
         # The maximum time in seconds used to wait for the AVD to boot.
         self._boot_timeout_secs = None
+        # The maximum time in seconds used to wait for the instance ready.
+        self._ins_timeout_secs = None
 
         # The local instance id
         self._local_instance_id = None
@@ -260,7 +268,7 @@ class AVDSpec(object):
         Args:
             args: Namespace object from argparse.parse_args.
         """
-        self._cfg.OverrideHwPropertyWithFlavor(self._flavor)
+        self._cfg.OverrideHwProperty(self._flavor, self._instance_type)
         self._hw_property = {}
         self._hw_property = self._ParseHWPropertyStr(self._cfg.hw_property)
         logger.debug("Default hw property for [%s] flavor: %s", self._flavor,
@@ -292,15 +300,20 @@ class AVDSpec(object):
         self._host_user = args.host_user
         self._host_ssh_private_key_path = args.host_ssh_private_key_path
         self._local_instance_id = args.local_instance
+        self._local_tool_dirs = args.local_tool
         self._num_of_instances = args.num
+        self._no_pull_log = args.no_pull_log
         self._serial_log_file = args.serial_log_file
         self._emulator_build_id = args.emulator_build_id
         self._gpu = args.gpu
 
+        self._stable_cheeps_host_image_name = args.stable_cheeps_host_image_name
+        self._stable_cheeps_host_image_project = args.stable_cheeps_host_image_project
         self._username = args.username
         self._password = args.password
 
         self._boot_timeout_secs = args.boot_timeout_secs
+        self._ins_timeout_secs = args.ins_timeout_secs
 
         if args.reuse_gce:
             if args.reuse_gce != constants.SELECT_ONE_GCE_INSTANCE:
@@ -564,19 +577,31 @@ class AVDSpec(object):
         Returns:
             branch: String, git branch name. e.g. "aosp-master"
         """
-        repo_output = ""
-        try:
-            repo_output = subprocess.check_output(_COMMAND_REPO_INFO)
-        except subprocess.CalledProcessError:
-            utils.PrintColorString(
-                "Unable to determine your repo branch, defaulting to %s"
-                % _DEFAULT_BRANCH, utils.TextColors.WARNING)
-        for line in repo_output.splitlines():
-            match = _BRANCH_RE.match(EscapeAnsi(line))
-            if match:
-                branch_prefix = _BRANCH_PREFIX.get(self._GetGitRemote(),
-                                                   _DEFAULT_BRANCH_PREFIX)
-                return branch_prefix + match.group("branch")
+        branch = None
+        # TODO(149460014): Migrate acloud to py3, then remove this
+        # workaround.
+        env = os.environ.copy()
+        env.pop("PYTHONPATH", None)
+        logger.info("Running command \"%s\"", _COMMAND_REPO_INFO)
+        process = subprocess.Popen(_COMMAND_REPO_INFO, shell=True, stdin=None,
+                                   stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT, env=env)
+        timer = threading.Timer(_REPO_TIMEOUT, process.kill)
+        timer.start()
+        stdout, _ = process.communicate()
+        if stdout:
+            for line in stdout.splitlines():
+                match = _BRANCH_RE.match(EscapeAnsi(line))
+                if match:
+                    branch_prefix = _BRANCH_PREFIX.get(self._GetGitRemote(),
+                                                       _DEFAULT_BRANCH_PREFIX)
+                    branch = branch_prefix + match.group("branch")
+        timer.cancel()
+        if branch:
+            return branch
+        utils.PrintColorString(
+            "Unable to determine your repo branch, defaulting to %s"
+            % _DEFAULT_BRANCH, utils.TextColors.WARNING)
         return _DEFAULT_BRANCH
 
     def _GetBuildTarget(self, args):
@@ -630,14 +655,48 @@ class AVDSpec(object):
         return self._local_system_image_dir
 
     @property
+    def local_tool_dirs(self):
+        """Return a list of local tool directories."""
+        return self._local_tool_dirs
+
+    @property
     def avd_type(self):
         """Return the avd type."""
         return self._avd_type
 
     @property
     def autoconnect(self):
-        """Return autoconnect."""
-        return self._autoconnect
+        """autoconnect.
+
+        args.autoconnect could pass as Boolean or String.
+
+        Return: Boolean, True only if self._autoconnect is not False.
+        """
+        return self._autoconnect is not False
+
+    @property
+    def connect_adb(self):
+        """Auto-connect to adb.
+
+        Return: Boolean, whether autoconnect is enabled.
+        """
+        return self._autoconnect is not False
+
+    @property
+    def connect_vnc(self):
+        """Launch vnc.
+
+        Return: Boolean, True if self._autoconnect is 'vnc'.
+        """
+        return self._autoconnect == constants.INS_KEY_VNC
+
+    @property
+    def connect_webrtc(self):
+        """Auto-launch webRTC AVD on the browser.
+
+        Return: Boolean, True if args.autoconnect is "webrtc".
+        """
+        return self._autoconnect == constants.INS_KEY_WEBRTC
 
     @property
     def unlock_screen(self):
@@ -705,6 +764,17 @@ class AVDSpec(object):
         return self._client_adb_port
 
     @property
+    def stable_cheeps_host_image_name(self):
+        """Return the Cheeps host image name."""
+        return self._stable_cheeps_host_image_name
+
+    # pylint: disable=invalid-name
+    @property
+    def stable_cheeps_host_image_project(self):
+        """Return the project hosting the Cheeps host image."""
+        return self._stable_cheeps_host_image_project
+
+    @property
     def username(self):
         """Return username."""
         return self._username
@@ -718,6 +788,11 @@ class AVDSpec(object):
     def boot_timeout_secs(self):
         """Return boot_timeout_secs."""
         return self._boot_timeout_secs
+
+    @property
+    def ins_timeout_secs(self):
+        """Return ins_timeout_secs."""
+        return self._ins_timeout_secs
 
     @property
     def system_build_info(self):
@@ -748,3 +823,8 @@ class AVDSpec(object):
     def host_ssh_private_key_path(self):
         """Return host_ssh_private_key_path."""
         return self._host_ssh_private_key_path
+
+    @property
+    def no_pull_log(self):
+        """Return no_pull_log."""
+        return self._no_pull_log

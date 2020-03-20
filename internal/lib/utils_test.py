@@ -23,10 +23,11 @@ import shutil
 import subprocess
 import tempfile
 import time
+import webbrowser
 
 import unittest
-import mock
 import six
+import mock
 
 from acloud import errors
 from acloud.internal.lib import driver_test_lib
@@ -382,7 +383,7 @@ class UtilsTest(driver_test_lib.BaseDriverTest):
 
     # pylint: disable=protected-access,no-member
     def testExtraArgsSSHTunnel(self):
-        """Tesg extra args will be the same with expanded args."""
+        """Test extra args will be the same with expanded args."""
         fake_ip_addr = "1.1.1.1"
         fake_rsa_key_file = "/tmp/rsa_file"
         fake_target_vnc_port = 8888
@@ -410,6 +411,88 @@ class UtilsTest(driver_test_lib.BaseDriverTest):
                      "-o", "command1=ls -la"]
         first_call_args = utils._ExecuteCommand.call_args_list[0][0]
         self.assertEqual(first_call_args[1], args_list)
+
+    # pylint: disable=protected-access,no-member
+    def testEstablishWebRTCSshTunnel(self):
+        """Test establish WebRTC ssh tunnel."""
+        fake_ip_addr = "1.1.1.1"
+        fake_rsa_key_file = "/tmp/rsa_file"
+        ssh_user = "fake_user"
+        self.Patch(utils, "ReleasePort")
+        self.Patch(utils, "_ExecuteCommand")
+        self.Patch(subprocess, "check_call", return_value=True)
+        extra_args_ssh_tunnel = "-o command='shell %s %h' -o command1='ls -la'"
+        utils.EstablishWebRTCSshTunnel(
+            ip_addr=fake_ip_addr, rsa_key_file=fake_rsa_key_file,
+            ssh_user=ssh_user, extra_args_ssh_tunnel=None)
+        args_list = ["-i", "/tmp/rsa_file",
+                     "-o", "UserKnownHostsFile=/dev/null",
+                     "-o", "StrictHostKeyChecking=no",
+                     "-L", "8443:127.0.0.1:8443",
+                     "-L", "15550:127.0.0.1:15550",
+                     "-L", "15551:127.0.0.1:15551",
+                     "-N", "-f", "-l", "fake_user", "1.1.1.1"]
+        first_call_args = utils._ExecuteCommand.call_args_list[0][0]
+        self.assertEqual(first_call_args[1], args_list)
+
+        extra_args_ssh_tunnel = "-o command='shell %s %h'"
+        utils.EstablishWebRTCSshTunnel(
+            ip_addr=fake_ip_addr, rsa_key_file=fake_rsa_key_file,
+            ssh_user=ssh_user, extra_args_ssh_tunnel=extra_args_ssh_tunnel)
+        args_list_with_extra_args = ["-i", "/tmp/rsa_file",
+                                     "-o", "UserKnownHostsFile=/dev/null",
+                                     "-o", "StrictHostKeyChecking=no",
+                                     "-L", "8443:127.0.0.1:8443",
+                                     "-L", "15550:127.0.0.1:15550",
+                                     "-L", "15551:127.0.0.1:15551",
+                                     "-N", "-f", "-l", "fake_user", "1.1.1.1",
+                                     "-o", "command=shell %s %h"]
+        first_call_args = utils._ExecuteCommand.call_args_list[1][0]
+        self.assertEqual(first_call_args[1], args_list_with_extra_args)
+
+    # pylint: disable=protected-access, no-member
+    def testCleanupSSVncviwer(self):
+        """test cleanup ssvnc viewer."""
+        fake_vnc_port = 9999
+        fake_ss_vncviewer_pattern = utils._SSVNC_VIEWER_PATTERN % {
+            "vnc_port": fake_vnc_port}
+        self.Patch(utils, "IsCommandRunning", return_value=True)
+        self.Patch(subprocess, "check_call", return_value=True)
+        utils.CleanupSSVncviewer(fake_vnc_port)
+        subprocess.check_call.assert_called_with(["pkill", "-9", "-f", fake_ss_vncviewer_pattern])
+
+        subprocess.check_call.call_count = 0
+        self.Patch(utils, "IsCommandRunning", return_value=False)
+        utils.CleanupSSVncviewer(fake_vnc_port)
+        subprocess.check_call.assert_not_called()
+
+    def testLaunchBrowserFromReport(self):
+        """test launch browser from report."""
+        self.Patch(webbrowser, "open_new_tab")
+        fake_report = mock.MagicMock(data={})
+
+        # test remote instance
+        self.Patch(os.environ, "get", return_value=True)
+        fake_report.data = {
+            "devices": [{"instance_name": "remote_cf_instance_name",
+                         "ip": "192.168.1.1",},],}
+
+        utils.LaunchBrowserFromReport(fake_report)
+        webbrowser.open_new_tab.assert_called_once_with("https://localhost:8443/?use_tcp=true")
+        webbrowser.open_new_tab.call_count = 0
+
+        # test local instance
+        fake_report.data = {
+            "devices": [{"instance_name": "local-instance1",
+                         "ip": "127.0.0.1:6250",},],}
+        utils.LaunchBrowserFromReport(fake_report)
+        webbrowser.open_new_tab.assert_called_once_with("https://localhost:8443/?use_tcp=true")
+        webbrowser.open_new_tab.call_count = 0
+
+        # verify terminal can't support launch webbrowser.
+        self.Patch(os.environ, "get", return_value=False)
+        utils.LaunchBrowserFromReport(fake_report)
+        self.assertEqual(webbrowser.open_new_tab.call_count, 0)
 
 
 if __name__ == "__main__":

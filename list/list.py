@@ -20,8 +20,7 @@ of an Android Virtual Device.
 from __future__ import print_function
 import getpass
 import logging
-import re
-import subprocess
+import os
 
 from acloud import errors
 from acloud.internal import constants
@@ -35,29 +34,6 @@ from acloud.public import config
 logger = logging.getLogger(__name__)
 
 _COMMAND_PS_LAUNCH_CVD = ["ps", "-wweo", "lstart,cmd"]
-_RE_LOCAL_INSTANCE_ID = re.compile(r".+instance_home_(?P<ins_id>\d+).+")
-_RE_LOCAL_CVD_PORT = re.compile(r"^127\.0\.0\.1:65(?P<cvd_port_suffix>\d{2})\s+")
-
-
-def GetActiveCVDIds():
-    """Get active local cvd ids from adb devices.
-
-    The adb port of local instance will be decided according to instance id.
-    The rule of adb port will be '6520 + [instance id] - 1'. So we grep last
-    two digits of port and calculate the instance id.
-
-    Return:
-        List of cvd id.
-    """
-    local_cvd_ids = []
-    adb_cmd = [constants.ADB_BIN, "devices"]
-    device_info = subprocess.check_output(adb_cmd)
-    for device in device_info.splitlines():
-        match = _RE_LOCAL_CVD_PORT.match(device)
-        if match:
-            cvd_serial = match.group("cvd_port_suffix")
-            local_cvd_ids.append(int(cvd_serial) - 19)
-    return local_cvd_ids
 
 
 def _ProcessInstances(instance_list):
@@ -145,29 +121,37 @@ def _GetLocalCuttlefishInstances():
     Returns:
         instance_list: List of local instances.
     """
-    local_cvd_ids = GetActiveCVDIds()
     local_instance_list = []
-    for cvd_id in local_cvd_ids:
-        ins_dir = x_res = y_res = dpi = cf_runtime_config_dict = None
-        try:
-            cf_runtime_config_dict = instance.GetCuttlefishRuntimeConfig(cvd_id)
-        except errors.ConfigError:
-            logger.error("Instance[id:%d] dir not found!", cvd_id)
-
-        if cf_runtime_config_dict:
-            ins_dir = instance.GetLocalInstanceRuntimeDir(cvd_id)
-            x_res = cf_runtime_config_dict["x_res"]
-            y_res = cf_runtime_config_dict["y_res"]
-            dpi = cf_runtime_config_dict["dpi"]
-        # TODO(143063678), there's no createtime info in
-        # cuttlefish_config.json so far.
-        local_instance_list.append(instance.LocalInstance(cvd_id,
-                                                          x_res,
-                                                          y_res,
-                                                          dpi,
-                                                          None,
-                                                          ins_dir))
+    for cf_runtime_config_path in instance.GetAllLocalInstanceConfigs():
+        ins = instance.LocalInstance(cf_runtime_config_path)
+        if ins.CvdStatus():
+            local_instance_list.append(ins)
+        else:
+            logger.info("cvd runtime config found but instance is not active:%s"
+                        , cf_runtime_config_path)
     return local_instance_list
+
+
+def GetActiveCVD(local_instance_id):
+    """Check if the local AVD with specific instance id is running
+
+    Args:
+        local_instance_id: Integer of instance id.
+
+    Return:
+        LocalInstance object.
+    """
+    cfg_path = instance.GetLocalInstanceConfig(local_instance_id)
+    if cfg_path:
+        ins = instance.LocalInstance(cfg_path)
+        if ins.CvdStatus():
+            return ins
+    cfg_path = instance.GetDefaultCuttlefishConfig()
+    if local_instance_id == 1 and os.path.isfile(cfg_path):
+        ins = instance.LocalInstance(cfg_path)
+        if ins.CvdStatus():
+            return ins
+    return None
 
 
 def GetLocalInstances():
@@ -182,27 +166,6 @@ def GetLocalInstances():
 
     return (_GetLocalCuttlefishInstances() +
             instance.LocalGoldfishInstance.GetExistingInstances())
-
-
-def _GetIdFromInstanceDirStr(instance_dir):
-    """Look for instance id from the path of instance dir.
-
-    Args:
-        instance_dir: String, path of instance_dir.
-
-    Returns:
-        Integer of instance id.
-
-    Raises:
-        errors.InvalidInstanceDir: Invalid instance idr.
-    """
-    match = _RE_LOCAL_INSTANCE_ID.match(instance_dir)
-    if match:
-        return int(match.group("ins_id"))
-
-    raise errors.InvalidInstanceDir("Instance dir is invalid:%s. local AVD "
-                                    "launched outside acloud is not supported"
-                                    % instance_dir)
 
 
 def GetInstances(cfg):
@@ -342,7 +305,7 @@ def FilterInstancesByAdbPort(instances, adb_port):
     """
     all_instance_info = []
     for instance_object in instances:
-        if instance_object.forwarding_adb_port == adb_port:
+        if instance_object.adb_port == adb_port:
             return [instance_object]
         all_instance_info.append(instance_object.fullname)
 
@@ -375,8 +338,8 @@ def Run(args):
         args: Namespace object from argparse.parse_args.
     """
     instances = GetLocalInstances()
-    if not args.local_only:
-        cfg = config.GetAcloudConfig(args)
+    cfg = config.GetAcloudConfig(args)
+    if not args.local_only and cfg.SupportRemoteInstance():
         instances.extend(GetRemoteInstances(cfg))
 
     PrintInstancesDetails(instances, args.verbose)

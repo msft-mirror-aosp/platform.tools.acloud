@@ -16,6 +16,7 @@ from __future__ import print_function
 import logging
 
 import subprocess
+import sys
 import threading
 
 from acloud import errors
@@ -27,18 +28,20 @@ logger = logging.getLogger(__name__)
 _SSH_CMD = ("-i %(rsa_key_file)s "
             "-q -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no")
 _SSH_IDENTITY = "-l %(login_user)s %(ip_addr)s"
-_SSH_CMD_MAX_RETRY = 4
+_SSH_CMD_MAX_RETRY = 5
 _SSH_CMD_RETRY_SLEEP = 3
-_WAIT_FOR_SSH_MAX_TIMEOUT = 20
+_CONNECTION_TIMEOUT = 10
 
 
-def _SshCall(cmd, timeout=None):
+def _SshCallWait(cmd, timeout=None):
     """Runs a single SSH command.
 
-    SSH returns code 0 for "Successful execution".
+    - SSH returns code 0 for "Successful execution".
+    - Use wait() until the process is complete without receiving any output.
 
     Args:
-        cmd: String of the full SSH command to run, including the SSH binary and its arguments.
+        cmd: String of the full SSH command to run, including the SSH binary
+             and its arguments.
         timeout: Optional integer, number of seconds to give
 
     Returns:
@@ -51,12 +54,36 @@ def _SshCall(cmd, timeout=None):
         # TODO: if process is killed, out error message to log.
         timer = threading.Timer(timeout, process.kill)
         timer.start()
-    while True:
-        if process.poll() is not None:
-            break
+    process.wait()
     if timeout:
         timer.cancel()
-    process.stdout.close()
+    return process.returncode
+
+
+def _SshCall(cmd, timeout=None):
+    """Runs a single SSH command.
+
+    - SSH returns code 0 for "Successful execution".
+    - Use communicate() until the process and the child thread are complete.
+
+    Args:
+        cmd: String of the full SSH command to run, including the SSH binary
+             and its arguments.
+        timeout: Optional integer, number of seconds to give
+
+    Returns:
+        An exit status of 0 indicates that it ran successfully.
+    """
+    logger.info("Running command \"%s\"", cmd)
+    process = subprocess.Popen(cmd, shell=True, stdin=None,
+                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    if timeout:
+        # TODO: if process is killed, out error message to log.
+        timer = threading.Timer(timeout, process.kill)
+        timer.start()
+    process.communicate()
+    if timeout:
+        timer.cancel()
     return process.returncode
 
 
@@ -77,29 +104,25 @@ def _SshLogOutput(cmd, timeout=None, show_output=False):
         errors.DeviceConnectionError: Failed to connect to the GCE instance.
         subprocess.CalledProc: The process exited with an error on the instance.
     """
+    # Use "exec" to let cmd to inherit the shell process, instead of having the
+    # shell launch a child process which does not get killed.
+    cmd = "exec " + cmd
     logger.info("Running command \"%s\"", cmd)
-    # This code could use check_output instead, but this construction supports
-    # streaming the logs as they are received.
     process = subprocess.Popen(cmd, shell=True, stdin=None,
                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     if timeout:
         # TODO: if process is killed, out error message to log.
         timer = threading.Timer(timeout, process.kill)
         timer.start()
-    while True:
-        output = process.stdout.readline()
-        # poll() can return "0" for success, None means it is still running.
-        if output == "" and process.poll() is not None:
-            break
-        if output:
-            if show_output:
-                print(output.strip())
-            else:
-                # fetch_cvd and launch_cvd can be noisy, so left at debug
-                logger.debug(output.strip())
+    stdout, _ = process.communicate()
+    if stdout:
+        if show_output or process.returncode != 0:
+            print(stdout.strip(), file=sys.stderr)
+        else:
+            # fetch_cvd and launch_cvd can be noisy, so left at debug
+            logger.debug(stdout.strip())
     if timeout:
         timer.cancel()
-    process.stdout.close()
     if process.returncode == 255:
         raise errors.DeviceConnectionError(
             "Failed to send command to instance (%s)" % cmd)
@@ -107,7 +130,8 @@ def _SshLogOutput(cmd, timeout=None, show_output=False):
         raise subprocess.CalledProcessError(process.returncode, cmd)
 
 
-def ShellCmdWithRetry(cmd, timeout=None, show_output=False):
+def ShellCmdWithRetry(cmd, timeout=None, show_output=False,
+                      retry=_SSH_CMD_MAX_RETRY):
     """Runs a shell command on remote device.
 
     If the network is unstable and causes SSH connect fail, it will retry. When
@@ -119,14 +143,15 @@ def ShellCmdWithRetry(cmd, timeout=None, show_output=False):
         cmd: String of the full SSH command to run, including the SSH binary and its arguments.
         timeout: Optional integer, number of seconds to give.
         show_output: Boolean, True to show command output in screen.
+        retry: Integer, the retry times.
 
     Raises:
         errors.DeviceConnectionError: For any non-zero return code of
                                       remote_cmd.
     """
     utils.RetryExceptionType(
-        exception_types=errors.DeviceConnectionError,
-        max_retries=_SSH_CMD_MAX_RETRY,
+        exception_types=(errors.DeviceConnectionError, subprocess.CalledProcessError),
+        max_retries=retry,
         functor=_SshLogOutput,
         sleep_multiplier=_SSH_CMD_RETRY_SLEEP,
         retry_backoff_factor=utils.DEFAULT_RETRY_BACKOFF_FACTOR,
@@ -154,18 +179,19 @@ class Ssh(object):
 
     Attributes:
         _ip: an IP object.
-        _gce_user: String of user login into the instance.
+        _user: String of user login into the instance.
         _ssh_private_key_path: Path to the private key file.
         _extra_args_ssh_tunnel: String, extra args for ssh or scp.
     """
-    def __init__(self, ip, gce_user, ssh_private_key_path,
+    def __init__(self, ip, user, ssh_private_key_path,
                  extra_args_ssh_tunnel=None, report_internal_ip=False):
         self._ip = ip.internal if report_internal_ip else ip.external
-        self._gce_user = gce_user
+        self._user = user
         self._ssh_private_key_path = ssh_private_key_path
         self._extra_args_ssh_tunnel = extra_args_ssh_tunnel
 
-    def Run(self, target_command, timeout=None, show_output=False):
+    def Run(self, target_command, timeout=None, show_output=False,
+            retry=_SSH_CMD_MAX_RETRY):
         """Run a shell command over SSH on a remote instance.
 
         Example:
@@ -180,10 +206,12 @@ class Ssh(object):
             target_command: String, text of command to run on the remote instance.
             timeout: Integer, the maximum time to wait for the command to respond.
             show_output: Boolean, True to show command output in screen.
+            retry: Integer, the retry times.
         """
         ShellCmdWithRetry(self.GetBaseCmd(constants.SSH_BIN) + " " + target_command,
                           timeout,
-                          show_output)
+                          show_output,
+                          retry)
 
     def GetBaseCmd(self, execute_bin):
         """Get a base command over SSH on a remote instance.
@@ -210,12 +238,28 @@ class Ssh(object):
 
         if execute_bin == constants.SSH_BIN:
             base_cmd.append(_SSH_IDENTITY %
-                            {"login_user":self._gce_user, "ip_addr":self._ip})
+                            {"login_user":self._user, "ip_addr":self._ip})
             return " ".join(base_cmd)
         if execute_bin == constants.SCP_BIN:
             return " ".join(base_cmd)
 
         raise errors.UnknownType("Don't support the execute bin %s." % execute_bin)
+
+    def GetCmdOutput(self, cmd):
+        """Runs a single SSH command and get its output.
+
+        Args:
+            cmd: String, text of command to run on the remote instance.
+
+        Returns:
+            String of the command output.
+        """
+        ssh_cmd = "exec " + self.GetBaseCmd(constants.SSH_BIN) + " " + cmd
+        logger.info("Running command \"%s\"", ssh_cmd)
+        process = subprocess.Popen(ssh_cmd, shell=True, stdin=None,
+                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        stdout, _ = process.communicate()
+        return stdout
 
     def CheckSshConnection(self, timeout):
         """Run remote 'uptime' ssh command to check ssh connection.
@@ -229,33 +273,33 @@ class Ssh(object):
         remote_cmd = [self.GetBaseCmd(constants.SSH_BIN)]
         remote_cmd.append("uptime")
 
-        if _SshCall(" ".join(remote_cmd), timeout) == 0:
+        if _SshCallWait(" ".join(remote_cmd), timeout) == 0:
             return
         raise errors.DeviceConnectionError(
             "Ssh isn't ready in the remote instance.")
 
     @utils.TimeExecute(function_description="Waiting for SSH server")
-    def WaitForSsh(self, timeout=_WAIT_FOR_SSH_MAX_TIMEOUT,
-                   sleep_for_retry=_SSH_CMD_RETRY_SLEEP,
-                   max_retry=_SSH_CMD_MAX_RETRY):
+    def WaitForSsh(self, timeout=None, max_retry=_SSH_CMD_MAX_RETRY):
         """Wait until the remote instance is ready to accept commands over SSH.
 
         Args:
             timeout: Integer, the maximum time in seconds to wait for the
                      command to respond.
-            sleep_for_retry: Integer, the sleep time in seconds for retry.
             max_retry: Integer, the maximum number of retry.
 
         Raises:
             errors.DeviceConnectionError: Ssh isn't ready in the remote instance.
         """
+        ssh_timeout = timeout or constants.DEFAULT_SSH_TIMEOUT
+        sleep_multiplier = ssh_timeout / sum(range(max_retry + 1))
+        logger.debug("Retry with interval time: %s secs", str(sleep_multiplier))
         utils.RetryExceptionType(
             exception_types=errors.DeviceConnectionError,
             max_retries=max_retry,
             functor=self.CheckSshConnection,
-            sleep_multiplier=sleep_for_retry,
+            sleep_multiplier=sleep_multiplier,
             retry_backoff_factor=utils.DEFAULT_RETRY_BACKOFF_FACTOR,
-            timeout=timeout)
+            timeout=_CONNECTION_TIMEOUT)
 
     def ScpPushFile(self, src_file, dst_file):
         """Scp push file to remote.
@@ -266,7 +310,7 @@ class Ssh(object):
         """
         scp_command = [self.GetBaseCmd(constants.SCP_BIN)]
         scp_command.append(src_file)
-        scp_command.append("%s@%s:%s" %(self._gce_user, self._ip, dst_file))
+        scp_command.append("%s@%s:%s" %(self._user, self._ip, dst_file))
         ShellCmdWithRetry(" ".join(scp_command))
 
     def ScpPullFile(self, src_file, dst_file):
@@ -277,6 +321,6 @@ class Ssh(object):
             dst_file: The destination file path the file is pulled to.
         """
         scp_command = [self.GetBaseCmd(constants.SCP_BIN)]
-        scp_command.append("%s@%s:%s" %(self._gce_user, self._ip, src_file))
+        scp_command.append("%s@%s:%s" %(self._user, self._ip, src_file))
         scp_command.append(dst_file)
         ShellCmdWithRetry(" ".join(scp_command))

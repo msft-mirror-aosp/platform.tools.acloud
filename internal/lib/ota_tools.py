@@ -19,8 +19,11 @@ import stat
 import subprocess
 import tempfile
 
+from six import b
+
 
 from acloud import errors
+from acloud.internal import constants
 from acloud.internal.lib import utils
 
 logger = logging.getLogger(__name__)
@@ -35,11 +38,38 @@ _MK_COMBINED_IMG = "mk_combined_img"
 
 _BUILD_SUPER_IMAGE_TIMEOUT_SECS = 30
 _AVBTOOL_TIMEOUT_SECS = 30
-_MK_COMBINED_IMG_TIMEOUT_SECS = 60
+_MK_COMBINED_IMG_TIMEOUT_SECS = 180
 
-_MISSING_OTA_TOOLS_MSG = ("%(tool_name)s does not exist. Try `make otatools` "
-                          "in build environment, or setting ANDROID_HOST_OUT "
-                          "to an extracted otatools.zip.")
+_MISSING_OTA_TOOLS_MSG = ("%(tool_name)s is not found. Run `make otatools` "
+                          "in build environment, or set --local-tool to an "
+                          "extracted otatools.zip.")
+
+
+def FindOtaTools(search_paths):
+    """Find OTA tools in the search paths and in build environment.
+
+    Args:
+        search_paths: List of paths, the directories to search for OTA tools.
+
+    Returns:
+        The directory containing OTA tools.
+
+    Raises:
+        errors.CheckPathError if OTA tools are not found.
+    """
+    for search_path in search_paths:
+        if os.path.isfile(os.path.join(search_path, _BIN_DIR_NAME,
+                                       _BUILD_SUPER_IMAGE)):
+            return search_path
+
+    host_out_dir = os.environ.get(constants.ENV_ANDROID_HOST_OUT)
+    if (host_out_dir and
+            os.path.isfile(os.path.join(host_out_dir, _BIN_DIR_NAME,
+                                        _BUILD_SUPER_IMAGE))):
+        return host_out_dir
+
+    raise errors.CheckPathError(_MISSING_OTA_TOOLS_MSG %
+                                {"tool_name": "OTA tool directory"})
 
 
 class OtaTools(object):
@@ -137,18 +167,18 @@ class OtaTools(object):
             if split_line[0] == "dynamic_partition_list":
                 partition_names = split_line[1].split()
             elif split_line[0] == "lpmake":
-                output_file.write("lpmake=%s\n" % lpmake_path)
+                output_file.write(b("lpmake=%s\n" % lpmake_path))
                 continue
             elif split_line[0].endswith("_image"):
                 continue
-            output_file.write(line)
+            output_file.write(b(line))
 
         if not partition_names:
             logger.w("No dynamic partition list in misc info.")
 
         for partition_name in partition_names:
-            output_file.write("%s_image=%s\n" %
-                              (partition_name, get_image(partition_name)))
+            output_file.write(b("%s_image=%s\n" %
+                                (partition_name, get_image(partition_name))))
 
     @utils.TimeExecute(function_description="Build super image")
     @utils.TimeoutException(_BUILD_SUPER_IMAGE_TIMEOUT_SECS)
@@ -219,11 +249,11 @@ class OtaTools(object):
         for line in input_file:
             split_line = line.split()
             if len(split_line) == 3:
-                output_file.write("%s %s %s\n" % (get_image(split_line[1]),
-                                                  split_line[1],
-                                                  split_line[2]))
+                output_file.write(b("%s %s %s\n" % (get_image(split_line[1]),
+                                                    split_line[1],
+                                                    split_line[2])))
             else:
-                output_file.write(line)
+                output_file.write(b(line))
 
     @utils.TimeExecute(function_description="Make combined image")
     @utils.TimeoutException(_MK_COMBINED_IMG_TIMEOUT_SECS)
