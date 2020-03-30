@@ -62,6 +62,18 @@ _SSH_TUNNEL_ARGS = ("-i %(rsa_key_file)s -o UserKnownHostsFile=/dev/null "
                     "-L %(vnc_port)d:127.0.0.1:%(target_vnc_port)d "
                     "-L %(adb_port)d:127.0.0.1:%(target_adb_port)d "
                     "-N -f -l %(ssh_user)s %(ip_addr)s")
+_SSH_TUNNEL_WEBRTC_ARGS = (
+    "-i %(rsa_key_file)s -o UserKnownHostsFile=/dev/null "
+    "-o StrictHostKeyChecking=no "
+    "%(port_mapping)s"
+    "-N -f -l %(ssh_user)s %(ip_addr)s")
+PORT_MAPPING = "-L %(local_port)d:127.0.0.1:%(target_port)d "
+_RELEASE_PORT_CMD = "kill $(lsof -t -i :%d)"
+_WEBRTC_TARGET_PORT = 8443
+WEBRTC_PORTS_MAPPING = [{"local": constants.WEBRTC_LOCAL_PORT,
+                         "target": _WEBRTC_TARGET_PORT},
+                        {"local": 15550, "target": 15550},
+                        {"local": 15551, "target": 15551}]
 _ADB_CONNECT_ARGS = "connect 127.0.0.1:%(adb_port)d"
 # Store the ports that vnc/adb are forwarded to, both are integers.
 ForwardedPorts = collections.namedtuple("ForwardedPorts", [constants.VNC_PORT,
@@ -88,8 +100,7 @@ _DEFAULT_DISPLAY_SCALE = 1.0
 _DIST_DIR = "DIST_DIR"
 
 # For webrtc
-_WEBRTC_URL = "https://"
-_WEBRTC_PORT = "8443"
+_WEBRTC_URL = "https://%(webrtc_ip)s:%(webrtc_port)d/?use_tcp=true"
 
 _CONFIRM_CONTINUE = ("In order to display the screen to the AVD, we'll need to "
                      "install a vnc client (ssvnc). \nWould you like acloud to "
@@ -407,7 +418,7 @@ def VerifyRsaPubKey(rsa):
 
     key_type, data, _ = elements
     try:
-        binary_data = base64.decodestring(data)
+        binary_data = base64.decodestring(six.b(data))
         # number of bytes of int type
         int_length = 4
         # binary_data is like "7ssh-key..." in a binary format.
@@ -417,7 +428,7 @@ def VerifyRsaPubKey(rsa):
         # We will verify that the rsa conforms to this format.
         # ">I" in the following line means "big-endian unsigned integer".
         type_length = struct.unpack(">I", binary_data[:int_length])[0]
-        if binary_data[int_length:int_length + type_length] != key_type:
+        if binary_data[int_length:int_length + type_length] != six.b(key_type):
             raise errors.DriverError("rsa key is invalid: %s" % rsa)
     except (struct.error, binascii.Error) as e:
         raise errors.DriverError(
@@ -802,6 +813,55 @@ def _ExecuteCommand(cmd, args):
         subprocess.check_call(command, stderr=dev_null, stdout=dev_null)
 
 
+def ReleasePort(port):
+    """Release local port.
+
+    Args:
+        port: Integer of local port number.
+    """
+    try:
+        with open(os.devnull, "w") as dev_null:
+            subprocess.check_call(_RELEASE_PORT_CMD % port,
+                                  stderr=dev_null, stdout=dev_null, shell=True)
+    except subprocess.CalledProcessError:
+        logger.debug("The port %d is available.", constants.WEBRTC_LOCAL_PORT)
+
+
+def EstablishWebRTCSshTunnel(ip_addr, rsa_key_file, ssh_user,
+                             extra_args_ssh_tunnel=None):
+    """Create ssh tunnels for webrtc.
+
+    # TODO(151418177): Before fully supporting webrtc feature, we establish one
+    # WebRTC tunnel at a time. so always delete the previous connection before
+    # establishing new one.
+
+    Args:
+        ip_addr: String, use to build the adb & vnc tunnel between local
+                 and remote instance.
+        rsa_key_file: String, Private key file path to use when creating
+                      the ssh tunnels.
+        ssh_user: String of user login into the instance.
+        extra_args_ssh_tunnel: String, extra args for ssh tunnel connection.
+    """
+    ReleasePort(constants.WEBRTC_LOCAL_PORT)
+    try:
+        port_mapping = [PORT_MAPPING % {
+            "local_port":port["local"],
+            "target_port":port["target"]} for port in WEBRTC_PORTS_MAPPING]
+        ssh_tunnel_args = _SSH_TUNNEL_WEBRTC_ARGS % {
+            "rsa_key_file": rsa_key_file,
+            "ssh_user": ssh_user,
+            "ip_addr": ip_addr,
+            "port_mapping":" ".join(port_mapping)}
+        ssh_tunnel_args_list = shlex.split(ssh_tunnel_args)
+        if extra_args_ssh_tunnel != None:
+            ssh_tunnel_args_list.extend(shlex.split(extra_args_ssh_tunnel))
+        _ExecuteCommand(constants.SSH_BIN, ssh_tunnel_args_list)
+    except subprocess.CalledProcessError as e:
+        PrintColorString("\n%s\nFailed to create ssh tunnels, retry with '#acloud "
+                         "reconnect'." % e, TextColors.FAIL)
+
+
 # TODO(147337696): create ssh tunnels tear down as adb and vnc.
 # pylint: disable=too-many-locals
 def AutoConnect(ip_addr, rsa_key_file, target_vnc_port, target_adb_port,
@@ -835,7 +895,7 @@ def AutoConnect(ip_addr, rsa_key_file, target_vnc_port, target_adb_port,
             "ssh_user": ssh_user,
             "ip_addr": ip_addr}
         ssh_tunnel_args_list = shlex.split(ssh_tunnel_args)
-        if extra_args_ssh_tunnel:
+        if extra_args_ssh_tunnel != None:
             ssh_tunnel_args_list.extend(shlex.split(extra_args_ssh_tunnel))
         _ExecuteCommand(constants.SSH_BIN, ssh_tunnel_args_list)
     except subprocess.CalledProcessError as e:
@@ -912,6 +972,7 @@ def LaunchVNCFromReport(report, avd_spec, no_prompts=False):
             PrintColorString("No VNC port specified, skipping VNC startup.",
                              TextColors.FAIL)
 
+
 def LaunchBrowserFromReport(report):
     """Open browser when autoconnect to webrtc according to the instances report.
 
@@ -925,18 +986,27 @@ def LaunchBrowserFromReport(report):
 
     for device in report.data.get("devices", []):
         if device.get("ip"):
-            webrtc_link = "%s%s:%s" % (_WEBRTC_URL, device.get("ip").split(":")[0],
-                                       _WEBRTC_PORT)
-            if os.environ.get(_ENV_DISPLAY, None):
-                webbrowser.open_new_tab(webrtc_link)
-            else:
-                PrintColorString("Remote terminal can't support launch webbrowser.",
-                                 TextColors.FAIL)
-                PrintColorString("Open %s to remotely control AVD on the "
-                                 "browser." % webrtc_link)
-        else:
-            PrintColorString("Auto-launch devices webrtc in browser failed!",
-                             TextColors.FAIL)
+            LaunchBrowser(constants.WEBRTC_LOCAL_HOST,
+                          constants.WEBRTC_LOCAL_PORT)
+
+
+def LaunchBrowser(ip_addr, port):
+    """Launch browser to connect the webrtc AVD.
+
+    Args:
+        ip_addr: String, use to connect to webrtc AVD on the instance.
+        port: Integer, port number.
+    """
+    webrtc_link = _WEBRTC_URL % {
+        "webrtc_ip": ip_addr,
+        "webrtc_port": port}
+    if os.environ.get(_ENV_DISPLAY, None):
+        webbrowser.open_new_tab(webrtc_link)
+    else:
+        PrintColorString("Remote terminal can't support launch webbrowser.",
+                         TextColors.FAIL)
+        PrintColorString("WebRTC AVD URL: %s "% webrtc_link)
+
 
 def LaunchVncClient(port, avd_width=None, avd_height=None, no_prompts=False):
     """Launch ssvnc.

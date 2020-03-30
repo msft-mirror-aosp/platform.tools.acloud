@@ -56,6 +56,8 @@ logger = logging.getLogger(__name__)
 
 _DECOMPRESS_KERNEL_ARG = "-decompress_kernel=true"
 _GPU_ARG = "-gpu_mode=drm_virgl"
+_AGREEMENT_PROMPT_ARGS = ["-undefok=report_anonymous_usage_stats",
+                          "-report_anonymous_usage_stats=y"]
 _DEFAULT_BRANCH = "aosp-master"
 _FETCHER_BUILD_TARGET = "aosp_cf_x86_phone-userdebug"
 _FETCHER_NAME = "fetch_cvd"
@@ -68,7 +70,7 @@ _GUEST_ENFORCE_SECURITY_FALSE = "--guest_enforce_security=false"
 _START_WEBRTC = "--start_webrtc"
 _VM_MANAGER = "--vm_manager=crosvm"
 _WEBRTC_ARGS = [_GUEST_ENFORCE_SECURITY_FALSE, _START_WEBRTC, _VM_MANAGER]
-_WEBRTC_PUBLIC_IP = "--webrtc_public_ip=%s"
+_NO_RETRY = 0
 
 
 def _ProcessBuild(build_id=None, branch=None, build_target=None):
@@ -198,6 +200,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         if avd_spec and avd_spec.instance_name_to_reuse:
             self._ip = self._ReusingGceInstance(avd_spec)
         else:
+            self._VerifyZoneByQuota()
             self._ip = self._CreateGceInstance(instance, image_name, image_project,
                                                extra_scopes, boot_disk_size_gb,
                                                avd_spec)
@@ -274,7 +277,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                 launch_cvd_args.append(
                     "-memory_mb=%s" % avd_spec.hw_property[constants.HW_ALIAS_MEMORY])
             if avd_spec.connect_webrtc:
-                launch_cvd_args.append(_WEBRTC_PUBLIC_IP % self._ip.external)
                 launch_cvd_args.extend(_WEBRTC_ARGS)
         else:
             resolution = self._resolution.split("x")
@@ -294,6 +296,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         if self._gpu:
             launch_cvd_args.append(_GPU_ARG)
 
+        launch_cvd_args.extend(_AGREEMENT_PROMPT_ARGS)
         return launch_cvd_args
 
     @staticmethod
@@ -374,7 +377,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         boot_timeout_secs = boot_timeout_secs or constants.DEFAULT_CF_BOOT_TIMEOUT
         ssh_command = "./bin/launch_cvd -daemon " + " ".join(launch_cvd_args)
         try:
-            self._ssh.Run(ssh_command, boot_timeout_secs)
+            self._ssh.Run(ssh_command, boot_timeout_secs, retry=_NO_RETRY)
         except (subprocess.CalledProcessError, errors.DeviceConnectionError) as e:
             # TODO(b/140475060): Distinguish the error is command return error
             # or timeout error.
