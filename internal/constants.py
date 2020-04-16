@@ -30,7 +30,7 @@ LOGCAT_SERIAL_PORT = 2
 
 # Remote image parameters
 BUILD_TARGET = "build_target"
-BUILD_BRANCH = "build_branch"
+BUILD_BRANCH = "branch"
 BUILD_ID = "build_id"
 
 # AVD types
@@ -185,3 +185,6 @@ WEBRTC_LOCAL_HOST = "localhost"
 
 # Remote Log
 REMOTE_LOG_FOLDER = "/home/%s/cuttlefish_runtime" % GCE_USER
+
+# Cheeps specific stuff.
+CHEEPS_BETTY_IMAGE = "betty_image"
