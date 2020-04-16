@@ -30,7 +30,7 @@ LOGCAT_SERIAL_PORT = 2
 
 # Remote image parameters
 BUILD_TARGET = "build_target"
-BUILD_BRANCH = "build_branch"
+BUILD_BRANCH = "branch"
 BUILD_ID = "build_id"
 
 # AVD types
@@ -56,6 +56,15 @@ AVD_TYPES_MAPPING = {
 INSTANCE_TYPE_REMOTE = "remote"
 INSTANCE_TYPE_LOCAL = "local"
 INSTANCE_TYPE_HOST = "host"
+
+# CF_AVD_BUILD_TARGET_MAPPING
+CF_X86_PATTERN = "cf_x86"
+CF_ARM_PATTERN = "cf_arm"
+CF_AVD_BUILD_TARGET_PATTERN_MAPPING = {
+    INSTANCE_TYPE_REMOTE: CF_X86_PATTERN,
+    INSTANCE_TYPE_LOCAL: CF_X86_PATTERN,
+    INSTANCE_TYPE_HOST: CF_ARM_PATTERN,
+}
 
 # Flavor types
 FLAVOR_PHONE = "phone"
@@ -176,3 +185,6 @@ WEBRTC_LOCAL_HOST = "localhost"
 
 # Remote Log
 REMOTE_LOG_FOLDER = "/home/%s/cuttlefish_runtime" % GCE_USER
+
+# Cheeps specific stuff.
+CHEEPS_BETTY_IMAGE = "betty_image"
