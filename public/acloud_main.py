@@ -70,8 +70,10 @@ Try $acloud [cmd] --help for further details.
 from __future__ import print_function
 import argparse
 import logging
+import os
 import platform
 import sys
+import sysconfig
 import traceback
 
 # TODO: Remove this once we switch over to embedded launcher.
@@ -93,6 +95,12 @@ if (sys.version_info.major == 2
         print("  - or -")
         print("  POSIXLY_CORRECT=1 port -N install python27")
     sys.exit(1)
+# This is a workaround to put '/usr/lib/python3.X' ahead of googleapiclient of
+# build system path list to fix python3 issue of http.client(b/144743252)
+# that googleapiclient existed http.py conflict with python3 build-in lib.
+# Using embedded_launcher(b/135639220) perhaps work whereas it didn't solve yet.
+if sys.version_info.major == 3:
+    sys.path.insert(0, os.path.dirname(sysconfig.get_paths()['purelib']))
 
 # By Default silence root logger's stream handler since 3p lib may initial
 # root logger no matter what level we're using. The acloud logger behavior will
@@ -167,13 +175,6 @@ def _ParseArgs(args):
     create_cf_parser = subparsers.add_parser(CMD_CREATE_CUTTLEFISH)
     create_cf_parser.required = False
     create_cf_parser.set_defaults(which=CMD_CREATE_CUTTLEFISH)
-    create_cf_parser.add_argument(
-        "--num-avds-per-instance",
-        type=int,
-        dest="num_avds_per_instance",
-        required=False,
-        default=1,
-        help="Number of devices to create on a gce instance.")
     create_args.AddCommonCreateArgs(create_cf_parser)
     subparser_list.append(create_cf_parser)
 

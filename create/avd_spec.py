@@ -90,7 +90,7 @@ def EscapeAnsi(line):
 
 
 # pylint: disable=too-many-public-methods
-class AVDSpec(object):
+class AVDSpec():
     """Class to store data on the type of AVD to create."""
 
     def __init__(self, args):
@@ -116,6 +116,7 @@ class AVDSpec(object):
         self._local_tool_dirs = None
         self._image_download_dir = None
         self._num_of_instances = None
+        self._num_avds_per_instance = None
         self._no_pull_log = None
         self._remote_image = None
         self._system_build_info = None
@@ -137,6 +138,7 @@ class AVDSpec(object):
         self._stable_cheeps_host_image_project = None
         self._username = None
         self._password = None
+        self._cheeps_betty_image = None
 
         # The maximum time in seconds used to wait for the AVD to boot.
         self._boot_timeout_secs = None
@@ -302,6 +304,7 @@ class AVDSpec(object):
         self._local_instance_id = args.local_instance
         self._local_tool_dirs = args.local_tool
         self._num_of_instances = args.num
+        self._num_avds_per_instance = args.num_avds_per_instance
         self._no_pull_log = args.no_pull_log
         self._serial_log_file = args.serial_log_file
         self._emulator_build_id = args.emulator_build_id
@@ -311,6 +314,7 @@ class AVDSpec(object):
         self._stable_cheeps_host_image_project = args.stable_cheeps_host_image_project
         self._username = args.username
         self._password = args.password
+        self._cheeps_betty_image = args.cheeps_betty_image
 
         self._boot_timeout_secs = args.boot_timeout_secs
         self._ins_timeout_secs = args.ins_timeout_secs
@@ -449,8 +453,12 @@ class AVDSpec(object):
 
         """
         flavor_from_build_string = None
-        local_image_path = local_image_arg or utils.GetBuildEnvironmentVariable(
+        if not local_image_arg:
+            self._CheckCFBuildTarget(self._instance_type)
+            local_image_path = utils.GetBuildEnvironmentVariable(
             _ENV_ANDROID_PRODUCT_OUT)
+        else:
+            local_image_path = local_image_arg
 
         if os.path.isfile(local_image_path):
             self._local_image_artifact = local_image_arg
@@ -519,6 +527,10 @@ class AVDSpec(object):
                 self._remote_image[constants.BUILD_TARGET],
                 self._remote_image[constants.BUILD_BRANCH])
 
+        if args.cheeps_betty_image:
+            self._remote_image[constants.CHEEPS_BETTY_IMAGE] = (
+                args.cheeps_betty_image)
+
         # Process system image and kernel image.
         self._system_build_info = {constants.BUILD_ID: args.system_build_id,
                                    constants.BUILD_BRANCH: args.system_branch,
@@ -526,6 +538,26 @@ class AVDSpec(object):
         self._kernel_build_info = {constants.BUILD_ID: args.kernel_build_id,
                                    constants.BUILD_BRANCH: args.kernel_branch,
                                    constants.BUILD_TARGET: args.kernel_build_target}
+
+    @staticmethod
+    def _CheckCFBuildTarget(instance_type):
+        """Check build target for the given instance type
+
+        Args:
+            instance_type: String of instance type
+
+        Raises:
+            errors.GetLocalImageError if the pattern is not match with
+                current build target.
+        """
+        build_target = utils.GetBuildEnvironmentVariable(
+            constants.ENV_BUILD_TARGET)
+        pattern = constants.CF_AVD_BUILD_TARGET_PATTERN_MAPPING[instance_type]
+        if pattern not in build_target:
+            utils.PrintColorString(
+                "%s is not a %s target (Try lunching a proper cuttlefish "
+                "target and running 'm')" % (build_target, pattern),
+                utils.TextColors.WARNING)
 
     @staticmethod
     def _GetGitRemote():
@@ -547,8 +579,8 @@ class AVDSpec(object):
             )
 
         acloud_project = os.path.join(android_build_top, "tools", "acloud")
-        return EscapeAnsi(subprocess.check_output(_COMMAND_GIT_REMOTE,
-                                                  cwd=acloud_project).strip())
+        return EscapeAnsi(utils.CheckOutput(_COMMAND_GIT_REMOTE,
+                                            cwd=acloud_project).strip())
 
     def _GetBuildBranch(self, build_id, build_target):
         """Infer build branch if user didn't specify branch name.
@@ -714,6 +746,11 @@ class AVDSpec(object):
         return self._num_of_instances
 
     @property
+    def num_avds_per_instance(self):
+        """Return num_avds_per_instance."""
+        return self._num_avds_per_instance
+
+    @property
     def report_internal_ip(self):
         """Return report internal ip."""
         return self._report_internal_ip
@@ -783,6 +820,11 @@ class AVDSpec(object):
     def password(self):
         """Return password."""
         return self._password
+
+    @property
+    def cheeps_betty_image(self):
+        """Return the Cheeps host image name."""
+        return self._cheeps_betty_image
 
     @property
     def boot_timeout_secs(self):

@@ -47,7 +47,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.Patch(list_instances, "GetInstancesFromInstanceNames", return_value=mock.MagicMock())
         self.Patch(list_instances, "ChooseOneRemoteInstance", return_value=mock.MagicMock())
         self.Patch(utils, "GetBuildEnvironmentVariable",
-                   return_value="test_environ")
+                   return_value="test_env_cf_arm")
         self.Patch(glob, "glob", return_vale=["fake.img"])
 
     # pylint: disable=protected-access
@@ -201,6 +201,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.flavor = "phone"
         args.local_image = "fake_local_image"
         args.adb_port = None
+        args.cheeps_betty_image = None
         avd_spec_local_image = avd_spec.AVDSpec(args)
         factory = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
             avd_spec_local_image,
@@ -226,13 +227,13 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             fake_host_package_name)
         expected_build_info = {
             "build_id": "123",
-            "build_branch": "fake_branch",
+            "branch": "fake_branch",
             "build_target": "fake_target",
             "system_build_id": "234",
-            "system_build_branch": "sys_branch",
+            "system_branch": "sys_branch",
             "system_build_target": "sys_target",
             "kernel_build_id": "345",
-            "kernel_build_branch": "kernel_branch",
+            "kernel_branch": "kernel_branch",
             "kernel_build_target": "kernel_target"
         }
         self.assertEqual(factory.GetBuildInfoDict(), expected_build_info)

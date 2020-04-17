@@ -112,7 +112,7 @@ def _CreateOauthServiceAccountCredsWithJsonKey(json_private_key_path, scopes):
             " error message: %s" % (json_private_key_path, str(e)))
 
 
-class RunFlowFlags(object):
+class RunFlowFlags():
     """Flags for oauth2client.tools.run_flow."""
 
     def __init__(self, browser_auth):
@@ -173,6 +173,8 @@ def _CreateOauthUserCreds(creds_cache_file, client_id, client_secret,
         scope=scopes)
     credentials = storage.get()
     if credentials is not None:
+        if not credentials.access_token_expired and not credentials.invalid:
+            return credentials
         try:
             credentials.refresh(httplib2.Http())
         except oauth2_client.AccessTokenRefreshError:
@@ -201,14 +203,17 @@ def CreateCredentials(acloud_config, scopes=_ALL_SCOPES):
         return _CreateOauthServiceAccountCredsWithJsonKey(
             acloud_config.service_account_json_private_key_path,
             scopes=scopes)
-    elif acloud_config.service_account_private_key_path:
+    if acloud_config.service_account_private_key_path:
         return _CreateOauthServiceAccountCreds(
             acloud_config.service_account_name,
             acloud_config.service_account_private_key_path,
             scopes=scopes)
 
-    creds_cache_file = os.path.join(HOME_FOLDER,
-                                    acloud_config.creds_cache_file)
+    if os.path.isabs(acloud_config.creds_cache_file):
+        creds_cache_file = acloud_config.creds_cache_file
+    else:
+        creds_cache_file = os.path.join(HOME_FOLDER,
+                                        acloud_config.creds_cache_file)
     return _CreateOauthUserCreds(
         creds_cache_file=creds_cache_file,
         client_id=acloud_config.client_id,
