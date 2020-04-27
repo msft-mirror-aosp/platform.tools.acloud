@@ -251,7 +251,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             String, args of launch_cvd.
         """
         launch_cvd_args = []
-        if blank_data_disk_size_gb > 0:
+        if blank_data_disk_size_gb and blank_data_disk_size_gb > 0:
             # Policy 'create_if_missing' would create a blank userdata disk if
             # missing. If already exist, reuse the disk.
             launch_cvd_args.append(
@@ -546,6 +546,33 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             return self._ip
         return gcompute_client.ComputeClient.GetInstanceIP(
             self, instance=instance, zone=self._zone)
+
+    def GetHostImageName(self, stable_image_name, image_family, image_project):
+        """Get host image name.
+
+        Args:
+            stable_image_name: String of stable host image name.
+            image_family: String of image family.
+            image_project: String of image project.
+
+        Returns:
+            String of stable host image name.
+
+        Raises:
+            errors.ConfigError: There is no host image name in config file.
+        """
+        if stable_image_name:
+            return stable_image_name
+
+        if image_family:
+            image_name = gcompute_client.ComputeClient.GetImageFromFamily(
+                self, image_family, image_project)["name"]
+            logger.debug("Get the host image name from image family: %s", image_name)
+            return image_name
+
+        raise errors.ConfigError(
+            "Please specify 'stable_host_image_name' or 'stable_host_image_family'"
+            " in config.")
 
     @property
     def all_failures(self):
