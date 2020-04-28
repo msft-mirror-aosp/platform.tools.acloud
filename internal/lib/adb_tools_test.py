@@ -13,11 +13,9 @@
 # limitations under the License.
 """Tests for AdbTools."""
 
-import subprocess
 import unittest
-import mock
+import subprocess
 
-from acloud import errors
 from acloud.internal.lib import adb_tools
 from acloud.internal.lib import driver_test_lib
 
@@ -25,9 +23,7 @@ from acloud.internal.lib import driver_test_lib
 class AdbToolsTest(driver_test_lib.BaseDriverTest):
     """Test adb functions."""
     DEVICE_ALIVE = ("List of devices attached\n"
-                    "127.0.0.1:48451 device product:aosp_cf_x86_phone "
-                    "model:Cuttlefish_x86_phone device:vsoc_x86 "
-                    "transport_id:98")
+                    "127.0.0.1:48451 device")
     DEVICE_OFFLINE = ("List of devices attached\n"
                       "127.0.0.1:48451 offline")
     DEVICE_NONE = ("List of devices attached")
@@ -41,52 +37,10 @@ class AdbToolsTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(adb_cmd.GetAdbConnectionStatus(), "device")
 
         self.Patch(subprocess, "check_output", return_value=self.DEVICE_OFFLINE)
-        adb_cmd = adb_tools.AdbTools(fake_adb_port)
         self.assertEqual(adb_cmd.GetAdbConnectionStatus(), "offline")
 
         self.Patch(subprocess, "check_output", return_value=self.DEVICE_NONE)
-        adb_cmd = adb_tools.AdbTools(fake_adb_port)
         self.assertEqual(adb_cmd.GetAdbConnectionStatus(), None)
-
-    def testGetAdbConnectionStatusFail(self):
-        """Test adb connect status fail."""
-        fake_adb_port = None
-        self.Patch(subprocess, "check_output", return_value=self.DEVICE_NONE)
-        adb_cmd = adb_tools.AdbTools(fake_adb_port)
-        self.assertEqual(adb_cmd.GetAdbConnectionStatus(), None)
-
-    def testGetAdbInformation(self):
-        """Test get adb information."""
-        fake_adb_port = "48451"
-        dict_device = {'product': 'aosp_cf_x86_phone',
-                       'usb': None,
-                       'adb_status': 'device',
-                       'device': 'vsoc_x86',
-                       'model': 'Cuttlefish_x86_phone',
-                       'transport_id': '98'}
-        self.Patch(subprocess, "check_output", return_value=self.DEVICE_ALIVE)
-        adb_cmd = adb_tools.AdbTools(fake_adb_port)
-        self.assertEqual(adb_cmd.device_information, dict_device)
-
-        dict_office = {'product': None,
-                       'usb': None,
-                       'adb_status': 'offline',
-                       'device': None,
-                       'model': None,
-                       'transport_id': None}
-        self.Patch(subprocess, "check_output", return_value=self.DEVICE_OFFLINE)
-        adb_cmd = adb_tools.AdbTools(fake_adb_port)
-        self.assertEqual(adb_cmd.device_information, dict_office)
-
-        dict_none = {'product': None,
-                     'usb': None,
-                     'adb_status': None,
-                     'device': None,
-                     'model': None,
-                     'transport_id': None}
-        self.Patch(subprocess, "check_output", return_value=self.DEVICE_NONE)
-        adb_cmd = adb_tools.AdbTools(fake_adb_port)
-        self.assertEqual(adb_cmd.device_information, dict_none)
 
     # pylint: disable=no-member,protected-access
     def testConnectAdb(self):
@@ -120,13 +74,12 @@ class AdbToolsTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(adb_cmd.IsAdbConnected(), True)
         subprocess.check_call.assert_not_called()
 
-        self.Patch(subprocess, "check_output", side_effect=[self.DEVICE_OFFLINE,
-                                                            self.DEVICE_NONE])
+        self.Patch(subprocess, "check_output", return_value=self.DEVICE_OFFLINE)
         self.Patch(subprocess, "check_call", return_value=True)
         subprocess.check_call.call_count = 0
         adb_cmd = adb_tools.AdbTools(fake_adb_port)
         adb_cmd.DisconnectAdb()
-        self.assertEqual(adb_cmd.IsAdbConnected(), False)
+        self.assertEqual(adb_cmd.IsAdbConnected(), True)
         subprocess.check_call.assert_called_with([adb_cmd._adb_command,
                                                   adb_tools._ADB_DISCONNECT,
                                                   adb_cmd._device_serial])
@@ -138,35 +91,6 @@ class AdbToolsTest(driver_test_lib.BaseDriverTest):
         adb_cmd.DisconnectAdb()
         self.assertEqual(adb_cmd.IsAdbConnected(), False)
         subprocess.check_call.assert_not_called()
-
-        # test raise error if adb still alive after disconnect
-        self.Patch(subprocess, "check_output", return_value=self.DEVICE_OFFLINE)
-        self.Patch(subprocess, "check_call", return_value=True)
-        subprocess.check_call.call_count = 0
-        adb_cmd = adb_tools.AdbTools(fake_adb_port)
-        with self.assertRaises(errors.AdbDisconnectFailed):
-            adb_cmd.DisconnectAdb()
-
-    def testEmuCommand(self):
-        """Test emu command."""
-        fake_adb_port = "48451"
-        fake_device_serial = "fake_device_serial"
-        self.Patch(adb_tools, "find_executable", return_value="path/adb")
-        self.Patch(subprocess, "check_output", return_value=self.DEVICE_NONE)
-
-        mock_popen_obj = mock.Mock(returncode=1)
-        self.Patch(subprocess, "Popen", return_value=mock_popen_obj)
-
-        adb_cmd = adb_tools.AdbTools(adb_port=fake_adb_port,
-                                     device_serial=fake_device_serial)
-        returncode = adb_cmd.EmuCommand("unit", "test")
-        self.assertEqual(returncode, 1)
-        subprocess.Popen.assert_called_once_with(
-            ["path/adb", "-s", "fake_device_serial", "emu", "unit", "test"],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE)
-        mock_popen_obj.communicate.assert_called_once_with()
 
 
 if __name__ == "__main__":

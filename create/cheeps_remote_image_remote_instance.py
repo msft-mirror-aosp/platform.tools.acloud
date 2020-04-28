@@ -26,9 +26,7 @@ from acloud.internal.lib import utils
 from acloud.public.actions import base_device_factory
 from acloud.public.actions import common_operations
 
-
 logger = logging.getLogger(__name__)
-
 
 class CheepsRemoteImageRemoteInstance(base_avd_create.BaseAVDCreate):
     """Create class for a Cheeps remote image remote instance AVD."""
@@ -59,9 +57,7 @@ class CheepsRemoteImageRemoteInstance(base_avd_create.BaseAVDCreate):
             num=avd_spec.num,
             report_internal_ip=avd_spec.report_internal_ip,
             autoconnect=avd_spec.autoconnect,
-            avd_type=constants.TYPE_CHEEPS,
-            client_adb_port=avd_spec.client_adb_port,
-            boot_timeout_secs=avd_spec.boot_timeout_secs)
+            avd_type=constants.TYPE_CHEEPS)
 
         # Launch vnc client if we're auto-connecting.
         if avd_spec.autoconnect:
@@ -98,23 +94,13 @@ class CheepsDeviceFactory(base_device_factory.BaseDeviceFactory):
         self._build_id = build_id
         self._avd_spec = avd_spec
 
-    def GetBuildInfoDict(self):
-        """Get build info dictionary.
-
-        Returns:
-          A build info dictionary.
-        """
-        return {"build_id": self._build_id}
-
     def CreateInstance(self):
         """Creates single configured cheeps device.
 
         Returns:
             String, the name of created instance.
         """
-        instance = self._compute_client.GenerateInstanceName(
-            build_id=self._build_id,
-            build_target=self._avd_spec.remote_image[constants.BUILD_TARGET])
+        instance = self._compute_client.GenerateInstanceName(self._build_id)
         self._compute_client.CreateInstance(
             instance=instance,
             image_name=self._cfg.stable_cheeps_host_image_name,

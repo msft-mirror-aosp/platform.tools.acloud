@@ -39,9 +39,6 @@ import urllib2
 from acloud import errors
 from acloud.internal.lib import utils
 
-
-logger = logging.getLogger(__name__)
-
 SDK_BIN_PATH = os.path.join("google-cloud-sdk", "bin")
 GCLOUD_BIN = "gcloud"
 GCP_SDK_VERSION = "209.0.0"
@@ -61,6 +58,8 @@ MAC_GCP_SDK_32_URL = "%s/google-cloud-sdk-%s-darwin-x86.tar.gz" % (
 LINUX = "linux"
 WIN = "windows"
 MAC = "darwin"
+
+logger = logging.getLogger(__name__)
 
 
 def GetSdkUrl():
@@ -118,16 +117,6 @@ class GoogleSDK(object):
         self._tmp_sdk_path = None
         if not SDKInstalled():
             self.DownloadGcloudSDKAndExtract()
-
-    @staticmethod
-    def InstallGcloudComponent(gcloud_runner, component):
-        """Install gcloud component.
-
-        Args:
-            gcloud_runner: A GcloudRunner class to run "gcloud" command.
-            component: String, name of gcloud component.
-        """
-        gcloud_runner.RunGcloud(["components", "install", "--quiet", component])
 
     def GetSDKBinPath(self):
         """Get google SDK tools bin path.

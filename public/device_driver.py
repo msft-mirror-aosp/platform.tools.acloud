@@ -46,8 +46,6 @@ from acloud.internal.lib import android_build_client
 from acloud.internal.lib import android_compute_client
 from acloud.internal.lib import gstorage_client
 from acloud.internal.lib import utils
-from acloud.internal.lib.adb_tools import AdbTools
-
 
 logger = logging.getLogger(__name__)
 
@@ -160,7 +158,6 @@ class AndroidVirtualDevicePool(object):
                                         disk_image_id)
         return image_name
 
-    # pylint: disable=too-many-locals
     def CreateDevices(self,
                       num,
                       build_target=None,
@@ -339,18 +336,19 @@ def _FetchSerialLogsFromDevices(compute_client, instance_names, output_file,
 
 
 # pylint: disable=too-many-locals
-def CreateGCETypeAVD(cfg,
-                     build_target=None,
-                     build_id=None,
-                     num=1,
-                     gce_image=None,
-                     local_disk_image=None,
-                     cleanup=True,
-                     serial_log_file=None,
-                     autoconnect=False,
-                     report_internal_ip=False,
-                     avd_spec=None):
-    """Creates one or multiple gce android devices.
+def CreateAndroidVirtualDevices(cfg,
+                                build_target=None,
+                                build_id=None,
+                                num=1,
+                                gce_image=None,
+                                local_disk_image=None,
+                                cleanup=True,
+                                serial_log_file=None,
+                                logcat_file=None,
+                                autoconnect=False,
+                                report_internal_ip=False,
+                                avd_spec=None):
+    """Creates one or multiple android devices.
 
     Args:
         cfg: An AcloudConfig instance.
@@ -366,6 +364,7 @@ def CreateGCETypeAVD(cfg,
                  disk image in storage after creating the instance.
         serial_log_file: A path to a file where serial output should
                          be saved to.
+        logcat_file: A path to a file where logcat logs should be saved.
         autoconnect: Create ssh tunnel(s) and adb connect after device creation.
         report_internal_ip: Boolean to report the internal ip instead of
                             external ip.
@@ -404,17 +403,13 @@ def CreateGCETypeAVD(cfg,
             }
             if autoconnect:
                 forwarded_ports = utils.AutoConnect(
-                    ip_addr=ip,
-                    rsa_key_file=cfg.ssh_private_key_path,
-                    target_vnc_port=constants.GCE_VNC_PORT,
-                    target_adb_port=constants.GCE_ADB_PORT,
-                    ssh_user=_SSH_USER,
-                    client_adb_port=avd_spec.client_adb_port,
-                    extra_args_ssh_tunnel=cfg.extra_args_ssh_tunnel)
+                    ip,
+                    cfg.ssh_private_key_path,
+                    constants.GCE_VNC_PORT,
+                    constants.GCE_ADB_PORT,
+                    _SSH_USER)
                 device_dict[constants.VNC_PORT] = forwarded_ports.vnc_port
                 device_dict[constants.ADB_PORT] = forwarded_ports.adb_port
-                if avd_spec.unlock_screen:
-                    AdbTools(forwarded_ports.adb_port).AutoUnlockScreen()
             if device.instance_name in failures:
                 r.AddData(key="devices_failing_boot", value=device_dict)
                 r.AddError(str(failures[device.instance_name]))
@@ -425,13 +420,19 @@ def CreateGCETypeAVD(cfg,
         else:
             r.SetStatus(report.Status.SUCCESS)
 
-        # Dump serial logs.
+        # Dump serial and logcat logs.
         if serial_log_file:
             _FetchSerialLogsFromDevices(
                 compute_client,
                 instance_names=[d.instance_name for d in device_pool.devices],
                 port=constants.DEFAULT_SERIAL_PORT,
                 output_file=serial_log_file)
+        if logcat_file:
+            _FetchSerialLogsFromDevices(
+                compute_client,
+                instance_names=[d.instance_name for d in device_pool.devices],
+                port=constants.LOGCAT_SERIAL_PORT,
+                output_file=logcat_file)
     except errors.DriverError as e:
         r.AddError(str(e))
         r.SetStatus(report.Status.FAIL)
@@ -449,24 +450,13 @@ def DeleteAndroidVirtualDevices(cfg, instance_names, default_report=None):
     Returns:
         A Report instance.
     """
-    # delete, failed, error_msgs are used to record result.
-    deleted = []
-    failed = []
-    error_msgs = []
-
     r = default_report if default_report else report.Report(command="delete")
     credentials = auth.CreateCredentials(cfg)
     compute_client = android_compute_client.AndroidComputeClient(cfg,
                                                                  credentials)
-    zone_instances = compute_client.GetZonesByInstances(instance_names)
-
     try:
-        for zone, instances in zone_instances.items():
-            deleted_ins, failed_ins, error_ins = compute_client.DeleteInstances(
-                instances, zone)
-            deleted.extend(deleted_ins)
-            failed.extend(failed_ins)
-            error_msgs.extend(error_ins)
+        deleted, failed, error_msgs = compute_client.DeleteInstances(
+            instance_names, cfg.zone)
         AddDeletionResultToReport(
             r, deleted,
             failed, error_msgs,
@@ -524,7 +514,7 @@ def Cleanup(cfg, expiration_mins):
         storage_client = gstorage_client.StorageClient(credentials)
 
         # Cleanup expired instances
-        items = compute_client.ListInstances()
+        items = compute_client.ListInstances(zone=cfg.zone)
         cleanup_list = [
             item["name"]
             for item in _FindOldItems(items, cut_time, "creationTimestamp")

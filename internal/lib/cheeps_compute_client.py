@@ -34,6 +34,7 @@ Android build, and start Android within the host instance.
        cheeps_compute_client.CheepsComputeClient
 """
 
+import getpass
 import logging
 
 from acloud import errors
@@ -41,9 +42,7 @@ from acloud.internal import constants
 from acloud.internal.lib import android_compute_client
 from acloud.internal.lib import gcompute_client
 
-
 logger = logging.getLogger(__name__)
-
 
 class CheepsComputeClient(android_compute_client.AndroidComputeClient):
     """Client that manages Cheeps based Android Virtual Device.
@@ -90,9 +89,20 @@ class CheepsComputeClient(android_compute_client.AndroidComputeClient):
                 avd_spec.hw_property[constants.HW_Y_RES],
                 avd_spec.hw_property[constants.HW_ALIAS_DPI]))
 
-            if avd_spec.username:
-                metadata["user"] = avd_spec.username
-                metadata["password"] = avd_spec.password
+        # Add per-instance ssh key
+        if self._ssh_public_key_path:
+            rsa = self._LoadSshPublicKey(self._ssh_public_key_path)
+            logger.info("ssh_public_key_path is specified in config: %s, "
+                        "will add the key to the instance.",
+                        self._ssh_public_key_path)
+            metadata["sshKeys"] = "%s:%s" % (getpass.getuser(), rsa)
+        else:
+            logger.warning("ssh_public_key_path is not specified in config, "
+                           "only project-wide key will be effective.")
+
+        # Add labels for giving the instances ability to be filter for
+        # acloud list/delete cmds.
+        labels = {constants.LABEL_CREATE_BY: getpass.getuser()}
 
         gcompute_client.ComputeClient.CreateInstance(
             self,
@@ -103,4 +113,5 @@ class CheepsComputeClient(android_compute_client.AndroidComputeClient):
             metadata=metadata,
             machine_type=self._machine_type,
             network=self._network,
-            zone=self._zone)
+            zone=self._zone,
+            labels=labels)

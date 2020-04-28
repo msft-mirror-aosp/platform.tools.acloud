@@ -93,11 +93,8 @@ USER_ANSWER_YES = {"y", "yes", "Y"}
 # Cuttlefish groups
 LIST_CF_USER_GROUPS = ["kvm", "cvdnetwork"]
 
-IP = "ip"
-INSTANCE_NAME = "instance_name"
-GCE_USER = "vsoc-01"
-VNC_PORT = "vnc_port"
 ADB_PORT = "adb_port"
+VNC_PORT = "vnc_port"
 # For cuttlefish remote instances
 CF_ADB_PORT = 6520
 CF_VNC_PORT = 6444
@@ -113,20 +110,15 @@ GF_VNC_PORT = 6444
 
 COMMAND_PS = ["ps", "aux"]
 CMD_LAUNCH_CVD = "launch_cvd"
-CMD_PGREP = "pgrep"
 CMD_STOP_CVD = "stop_cvd"
-CMD_RUN_CVD = "run_cvd"
 ENV_ANDROID_BUILD_TOP = "ANDROID_BUILD_TOP"
-ENV_ANDROID_EMULATOR_PREBUILTS = "ANDROID_EMULATOR_PREBUILTS"
 ENV_ANDROID_HOST_OUT = "ANDROID_HOST_OUT"
-ENV_ANDROID_PRODUCT_OUT = "ANDROID_PRODUCT_OUT"
 ENV_BUILD_TARGET = "TARGET_PRODUCT"
 
 LOCALHOST = "127.0.0.1"
 LOCALHOST_ADB_SERIAL = LOCALHOST + ":%d"
 
 SSH_BIN = "ssh"
-SCP_BIN = "scp"
 ADB_BIN = "adb"
 
 LABEL_CREATE_BY = "created_by"
@@ -145,14 +137,8 @@ INS_KEY_AVD_FLAVOR = "flavor"
 INS_KEY_IS_LOCAL = "remote"
 INS_STATUS_RUNNING = "RUNNING"
 LOCAL_INS_NAME = "local-instance"
-LOCAL_INS_HOME_PREFIX = "instance_home_"
-ENV_CUTTLEFISH_CONFIG_FILE = "CUTTLEFISH_CONFIG_FILE"
-CUTTLEFISH_CONFIG_FILE = "cuttlefish_config.json"
 
 TEMP_ARTIFACTS_FOLDER = "acloud_image_artifacts"
 TOOL_NAME = "acloud"
 EXIT_BY_USER = 1
 EXIT_BY_ERROR = -99
-
-# For reuse gce instance
-SELECT_ONE_GCE_INSTANCE = "select_one_gce_instance"

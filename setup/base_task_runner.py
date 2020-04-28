@@ -26,7 +26,6 @@ import logging
 import os
 import textwrap
 
-
 logger = logging.getLogger(__name__)
 _PARAGRAPH_BREAK = "="
 

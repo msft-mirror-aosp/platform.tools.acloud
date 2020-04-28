@@ -33,14 +33,13 @@ from acloud.internal import constants
 from acloud.internal.lib import android_build_client
 from acloud.internal.lib import auth
 from acloud.internal.lib import utils
-from acloud.list import list as list_instance
 from acloud.public import config
-
-
-logger = logging.getLogger(__name__)
 
 # Default values for build target.
 _BRANCH_RE = re.compile(r"^Manifest branch: (?P<branch>.+)")
+_BUILD_TARGET = "build_target"
+_BUILD_BRANCH = "build_branch"
+_BUILD_ID = "build_id"
 _COMMAND_REPO_INFO = ["repo", "info"]
 _CF_ZIP_PATTERN = "*img*.zip"
 _DEFAULT_BUILD_BITNESS = "x86"
@@ -66,12 +65,13 @@ _COMMAND_GIT_REMOTE = ["git", "remote"]
 # Android Build will recognize it as aosp-master.
 _BRANCH_PREFIX = {"aosp": "aosp-"}
 _DEFAULT_BRANCH_PREFIX = "git_"
-_DEFAULT_BRANCH = "aosp-master"
 
 # The target prefix is needed to help concoct the lunch target name given a
 # the branch, avd type and device flavor:
 # aosp, cf and phone -> aosp_cf_x86_phone.
 _BRANCH_TARGET_PREFIX = {"aosp": "aosp_"}
+
+logger = logging.getLogger(__name__)
 
 
 def EscapeAnsi(line):
@@ -86,7 +86,6 @@ def EscapeAnsi(line):
     return _RE_ANSI_ESCAPE.sub('', line)
 
 
-# pylint: disable=too-many-public-methods
 class AVDSpec(object):
     """Class to store data on the type of AVD to create."""
 
@@ -98,40 +97,27 @@ class AVDSpec(object):
         """
         # Let's define the private class vars here and then process the user
         # args afterwards.
-        self._client_adb_port = args.adb_port
         self._autoconnect = None
-        self._instance_name_to_reuse = None
-        self._unlock_screen = None
         self._report_internal_ip = None
         self._avd_type = None
         self._flavor = None
         self._image_source = None
         self._instance_type = None
+        self._kernel_build_id = None
         self._local_image_dir = None
         self._local_image_artifact = None
         self._image_download_dir = None
         self._num_of_instances = None
         self._remote_image = None
-        self._system_build_info = None
-        self._kernel_build_info = None
         self._hw_property = None
         # Create config instance for android_build_client to query build api.
         self._cfg = config.GetAcloudConfig(args)
         # Reporting args.
         self._serial_log_file = None
+        self._logcat_file = None
         # gpu and emulator_build_id is only used for goldfish avd_type.
         self._gpu = None
         self._emulator_build_id = None
-
-        # username and password only used for cheeps type.
-        self._username = None
-        self._password = None
-
-        # The maximum time in seconds used to wait for the AVD to boot.
-        self._boot_timeout_secs = None
-
-        # The local instance id
-        self._local_instance_id = None
 
         self._ProcessArgs(args)
 
@@ -154,7 +140,6 @@ class AVDSpec(object):
         if self._image_source == constants.IMAGE_SRC_LOCAL:
             image_summary = "local image dir"
             image_details = self._local_image_dir
-            representation.append(" - instance id: %s" % self._local_instance_id)
         elif self._image_source == constants.IMAGE_SRC_REMOTE:
             image_summary = "remote image details"
             image_details = self._remote_image
@@ -186,12 +171,6 @@ class AVDSpec(object):
         # If user didn't specify --local-image, infer remote image args
         if args.local_image == "":
             self._image_source = constants.IMAGE_SRC_REMOTE
-            if (self._avd_type == constants.TYPE_GF and
-                    self._instance_type != constants.INSTANCE_TYPE_REMOTE):
-                raise errors.UnsupportedInstanceImageType(
-                    "unsupported creation of avd type: %s, "
-                    "instance type: %s, image source: %s" %
-                    (self._avd_type, self._instance_type, self._image_source))
             self._ProcessRemoteBuildArgs(args)
         else:
             self._image_source = constants.IMAGE_SRC_LOCAL
@@ -253,7 +232,6 @@ class AVDSpec(object):
         Args:
             args: Namespace object from argparse.parse_args.
         """
-        self._cfg.OverrideHwPropertyWithFlavor(self._flavor)
         self._hw_property = {}
         self._hw_property = self._ParseHWPropertyStr(self._cfg.hw_property)
         logger.debug("Default hw property for [%s] flavor: %s", self._flavor,
@@ -271,32 +249,18 @@ class AVDSpec(object):
             args: Namespace object from argparse.parse_args.
         """
         self._autoconnect = args.autoconnect
-        self._unlock_screen = args.unlock_screen
         self._report_internal_ip = args.report_internal_ip
         self._avd_type = args.avd_type
         self._flavor = args.flavor or constants.FLAVOR_PHONE
         self._instance_type = (constants.INSTANCE_TYPE_LOCAL
                                if args.local_instance else
                                constants.INSTANCE_TYPE_REMOTE)
-        self._local_instance_id = args.local_instance
         self._num_of_instances = args.num
+        self._kernel_build_id = args.kernel_build_id
         self._serial_log_file = args.serial_log_file
+        self._logcat_file = args.logcat_file
         self._emulator_build_id = args.emulator_build_id
         self._gpu = args.gpu
-
-        self._username = args.username
-        self._password = args.password
-
-        self._boot_timeout_secs = args.boot_timeout_secs
-
-        if args.reuse_gce:
-            if args.reuse_gce != constants.SELECT_ONE_GCE_INSTANCE:
-                if list_instance.GetInstancesFromInstanceNames(
-                        self._cfg, [args.reuse_gce]):
-                    self._instance_name_to_reuse = args.reuse_gce
-            if self._instance_name_to_reuse is None:
-                instance = list_instance.ChooseOneRemoteInstance(self._cfg)
-                self._instance_name_to_reuse = instance.name
 
     @staticmethod
     def _GetFlavorFromString(flavor_string):
@@ -332,9 +296,6 @@ class AVDSpec(object):
         """
         if self._avd_type == constants.TYPE_CF:
             self._ProcessCFLocalImageArgs(args.local_image, args.flavor)
-        elif self._avd_type == constants.TYPE_GF:
-            self._local_image_dir = self._ProcessGFLocalImageArgs(
-                args.local_image)
         elif self._avd_type == constants.TYPE_GCE:
             self._local_image_artifact = self._GetGceLocalImagePath(
                 args.local_image)
@@ -358,7 +319,7 @@ class AVDSpec(object):
             String, image file path if exists.
 
         Raises:
-            errors.ImgDoesNotExist if image doesn't exist.
+            errors.BootImgDoesNotExist if image doesn't exist.
         """
         # IF the user specified a file, return it
         if local_image_dir and os.path.isfile(local_image_dir):
@@ -374,35 +335,9 @@ class AVDSpec(object):
             if os.path.exists(full_file_path):
                 return full_file_path
 
-        raise errors.ImgDoesNotExist("Could not find any GCE images (%s), you "
-                                     "can build them via \"m dist\"" %
-                                     ", ".join(_GCE_LOCAL_IMAGE_CANDIDATES))
-
-    @staticmethod
-    def _ProcessGFLocalImageArgs(local_image_arg):
-        """Get local built image path for goldfish.
-
-        Args:
-            local_image_arg: The path to the unzipped SDK repository,
-                             i.e., sdk-repo-<os>-system-images-<build>.zip.
-                             If the value is None, this method finds the
-                             directory in build environment.
-
-        Returns:
-            String, the path to the image directory.
-
-        Raises:
-            errors.GetLocalImageError if the directory is not found.
-        """
-        image_dir = (local_image_arg if local_image_arg else
-                     utils.GetBuildEnvironmentVariable(
-                         constants.ENV_ANDROID_PRODUCT_OUT))
-
-        if not os.path.isdir(image_dir):
-            raise errors.GetLocalImageError(
-                "%s is not a directory." % image_dir)
-
-        return image_dir
+        raise errors.BootImgDoesNotExist("Could not find any GCE images (%s), "
+                                         "you can build them via \"m dist\"" %
+                                         ", ".join(_GCE_LOCAL_IMAGE_CANDIDATES))
 
     def _ProcessCFLocalImageArgs(self, local_image_arg, flavor_arg):
         """Get local built image path for cuttlefish-type AVD.
@@ -440,15 +375,12 @@ class AVDSpec(object):
                     "No image found(Did you choose a lunch target and run `m`?)"
                     ": %s.\n " % self.local_image_dir)
 
-            try:
-                flavor_from_build_string = self._GetFlavorFromString(
-                    utils.GetBuildEnvironmentVariable(constants.ENV_BUILD_TARGET))
-            except errors.GetAndroidBuildEnvVarError:
-                logger.debug("Unable to determine flavor from env variable: %s",
-                             constants.ENV_BUILD_TARGET)
+            flavor_from_build_string = self._GetFlavorFromString(
+                utils.GetBuildEnvironmentVariable(constants.ENV_BUILD_TARGET))
 
         if flavor_from_build_string and not flavor_arg:
             self._flavor = flavor_from_build_string
+            self._cfg.OverrideHwPropertyWithFlavor(flavor_from_build_string)
 
     def _ProcessRemoteBuildArgs(self, args):
         """Get the remote build args.
@@ -460,42 +392,32 @@ class AVDSpec(object):
             args: Namespace object from argparse.parse_args.
         """
         self._remote_image = {}
-        self._remote_image[constants.BUILD_BRANCH] = args.branch
-        if not self._remote_image[constants.BUILD_BRANCH]:
-            self._remote_image[constants.BUILD_BRANCH] = self._GetBuildBranch(
-                args.build_id, args.build_target)
+        self._remote_image[_BUILD_BRANCH] = args.branch
+        if not self._remote_image[_BUILD_BRANCH]:
+            self._remote_image[_BUILD_BRANCH] = self._GetBranchFromRepo()
 
-        self._remote_image[constants.BUILD_TARGET] = args.build_target
-        if not self._remote_image[constants.BUILD_TARGET]:
-            self._remote_image[constants.BUILD_TARGET] = self._GetBuildTarget(args)
+        self._remote_image[_BUILD_TARGET] = args.build_target
+        if not self._remote_image[_BUILD_TARGET]:
+            self._remote_image[_BUILD_TARGET] = self._GetBuildTarget(args)
         else:
             # If flavor isn't specified, try to infer it from build target,
             # if we can't, just default to phone flavor.
             self._flavor = args.flavor or self._GetFlavorFromString(
-                self._remote_image[constants.BUILD_TARGET]) or constants.FLAVOR_PHONE
+                self._remote_image[_BUILD_TARGET]) or constants.FLAVOR_PHONE
             # infer avd_type from build_target.
             for avd_type, avd_type_abbr in constants.AVD_TYPES_MAPPING.items():
                 if re.match(r"(.*_)?%s_" % avd_type_abbr,
-                            self._remote_image[constants.BUILD_TARGET]):
+                            self._remote_image[_BUILD_TARGET]):
                     self._avd_type = avd_type
                     break
 
-        self._remote_image[constants.BUILD_ID] = args.build_id
-        if not self._remote_image[constants.BUILD_ID]:
-            build_client = android_build_client.AndroidBuildClient(
-                auth.CreateCredentials(self._cfg))
-
+        self._remote_image[_BUILD_ID] = args.build_id
+        if not self._remote_image[_BUILD_ID]:
+            credentials = auth.CreateCredentials(self._cfg)
+            build_client = android_build_client.AndroidBuildClient(credentials)
             self._remote_image[constants.BUILD_ID] = build_client.GetLKGB(
                 self._remote_image[constants.BUILD_TARGET],
                 self._remote_image[constants.BUILD_BRANCH])
-
-        # Process system image and kernel image.
-        self._system_build_info = {constants.BUILD_ID: args.system_build_id,
-                                   constants.BUILD_BRANCH: args.system_branch,
-                                   constants.BUILD_TARGET: args.system_build_target}
-        self._kernel_build_info = {constants.BUILD_ID: args.kernel_build_id,
-                                   constants.BUILD_BRANCH: args.kernel_branch,
-                                   constants.BUILD_TARGET: args.kernel_build_target}
 
     @staticmethod
     def _GetGitRemote():
@@ -520,47 +442,26 @@ class AVDSpec(object):
         return EscapeAnsi(subprocess.check_output(_COMMAND_GIT_REMOTE,
                                                   cwd=acloud_project).strip())
 
-    def _GetBuildBranch(self, build_id, build_target):
-        """Infer build branch if user didn't specify branch name.
-
-        Args:
-            build_id: String, Build id, e.g. "2263051", "P2804227"
-            build_target: String, the build target, e.g. cf_x86_phone-userdebug
-
-        Returns:
-            String, name of build branch.
-        """
-        # Infer branch from build_target and build_id
-        if build_id and build_target:
-            build_client = android_build_client.AndroidBuildClient(
-                auth.CreateCredentials(self._cfg))
-            return build_client.GetBranch(build_target, build_id)
-
-        return self._GetBranchFromRepo()
-
     def _GetBranchFromRepo(self):
         """Get branch information from command "repo info".
 
-        If branch can't get from "repo info", it will be set as default branch
-        "aosp-master".
-
         Returns:
             branch: String, git branch name. e.g. "aosp-master"
+
+        Raises:
+            errors.GetBranchFromRepoInfoError: Can't get branch from
+            output of "repo info".
         """
-        repo_output = ""
-        try:
-            repo_output = subprocess.check_output(_COMMAND_REPO_INFO)
-        except subprocess.CalledProcessError:
-            utils.PrintColorString(
-                "Unable to determine your repo branch, defaulting to %s"
-                % _DEFAULT_BRANCH, utils.TextColors.WARNING)
+        repo_output = subprocess.check_output(_COMMAND_REPO_INFO)
         for line in repo_output.splitlines():
             match = _BRANCH_RE.match(EscapeAnsi(line))
             if match:
                 branch_prefix = _BRANCH_PREFIX.get(self._GetGitRemote(),
                                                    _DEFAULT_BRANCH_PREFIX)
                 return branch_prefix + match.group("branch")
-        return _DEFAULT_BRANCH
+        raise errors.GetBranchFromRepoInfoError(
+            "No branch mentioned in repo info output: %s" % repo_output
+        )
 
     def _GetBuildTarget(self, args):
         """Infer build target if user doesn't specified target name.
@@ -575,7 +476,7 @@ class AVDSpec(object):
         Returns:
             build_target: String, name of build target.
         """
-        branch = re.split("-|_", self._remote_image[constants.BUILD_BRANCH])[0]
+        branch = re.split("-|_", self._remote_image[_BUILD_BRANCH])[0]
         return "%s%s_%s_%s-%s" % (
             _BRANCH_TARGET_PREFIX.get(branch, ""),
             constants.AVD_TYPES_MAPPING[args.avd_type],
@@ -618,11 +519,6 @@ class AVDSpec(object):
         return self._autoconnect
 
     @property
-    def unlock_screen(self):
-        """Return unlock_screen."""
-        return self._unlock_screen
-
-    @property
     def remote_image(self):
         """Return the remote image."""
         return self._remote_image
@@ -638,9 +534,9 @@ class AVDSpec(object):
         return self._report_internal_ip
 
     @property
-    def kernel_build_info(self):
-        """Return kernel build info."""
-        return self._kernel_build_info
+    def kernel_build_id(self):
+        """Return kernel build id."""
+        return self._kernel_build_id
 
     @property
     def flavor(self):
@@ -668,6 +564,11 @@ class AVDSpec(object):
         return self._serial_log_file
 
     @property
+    def logcat_file(self):
+        """Return logcat file path."""
+        return self._logcat_file
+
+    @property
     def gpu(self):
         """Return gpu."""
         return self._gpu
@@ -676,38 +577,3 @@ class AVDSpec(object):
     def emulator_build_id(self):
         """Return emulator_build_id."""
         return self._emulator_build_id
-
-    @property
-    def client_adb_port(self):
-        """Return the client adb port."""
-        return self._client_adb_port
-
-    @property
-    def username(self):
-        """Return username."""
-        return self._username
-
-    @property
-    def password(self):
-        """Return password."""
-        return self._password
-
-    @property
-    def boot_timeout_secs(self):
-        """Return boot_timeout_secs."""
-        return self._boot_timeout_secs
-
-    @property
-    def system_build_info(self):
-        """Return system_build_info."""
-        return self._system_build_info
-
-    @property
-    def local_instance_id(self):
-        """Return local_instance_id."""
-        return self._local_instance_id
-
-    @property
-    def instance_name_to_reuse(self):
-        """Return instance_name_to_reuse."""
-        return self._instance_name_to_reuse

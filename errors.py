@@ -32,10 +32,6 @@ class GceOperationTimeoutError(DriverError):
     """Error raised when a GCE operation timedout."""
 
 
-class GetGceZoneError(DriverError):
-    """Can't get GCE zones info."""
-
-
 class HttpError(DriverError):
     """Error related to http requests."""
 
@@ -91,10 +87,6 @@ class DeviceConnectionError(DriverError):
     """To catch device connection errors."""
 
 
-class PortOccupied(DriverError):
-    """Raised when open port fail."""
-
-
 class DeviceBootTimeoutError(DeviceBootError):
     """Raised when an AVD defice failed to boot within timeout."""
 
@@ -109,10 +101,6 @@ class OSTypeError(SetupError):
 
 class NoGoogleSDKDetected(SetupError):
     """Can't find the SDK path."""
-
-
-class NoBillingError(SetupError):
-    """Billing account isn't enabled."""
 
 
 class PackageInstallError(SetupError):
@@ -155,16 +143,12 @@ class UnsupportedFlavor(CreateError):
     """Unsupported create action for given flavor name."""
 
 
-class UnsupportedMultiAdbPort(CreateError):
-    """Unsupported create action for multi AVDs and specify adb port."""
-
-
-class UnsupportedCreateArgs(CreateError):
-    """Unsupported create arg for a specified AVD type."""
-
-
 class GetBuildIDError(CreateError):
     """Can't get build id from Android Build."""
+
+
+class GetBranchFromRepoInfoError(CreateError):
+    """Can't get branch information from output of #'repo info'."""
 
 
 class NotSupportedHWPropertyError(CreateError):
@@ -187,16 +171,16 @@ class GetCvdLocalHostPackageError(CreateError):
     """Can't find the lost host package."""
 
 
-class GetSdkRepoPackageError(CreateError):
-    """Can't find the local SDK repository package for goldfish."""
-
-
 class NoCuttlefishCommonInstalled(SetupError):
     """Can't find cuttlefish_common lib."""
 
 
-class ImgDoesNotExist(CreateError):
-    """Image does not exist."""
+class UnpackBootImageError(CreateError):
+    """Error related to unpack boot.img."""
+
+
+class BootImgDoesNotExist(CreateError):
+    """boot.img does not exist."""
 
 
 class UnsupportedCompressionFileType(SetupError):
@@ -205,10 +189,6 @@ class UnsupportedCompressionFileType(SetupError):
 
 class LaunchCVDFail(CreateError):
     """Cuttlefish AVD launch failed."""
-
-
-class EmulatorFail(CreateError):
-    """Goldfish AVD launch failed."""
 
 
 class NoExecuteCmd(CreateError):
@@ -229,23 +209,3 @@ class FunctionTimeoutError(Exception):
 
 class ZipImageError(Exception):
     """Zip image error."""
-
-
-class UnknownAvdType(Exception):
-    """Unknown AVD type."""
-
-
-class UnknownType(Exception):
-    """Unknown type."""
-
-
-class AdbDisconnectFailed(Exception):
-    """Adb still be alive after disconnect instance."""
-
-
-class UnsupportedLocalInstanceId(Exception):
-    """Unsupported local instance id."""
-
-
-class InvalidInstanceDir(Exception):
-    """Invalid instance dir."""

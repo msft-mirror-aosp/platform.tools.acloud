@@ -42,27 +42,6 @@ This a tool to create Android Virtual Devices locally/remotely.
  - Delete instances:
    $ acloud delete
 
- - Reconnect:
-   To reconnect adb/vnc to an existing instance that's been disconnected:
-   $ acloud reconnect
-   Or to specify a specific instance:
-   $ acloud reconnect --instance-names <instance_name like ins-123-cf-x86-phone>
-
- - List:
-   List will retrieve all the remote instances you've created in addition to any
-   local instances created as well.
-   To show device IP address, adb port and instance name:
-   $ acloud list
-   To show more detail info on the list.
-   $ acloud list -vv
-
--  Pull:
-   Pull will download log files or show the log file in screen from one remote
-   cuttlefish instance:
-   $ acloud pull
-   Pull from a specified instance:
-   $ acloud pull --instance-name "your_instance_name"
-
 Try $acloud [cmd] --help for further details.
 
 """
@@ -120,11 +99,8 @@ from acloud.public import config
 from acloud.public import device_driver
 from acloud.public.actions import create_cuttlefish_action
 from acloud.public.actions import create_goldfish_action
-from acloud.pull import pull
-from acloud.pull import pull_args
 from acloud.setup import setup
 from acloud.setup import setup_args
-
 
 LOGGING_FMT = "%(asctime)s |%(levelname)s| %(module)s:%(lineno)s| %(message)s"
 ACLOUD_LOGGER = "acloud"
@@ -151,7 +127,6 @@ def _ParseArgs(args):
         list_args.CMD_LIST,
         delete_args.CMD_DELETE,
         reconnect_args.CMD_RECONNECT,
-        pull_args.CMD_PULL,
     ])
     parser = argparse.ArgumentParser(
         description=__doc__,
@@ -164,6 +139,34 @@ def _ParseArgs(args):
     create_cf_parser = subparsers.add_parser(CMD_CREATE_CUTTLEFISH)
     create_cf_parser.required = False
     create_cf_parser.set_defaults(which=CMD_CREATE_CUTTLEFISH)
+    create_cf_parser.add_argument(
+        "--branch",
+        type=str,
+        dest="branch",
+        help="Android branch, e.g. git_master")
+    create_cf_parser.add_argument(
+        "--kernel_build_id",
+        "--kernel-build-id",
+        type=str,
+        dest="kernel_build_id",
+        required=False,
+        help="Android kernel build id, e.g. 4586590. This is to test a new"
+        " kernel build with a particular Android build (--build_id). If neither"
+        " kernel_branch nor kernel_build_id are specified, the kernel that's"
+        " bundled with the Android build would be used.")
+    create_cf_parser.add_argument(
+        "--kernel_branch",
+        "--kernel-branch",
+        type=str,
+        dest="kernel_branch",
+        required=False,
+        help="Android kernel build branch name, e.g."
+        " kernel-common-android-4.14. This is to test a new kernel build with a"
+        " particular Android build (--build-id). If specified without"
+        " specifying kernel_build_id, the last green build in the branch will"
+        " be used. If neither kernel_branch nor kernel_build_id are specified,"
+        " the kernel that's bundled with the Android build would be used.")
+
     create_args.AddCommonCreateArgs(create_cf_parser)
     subparser_list.append(create_cf_parser)
 
@@ -177,18 +180,16 @@ def _ParseArgs(args):
     create_gf_parser.required = False
     create_gf_parser.set_defaults(which=CMD_CREATE_GOLDFISH)
     create_gf_parser.add_argument(
+        "--branch",
+        type=str,
+        dest="branch",
+        help="Android branch, e.g. git_master")
+    create_gf_parser.add_argument(
         "--emulator_build_id",
         type=str,
         dest="emulator_build_id",
         required=False,
         help="Emulator build used to run the images. e.g. 4669466.")
-    create_gf_parser.add_argument(
-        "--emulator_branch",
-        type=str,
-        dest="emulator_branch",
-        required=False,
-        help="Emulator build branch name, e.g. aosp-emu-master-dev. If specified"
-        " without emulator_build_id, the last green build will be used.")
     create_gf_parser.add_argument(
         "--gpu",
         type=str,
@@ -205,13 +206,6 @@ def _ParseArgs(args):
         help="Name of the goldfish base image to be used to create the instance. "
         "This will override stable_goldfish_host_image_name from config. "
         "e.g. emu-dev-cts-061118")
-    create_gf_parser.add_argument(
-        "--tags",
-        dest="tags",
-        nargs="*",
-        required=False,
-        default=None,
-        help="Tags to be set on to the created instance. e.g. https-server.")
 
     create_args.AddCommonCreateArgs(create_gf_parser)
     subparser_list.append(create_gf_parser)
@@ -241,11 +235,8 @@ def _ParseArgs(args):
     # Command "list"
     subparser_list.append(list_args.GetListArgParser(subparsers))
 
-    # Command "reconnect"
+    # Command "Reconnect"
     subparser_list.append(reconnect_args.GetReconnectArgParser(subparsers))
-
-    # Command "pull"
-    subparser_list.append(pull_args.GetPullArgParser(subparsers))
 
     # Add common arguments.
     for subparser in subparser_list:
@@ -263,30 +254,19 @@ def _VerifyArgs(parsed_args):
 
     Raises:
         errors.CommandArgError: If args are invalid.
-        errors.UnsupportedCreateArgs: When a create arg is specified but
-                                      unsupported for a particular avd type.
-                                      (e.g. --system-build-id for gf)
     """
     if parsed_args.which == create_args.CMD_CREATE:
         create_args.VerifyArgs(parsed_args)
     if parsed_args.which == CMD_CREATE_CUTTLEFISH:
-        if not parsed_args.build_id and not parsed_args.branch:
+        if not parsed_args.build_id or not parsed_args.build_target:
             raise errors.CommandArgError(
-                "Must specify --build_id or --branch")
+                "Must specify --build_id and --build_target")
     if parsed_args.which == CMD_CREATE_GOLDFISH:
-        if not parsed_args.emulator_build_id and not parsed_args.build_id and (
-                not parsed_args.emulator_branch and not parsed_args.branch):
-            raise errors.CommandArgError(
-                "Must specify either --build_id or --branch or "
-                "--emulator_branch or --emulator_build_id")
+        if not parsed_args.emulator_build_id and not parsed_args.build_id:
+            raise errors.CommandArgError("Must specify either "
+                                         "--emulator_build_id or --build_id")
         if not parsed_args.build_target:
             raise errors.CommandArgError("Must specify --build_target")
-        if (parsed_args.system_branch
-                or parsed_args.system_build_id
-                or parsed_args.system_build_target):
-            raise errors.UnsupportedCreateArgs(
-                "--system-* args are not supported for AVD type: %s"
-                % constants.TYPE_GF)
 
     if parsed_args.which in [
             create_args.CMD_CREATE, CMD_CREATE_CUTTLEFISH, CMD_CREATE_GOLDFISH
@@ -295,6 +275,10 @@ def _VerifyArgs(parsed_args):
                 and not parsed_args.serial_log_file.endswith(".tar.gz")):
             raise errors.CommandArgError(
                 "--serial_log_file must ends with .tar.gz")
+        if (parsed_args.logcat_file
+                and not parsed_args.logcat_file.endswith(".tar.gz")):
+            raise errors.CommandArgError(
+                "--logcat_file must ends with .tar.gz")
 
 
 def _SetupLogging(log_file, verbose):
@@ -381,34 +365,25 @@ def main(argv=None):
             cfg=cfg,
             build_target=args.build_target,
             build_id=args.build_id,
-            branch=args.branch,
             kernel_build_id=args.kernel_build_id,
             kernel_branch=args.kernel_branch,
-            kernel_build_target=args.kernel_build_target,
-            system_branch=args.system_branch,
-            system_build_id=args.system_build_id,
-            system_build_target=args.system_build_target,
             num=args.num,
             serial_log_file=args.serial_log_file,
+            logcat_file=args.logcat_file,
             autoconnect=args.autoconnect,
-            report_internal_ip=args.report_internal_ip,
-            boot_timeout_secs=args.boot_timeout_secs)
+            report_internal_ip=args.report_internal_ip)
     elif args.which == CMD_CREATE_GOLDFISH:
         report = create_goldfish_action.CreateDevices(
             cfg=cfg,
             build_target=args.build_target,
             build_id=args.build_id,
             emulator_build_id=args.emulator_build_id,
-            branch=args.branch,
-            emulator_branch=args.emulator_branch,
-            kernel_build_id=args.kernel_build_id,
-            kernel_branch=args.kernel_branch,
-            kernel_build_target=args.kernel_build_target,
             gpu=args.gpu,
             num=args.num,
             serial_log_file=args.serial_log_file,
+            logcat_file=args.logcat_file,
             autoconnect=args.autoconnect,
-            tags=args.tags,
+            branch=args.branch,
             report_internal_ip=args.report_internal_ip)
     elif args.which == delete_args.CMD_DELETE:
         report = delete.Run(args)
@@ -418,8 +393,6 @@ def main(argv=None):
         list_instances.Run(args)
     elif args.which == reconnect_args.CMD_RECONNECT:
         reconnect.Run(args)
-    elif args.which == pull_args.CMD_PULL:
-        report = pull.Run(args)
     elif args.which == setup_args.CMD_SETUP:
         setup.Run(args)
     else:
@@ -439,7 +412,7 @@ if __name__ == "__main__":
     EXIT_CODE = None
     EXCEPTION_STACKTRACE = None
     EXCEPTION_LOG = None
-    LOG_METRICS = metrics.LogUsage(sys.argv[1:])
+    metrics.LogUsage(sys.argv[1:])
     try:
         EXIT_CODE = main(sys.argv[1:])
     except Exception as e:
@@ -449,7 +422,6 @@ if __name__ == "__main__":
         raise
     finally:
         # Log Exit event here to calculate the consuming time.
-        if LOG_METRICS:
-            metrics.LogExitEvent(EXIT_CODE,
-                                 stacktrace=EXCEPTION_STACKTRACE,
-                                 logs=EXCEPTION_LOG)
+        metrics.LogExitEvent(EXIT_CODE,
+                             stacktrace=EXCEPTION_STACKTRACE,
+                             logs=EXCEPTION_LOG)

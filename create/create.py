@@ -32,7 +32,6 @@ from acloud.create import avd_spec
 from acloud.create import cheeps_remote_image_remote_instance
 from acloud.create import gce_local_image_remote_instance
 from acloud.create import gce_remote_image_remote_instance
-from acloud.create import goldfish_local_image_local_instance
 from acloud.create import goldfish_remote_image_remote_instance
 from acloud.create import local_image_local_instance
 from acloud.create import local_image_remote_instance
@@ -43,7 +42,6 @@ from acloud.internal.lib import utils
 from acloud.setup import setup
 from acloud.setup import gcp_setup_runner
 from acloud.setup import host_setup_runner
-
 
 _MAKE_CMD = "build/soong/soong_ui.bash"
 _MAKE_ARG = "--make-mode"
@@ -69,8 +67,6 @@ _CREATOR_CLASS_DICT = {
     # GF types
     (constants.TYPE_GF, constants.IMAGE_SRC_REMOTE, constants.INSTANCE_TYPE_REMOTE):
         goldfish_remote_image_remote_instance.GoldfishRemoteImageRemoteInstance,
-    (constants.TYPE_GF, constants.IMAGE_SRC_LOCAL, constants.INSTANCE_TYPE_LOCAL):
-        goldfish_local_image_local_instance.GoldfishLocalImageLocalInstance,
 }
 
 
@@ -155,17 +151,18 @@ def _CheckForSetup(args):
     Args:
         args: Namespace object from argparse.parse_args.
     """
+    run_setup = False
     # Need to set all these so if we need to run setup, it won't barf on us
     # because of some missing fields.
     args.gcp_init = False
     args.host = False
-    args.host_base = False
     args.force = False
     # Remote image/instance requires the GCP config setup.
     if not args.local_instance or args.local_image == "":
         gcp_setup = gcp_setup_runner.GcpTaskRunner(args.config_file)
         if gcp_setup.ShouldRun():
             args.gcp_init = True
+            run_setup = True
 
     # Local instance requires host to be setup. We'll assume that if the
     # packages were installed, then the user was added into the groups. This
@@ -177,13 +174,7 @@ def _CheckForSetup(args):
         host_pkg_setup = host_setup_runner.AvdPkgInstaller()
         if host_pkg_setup.ShouldRun():
             args.host = True
-
-    # Install base packages if we haven't already.
-    host_base_setup = host_setup_runner.HostBasePkgInstaller()
-    if host_base_setup.ShouldRun():
-        args.host_base = True
-
-    run_setup = args.force or args.gcp_init or args.host or args.host_base
+            run_setup = True
 
     if run_setup:
         answer = utils.InteractWithQuestion("Missing necessary acloud setup, "
@@ -211,8 +202,7 @@ def Run(args):
     Args:
         args: Namespace object from argparse.parse_args.
     """
-    if not args.skip_pre_run_check:
-        PreRunCheck(args)
+    PreRunCheck(args)
     spec = avd_spec.AVDSpec(args)
     avd_creator_class = GetAvdCreatorClass(spec.avd_type,
                                            spec.instance_type,

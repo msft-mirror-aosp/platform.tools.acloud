@@ -39,45 +39,31 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
                      "/usr/bin/ssh -i ~/.ssh/acloud_rsa "
                      "-o UserKnownHostsFile=/dev/null "
                      "-o StrictHostKeyChecking=no -L 12345:127.0.0.1:6444 "
-                     "-L 54321:127.0.0.1:6520 -N -f -l user 1.1.1.1")
-    PS_LAUNCH_CVD = ("Sat Nov 10 21:55:10 2018 /fake_path/bin/run_cvd ")
-    PS_RUNTIME_CF_CONFIG = {"x_res": "1080", "y_res": "1920", "dpi": "480"}
-    GCE_INSTANCE = {
-        constants.INS_KEY_NAME: "fake_ins_name",
-        constants.INS_KEY_CREATETIME: "fake_create_time",
-        constants.INS_KEY_STATUS: "fake_status",
-        "networkInterfaces": [{"accessConfigs": [{"natIP": "1.1.1.1"}]}],
-        "labels": {constants.INS_KEY_AVD_TYPE: "fake_type",
-                   constants.INS_KEY_AVD_FLAVOR: "fake_flavor"},
-        "metadata": {
-            "items":[{"key":constants.INS_KEY_AVD_TYPE,
-                      "value":"fake_type"},
-                     {"key":constants.INS_KEY_AVD_FLAVOR,
-                      "value":"fake_flavor"}]}
-    }
+                     "-L 54321:127.0.0.1:6520 -N -f -l user fake_ip")
+    PS_LAUNCH_CVD = ("Sat Nov 10 21:55:10 2018 /fake_path/bin/launch_cvd "
+                     "--daemon --cpus 2 --x_res 1080 --y_res 1920 --dpi 480"
+                     " --memory_mb 4096 --blank_data_image_mb 4096 --data_policy"
+                     " always_create --system_image_dir /fake "
+                     "--vnc_server_port 6444")
 
     # pylint: disable=protected-access
     def testCreateLocalInstance(self):
         """"Test get local instance info from launch_cvd process."""
         self.Patch(subprocess, "check_output", return_value=self.PS_LAUNCH_CVD)
         self.Patch(instance, "_GetElapsedTime", return_value="fake_time")
-        local_instance = instance.LocalInstance(2,
-                                                "1080",
-                                                "1920",
-                                                "480",
-                                                "Sat Nov 10 21:55:10 2018",
-                                                "fake_instance_dir")
-        self.assertEqual(constants.LOCAL_INS_NAME + "-2", local_instance.name)
+        local_instance = instance.LocalInstance()
+        self.assertEqual(constants.LOCAL_INS_NAME, local_instance.name)
         self.assertEqual(True, local_instance.islocal)
         self.assertEqual("1080x1920 (480)", local_instance.display)
         self.assertEqual("Sat Nov 10 21:55:10 2018", local_instance.createtime)
-        expected_full_name = ("device serial: 127.0.0.1:%s (%s) elapsed time: %s"
-                              % ("6521",
-                                 constants.LOCAL_INS_NAME + "-2",
-                                 "fake_time"))
+        expected_full_name = "device serial: 127.0.0.1:%s (%s) elapsed time: %s" % (
+            constants.CF_ADB_PORT, constants.LOCAL_INS_NAME, "fake_time")
         self.assertEqual(expected_full_name, local_instance.fullname)
-        self.assertEqual(6521, local_instance.forwarding_adb_port)
-        self.assertEqual(6445, local_instance.forwarding_vnc_port)
+
+        # test return None if no launch_cvd process found
+        self.Patch(subprocess, "check_output", return_value="no launch_cvd "
+                                                            "found")
+        self.assertEqual(None, instance.LocalInstance())
 
     def testGetElapsedTime(self):
         """Test _GetElapsedTime"""
@@ -109,13 +95,23 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         self.Patch(instance, "_GetElapsedTime", return_value="fake_time")
         forwarded_ports = instance.RemoteInstance(
             mock.MagicMock()).GetAdbVncPortFromSSHTunnel(
-                "1.1.1.1", constants.TYPE_CF)
+                "fake_ip", constants.TYPE_CF)
         self.assertEqual(54321, forwarded_ports.adb_port)
         self.assertEqual(12345, forwarded_ports.vnc_port)
 
     # pylint: disable=protected-access
     def testProcessGceInstance(self):
         """"Test process instance detail."""
+        gce_instance = {
+            constants.INS_KEY_NAME: "fake_ins_name",
+            constants.INS_KEY_CREATETIME: "fake_create_time",
+            constants.INS_KEY_STATUS: "fake_status",
+            "networkInterfaces": [{"accessConfigs": [{"natIP": "fake_ip"}]}],
+            "labels": {constants.INS_KEY_AVD_TYPE: "fake_type",
+                       constants.INS_KEY_AVD_FLAVOR: "fake_flavor"},
+            "metadata": {}
+        }
+
         fake_adb = 123456
         fake_vnc = 654321
         forwarded_ports = collections.namedtuple("ForwardedPorts",
@@ -129,21 +125,17 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         self.Patch(AdbTools, "IsAdbConnected", return_value=True)
 
         # test ssh_tunnel_is_connected will be true if ssh tunnel connection is found
-        instance_info = instance.RemoteInstance(self.GCE_INSTANCE)
+        instance_info = instance.RemoteInstance(gce_instance)
         self.assertTrue(instance_info.ssh_tunnel_is_connected)
         self.assertEqual(instance_info.forwarding_adb_port, fake_adb)
         self.assertEqual(instance_info.forwarding_vnc_port, fake_vnc)
-        self.assertEqual("1.1.1.1", instance_info.ip)
-        self.assertEqual("fake_status", instance_info.status)
-        self.assertEqual("fake_type", instance_info.avd_type)
-        self.assertEqual("fake_flavor", instance_info.avd_flavor)
         expected_full_name = "device serial: 127.0.0.1:%s (%s) elapsed time: %s" % (
-            fake_adb, self.GCE_INSTANCE[constants.INS_KEY_NAME], "fake_time")
+            fake_adb, gce_instance[constants.INS_KEY_NAME], "fake_time")
         self.assertEqual(expected_full_name, instance_info.fullname)
 
         # test ssh tunnel is connected but adb is disconnected
         self.Patch(AdbTools, "IsAdbConnected", return_value=False)
-        instance_info = instance.RemoteInstance(self.GCE_INSTANCE)
+        instance_info = instance.RemoteInstance(gce_instance)
         self.assertTrue(instance_info.ssh_tunnel_is_connected)
         expected_full_name = "device serial: not connected (%s) elapsed time: %s" % (
             instance_info.name, "fake_time")
@@ -154,58 +146,11 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
             instance.RemoteInstance,
             "GetAdbVncPortFromSSHTunnel",
             return_value=forwarded_ports(vnc_port=None, adb_port=None))
-        instance_info = instance.RemoteInstance(self.GCE_INSTANCE)
+        instance_info = instance.RemoteInstance(gce_instance)
         self.assertFalse(instance_info.ssh_tunnel_is_connected)
         expected_full_name = "device serial: not connected (%s) elapsed time: %s" % (
-            self.GCE_INSTANCE[constants.INS_KEY_NAME], "fake_time")
+            gce_instance[constants.INS_KEY_NAME], "fake_time")
         self.assertEqual(expected_full_name, instance_info.fullname)
-
-    def testInstanceSummary(self):
-        """Test instance summary."""
-        fake_adb = 123456
-        fake_vnc = 654321
-        forwarded_ports = collections.namedtuple("ForwardedPorts",
-                                                 [constants.VNC_PORT,
-                                                  constants.ADB_PORT])
-        self.Patch(
-            instance.RemoteInstance,
-            "GetAdbVncPortFromSSHTunnel",
-            return_value=forwarded_ports(vnc_port=fake_vnc, adb_port=fake_adb))
-        self.Patch(instance, "_GetElapsedTime", return_value="fake_time")
-        self.Patch(AdbTools, "IsAdbConnected", return_value=True)
-        remote_instance = instance.RemoteInstance(self.GCE_INSTANCE)
-        result_summary = (" name: fake_ins_name\n "
-                          "   IP: 1.1.1.1\n "
-                          "   create time: fake_create_time\n "
-                          "   elapse time: fake_time\n "
-                          "   status: fake_status\n "
-                          "   avd type: fake_type\n "
-                          "   display: None\n "
-                          "   vnc: 127.0.0.1:654321\n "
-                          "   adb serial: 127.0.0.1:123456\n "
-                          "   product: None\n "
-                          "   model: None\n "
-                          "   device: None\n "
-                          "   transport_id: None")
-        self.assertEqual(remote_instance.Summary(), result_summary)
-
-        self.Patch(
-            instance.RemoteInstance,
-            "GetAdbVncPortFromSSHTunnel",
-            return_value=forwarded_ports(vnc_port=None, adb_port=None))
-        self.Patch(instance, "_GetElapsedTime", return_value="fake_time")
-        self.Patch(AdbTools, "IsAdbConnected", return_value=False)
-        remote_instance = instance.RemoteInstance(self.GCE_INSTANCE)
-        result_summary = (" name: fake_ins_name\n "
-                          "   IP: 1.1.1.1\n "
-                          "   create time: fake_create_time\n "
-                          "   elapse time: fake_time\n "
-                          "   status: fake_status\n "
-                          "   avd type: fake_type\n "
-                          "   display: None\n "
-                          "   vnc: 127.0.0.1:None\n "
-                          "   adb serial: disconnected")
-        self.assertEqual(remote_instance.Summary(), result_summary)
 
 
 if __name__ == "__main__":
