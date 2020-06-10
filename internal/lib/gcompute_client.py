@@ -542,6 +542,21 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
             project=image_project or self._project, image=image_name)
         return self.Execute(api)
 
+    def GetImageFromFamily(self, image_family, image_project=None):
+        """Get image information from image_family.
+
+        Args:
+            image_family: String of image family.
+            image_project: String of image project.
+
+        Returns:
+            An image resource in json.
+            https://cloud.google.com/compute/docs/reference/latest/images#resource
+        """
+        api = self.service.images().getFromFamily(
+            project=image_project or self._project, family=image_family)
+        return self.Execute(api)
+
     def DeleteImage(self, image_name):
         """Delete an image.
 
@@ -1032,7 +1047,7 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
         # Initialize return values
         failed = []
         error_msgs = []
-        for resource_name, (_, error) in results.iteritems():
+        for resource_name, (_, error) in six.iteritems(results):
             if error is not None:
                 failed.append(resource_name)
                 error_msgs.append(str(error))
@@ -1273,7 +1288,7 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
             metadata_list = [{
                 _METADATA_KEY: key,
                 _METADATA_KEY_VALUE: val
-            } for key, val in metadata.iteritems()]
+            } for key, val in six.iteritems(metadata)]
             body[_METADATA] = {_ITEMS: metadata_list}
         logger.info("Creating instance: project %s, zone %s, body:%s",
                     self._project, zone, body)

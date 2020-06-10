@@ -15,7 +15,6 @@
 # pylint: disable=too-many-lines
 from __future__ import print_function
 
-from distutils.spawn import find_executable
 import base64
 import binascii
 import collections
@@ -57,12 +56,7 @@ GET_BUILD_VAR_CMD = ["build/soong/soong_ui.bash", "--dumpvar-mode"]
 DEFAULT_RETRY_BACKOFF_FACTOR = 1
 DEFAULT_SLEEP_MULTIPLIER = 0
 
-_SSH_TUNNEL_ARGS = ("-i %(rsa_key_file)s -o UserKnownHostsFile=/dev/null "
-                    "-o StrictHostKeyChecking=no "
-                    "-L %(vnc_port)d:127.0.0.1:%(target_vnc_port)d "
-                    "-L %(adb_port)d:127.0.0.1:%(target_adb_port)d "
-                    "-N -f -l %(ssh_user)s %(ip_addr)s")
-_SSH_TUNNEL_WEBRTC_ARGS = (
+_SSH_TUNNEL_ARGS = (
     "-i %(rsa_key_file)s -o UserKnownHostsFile=/dev/null "
     "-o StrictHostKeyChecking=no "
     "%(port_mapping)s"
@@ -86,7 +80,8 @@ AVD_PORT_DICT = {
     constants.TYPE_GF: ForwardedPorts(constants.GF_VNC_PORT,
                                       constants.GF_ADB_PORT),
     constants.TYPE_CHEEPS: ForwardedPorts(constants.CHEEPS_VNC_PORT,
-                                          constants.CHEEPS_ADB_PORT)
+                                          constants.CHEEPS_ADB_PORT),
+    constants.TYPE_FVP: ForwardedPorts(None, constants.FVP_ADB_PORT),
 }
 
 _VNC_BIN = "ssvnc"
@@ -848,7 +843,7 @@ def EstablishWebRTCSshTunnel(ip_addr, rsa_key_file, ssh_user,
         port_mapping = [PORT_MAPPING % {
             "local_port":port["local"],
             "target_port":port["target"]} for port in WEBRTC_PORTS_MAPPING]
-        ssh_tunnel_args = _SSH_TUNNEL_WEBRTC_ARGS % {
+        ssh_tunnel_args = _SSH_TUNNEL_ARGS % {
             "rsa_key_file": rsa_key_file,
             "ssh_user": ssh_user,
             "ip_addr": ip_addr,
@@ -883,15 +878,20 @@ def AutoConnect(ip_addr, rsa_key_file, target_vnc_port, target_adb_port,
         NamedTuple of (vnc_port, adb_port) SSHTUNNEL of the connect, both are
         integers.
     """
-    local_free_vnc_port = PickFreePort()
     local_adb_port = client_adb_port or PickFreePort()
+    port_mapping = [PORT_MAPPING % {
+            "local_port":local_adb_port,
+            "target_port":target_adb_port}]
+    local_free_vnc_port = None
+    if target_vnc_port:
+        local_free_vnc_port = PickFreePort()
+        port_mapping += [PORT_MAPPING % {
+                "local_port":local_free_vnc_port,
+                "target_port":target_vnc_port}]
     try:
         ssh_tunnel_args = _SSH_TUNNEL_ARGS % {
             "rsa_key_file": rsa_key_file,
-            "vnc_port": local_free_vnc_port,
-            "adb_port": local_adb_port,
-            "target_vnc_port": target_vnc_port,
-            "target_adb_port": target_adb_port,
+            "port_mapping": " ".join(port_mapping),
             "ssh_user": ssh_user,
             "ip_addr": ip_addr}
         ssh_tunnel_args_list = shlex.split(ssh_tunnel_args)
@@ -1098,7 +1098,13 @@ def CalculateVNCScreenRatio(avd_width, avd_height):
         import Tkinter
     # Some python interpreters may not be configured for Tk, just return default scale ratio.
     except ImportError:
-        return _DEFAULT_DISPLAY_SCALE
+        try:
+            import tkinter as Tkinter
+        except ImportError:
+            PrintColorString(
+                "no module named tkinter, vnc display scale were not be fit."
+                "please run 'sudo apt-get install python3-tk' to install it.")
+            return _DEFAULT_DISPLAY_SCALE
     root = Tkinter.Tk()
     margin = 100 # leave some space on user's monitor.
     screen_height = root.winfo_screenheight() - margin
@@ -1317,7 +1323,11 @@ def FindExecutable(filename):
     Returns:
         String: execution file path.
     """
-    return find_executable(filename) if six.PY2 else shutil.which(filename)
+    try:
+        from distutils.spawn import find_executable
+        return find_executable(filename)
+    except ImportError:
+        return shutil.which(filename)
 
 
 def GetDictItems(namedtuple_object):

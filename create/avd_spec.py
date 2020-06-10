@@ -138,7 +138,6 @@ class AVDSpec():
         self._stable_cheeps_host_image_project = None
         self._username = None
         self._password = None
-        self._cheeps_betty_image = None
 
         # The maximum time in seconds used to wait for the AVD to boot.
         self._boot_timeout_secs = None
@@ -314,7 +313,6 @@ class AVDSpec():
         self._stable_cheeps_host_image_project = args.stable_cheeps_host_image_project
         self._username = args.username
         self._password = args.password
-        self._cheeps_betty_image = args.cheeps_betty_image
 
         self._boot_timeout_secs = args.boot_timeout_secs
         self._ins_timeout_secs = args.ins_timeout_secs
@@ -362,6 +360,8 @@ class AVDSpec():
         """
         if self._avd_type == constants.TYPE_CF:
             self._ProcessCFLocalImageArgs(args.local_image, args.flavor)
+        elif self._avd_type == constants.TYPE_FVP:
+            self._ProcessFVPLocalImageArgs(args.local_image)
         elif self._avd_type == constants.TYPE_GF:
             self._local_image_dir = self._ProcessGFLocalImageArgs(
                 args.local_image)
@@ -456,7 +456,7 @@ class AVDSpec():
         if not local_image_arg:
             self._CheckCFBuildTarget(self._instance_type)
             local_image_path = utils.GetBuildEnvironmentVariable(
-            _ENV_ANDROID_PRODUCT_OUT)
+                _ENV_ANDROID_PRODUCT_OUT)
         else:
             local_image_path = local_image_arg
 
@@ -487,6 +487,30 @@ class AVDSpec():
 
         if flavor_from_build_string and not flavor_arg:
             self._flavor = flavor_from_build_string
+
+    def _ProcessFVPLocalImageArgs(self, local_image_arg):
+        """Get local built image path for FVP-type AVD.
+
+        Args:
+            local_image_arg: String of local image args.
+        """
+        build_target = utils.GetBuildEnvironmentVariable(
+            constants.ENV_BUILD_TARGET)
+        if build_target != "fvp":
+            utils.PrintColorString(
+                "%s is not an fvp target (Try lunching fvp-eng "
+                "and running 'm')" % build_target,
+                utils.TextColors.WARNING)
+        self._local_image_dir = utils.GetBuildEnvironmentVariable(
+            _ENV_ANDROID_PRODUCT_OUT)
+
+        # Since dir is provided, so checking that any images exist to ensure
+        # user didn't forget to 'make' before launch AVD.
+        image_list = glob.glob(os.path.join(self.local_image_dir, "*.img"))
+        if not image_list:
+            raise errors.GetLocalImageError(
+                "No image found(Did you choose a lunch target and run `m`?)"
+                ": %s.\n " % self._local_image_dir)
 
     def _ProcessRemoteBuildArgs(self, args):
         """Get the remote build args.
@@ -527,9 +551,8 @@ class AVDSpec():
                 self._remote_image[constants.BUILD_TARGET],
                 self._remote_image[constants.BUILD_BRANCH])
 
-        if args.cheeps_betty_image:
-            self._remote_image[constants.CHEEPS_BETTY_IMAGE] = (
-                args.cheeps_betty_image)
+        self._remote_image[constants.CHEEPS_BETTY_IMAGE] = (
+            args.cheeps_betty_image)
 
         # Process system image and kernel image.
         self._system_build_info = {constants.BUILD_ID: args.system_build_id,
@@ -615,6 +638,7 @@ class AVDSpec():
         env = os.environ.copy()
         env.pop("PYTHONPATH", None)
         logger.info("Running command \"%s\"", _COMMAND_REPO_INFO)
+        # TODO(154173071): Migrate acloud to py3, then apply Popen to append with encoding
         process = subprocess.Popen(_COMMAND_REPO_INFO, shell=True, stdin=None,
                                    stdout=subprocess.PIPE,
                                    stderr=subprocess.STDOUT, env=env)
@@ -623,7 +647,7 @@ class AVDSpec():
         stdout, _ = process.communicate()
         if stdout:
             for line in stdout.splitlines():
-                match = _BRANCH_RE.match(EscapeAnsi(line))
+                match = _BRANCH_RE.match(EscapeAnsi(line.decode()))
                 if match:
                     branch_prefix = _BRANCH_PREFIX.get(self._GetGitRemote(),
                                                        _DEFAULT_BRANCH_PREFIX)
@@ -820,11 +844,6 @@ class AVDSpec():
     def password(self):
         """Return password."""
         return self._password
-
-    @property
-    def cheeps_betty_image(self):
-        """Return the Cheeps host image name."""
-        return self._cheeps_betty_image
 
     @property
     def boot_timeout_secs(self):
