@@ -135,6 +135,7 @@ from acloud.setup import setup_args
 
 LOGGING_FMT = "%(asctime)s |%(levelname)s| %(module)s:%(lineno)s| %(message)s"
 ACLOUD_LOGGER = "acloud"
+_LOGGER = logging.getLogger(ACLOUD_LOGGER)
 NO_ERROR_MESSAGE = ""
 PROG = "acloud"
 
@@ -259,6 +260,8 @@ def _VerifyArgs(parsed_args):
     """
     if parsed_args.which == create_args.CMD_CREATE:
         create_args.VerifyArgs(parsed_args)
+    if parsed_args.which == setup_args.CMD_SETUP:
+        setup_args.VerifyArgs(parsed_args)
     if parsed_args.which == CMD_CREATE_CUTTLEFISH:
         if not parsed_args.build_id and not parsed_args.branch:
             raise errors.CommandArgError(
@@ -358,9 +361,7 @@ def main(argv=None):
     args = _ParseArgs(argv)
     _SetupLogging(args.log_file, args.verbose)
     _VerifyArgs(args)
-
-    if args.verbose:
-        print("%s %s" % (PROG, config.GetVersion()))
+    _LOGGER.info("Acloud version: %s", config.GetVersion())
 
     cfg = config.GetAcloudConfig(args)
     # TODO: Move this check into the functions it is actually needed.
