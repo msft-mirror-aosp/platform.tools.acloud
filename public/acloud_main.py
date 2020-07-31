@@ -248,6 +248,10 @@ def _ParseArgs(args):
     for subparser in subparser_list:
         acloud_common.AddCommonArguments(subparser)
 
+    if not args:
+        parser.print_help()
+        sys.exit(constants.EXIT_BY_WRONG_CMD)
+
     return parser.parse_args(args)
 
 
@@ -361,9 +365,6 @@ def main(argv=None):
         Job status: Integer, 0 if success. None-zero if fails.
         Stack trace: String of errors.
     """
-    if argv is None:
-        argv = sys.argv[1:]
-
     args = _ParseArgs(argv)
     _SetupLogging(args.log_file, args.verbose)
     _VerifyArgs(args)
@@ -434,8 +435,8 @@ def main(argv=None):
     if report and report.errors:
         error_msg = "\n".join(report.errors)
         help_msg = _CONTACT_INFO
-        if report.data.get("error_log_folder"):
-            help_msg += _LOG_INFO % report.data.get("error_log_folder")
+        if report.data.get(constants.ERROR_LOG_FOLDER):
+            help_msg += _LOG_INFO % report.data.get(constants.ERROR_LOG_FOLDER)
         sys.stderr.write("Encountered the following errors:\n%s\n\n%s.\n" %
                          (error_msg, help_msg))
         return constants.EXIT_BY_FAIL_REPORT, error_msg
