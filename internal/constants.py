@@ -123,6 +123,8 @@ GF_ADB_PORT = 5555
 GF_VNC_PORT = 6444
 # For FVP remote instances (no VNC support)
 FVP_ADB_PORT = 5555
+# Maximum port number
+MAX_PORT = 65535
 
 COMMAND_PS = ["ps", "aux"]
 CMD_LAUNCH_CVD = "launch_cvd"
@@ -191,3 +193,12 @@ REMOTE_LOG_FOLDER = "/home/%s/cuttlefish_runtime" % GCE_USER
 
 # Cheeps specific stuff.
 CHEEPS_BETTY_IMAGE = "betty_image"
+
+# Key name in report
+ERROR_LOG_FOLDER = "error_log_folder"
+
+# Stages for create progress
+STAGE_INIT = 0
+STAGE_GCE = 1
+STAGE_ARTIFACT = 2
+STAGE_BOOT_UP = 3

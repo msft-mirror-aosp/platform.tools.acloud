@@ -75,6 +75,8 @@ _WEBRTC_ARGS = [_GUEST_ENFORCE_SECURITY_FALSE, _START_WEBRTC, _VM_MANAGER]
 _NO_RETRY = 0
 _MAX_RETRY = 3
 _RETRY_SLEEP_SECS = 3
+# Launch cvd command for acloud report
+_LAUNCH_CVD_COMMAND = "launch_cvd_command"
 
 
 def _ProcessBuild(build_id=None, branch=None, build_target=None):
@@ -136,6 +138,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         self._ssh = None
         self._ip = None
         self._user = constants.GCE_USER
+        self._stage = constants.STAGE_INIT
         self._execution_time = {_FETCH_ARTIFACT: 0, _GCE_CREATE: 0, _LAUNCH_CVD: 0}
 
     def InitRemoteHost(self, ssh, ip, user):
@@ -384,6 +387,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         boot_timeout_secs = boot_timeout_secs or constants.DEFAULT_CF_BOOT_TIMEOUT
         ssh_command = "./bin/launch_cvd -daemon " + " ".join(launch_cvd_args)
         try:
+            self.ExtendReportData(_LAUNCH_CVD_COMMAND, ssh_command)
             self._ssh.Run(ssh_command, boot_timeout_secs, retry=_NO_RETRY)
         except (subprocess.CalledProcessError, errors.DeviceConnectionError) as e:
             # TODO(b/140475060): Distinguish the error is command return error
@@ -408,8 +412,9 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             instance: String, instance name.
         """
         log_files = pull.GetAllLogFilePaths(self._ssh)
-        download_folder = pull.GetDownloadLogFolder(instance)
-        pull.PullLogs(self._ssh, log_files, download_folder)
+        error_log_folder = pull.GetDownloadLogFolder(instance)
+        pull.PullLogs(self._ssh, log_files, error_log_folder)
+        self.ExtendReportData(constants.ERROR_LOG_FOLDER, error_log_folder)
 
     @utils.TimeExecute(function_description="Reusing GCE instance")
     def _ReusingGceInstance(self, avd_spec):
@@ -582,6 +587,14 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             "Please specify 'stable_host_image_name' or 'stable_host_image_family'"
             " in config.")
 
+    def SetStage(self, stage):
+        """Set stage to know the create progress.
+
+        Args:
+            stage: Integer, the stage would like STAGE_INIT, STAGE_GCE.
+        """
+        self._stage = stage
+
     @property
     def all_failures(self):
         """Return all_failures"""
@@ -591,3 +604,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
     def execution_time(self):
         """Return execution_time"""
         return self._execution_time
+
+    @property
+    def stage(self):
+        """Return stage"""
+        return self._stage

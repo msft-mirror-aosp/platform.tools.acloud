@@ -123,6 +123,8 @@ from acloud.reconnect import reconnect_args
 from acloud.list import list as list_instances
 from acloud.list import list_args
 from acloud.metrics import metrics
+from acloud.powerwash import powerwash
+from acloud.powerwash import powerwash_args
 from acloud.public import acloud_common
 from acloud.public import config
 from acloud.public.actions import create_cuttlefish_action
@@ -135,12 +137,19 @@ from acloud.setup import setup_args
 
 LOGGING_FMT = "%(asctime)s |%(levelname)s| %(module)s:%(lineno)s| %(message)s"
 ACLOUD_LOGGER = "acloud"
+_LOGGER = logging.getLogger(ACLOUD_LOGGER)
 NO_ERROR_MESSAGE = ""
 PROG = "acloud"
 
 # Commands
 CMD_CREATE_CUTTLEFISH = "create_cf"
 CMD_CREATE_GOLDFISH = "create_gf"
+
+# show contact info to user.
+_CONTACT_INFO = ("If you have any question or need acloud team support, "
+                 "please feel free to contact us by email at "
+                 "buganizer-system+419709@google.com")
+_LOG_INFO = " and attach those log files from %s"
 
 
 # pylint: disable=too-many-statements
@@ -234,12 +243,19 @@ def _ParseArgs(args):
     # Command "reconnect"
     subparser_list.append(reconnect_args.GetReconnectArgParser(subparsers))
 
+    # Command "powerwash"
+    subparser_list.append(powerwash_args.GetPowerwashArgParser(subparsers))
+
     # Command "pull"
     subparser_list.append(pull_args.GetPullArgParser(subparsers))
 
     # Add common arguments.
     for subparser in subparser_list:
         acloud_common.AddCommonArguments(subparser)
+
+    if not args:
+        parser.print_help()
+        sys.exit(constants.EXIT_BY_WRONG_CMD)
 
     return parser.parse_args(args)
 
@@ -354,15 +370,10 @@ def main(argv=None):
         Job status: Integer, 0 if success. None-zero if fails.
         Stack trace: String of errors.
     """
-    if argv is None:
-        argv = sys.argv[1:]
-
     args = _ParseArgs(argv)
     _SetupLogging(args.log_file, args.verbose)
     _VerifyArgs(args)
-
-    if args.verbose:
-        print("%s %s" % (PROG, config.GetVersion()))
+    _LOGGER.info("Acloud version: %s", config.GetVersion())
 
     cfg = config.GetAcloudConfig(args)
     # TODO: Move this check into the functions it is actually needed.
@@ -415,6 +426,8 @@ def main(argv=None):
         list_instances.Run(args)
     elif args.which == reconnect_args.CMD_RECONNECT:
         reconnect.Run(args)
+    elif args.which == powerwash_args.CMD_POWERWASH:
+        report = powerwash.Run(args)
     elif args.which == pull_args.CMD_PULL:
         report = pull.Run(args)
     elif args.which == setup_args.CMD_SETUP:
@@ -428,7 +441,11 @@ def main(argv=None):
         report.Dump(args.report_file)
     if report and report.errors:
         error_msg = "\n".join(report.errors)
-        sys.stderr.write("Encountered the following errors:\n%s\n" % error_msg)
+        help_msg = _CONTACT_INFO
+        if report.data.get(constants.ERROR_LOG_FOLDER):
+            help_msg += _LOG_INFO % report.data.get(constants.ERROR_LOG_FOLDER)
+        sys.stderr.write("Encountered the following errors:\n%s\n\n%s.\n" %
+                         (error_msg, help_msg))
         return constants.EXIT_BY_FAIL_REPORT, error_msg
     return constants.EXIT_SUCCESS, NO_ERROR_MESSAGE
 

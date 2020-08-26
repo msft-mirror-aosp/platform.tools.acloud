@@ -42,6 +42,7 @@ from acloud.internal import constants
 from acloud.internal.lib import cvd_runtime_config
 from acloud.internal.lib import utils
 from acloud.internal.lib.adb_tools import AdbTools
+from acloud.internal.lib.local_instance_lock import LocalInstanceLock
 
 
 logger = logging.getLogger(__name__)
@@ -145,6 +146,20 @@ def GetLocalInstanceHomeDir(local_instance_id):
                         GetLocalInstanceName(local_instance_id))
 
 
+def GetLocalInstanceLock(local_instance_id):
+    """Get local instance lock.
+
+    Args:
+        local_instance_id: Integer of instance id.
+
+    Returns:
+        LocalInstanceLock object.
+    """
+    file_path = os.path.join(_ACLOUD_CVD_TEMP,
+                             GetLocalInstanceName(local_instance_id) + ".lock")
+    return LocalInstanceLock(file_path)
+
+
 def GetLocalInstanceRuntimeDir(local_instance_id):
     """Get instance runtime dir
 
@@ -187,6 +202,7 @@ def _GetElapsedTime(start_time):
         return _MSG_UNABLE_TO_CALCULATE
 
 
+# pylint: disable=useless-object-inheritance
 class Instance(object):
     """Class to store data of instance."""
 
@@ -244,6 +260,16 @@ class Instance(object):
             representation.append("%s adb serial: disconnected" % _INDENT)
 
         return "\n".join(representation)
+
+    def AdbConnected(self):
+        """Check AVD adb connected.
+
+        Returns:
+            Boolean, True when adb status of AVD is connected.
+        """
+        if self._adb_port and self._device_information:
+            return True
+        return False
 
     @property
     def name(self):
@@ -435,6 +461,10 @@ class LocalInstance(Instance):
         # sure adb device is completely gone since it will use the same adb port
         adb_cmd.DisconnectAdb(retry=True)
 
+    def GetLock(self):
+        """Return the LocalInstanceLock for this object."""
+        return GetLocalInstanceLock(self._local_instance_id)
+
     @property
     def instance_dir(self):
         """Return _instance_dir."""
@@ -457,14 +487,23 @@ class LocalInstance(Instance):
 
 
 class LocalGoldfishInstance(Instance):
-    """Class to store data of local goldfish instance."""
+    """Class to store data of local goldfish instance.
+
+    A goldfish instance binds to a console port and an adb port. The console
+    port is for `adb emu` to send emulator-specific commands. The adb port is
+    for `adb connect` to start a TCP connection. By convention, the console
+    port is an even number, and the adb port is the console port + 1. The first
+    instance uses port 5554 and 5555, the second instance uses 5556 and 5557,
+    and so on.
+    """
 
     _INSTANCE_NAME_PATTERN = re.compile(
         r"^local-goldfish-instance-(?P<id>\d+)$")
-    _CREATION_TIMESTAMP_FILE_NAME = "creation_timestamp.txt"
     _INSTANCE_NAME_FORMAT = "local-goldfish-instance-%(id)s"
     _EMULATOR_DEFAULT_CONSOLE_PORT = 5554
-    _GF_ADB_DEVICE_SERIAL = "emulator-%(console_port)s"
+    _DEFAULT_ADB_LOCAL_TRANSPORT_MAX_PORT = 5585
+    _DEVICE_SERIAL_FORMAT = "emulator-%(console_port)s"
+    _DEVICE_SERIAL_PATTERN = re.compile(r"^emulator-(?P<console_port>\d+)$")
 
     def __init__(self, local_instance_id, avd_flavor=None, create_time=None,
                  x_res=None, y_res=None, dpi=None):
@@ -479,8 +518,9 @@ class LocalGoldfishInstance(Instance):
             dpi: Integer of dpi.
         """
         self._id = local_instance_id
-        # By convention, adb port is console port + 1.
         adb_port = self.console_port + 1
+        self._adb = AdbTools(adb_port=adb_port,
+                             device_serial=self.device_serial)
 
         name = self._INSTANCE_NAME_FORMAT % {"id": local_instance_id}
 
@@ -496,9 +536,8 @@ class LocalGoldfishInstance(Instance):
         else:
             display = "unknown"
 
-        adb = AdbTools(adb_port)
-        device_information = (adb.device_information if
-                              adb.device_information else None)
+        device_information = (self._adb.device_information if
+                              self._adb.device_information else None)
 
         super(LocalGoldfishInstance, self).__init__(
             name=name, fullname=fullname, display=display, ip="127.0.0.1",
@@ -513,15 +552,20 @@ class LocalGoldfishInstance(Instance):
         return os.path.join(tempfile.gettempdir(), "acloud_gf_temp")
 
     @property
+    def adb(self):
+        """Return the AdbTools to send emulator commands to this instance."""
+        return self._adb
+
+    @property
     def console_port(self):
-        """Return the console port as an integer"""
+        """Return the console port as an integer."""
         # Emulator requires the console port to be an even number.
         return self._EMULATOR_DEFAULT_CONSOLE_PORT + (self._id - 1) * 2
 
     @property
     def device_serial(self):
         """Return the serial number that contains the console port."""
-        return self._GF_ADB_DEVICE_SERIAL % {"console_port": self.console_port}
+        return self._DEVICE_SERIAL_FORMAT % {"console_port": self.console_port}
 
     @property
     def instance_dir(self):
@@ -529,52 +573,44 @@ class LocalGoldfishInstance(Instance):
         return os.path.join(self._GetInstanceDirRoot(),
                             self._INSTANCE_NAME_FORMAT % {"id": self._id})
 
-    @property
-    def creation_timestamp_path(self):
-        """Return the file path containing the creation timestamp."""
-        return os.path.join(self.instance_dir,
-                            self._CREATION_TIMESTAMP_FILE_NAME)
+    @classmethod
+    def GetLockById(cls, instance_id):
+        """Get LocalInstanceLock by id."""
+        lock_path = os.path.join(
+            cls._GetInstanceDirRoot(),
+            (cls._INSTANCE_NAME_FORMAT % {"id": instance_id}) + ".lock")
+        return LocalInstanceLock(lock_path)
 
-    def WriteCreationTimestamp(self):
-        """Write creation timestamp to file."""
-        with open(self.creation_timestamp_path, "w") as timestamp_file:
-            timestamp_file.write(str(_GetCurrentLocalTime()))
-
-    def DeleteCreationTimestamp(self, ignore_errors):
-        """Delete the creation timestamp file.
-
-        Args:
-            ignore_errors: Boolean, whether to ignore the errors.
-
-        Raises:
-            OSError if fails to delete the file.
-        """
-        try:
-            os.remove(self.creation_timestamp_path)
-        except OSError as e:
-            if not ignore_errors:
-                raise
-            logger.warning("Can't delete creation timestamp: %s", e)
+    def GetLock(self):
+        """Return the LocalInstanceLock for this object."""
+        return self.GetLockById(self._id)
 
     @classmethod
     def GetExistingInstances(cls):
-        """Get a list of instances that have creation timestamp files."""
-        instance_root = cls._GetInstanceDirRoot()
-        if not os.path.isdir(instance_root):
-            return []
-
+        """Get the list of instances that adb can send emu commands to."""
         instances = []
-        for name in os.listdir(instance_root):
-            match = cls._INSTANCE_NAME_PATTERN.match(name)
-            timestamp_path = os.path.join(instance_root, name,
-                                          cls._CREATION_TIMESTAMP_FILE_NAME)
-            if match and os.path.isfile(timestamp_path):
-                instance_id = int(match.group("id"))
-                with open(timestamp_path, "r") as timestamp_file:
-                    timestamp = timestamp_file.read().strip()
-                instances.append(LocalGoldfishInstance(instance_id,
-                                                       create_time=timestamp))
+        for serial in AdbTools.GetDeviceSerials():
+            match = cls._DEVICE_SERIAL_PATTERN.match(serial)
+            if not match:
+                continue
+            port = int(match.group("console_port"))
+            instance_id = (port - cls._EMULATOR_DEFAULT_CONSOLE_PORT) // 2 + 1
+            instances.append(LocalGoldfishInstance(instance_id))
         return instances
+
+    @classmethod
+    def GetMaxNumberOfInstances(cls):
+        """Get number of emulators that adb can detect."""
+        max_port = os.environ.get("ADB_LOCAL_TRANSPORT_MAX_PORT",
+                                  cls._DEFAULT_ADB_LOCAL_TRANSPORT_MAX_PORT)
+        try:
+            max_port = int(max_port)
+        except ValueError:
+            max_port = cls._DEFAULT_ADB_LOCAL_TRANSPORT_MAX_PORT
+        if (max_port < cls._EMULATOR_DEFAULT_CONSOLE_PORT or
+                max_port > constants.MAX_PORT):
+            max_port = cls._DEFAULT_ADB_LOCAL_TRANSPORT_MAX_PORT
+        return (max_port + 1 - cls._EMULATOR_DEFAULT_CONSOLE_PORT) // 2
 
 
 class RemoteInstance(Instance):
@@ -705,9 +741,11 @@ class RemoteInstance(Instance):
 
         default_vnc_port = utils.AVD_PORT_DICT[avd_type].vnc_port
         default_adb_port = utils.AVD_PORT_DICT[avd_type].adb_port
+        # TODO(165888525): Align the SSH tunnel for the order of adb port and
+        # vnc port.
         re_pattern = re.compile(_RE_SSH_TUNNEL_PATTERN %
-                                (_RE_GROUP_VNC, default_vnc_port,
-                                 _RE_GROUP_ADB, default_adb_port, ip))
+                                (_RE_GROUP_ADB, default_adb_port,
+                                 _RE_GROUP_VNC, default_vnc_port, ip))
         adb_port = None
         vnc_port = None
         process_output = utils.CheckOutput(constants.COMMAND_PS)

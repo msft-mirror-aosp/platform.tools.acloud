@@ -41,9 +41,12 @@ from acloud import errors
 from acloud.internal import constants
 from acloud.internal.lib import gcompute_client
 from acloud.internal.lib import utils
+from acloud.public import config
 
 
 logger = logging.getLogger(__name__)
+_ZONE = "zone"
+_VERSION = "version"
 
 
 class AndroidComputeClient(gcompute_client.ComputeClient):
@@ -79,6 +82,8 @@ class AndroidComputeClient(gcompute_client.ComputeClient):
         self._launch_args = acloud_config.launch_args
         self._instance_name_pattern = acloud_config.instance_name_pattern
         self._AddPerInstanceSshkey()
+        self._dict_report = {_ZONE: self._zone,
+                             _VERSION: config.GetVersion()}
 
     # TODO(147047953): New args to contorl zone metrics check.
     def _VerifyZoneByQuota(self):
@@ -370,7 +375,7 @@ class AndroidComputeClient(gcompute_client.ComputeClient):
                     instance, boot_timeout_secs)
         timeout_exception = errors.DeviceBootTimeoutError(
             "Device %s did not finish on boot within timeout (%s secs)" %
-            (instance, boot_timeout_secs)),
+            (instance, boot_timeout_secs))
         utils.PollAndWait(
             func=self.CheckBoot,
             expected_return=True,
@@ -409,3 +414,17 @@ class AndroidComputeClient(gcompute_client.ComputeClient):
         """
         return super(AndroidComputeClient, self).GetSerialPortOutput(
             instance, zone or self._zone, port)
+
+    def ExtendReportData(self, key, value):
+        """Extend the report data.
+
+        Args:
+            key: string of key name.
+            value: string of data value.
+        """
+        self._dict_report.update({key: value})
+
+    @property
+    def dict_report(self):
+        """Return dict_report"""
+        return self._dict_report

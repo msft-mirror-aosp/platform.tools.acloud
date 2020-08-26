@@ -26,7 +26,6 @@ import subprocess
 from acloud import errors
 from acloud.internal import constants
 from acloud.internal.lib import auth
-from acloud.internal.lib import adb_tools
 from acloud.internal.lib import cvd_compute_client_multi_stage
 from acloud.internal.lib import utils
 from acloud.internal.lib import ssh as ssh_object
@@ -136,6 +135,13 @@ def DeleteLocalCuttlefishInstance(instance, delete_report):
     Returns:
         delete_report.
     """
+    ins_lock = instance.GetLock()
+    if not ins_lock.Lock():
+        delete_report.AddError("%s is locked by another process." %
+                               instance.name)
+        delete_report.SetStatus(report.Status.FAIL)
+        return delete_report
+
     try:
         instance.Delete()
         delete_report.SetStatus(report.Status.SUCCESS)
@@ -146,6 +152,9 @@ def DeleteLocalCuttlefishInstance(instance, delete_report):
     except subprocess.CalledProcessError as e:
         delete_report.AddError(str(e))
         delete_report.SetStatus(report.Status.FAIL)
+    finally:
+        ins_lock.SetInUse(False)
+        ins_lock.Unlock()
 
     return delete_report
 
@@ -162,19 +171,27 @@ def DeleteLocalGoldfishInstance(instance, delete_report):
     Returns:
         delete_report.
     """
-    adb = adb_tools.AdbTools(adb_port=instance.adb_port,
-                             device_serial=instance.device_serial)
-    if adb.EmuCommand("kill") == 0:
-        delete_report.SetStatus(report.Status.SUCCESS)
-        device_driver.AddDeletionResultToReport(
-            delete_report, [instance.name], failed=[],
-            error_msgs=[],
-            resource_name="instance")
-    else:
-        delete_report.AddError("Cannot kill %s." % instance.device_serial)
+    lock = instance.GetLock()
+    if not lock.Lock():
+        delete_report.AddError("%s is locked by another process." %
+                               instance.name)
         delete_report.SetStatus(report.Status.FAIL)
+        return delete_report
 
-    instance.DeleteCreationTimestamp(ignore_errors=True)
+    try:
+        if instance.adb.EmuCommand("kill") == 0:
+            delete_report.SetStatus(report.Status.SUCCESS)
+            device_driver.AddDeletionResultToReport(
+                delete_report, [instance.name], failed=[],
+                error_msgs=[],
+                resource_name="instance")
+        else:
+            delete_report.AddError("Cannot kill %s." % instance.device_serial)
+            delete_report.SetStatus(report.Status.FAIL)
+    finally:
+        lock.SetInUse(False)
+        lock.Unlock()
+
     return delete_report
 
 

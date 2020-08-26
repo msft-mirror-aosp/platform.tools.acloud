@@ -20,12 +20,12 @@ import datetime
 import subprocess
 
 import unittest
-import mock
 from six import b
 
 # pylint: disable=import-error
 import dateutil.parser
 import dateutil.tz
+import mock
 
 from acloud.internal import constants
 from acloud.internal.lib import cvd_runtime_config
@@ -40,8 +40,8 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
                       "/fake_ps_2 --fake arg \n"
                       "/usr/bin/ssh -i ~/.ssh/acloud_rsa "
                       "-o UserKnownHostsFile=/dev/null "
-                      "-o StrictHostKeyChecking=no -L 12345:127.0.0.1:6444 "
-                      "-L 54321:127.0.0.1:6520 -N -f -l user 1.1.1.1")
+                      "-o StrictHostKeyChecking=no -L 54321:127.0.0.1:6520 "
+                      "-L 12345:127.0.0.1:6444 -N -f -l user 1.1.1.1")
     PS_LAUNCH_CVD = b("Sat Nov 10 21:55:10 2018 /fake_path/bin/run_cvd ")
     PS_RUNTIME_CF_CONFIG = {"x_res": "1080", "y_res": "1920", "dpi": "480"}
     GCE_INSTANCE = {
@@ -106,58 +106,33 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(inst.instance_dir,
                          "/unit/test/acloud_gf_temp/local-goldfish-instance-1")
 
-    @mock.patch("acloud.list.instance.open",
-                mock.mock_open(read_data="test createtime"))
-    @mock.patch("acloud.list.instance.os.path.isfile")
-    @mock.patch("acloud.list.instance.os.listdir")
-    @mock.patch("acloud.list.instance.os.path.isdir")
-    @mock.patch("acloud.list.instance.tempfile")
     @mock.patch("acloud.list.instance.AdbTools")
-    @mock.patch("acloud.list.instance._GetElapsedTime")
-    def testGetLocalGoldfishInstances(self, mock_get_elapsed_time,
-                                      mock_adb_tools, mock_tempfile,
-                                      mock_isdir, mock_listdir, mock_isfile):
+    def testGetLocalGoldfishInstances(self, mock_adb_tools):
         """Test LocalGoldfishInstance.GetExistingInstances."""
-        mock_get_elapsed_time.return_value = datetime.timedelta(hours=10)
-        mock_adb_tools.return_value = mock.Mock(device_information={})
-        mock_tempfile.gettempdir.return_value = "/unit/test"
-        acloud_gf_temp_path = "/unit/test/acloud_gf_temp"
-        subdir_names = (
-            "local-goldfish-instance-1",
-            "local-goldfish-instance-2",
-            "local-goldfish-instance-3")
-        timestamp_paths = (
-            "/unit/test/acloud_gf_temp/local-goldfish-instance-1/"
-            "creation_timestamp.txt",
-            "/unit/test/acloud_gf_temp/local-goldfish-instance-2/"
-            "creation_timestamp.txt",
-            "/unit/test/acloud_gf_temp/local-goldfish-instance-3/"
-            "creation_timestamp.txt")
-        mock_isdir.side_effect = lambda path: path == acloud_gf_temp_path
-        mock_listdir.side_effect = lambda path: (
-            subdir_names if path == acloud_gf_temp_path else [])
-        mock_isfile.side_effect = lambda path: (
-            path in (timestamp_paths[0], timestamp_paths[2]))
+        mock_adb_tools.GetDeviceSerials.return_value = [
+            "127.0.0.1:6520", "emulator-5554", "ABCD", "emulator-5558"]
 
         instances = instance.LocalGoldfishInstance.GetExistingInstances()
 
-        mock_isdir.assert_called_with(acloud_gf_temp_path)
-        mock_listdir.assert_called_with(acloud_gf_temp_path)
-        for timestamp_path in timestamp_paths:
-            mock_isfile.assert_any_call(timestamp_path)
         self.assertEqual(len(instances), 2)
         self.assertEqual(instances[0].console_port, 5554)
-        self.assertEqual(instances[0].createtime, "test createtime")
-        self.assertEqual(instances[0].fullname,
-                         "device serial: emulator-5554 "
-                         "(local-goldfish-instance-1) "
-                         "elapsed time: 10:00:00")
+        self.assertEqual(instances[0].name, "local-goldfish-instance-1")
         self.assertEqual(instances[1].console_port, 5558)
-        self.assertEqual(instances[1].createtime, "test createtime")
-        self.assertEqual(instances[1].fullname,
-                         "device serial: emulator-5558 "
-                         "(local-goldfish-instance-3) "
-                         "elapsed time: 10:00:00")
+        self.assertEqual(instances[1].name, "local-goldfish-instance-3")
+
+    def testGetMaxNumberOfGoldfishInstances(self):
+        """Test LocalGoldfishInstance.GetMaxNumberOfInstances."""
+        mock_environ = {}
+        with mock.patch.dict("acloud.list.instance.os.environ",
+                             mock_environ, clear=True):
+            num = instance.LocalGoldfishInstance.GetMaxNumberOfInstances()
+        self.assertEqual(num, 16)
+
+        mock_environ["ADB_LOCAL_TRANSPORT_MAX_PORT"] = "5565"
+        with mock.patch.dict("acloud.list.instance.os.environ",
+                             mock_environ, clear=True):
+            num = instance.LocalGoldfishInstance.GetMaxNumberOfInstances()
+        self.assertEqual(num, 6)
 
     def testGetElapsedTime(self):
         """Test _GetElapsedTime"""
