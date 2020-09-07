@@ -141,6 +141,7 @@ class GoldfishLocalImageLocalInstance(unittest.TestCase):
                                   gpu=None,
                                   autoconnect=True,
                                   local_instance_id=1,
+                                  local_instance_dir=None,
                                   local_image_dir=self._image_dir,
                                   local_system_image_dir=None,
                                   local_tool_dirs=[])
@@ -183,11 +184,15 @@ class GoldfishLocalImageLocalInstance(unittest.TestCase):
         self._CreateEmptyFile(os.path.join(self._image_dir, "system.img"))
         self._CreateEmptyFile(os.path.join(self._image_dir, "build.prop"))
 
+        instance_dir = os.path.join(self._temp_dir, "local_instance_dir")
+        os.mkdir(instance_dir)
+
         mock_avd_spec = mock.Mock(flavor="phone",
                                   boot_timeout_secs=None,
                                   gpu=None,
                                   autoconnect=True,
                                   local_instance_id=2,
+                                  local_instance_dir=instance_dir,
                                   local_image_dir=self._image_dir,
                                   local_system_image_dir=None,
                                   local_tool_dirs=[self._tool_dir])
@@ -206,7 +211,8 @@ class GoldfishLocalImageLocalInstance(unittest.TestCase):
 
         mock_instance.assert_called_once_with(2, avd_flavor="phone")
 
-        self.assertTrue(os.path.isdir(self._instance_dir))
+        self.assertTrue(os.path.isdir(self._instance_dir) and
+                        os.path.islink(self._instance_dir))
 
         mock_popen.assert_called_once()
         self.assertEqual(mock_popen.call_args[0][0],
@@ -236,6 +242,7 @@ class GoldfishLocalImageLocalInstance(unittest.TestCase):
                                   gpu=None,
                                   autoconnect=True,
                                   local_instance_id=2,
+                                  local_instance_dir=None,
                                   local_image_dir=self._image_dir,
                                   local_system_image_dir=None,
                                   local_tool_dirs=[self._tool_dir])
@@ -269,6 +276,7 @@ class GoldfishLocalImageLocalInstance(unittest.TestCase):
                                   gpu=None,
                                   autoconnect=True,
                                   local_instance_id=0,
+                                  local_instance_dir=None,
                                   local_image_dir=self._image_dir,
                                   local_system_image_dir=None,
                                   local_tool_dirs=[self._tool_dir])
@@ -318,6 +326,7 @@ class GoldfishLocalImageLocalInstance(unittest.TestCase):
                                   gpu="auto",
                                   autoconnect=False,
                                   local_instance_id=3,
+                                  local_instance_dir=None,
                                   local_image_dir=self._image_dir,
                                   local_system_image_dir="/unit/test",
                                   local_tool_dirs=[])
