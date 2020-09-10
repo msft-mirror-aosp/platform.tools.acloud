@@ -275,12 +275,13 @@ def ChooseOneRemoteInstance(cfg):
     return instances_list[0]
 
 
-def _FilterInstancesByNames(instances, names):
+def _FilterInstancesByNames(instances, names, all_match=True):
     """Find instances by names.
 
     Args:
         instances: Collection of Instance objects.
         names: Collection of strings, the names of the instances to search for.
+        all_match: Boolean, True to raise error if any instance is missing.
 
     Returns:
         List of Instance objects.
@@ -297,17 +298,18 @@ def _FilterInstancesByNames(instances, names):
         else:
             missing_instance_names.append(name)
 
-    if missing_instance_names:
+    if missing_instance_names and all_match:
         raise errors.NoInstancesFound("Did not find the following instances: %s" %
                                       " ".join(missing_instance_names))
     return found_instances
 
 
-def GetLocalInstancesByNames(names):
+def GetLocalInstancesByNames(names, all_match=True):
     """Get local cuttlefish and goldfish instances by names.
 
     Args:
         names: Collection of instance names.
+        all_match: Boolean, True to raise error if any instance is missing.
 
     Returns:
         List consisting of LocalInstance and LocalGoldfishInstance objects.
@@ -331,7 +333,7 @@ def GetLocalInstancesByNames(names):
     return _FilterInstancesByNames(
         _GetLocalCuttlefishInstances(id_cfg_pairs) +
         instance.LocalGoldfishInstance.GetExistingInstances(),
-        names)
+        names, all_match)
 
 
 def GetInstancesFromInstanceNames(cfg, instance_names):
@@ -350,8 +352,8 @@ def GetInstancesFromInstanceNames(cfg, instance_names):
         errors.NoInstancesFound: No instances found.
     """
     return _FilterInstancesByNames(
-        GetLocalInstancesByNames(instance_names) + GetRemoteInstances(cfg),
-        instance_names)
+        GetLocalInstancesByNames(instance_names, all_match=False) +
+        GetRemoteInstances(cfg), instance_names)
 
 
 def FilterInstancesByAdbPort(instances, adb_port):
