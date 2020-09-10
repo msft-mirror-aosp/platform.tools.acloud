@@ -115,6 +115,11 @@ class ListTest(driver_test_lib.BaseDriverTest):
             ins_list = list_instance.GetLocalInstancesByNames(
                 ["local-instance-1", "local-instance-6"])
 
+        # test get instance without raising error
+        ins_list = list_instance.GetLocalInstancesByNames(
+            ["local-instance-1", "local-instance-6"], all_match=False)
+        self.assertEqual(1, len(ins_list))
+
     # pylint: disable=attribute-defined-outside-init
     def testFilterInstancesByAdbPort(self):
         """test FilterInstancesByAdbPort."""
