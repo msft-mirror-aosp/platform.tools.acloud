@@ -27,6 +27,7 @@ from acloud.internal.lib import auth
 from acloud.internal.lib import driver_test_lib
 from acloud.internal.lib import utils
 from acloud.list import list as list_instances
+from acloud.public import config
 
 
 # pylint: disable=invalid-name,protected-access
@@ -325,16 +326,23 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.AvdSpec._ProcessRemoteBuildArgs(self.args)
         self.assertTrue(self.AvdSpec.avd_type == "cuttlefish")
 
+        # Setup acloud config with betty_image spec
+        cfg = mock.MagicMock()
+        cfg.betty_image = 'foobarbaz'
+        self.Patch(config, 'GetAcloudConfig', return_value=cfg)
+        self.AvdSpec = avd_spec.AVDSpec(self.args)
+        # --betty-image from cmdline should override config
         self.args.cheeps_betty_image = 'abcdefg'
         self.AvdSpec._ProcessRemoteBuildArgs(self.args)
         self.assertEqual(
             self.AvdSpec.remote_image[constants.CHEEPS_BETTY_IMAGE],
             self.args.cheeps_betty_image)
+        # acloud config value is used otherwise
         self.args.cheeps_betty_image = None
         self.AvdSpec._ProcessRemoteBuildArgs(self.args)
         self.assertEqual(
             self.AvdSpec.remote_image[constants.CHEEPS_BETTY_IMAGE],
-            self.args.cheeps_betty_image)
+            cfg.betty_image)
 
 
     def testEscapeAnsi(self):
