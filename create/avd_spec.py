@@ -552,7 +552,7 @@ class AVDSpec():
                 self._remote_image[constants.BUILD_BRANCH])
 
         self._remote_image[constants.CHEEPS_BETTY_IMAGE] = (
-            args.cheeps_betty_image)
+            args.cheeps_betty_image or self._cfg.betty_image)
 
         # Process system image and kernel image.
         self._system_build_info = {constants.BUILD_ID: args.system_build_id,
