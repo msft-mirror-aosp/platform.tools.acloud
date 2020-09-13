@@ -224,6 +224,7 @@ class AcloudConfig(object):
         self.stable_cheeps_host_image_project = (
             usr_cfg.stable_cheeps_host_image_project or
             internal_cfg.default_usr_cfg.stable_cheeps_host_image_project)
+        self.betty_image = usr_cfg.betty_image
 
         self.extra_args_ssh_tunnel = usr_cfg.extra_args_ssh_tunnel
 
