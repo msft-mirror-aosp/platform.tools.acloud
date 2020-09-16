@@ -238,13 +238,7 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         emulator_path = self._FindEmulatorBinary(avd_spec.local_tool_dirs)
         emulator_path = os.path.abspath(emulator_path)
 
-        image_dir = os.path.abspath(avd_spec.local_image_dir)
-
-        if not (os.path.isfile(os.path.join(image_dir, _SYSTEM_IMAGE_NAME)) or
-                os.path.isfile(os.path.join(image_dir,
-                                            _SYSTEM_QEMU_IMAGE_NAME))):
-            raise errors.GetLocalImageError("No system image in %s." %
-                                            image_dir)
+        image_dir = self._FindImageDir(avd_spec.local_image_dir)
 
         # TODO(b/141898893): In Android build environment, emulator gets build
         # information from $ANDROID_PRODUCT_OUT/system/build.prop.
@@ -341,6 +335,35 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                 return path
 
         raise errors.GetSdkRepoPackageError(_MISSING_EMULATOR_MSG)
+
+    @staticmethod
+    def _FindImageDir(image_dir):
+        """Find emulator images in the directory.
+
+        In build environment, the images are in $ANDROID_PRODUCT_OUT.
+        In an extracted SDK repository, the images are in the subdirectory
+        named after the CPU architecture.
+
+        Args:
+            image_dir: The path given by the environment variable or the user.
+
+        Returns:
+            The directory containing the emulator images.
+
+        Raises:
+            errors.GetLocalImageError if the images are not found.
+        """
+        entries = os.listdir(image_dir)
+        if len(entries) == 1:
+            first_entry = os.path.join(image_dir, entries[0])
+            if os.path.isdir(first_entry):
+                image_dir = first_entry
+
+        if (os.path.isfile(os.path.join(image_dir, _SYSTEM_QEMU_IMAGE_NAME)) or
+                os.path.isfile(os.path.join(image_dir, _SYSTEM_IMAGE_NAME))):
+            return image_dir
+
+        raise errors.GetLocalImageError("No system image in %s." % image_dir)
 
     @staticmethod
     def _IsEmulatorRunning(adb):

@@ -180,8 +180,10 @@ class GoldfishLocalImageLocalInstance(unittest.TestCase):
         """Test _CreateAVD with SDK repository files."""
         self._SetUpMocks(mock_popen, mock_utils, mock_instance)
 
-        self._CreateEmptyFile(os.path.join(self._image_dir, "system.img"))
-        self._CreateEmptyFile(os.path.join(self._image_dir, "build.prop"))
+        self._CreateEmptyFile(os.path.join(self._image_dir, "x86",
+                                           "system.img"))
+        self._CreateEmptyFile(os.path.join(self._image_dir, "x86",
+                                           "build.prop"))
 
         mock_avd_spec = mock.Mock(flavor="phone",
                                   boot_timeout_secs=None,
@@ -214,7 +216,7 @@ class GoldfishLocalImageLocalInstance(unittest.TestCase):
         self._mock_proc.poll.assert_called()
 
         self.assertTrue(os.path.isfile(
-            os.path.join(self._image_dir, "system", "build.prop")))
+            os.path.join(self._image_dir, "x86", "system", "build.prop")))
 
     # pylint: disable=protected-access
     @mock.patch("acloud.create.goldfish_local_image_local_instance.instance."
