@@ -39,6 +39,8 @@ _DICT_ERROR_TYPE = {
     constants.STAGE_ARTIFACT: "ACLOUD_DOWNLOAD_ARTIFACT_ERROR",
     constants.STAGE_BOOT_UP: "ACLOUD_BOOT_UP_ERROR",
 }
+# Error type of GCE quota error.
+_GCE_QUOTA_ERROR = "GCE_QUOTA_ERROR"
 
 
 def CreateSshKeyPairIfNecessary(cfg):
@@ -275,7 +277,9 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
                 reporter.AddError(str(failures[device.instance_name]))
             else:
                 reporter.AddData(key="devices", value=device_dict)
-    except errors.DriverError as e:
+    except (errors.DriverError, errors.CheckGCEZonesQuotaError) as e:
+        if isinstance(e, errors.CheckGCEZonesQuotaError):
+            reporter.UpdateData({_ERROR_TYPE: _GCE_QUOTA_ERROR})
         reporter.AddError(str(e))
         reporter.SetStatus(report.Status.FAIL)
     return reporter

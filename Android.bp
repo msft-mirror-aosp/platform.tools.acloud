@@ -42,7 +42,7 @@ python_binary_host {
     ],
     data: [
         "public/data/default.config",
-	":acloud_version",
+        ":acloud_version",
     ],
     libs: [
         "acloud_create",
