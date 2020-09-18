@@ -109,4 +109,7 @@ message UserConfig {
 
   // [CVD only] Enable multi stage function.
   optional bool enable_multi_stage = 30;
+
+  // [CHEEPS only] The name of the L1 betty image (used with Cheeps controller)
+  optional string betty_image = 31;
 }

@@ -109,7 +109,8 @@ def _SshLogOutput(cmd, timeout=None, show_output=False):
     cmd = "exec " + cmd
     logger.info("Running command \"%s\"", cmd)
     process = subprocess.Popen(cmd, shell=True, stdin=None,
-                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                               universal_newlines=True)
     if timeout:
         # TODO: if process is killed, out error message to log.
         timer = threading.Timer(timeout, process.kill)
@@ -257,9 +258,10 @@ class Ssh(object):
         ssh_cmd = "exec " + self.GetBaseCmd(constants.SSH_BIN) + " " + cmd
         logger.info("Running command \"%s\"", ssh_cmd)
         process = subprocess.Popen(ssh_cmd, shell=True, stdin=None,
-                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                   universal_newlines=True)
         stdout, _ = process.communicate()
-        return stdout.decode()
+        return stdout
 
     def CheckSshConnection(self, timeout):
         """Run remote 'uptime' ssh command to check ssh connection.

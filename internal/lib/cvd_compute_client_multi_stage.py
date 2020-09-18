@@ -138,6 +138,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         self._ssh = None
         self._ip = None
         self._user = constants.GCE_USER
+        self._stage = constants.STAGE_INIT
         self._execution_time = {_FETCH_ARTIFACT: 0, _GCE_CREATE: 0, _LAUNCH_CVD: 0}
 
     def InitRemoteHost(self, ssh, ip, user):
@@ -203,6 +204,11 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             int(self.GetImage(image_name, image_project)["diskSizeGb"]) +
             blank_data_disk_size_gb)
 
+        # Record the system build and kernel build into metadata.
+        self._RecordSystemAndKernelInfo(avd_spec, system_build_id,
+                                        system_build_target, kernel_build_id,
+                                        kernel_build_target)
+
         if avd_spec and avd_spec.instance_name_to_reuse:
             self._ip = self._ReusingGceInstance(avd_spec)
         else:
@@ -241,6 +247,31 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         except Exception as e:
             self._all_failures[instance] = e
             return instance
+
+    def _RecordSystemAndKernelInfo(self, avd_spec, system_build_id,
+                                   system_build_target, kernel_build_id,
+                                   kernel_build_target):
+        """Rocord the system build info and kernel build info into metadata.
+
+        Args:
+            avd_spec: An AVDSpec instance.
+            system_build_id: A string, build id for the system image.
+            system_build_target: Target name for the system image,
+                                e.g. "cf_x86_phone-userdebug"
+            kernel_build_id: Kernel build id, a string, e.g. "223051", "P280427"
+            kernel_build_target: String, Kernel build target name.
+        """
+        if avd_spec and avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
+            system_build_id = avd_spec.system_build_info.get(constants.BUILD_ID)
+            system_build_target = avd_spec.system_build_info.get(constants.BUILD_TARGET)
+            kernel_build_id = avd_spec.kernel_build_info.get(constants.BUILD_ID)
+            kernel_build_target = avd_spec.kernel_build_info.get(constants.BUILD_TARGET)
+        if system_build_id and system_build_target:
+            self._metadata.update({"system_build_id": system_build_id})
+            self._metadata.update({"system_build_target": system_build_target})
+        if kernel_build_id and kernel_build_target:
+            self._metadata.update({"kernel_build_id": kernel_build_id})
+            self._metadata.update({"kernel_build_target": kernel_build_target})
 
     def _GetLaunchCvdArgs(self, avd_spec=None, blank_data_disk_size_gb=None,
                           kernel_build=None, decompress_kernel=None):
@@ -586,6 +617,14 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             "Please specify 'stable_host_image_name' or 'stable_host_image_family'"
             " in config.")
 
+    def SetStage(self, stage):
+        """Set stage to know the create progress.
+
+        Args:
+            stage: Integer, the stage would like STAGE_INIT, STAGE_GCE.
+        """
+        self._stage = stage
+
     @property
     def all_failures(self):
         """Return all_failures"""
@@ -595,3 +634,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
     def execution_time(self):
         """Return execution_time"""
         return self._execution_time
+
+    @property
+    def stage(self):
+        """Return stage"""
+        return self._stage

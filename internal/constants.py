@@ -123,6 +123,8 @@ GF_ADB_PORT = 5555
 GF_VNC_PORT = 6444
 # For FVP remote instances (no VNC support)
 FVP_ADB_PORT = 5555
+# Maximum port number
+MAX_PORT = 65535
 
 COMMAND_PS = ["ps", "aux"]
 CMD_LAUNCH_CVD = "launch_cvd"
@@ -163,7 +165,6 @@ INS_KEY_AVD_FLAVOR = "flavor"
 INS_KEY_IS_LOCAL = "remote"
 INS_KEY_ZONE = "zone"
 INS_STATUS_RUNNING = "RUNNING"
-LOCAL_INS_NAME = "local-instance"
 ENV_CUTTLEFISH_CONFIG_FILE = "CUTTLEFISH_CONFIG_FILE"
 ENV_CUTTLEFISH_INSTANCE = "CUTTLEFISH_INSTANCE"
 ENV_CVD_HOME = "HOME"
@@ -194,3 +195,9 @@ CHEEPS_BETTY_IMAGE = "betty_image"
 
 # Key name in report
 ERROR_LOG_FOLDER = "error_log_folder"
+
+# Stages for create progress
+STAGE_INIT = 0
+STAGE_GCE = 1
+STAGE_ARTIFACT = 2
+STAGE_BOOT_UP = 3
