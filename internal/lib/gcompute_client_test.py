@@ -1478,6 +1478,10 @@ class ComputeClientTest(driver_test_lib.BaseDriverTest):
                     "usage": 640,
                     "metric": "DISKS_TOTAL_GB",
                     "limit": 10240
+                }, {
+                    "usage": 20,
+                    "metric": "IN_USE_ADDRESSES",
+                    "limit": 100
                 }]
             }]
         }
@@ -1498,6 +1502,10 @@ class ComputeClientTest(driver_test_lib.BaseDriverTest):
                     "usage": 640,
                     "metric": "DISKS_TOTAL_GB",
                     "limit": 10240
+                }, {
+                    "usage": 20,
+                    "metric": "IN_USE_ADDRESSES",
+                    "limit": 100
                 }]
             }]
         }
