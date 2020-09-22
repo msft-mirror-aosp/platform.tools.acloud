@@ -56,6 +56,7 @@ logger = logging.getLogger(__name__)
 
 # Input and output file names
 _EMULATOR_BIN_NAME = "emulator"
+_EMULATOR_BIN_DIR_NAMES = ("bin64", "qemu")
 _SDK_REPO_EMULATOR_DIR_NAME = "emulator"
 _SYSTEM_IMAGE_NAME = "system.img"
 _SYSTEM_QEMU_IMAGE_NAME = "system-qemu.img"
@@ -236,7 +237,6 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             errors.CheckPathError if OTA tools are not found.
         """
         emulator_path = self._FindEmulatorBinary(avd_spec.local_tool_dirs)
-        emulator_path = os.path.abspath(emulator_path)
 
         image_dir = self._FindImageDir(avd_spec.local_image_dir)
 
@@ -314,27 +314,56 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
 
     @staticmethod
     def _FindEmulatorBinary(search_paths):
-        """Return the path to the emulator binary."""
+        """Find emulator binary in the directories.
+
+        The directories may be extracted from zip archives without preserving
+        file permissions. When this method finds the emulator binary and its
+        dependencies, it sets the files to be executable.
+
+        Args:
+            search_paths: Collection of strings, the directories to search for
+                          emulator binary.
+
+        Returns:
+            The path to the emulator binary.
+
+        Raises:
+            errors.GetSdkRepoPackageError if emulator binary is not found.
+        """
+        emulator_dir = None
         # Find in unzipped sdk-repo-*.zip.
         for search_path in search_paths:
-            path = os.path.join(search_path, _EMULATOR_BIN_NAME)
-            if os.path.isfile(path):
-                return path
+            if os.path.isfile(os.path.join(search_path, _EMULATOR_BIN_NAME)):
+                emulator_dir = search_path
+                break
 
-            path = os.path.join(search_path, _SDK_REPO_EMULATOR_DIR_NAME,
-                                _EMULATOR_BIN_NAME)
-            if os.path.isfile(path):
-                return path
+            sdk_repo_dir = os.path.join(search_path,
+                                        _SDK_REPO_EMULATOR_DIR_NAME)
+            if os.path.isfile(os.path.join(sdk_repo_dir, _EMULATOR_BIN_NAME)):
+                emulator_dir = sdk_repo_dir
+                break
 
         # Find in build environment.
-        prebuilt_emulator_dir = os.environ.get(
-            constants.ENV_ANDROID_EMULATOR_PREBUILTS)
-        if prebuilt_emulator_dir:
-            path = os.path.join(prebuilt_emulator_dir, _EMULATOR_BIN_NAME)
-            if os.path.isfile(path):
-                return path
+        if not emulator_dir:
+            prebuilt_emulator_dir = os.environ.get(
+                constants.ENV_ANDROID_EMULATOR_PREBUILTS)
+            if (prebuilt_emulator_dir and os.path.isfile(
+                    os.path.join(prebuilt_emulator_dir, _EMULATOR_BIN_NAME))):
+                emulator_dir = prebuilt_emulator_dir
 
-        raise errors.GetSdkRepoPackageError(_MISSING_EMULATOR_MSG)
+        if not emulator_dir:
+            raise errors.GetSdkRepoPackageError(_MISSING_EMULATOR_MSG)
+
+        emulator_dir = os.path.abspath(emulator_dir)
+        # Set the binaries to be executable.
+        for subdir_name in _EMULATOR_BIN_DIR_NAMES:
+            subdir_path = os.path.join(emulator_dir, subdir_name)
+            if os.path.isdir(subdir_path):
+                utils.SetDirectoryTreeExecutable(subdir_path)
+
+        emulator_path = os.path.join(emulator_dir, _EMULATOR_BIN_NAME)
+        utils.SetExecutable(emulator_path)
+        return emulator_path
 
     @staticmethod
     def _FindImageDir(image_dir):
