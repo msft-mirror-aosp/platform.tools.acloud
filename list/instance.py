@@ -149,7 +149,7 @@ def GetAllLocalInstanceConfigs():
             ins_id = GetLocalInstanceIdByName(ins_name)
             if ins_id is not None:
                 cfg_path = GetLocalInstanceConfig(ins_id)
-                if os.path.isfile(cfg_path):
+                if cfg_path:
                     id_cfg_pairs.append((ins_id, cfg_path))
     return id_cfg_pairs
 
