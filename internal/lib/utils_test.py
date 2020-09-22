@@ -41,7 +41,7 @@ except ImportError:
     Tkinter = mock.Mock()
 
 
-class FakeTkinter(object):
+class FakeTkinter:
     """Fake implementation of Tkinter.Tk()"""
 
     def __init__(self, width=None, height=None):
@@ -493,6 +493,23 @@ class UtilsTest(driver_test_lib.BaseDriverTest):
         self.Patch(os.environ, "get", return_value=False)
         utils.LaunchBrowserFromReport(fake_report)
         self.assertEqual(webbrowser.open_new_tab.call_count, 0)
+
+    def testSetExecutable(self):
+        """test setting a file to be executable."""
+        with tempfile.NamedTemporaryFile(delete=True) as temp_file:
+            utils.SetExecutable(temp_file.name)
+            self.assertEqual(os.stat(temp_file.name).st_mode & 0o777, 0o755)
+
+    def testSetDirectoryTreeExecutable(self):
+        """test setting a file in a directory to be executable."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            subdir = os.path.join(temp_dir, "subdir")
+            file_path = os.path.join(subdir, "file")
+            os.makedirs(subdir)
+            with open(file_path, "w"):
+                pass
+            utils.SetDirectoryTreeExecutable(temp_dir)
+            self.assertEqual(os.stat(file_path).st_mode & 0o777, 0o755)
 
 
 if __name__ == "__main__":
