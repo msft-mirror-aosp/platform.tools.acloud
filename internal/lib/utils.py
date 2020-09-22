@@ -29,6 +29,7 @@ import shutil
 import signal
 import struct
 import socket
+import stat
 import subprocess
 import sys
 import tarfile
@@ -109,7 +110,7 @@ _DEFAULT_TIMEOUT_ERR = "Function did not complete within %d secs."
 _SSVNC_VIEWER_PATTERN = "vnc://127.0.0.1:%(vnc_port)d"
 
 
-class TempDir(object):
+class TempDir:
     """A context manager that ceates a temporary directory.
 
     Attributes:
@@ -281,11 +282,10 @@ def PollAndWait(func, expected_return, timeout_exception, timeout_secs,
         return_value = func(*args, **kwargs)
         if return_value == expected_return:
             return
-        elif time.time() - start > timeout_secs:
+        if time.time() - start > timeout_secs:
             raise timeout_exception
-        else:
-            if sleep_interval_secs > 0:
-                time.sleep(sleep_interval_secs)
+        if sleep_interval_secs > 0:
+            time.sleep(sleep_interval_secs)
 
 
 def GenerateUniqueName(prefix=None, suffix=None):
@@ -413,7 +413,7 @@ def VerifyRsaPubKey(rsa):
 
     key_type, data, _ = elements
     try:
-        binary_data = base64.decodestring(six.b(data))
+        binary_data = base64.decodebytes(six.b(data))
         # number of bytes of int type
         int_length = 4
         # binary_data is like "7ssh-key..." in a binary format.
@@ -454,7 +454,7 @@ def Decompress(sourcefile, dest=None):
             "for zip or tar.gz.")
 
 
-# pylint: disable=old-style-class,no-init
+# pylint: disable=no-init
 class TextColors:
     """A class that defines common color ANSI code."""
 
@@ -519,7 +519,7 @@ def GetUserAnswerYes(question):
     return answer.lower() in constants.USER_ANSWER_YES
 
 
-class BatchHttpRequestExecutor(object):
+class BatchHttpRequestExecutor:
     """A helper class that executes requests in batch with retry.
 
     This executor executes http requests in a batch and retry
@@ -687,7 +687,7 @@ def BootEvaluator(boot_dict):
     return _EvaluatedResult(is_result_ok=True, result_message=None)
 
 
-class TimeExecute(object):
+class TimeExecute:
     """Count the function execute time."""
 
     def __init__(self, function_description=None, print_before_call=True,
@@ -849,7 +849,7 @@ def EstablishWebRTCSshTunnel(ip_addr, rsa_key_file, ssh_user,
             "ip_addr": ip_addr,
             "port_mapping":" ".join(port_mapping)}
         ssh_tunnel_args_list = shlex.split(ssh_tunnel_args)
-        if extra_args_ssh_tunnel != None:
+        if extra_args_ssh_tunnel is not None:
             ssh_tunnel_args_list.extend(shlex.split(extra_args_ssh_tunnel))
         _ExecuteCommand(constants.SSH_BIN, ssh_tunnel_args_list)
     except subprocess.CalledProcessError as e:
@@ -880,14 +880,14 @@ def AutoConnect(ip_addr, rsa_key_file, target_vnc_port, target_adb_port,
     """
     local_adb_port = client_adb_port or PickFreePort()
     port_mapping = [PORT_MAPPING % {
-            "local_port":local_adb_port,
-            "target_port":target_adb_port}]
+        "local_port":local_adb_port,
+        "target_port":target_adb_port}]
     local_free_vnc_port = None
     if target_vnc_port:
         local_free_vnc_port = PickFreePort()
         port_mapping += [PORT_MAPPING % {
-                "local_port":local_free_vnc_port,
-                "target_port":target_vnc_port}]
+            "local_port":local_free_vnc_port,
+            "target_port":target_vnc_port}]
     try:
         ssh_tunnel_args = _SSH_TUNNEL_ARGS % {
             "rsa_key_file": rsa_key_file,
@@ -895,7 +895,7 @@ def AutoConnect(ip_addr, rsa_key_file, target_vnc_port, target_adb_port,
             "ssh_user": ssh_user,
             "ip_addr": ip_addr}
         ssh_tunnel_args_list = shlex.split(ssh_tunnel_args)
-        if extra_args_ssh_tunnel != None:
+        if extra_args_ssh_tunnel is not None:
             ssh_tunnel_args_list.extend(shlex.split(extra_args_ssh_tunnel))
         _ExecuteCommand(constants.SSH_BIN, ssh_tunnel_args_list)
     except subprocess.CalledProcessError as e:
@@ -1085,6 +1085,7 @@ def PrintDeviceSummary(report):
         PrintColorString("Fail in:\n%s\n" % error_msg, TextColors.FAIL)
 
 
+# pylint: disable=import-outside-toplevel
 def CalculateVNCScreenRatio(avd_width, avd_height):
     """calculate the vnc screen scale ratio to fit into user's monitor.
 
@@ -1318,7 +1319,7 @@ def GetBuildEnvironmentVariable(variable_name):
         )
 
 
-# pylint: disable=no-member
+# pylint: disable=no-member,import-outside-toplevel
 def FindExecutable(filename):
     """A compatibility function to find execution file path.
 
@@ -1373,3 +1374,31 @@ def CheckOutput(cmd, **kwargs):
         String to command output.
     """
     return subprocess.check_output(cmd, **kwargs).decode()
+
+
+def SetExecutable(path):
+    """Grant the persmission to execute a file.
+
+    Args:
+        path: String, the file path.
+
+    Raises:
+        OSError if any file operation fails.
+    """
+    mode = os.stat(path).st_mode
+    os.chmod(path, mode | (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH |
+                           stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH))
+
+
+def SetDirectoryTreeExecutable(dir_path):
+    """Grant the permission to execute all files in a directory.
+
+    Args:
+        dir_path: String, the directory path.
+
+    Raises:
+        OSError if any file operation fails.
+    """
+    for parent_dir, _, file_names in os.walk(dir_path):
+        for name in file_names:
+            SetExecutable(os.path.join(parent_dir, name))
