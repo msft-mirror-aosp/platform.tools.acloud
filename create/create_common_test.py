@@ -14,6 +14,8 @@
 """Tests for create_common."""
 
 import os
+import shutil
+import tempfile
 import unittest
 
 import mock
@@ -26,7 +28,7 @@ from acloud.internal.lib import driver_test_lib
 from acloud.internal.lib import utils
 
 
-class FakeZipFile(object):
+class FakeZipFile:
     """Fake implementation of ZipFile()"""
 
     # pylint: disable=invalid-name,unused-argument,no-self-use
@@ -145,6 +147,25 @@ class CreateCommonTest(driver_test_lib.BaseDriverTest):
             checkfile2,
             "%s/%s" % (extract_path, checkfile2))
         self.assertEqual(mock_decompress.call_count, 0)
+
+    def testPrepareLocalInstanceDir(self):
+        """test PrepareLocalInstanceDir."""
+        temp_dir = tempfile.mkdtemp()
+        try:
+            cvd_home_dir = os.path.join(temp_dir, "local-instance-1")
+            mock_avd_spec = mock.Mock(local_instance_dir=None)
+            create_common.PrepareLocalInstanceDir(cvd_home_dir, mock_avd_spec)
+            self.assertTrue(os.path.isdir(cvd_home_dir) and
+                            not os.path.islink(cvd_home_dir))
+
+            link_target_dir = os.path.join(temp_dir, "cvd_home")
+            os.mkdir(link_target_dir)
+            mock_avd_spec.local_instance_dir = link_target_dir
+            create_common.PrepareLocalInstanceDir(cvd_home_dir, mock_avd_spec)
+            self.assertTrue(os.path.islink(cvd_home_dir) and
+                            os.path.samefile(cvd_home_dir, link_target_dir))
+        finally:
+            shutil.rmtree(temp_dir)
 
 
 if __name__ == "__main__":
