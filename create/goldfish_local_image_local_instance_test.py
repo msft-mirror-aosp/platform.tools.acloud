@@ -164,6 +164,7 @@ class GoldfishLocalImageLocalInstance(unittest.TestCase):
 
         self.assertTrue(os.path.isdir(self._instance_dir))
 
+        mock_utils.SetExecutable.assert_called_with(self._emulator_path)
         mock_popen.assert_called_once()
         self.assertEqual(mock_popen.call_args[0][0],
                          self._GetExpectedEmulatorArgs())
@@ -210,6 +211,7 @@ class GoldfishLocalImageLocalInstance(unittest.TestCase):
 
         self.assertTrue(os.path.isdir(self._instance_dir))
 
+        mock_utils.SetExecutable.assert_called_with(self._emulator_path)
         mock_popen.assert_called_once()
         self.assertEqual(mock_popen.call_args[0][0],
                          self._GetExpectedEmulatorArgs())
@@ -350,6 +352,7 @@ class GoldfishLocalImageLocalInstance(unittest.TestCase):
             mock_ota_tools_object.MkCombinedImg.call_args[0][1],
             os.path.join(self._image_dir, "system-qemu-config.txt"))
 
+        mock_utils.SetExecutable.assert_called_with(self._emulator_path)
         mock_popen.assert_called_once()
         self.assertEqual(
             mock_popen.call_args[0][0],
