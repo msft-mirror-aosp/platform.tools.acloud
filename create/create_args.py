@@ -216,6 +216,11 @@ def AddCommonCreateArgs(parser):
              "local gpu support.")
     # Hide following args for users, it is only used in infra.
     parser.add_argument(
+        "--local-instance-dir",
+        dest="local_instance_dir",
+        required=False,
+        help=argparse.SUPPRESS)
+    parser.add_argument(
         "--num-avds-per-instance",
         type=int,
         dest="num_avds_per_instance",
@@ -509,6 +514,10 @@ def _VerifyLocalArgs(args):
     if args.local_image and not os.path.exists(args.local_image):
         raise errors.CheckPathError(
             "Specified path doesn't exist: %s" % args.local_image)
+
+    if args.local_instance_dir and not os.path.exists(args.local_instance_dir):
+        raise errors.CheckPathError(
+            "Specified path doesn't exist: %s" % args.local_instance_dir)
 
     # TODO(b/133211308): Support TYPE_CF.
     if args.local_system_image != "" and args.avd_type != constants.TYPE_GF:
