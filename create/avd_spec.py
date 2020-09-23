@@ -112,6 +112,7 @@ class AVDSpec():
         self._instance_type = None
         self._local_image_dir = None
         self._local_image_artifact = None
+        self._local_instance_dir = None
         self._local_system_image_dir = None
         self._local_tool_dirs = None
         self._image_download_dir = None
@@ -301,6 +302,7 @@ class AVDSpec():
         self._host_user = args.host_user
         self._host_ssh_private_key_path = args.host_ssh_private_key_path
         self._local_instance_id = args.local_instance
+        self._local_instance_dir = args.local_instance_dir
         self._local_tool_dirs = args.local_tool
         self._num_of_instances = args.num
         self._num_avds_per_instance = args.num_avds_per_instance
@@ -705,6 +707,11 @@ class AVDSpec():
     def local_image_artifact(self):
         """Return local image artifact."""
         return self._local_image_artifact
+
+    @property
+    def local_instance_dir(self):
+        """Return local instance directory."""
+        return self._local_instance_dir
 
     @property
     def local_system_image_dir(self):

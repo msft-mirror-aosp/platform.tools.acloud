@@ -45,6 +45,7 @@ import sys
 
 from acloud import errors
 from acloud.create import base_avd_create
+from acloud.create import create_common
 from acloud.internal import constants
 from acloud.internal.lib import ota_tools
 from acloud.internal.lib import utils
@@ -248,8 +249,7 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         self._CopyBuildProp(image_dir)
 
         instance_dir = ins.instance_dir
-        shutil.rmtree(instance_dir, ignore_errors=True)
-        os.makedirs(instance_dir)
+        create_common.PrepareLocalInstanceDir(instance_dir, avd_spec)
 
         extra_args = self._ConvertAvdSpecToArgs(avd_spec, instance_dir)
 
@@ -507,6 +507,8 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
 
         if avd_spec.local_system_image_dir:
             mixed_image_dir = os.path.join(instance_dir, "mixed_images")
+            if os.path.exists(mixed_image_dir):
+                shutil.rmtree(mixed_image_dir)
             os.mkdir(mixed_image_dir)
 
             image_dir = os.path.abspath(avd_spec.local_image_dir)
