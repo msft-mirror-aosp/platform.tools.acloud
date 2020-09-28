@@ -72,6 +72,7 @@ _GUEST_ENFORCE_SECURITY_FALSE = "--guest_enforce_security=false"
 _START_WEBRTC = "--start_webrtc"
 _VM_MANAGER = "--vm_manager=crosvm"
 _WEBRTC_ARGS = [_GUEST_ENFORCE_SECURITY_FALSE, _START_WEBRTC, _VM_MANAGER]
+_VNC_ARGS = ["--start_vnc_server=true"]
 _NO_RETRY = 0
 _MAX_RETRY = 3
 _RETRY_SLEEP_SECS = 3
@@ -273,6 +274,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             self._metadata.update({"kernel_build_id": kernel_build_id})
             self._metadata.update({"kernel_build_target": kernel_build_target})
 
+    # pylint: disable=too-many-branches
     def _GetLaunchCvdArgs(self, avd_spec=None, blank_data_disk_size_gb=None,
                           kernel_build=None, decompress_kernel=None):
         """Get launch_cvd args.
@@ -315,6 +317,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                     "-memory_mb=%s" % avd_spec.hw_property[constants.HW_ALIAS_MEMORY])
             if avd_spec.connect_webrtc:
                 launch_cvd_args.extend(_WEBRTC_ARGS)
+            if avd_spec.connect_vnc:
+                launch_cvd_args.extend(_VNC_ARGS)
             if avd_spec.num_avds_per_instance > 1:
                 launch_cvd_args.append(
                     _NUM_AVDS_ARG % {"num_AVD": avd_spec.num_avds_per_instance})
