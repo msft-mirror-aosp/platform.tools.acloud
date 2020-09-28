@@ -67,6 +67,7 @@ _CMD_LAUNCH_CVD_WEBRTC_ARGS = (" -guest_enforce_security=false "
                                "-vm_manager=crosvm "
                                "-start_webrtc=true "
                                "-webrtc_public_ip=%s" % constants.LOCALHOST)
+_CMD_LAUNCH_CVD_VNC_ARG = " -start_vnc_server=true"
 
 # In accordance with the number of network interfaces in
 # /etc/init.d/cuttlefish-common
@@ -173,6 +174,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                                        local_image_path,
                                        runtime_dir,
                                        avd_spec.connect_webrtc,
+                                       avd_spec.connect_vnc,
                                        avd_spec.gpu)
 
         result_report = report.Report(command="create")
@@ -248,7 +250,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
     @staticmethod
     def PrepareLaunchCVDCmd(launch_cvd_path, hw_property, connect_adb,
                             system_image_dir, runtime_dir, connect_webrtc,
-                            gpu):
+                            connect_vnc, gpu):
         """Prepare launch_cvd command.
 
         Create the launch_cvd commands with all the required args and add
@@ -261,6 +263,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             connect_adb: Boolean flag that enables adb_connector.
             runtime_dir: String of runtime directory path.
             connect_webrtc: Boolean of connect_webrtc.
+            connect_vnc: Boolean of connect_vnc.
             gpu: String of gpu name, the gpu name of local instance should be
                  "default" if gpu is enabled.
 
@@ -277,6 +280,9 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                                  hw_property[constants.HW_ALIAS_DISK])
         if connect_webrtc:
             launch_cvd_w_args = launch_cvd_w_args + _CMD_LAUNCH_CVD_WEBRTC_ARGS
+
+        if connect_vnc:
+            launch_cvd_w_args = launch_cvd_w_args + _CMD_LAUNCH_CVD_VNC_ARG
 
         if gpu:
             launch_cvd_w_args = launch_cvd_w_args + _CMD_LAUNCH_CVD_GPU_ARG
