@@ -21,6 +21,7 @@ import time
 
 import unittest
 import mock
+import six
 
 import apiclient
 
@@ -162,6 +163,63 @@ class AndroidBuildClientTest(driver_test_lib.BaseDriverTest):
             maxResults=self.client.ONE_RESULT,
             successful=self.client.BUILD_SUCCESSFUL)
         self.assertEqual(build_id, build_info.get("builds")[0].get("buildId"))
+
+    def testGetFetchBuildArgs(self):
+        """Test GetFetchBuildArgs."""
+        build_id = "1234"
+        build_branch = "base_branch"
+        build_target = "base_target"
+        system_build_id = "2345"
+        system_build_branch = "system_branch"
+        system_build_target = "system_target"
+        kernel_build_id = "3456"
+        kernel_build_branch = "kernel_branch"
+        kernel_build_target = "kernel_target"
+
+        # Test base image.
+        expected_args = ["-default_build=1234/base_target"]
+        self.assertEqual(
+            expected_args,
+            self.client.GetFetchBuildArgs(
+                build_id, build_branch, build_target, None, None, None, None,
+                None, None))
+
+        # Test base image with system image.
+        expected_args = ["-default_build=1234/base_target",
+                         "-system_build=2345/system_target"]
+        self.assertEqual(
+            expected_args,
+            self.client.GetFetchBuildArgs(
+                build_id, build_branch, build_target, system_build_id,
+                system_build_branch, system_build_target, None, None, None))
+
+        # Test base image with kernel image.
+        expected_args = ["-default_build=1234/base_target",
+                         "-kernel_build=3456/kernel_target"]
+        self.assertEqual(
+            expected_args,
+            self.client.GetFetchBuildArgs(
+                build_id, build_branch, build_target, None, None, None,
+                kernel_build_id, kernel_build_branch, kernel_build_target))
+
+    def testGetFetchCertArg(self):
+        """Test GetFetchCertArg."""
+        cert_file_path = "fake_path"
+        certification = (
+            "{"
+            "  \"data\": ["
+            "    {"
+            "      \"credential\": {"
+            "        \"access_token\": \"fake_token\""
+            "      }"
+            "    }"
+            "  ]"
+            "}"
+        )
+        expected_arg = "-credential_source=fake_token"
+        self.Patch(six.moves.builtins, "open", mock.mock_open(read_data=certification))
+        cert_arg = self.client.GetFetchCertArg(cert_file_path)
+        self.assertEqual(expected_arg, cert_arg)
 
 
 if __name__ == "__main__":
