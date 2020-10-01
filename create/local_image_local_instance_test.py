@@ -15,8 +15,6 @@
 # limitations under the License.
 """Tests for LocalImageLocalInstance."""
 
-import os
-import shutil
 import subprocess
 import unittest
 import mock
@@ -35,17 +33,17 @@ class LocalImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
 
     LAUNCH_CVD_CMD_WITH_DISK = """sg group1 <<EOF
 sg group2
-launch_cvd -daemon -cpus fake -x_res fake -y_res fake -dpi fake -memory_mb fake -run_adb_connector=true -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,enable_sandbox -report_anonymous_usage_stats=y -enable_sandbox=false -blank_data_image_mb fake -data_policy always_create
+launch_cvd -daemon -cpus fake -x_res fake -y_res fake -dpi fake -memory_mb fake -run_adb_connector=true -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,enable_sandbox -report_anonymous_usage_stats=y -enable_sandbox=false -blank_data_image_mb fake -data_policy always_create -start_vnc_server=true
 EOF"""
 
     LAUNCH_CVD_CMD_NO_DISK = """sg group1 <<EOF
 sg group2
-launch_cvd -daemon -cpus fake -x_res fake -y_res fake -dpi fake -memory_mb fake -run_adb_connector=true -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,enable_sandbox -report_anonymous_usage_stats=y -enable_sandbox=false
+launch_cvd -daemon -cpus fake -x_res fake -y_res fake -dpi fake -memory_mb fake -run_adb_connector=true -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,enable_sandbox -report_anonymous_usage_stats=y -enable_sandbox=false -start_vnc_server=true
 EOF"""
 
     LAUNCH_CVD_CMD_NO_DISK_WITH_GPU = """sg group1 <<EOF
 sg group2
-launch_cvd -daemon -cpus fake -x_res fake -y_res fake -dpi fake -memory_mb fake -run_adb_connector=true -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,enable_sandbox -report_anonymous_usage_stats=y -enable_sandbox=false -gpu_mode=drm_virgl
+launch_cvd -daemon -cpus fake -x_res fake -y_res fake -dpi fake -memory_mb fake -run_adb_connector=true -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,enable_sandbox -report_anonymous_usage_stats=y -enable_sandbox=false -start_vnc_server=true -gpu_mode=drm_virgl
 EOF"""
 
     LAUNCH_CVD_CMD_WITH_WEBRTC = """sg group1 <<EOF
@@ -121,11 +119,16 @@ EOF"""
         mock_lock.Unlock.assert_called_once()
 
     @mock.patch("acloud.create.local_image_local_instance.utils")
+    @mock.patch("acloud.create.local_image_local_instance.create_common")
     @mock.patch.object(local_image_local_instance.LocalImageLocalInstance,
                        "_LaunchCvd")
     @mock.patch.object(local_image_local_instance.LocalImageLocalInstance,
                        "PrepareLaunchCVDCmd")
-    def testCreateInstance(self, _mock_prepare, mock_launch_cvd, _mock_utils):
+    @mock.patch.object(instance, "GetLocalInstanceRuntimeDir")
+    @mock.patch.object(instance, "GetLocalInstanceHomeDir")
+    def testCreateInstance(self, _mock_home_dir, _mock_runtime_dir,
+                           _mock_prepare_cmd, mock_launch_cvd,
+                           _mock_create_common, _mock_utils):
         """Test the report returned by _CreateInstance."""
         self.Patch(instance, "GetLocalInstanceName",
                    return_value="local-instance-1")
@@ -148,14 +151,14 @@ EOF"""
                          self._EXPECTED_DEVICES_IN_REPORT)
 
         # Failure
-        mock_launch_cvd.side_effect = errors.LaunchCVDFail("timeout")
+        mock_launch_cvd.side_effect = errors.LaunchCVDFail("unit test")
 
         report = self.local_image_local_instance._CreateInstance(
             1, "/image/path", "/host/bin/path", mock_avd_spec, no_prompts=True)
 
         self.assertEqual(report.data.get("devices_failing_boot"),
                          self._EXPECTED_DEVICES_IN_FAILED_REPORT)
-        self.assertEqual(report.errors, ["timeout"])
+        self.assertIn("unit test", report.errors[0])
 
     # pylint: disable=protected-access
     @mock.patch("acloud.create.local_image_local_instance.os.path.isfile")
@@ -184,20 +187,17 @@ EOF"""
                 [cvd_host_dir])
             self.assertEqual(path, cvd_host_dir)
 
-    # pylint: disable=protected-access
-    @mock.patch.object(instance, "GetLocalInstanceRuntimeDir")
     @mock.patch.object(utils, "CheckUserInGroups")
-    def testPrepareLaunchCVDCmd(self, mock_usergroups, mock_cvd_dir):
+    def testPrepareLaunchCVDCmd(self, mock_usergroups):
         """test PrepareLaunchCVDCmd."""
         mock_usergroups.return_value = False
-        mock_cvd_dir.return_value = "fake_cvd_dir"
         hw_property = {"cpu": "fake", "x_res": "fake", "y_res": "fake",
                        "dpi":"fake", "memory": "fake", "disk": "fake"}
         constants.LIST_CF_USER_GROUPS = ["group1", "group2"]
 
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
             constants.CMD_LAUNCH_CVD, hw_property, True, "fake_image_dir",
-            "fake_cvd_dir", False, None)
+            "fake_cvd_dir", False, True, None)
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_DISK)
 
         # "disk" doesn't exist in hw_property.
@@ -205,18 +205,18 @@ EOF"""
                        "dpi": "fake", "memory": "fake"}
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
             constants.CMD_LAUNCH_CVD, hw_property, True, "fake_image_dir",
-            "fake_cvd_dir", False, None)
+            "fake_cvd_dir", False, True, None)
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_NO_DISK)
 
         # "gpu" is enabled with "default"
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
             constants.CMD_LAUNCH_CVD, hw_property, True, "fake_image_dir",
-            "fake_cvd_dir", False, "default")
+            "fake_cvd_dir", False, True, "default")
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_NO_DISK_WITH_GPU)
 
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
             constants.CMD_LAUNCH_CVD, hw_property, True, "fake_image_dir",
-            "fake_cvd_dir", True, None)
+            "fake_cvd_dir", True, False, None)
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_WEBRTC)
 
     @mock.patch.object(utils, "GetUserAnswerYes")
@@ -245,22 +245,20 @@ EOF"""
         local_instance_id = 3
         launch_cvd_cmd = "launch_cvd"
         host_bins_path = "host_bins_path"
+        cvd_home_dir = "fake_home"
         cvd_env = {}
-        cvd_env[constants.ENV_CVD_HOME] = "fake_home"
+        cvd_env[constants.ENV_CVD_HOME] = cvd_home_dir
         cvd_env[constants.ENV_CUTTLEFISH_INSTANCE] = str(local_instance_id)
         cvd_env[constants.ENV_ANDROID_HOST_OUT] = host_bins_path
         process = mock.MagicMock()
         process.wait.return_value = True
         process.returncode = 0
         self.Patch(subprocess, "Popen", return_value=process)
-        self.Patch(instance, "GetLocalInstanceHomeDir",
-                   return_value="fake_home")
-        self.Patch(os, "makedirs")
-        self.Patch(shutil, "rmtree")
 
         self.local_image_local_instance._LaunchCvd(launch_cvd_cmd,
                                                    local_instance_id,
-                                                   host_bins_path)
+                                                   host_bins_path,
+                                                   cvd_home_dir)
         # pylint: disable=no-member
         subprocess.Popen.assert_called_once_with(launch_cvd_cmd,
                                                  shell=True,

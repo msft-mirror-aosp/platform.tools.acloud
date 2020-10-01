@@ -22,7 +22,8 @@ The cuttlefish tool requires 3 variables:
 - HOME: To specify the temporary folder of launch_cvd.
 - CUTTLEFISH_INSTANCE: To specify the instance id.
 Acloud user must either set ANDROID_HOST_OUT or run acloud with --local-tool.
-Acloud sets the other 2 variables for each local instance.
+The user can optionally specify the folder by --local-instance-dir and the
+instance id by --local-instance.
 
 The adb port and vnc port of local instance will be decided according to
 instance id. The rule of adb port will be '6520 + [instance id] - 1' and the vnc
@@ -36,13 +37,13 @@ To delete the local instance, we will call stop_cvd with the environment variabl
 
 import logging
 import os
-import shutil
 import subprocess
 import threading
 import sys
 
 from acloud import errors
 from acloud.create import base_avd_create
+from acloud.create import create_common
 from acloud.internal import constants
 from acloud.internal.lib import utils
 from acloud.internal.lib.adb_tools import AdbTools
@@ -66,6 +67,7 @@ _CMD_LAUNCH_CVD_WEBRTC_ARGS = (" -guest_enforce_security=false "
                                "-vm_manager=crosvm "
                                "-start_webrtc=true "
                                "-webrtc_public_ip=%s" % constants.LOCALHOST)
+_CMD_LAUNCH_CVD_VNC_ARG = " -start_vnc_server=true"
 
 # In accordance with the number of network interfaces in
 # /etc/init.d/cuttlefish-common
@@ -160,27 +162,34 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         if avd_spec.connect_webrtc:
             utils.ReleasePort(constants.WEBRTC_LOCAL_PORT)
 
+        cvd_home_dir = instance.GetLocalInstanceHomeDir(local_instance_id)
+        create_common.PrepareLocalInstanceDir(cvd_home_dir, avd_spec)
+        runtime_dir = instance.GetLocalInstanceRuntimeDir(local_instance_id)
+
         launch_cvd_path = os.path.join(host_bins_path, "bin",
                                        constants.CMD_LAUNCH_CVD)
         cmd = self.PrepareLaunchCVDCmd(launch_cvd_path,
                                        avd_spec.hw_property,
                                        avd_spec.connect_adb,
                                        local_image_path,
-                                       local_instance_id,
+                                       runtime_dir,
                                        avd_spec.connect_webrtc,
+                                       avd_spec.connect_vnc,
                                        avd_spec.gpu)
 
         result_report = report.Report(command="create")
         instance_name = instance.GetLocalInstanceName(local_instance_id)
         try:
             self._LaunchCvd(cmd, local_instance_id, host_bins_path,
-                            (avd_spec.boot_timeout_secs or
-                             constants.DEFAULT_CF_BOOT_TIMEOUT))
+                            cvd_home_dir, (avd_spec.boot_timeout_secs or
+                                           constants.DEFAULT_CF_BOOT_TIMEOUT))
         except errors.LaunchCVDFail as launch_error:
+            err_msg = ("Cannot create cuttlefish instance: %s\n"
+                       "For more detail: %s/launcher.log" %
+                       (launch_error, runtime_dir))
             result_report.SetStatus(report.Status.BOOT_FAIL)
             result_report.AddDeviceBootFailure(
-                instance_name, constants.LOCALHOST, None, None,
-                error=str(launch_error))
+                instance_name, constants.LOCALHOST, None, None, error=err_msg)
             return result_report
 
         active_ins = list_instance.GetActiveCVD(local_instance_id)
@@ -240,8 +249,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
 
     @staticmethod
     def PrepareLaunchCVDCmd(launch_cvd_path, hw_property, connect_adb,
-                            system_image_dir, local_instance_id, connect_webrtc,
-                            gpu):
+                            system_image_dir, runtime_dir, connect_webrtc,
+                            connect_vnc, gpu):
         """Prepare launch_cvd command.
 
         Create the launch_cvd commands with all the required args and add
@@ -252,25 +261,28 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             hw_property: dict object of hw property.
             system_image_dir: String of local images path.
             connect_adb: Boolean flag that enables adb_connector.
-            local_instance_id: Integer of instance id.
+            runtime_dir: String of runtime directory path.
             connect_webrtc: Boolean of connect_webrtc.
+            connect_vnc: Boolean of connect_vnc.
             gpu: String of gpu name, the gpu name of local instance should be
                  "default" if gpu is enabled.
 
         Returns:
             String, launch_cvd cmd.
         """
-        instance_dir = instance.GetLocalInstanceRuntimeDir(local_instance_id)
         launch_cvd_w_args = launch_cvd_path + _CMD_LAUNCH_CVD_ARGS % (
             hw_property["cpu"], hw_property["x_res"], hw_property["y_res"],
             hw_property["dpi"], hw_property["memory"],
             ("true" if connect_adb else "false"), system_image_dir,
-            instance_dir)
+            runtime_dir)
         if constants.HW_ALIAS_DISK in hw_property:
             launch_cvd_w_args = (launch_cvd_w_args + _CMD_LAUNCH_CVD_DISK_ARGS %
                                  hw_property[constants.HW_ALIAS_DISK])
         if connect_webrtc:
             launch_cvd_w_args = launch_cvd_w_args + _CMD_LAUNCH_CVD_WEBRTC_ARGS
+
+        if connect_vnc:
+            launch_cvd_w_args = launch_cvd_w_args + _CMD_LAUNCH_CVD_VNC_ARG
 
         if gpu:
             launch_cvd_w_args = launch_cvd_w_args + _CMD_LAUNCH_CVD_GPU_ARG
@@ -303,7 +315,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
 
     @staticmethod
     @utils.TimeExecute(function_description="Waiting for AVD(s) to boot up")
-    def _LaunchCvd(cmd, local_instance_id, host_bins_path, timeout=None):
+    def _LaunchCvd(cmd, local_instance_id, host_bins_path, cvd_home_dir,
+                   timeout=None):
         """Execute Launch CVD.
 
         Kick off the launch_cvd command and log the output.
@@ -312,18 +325,12 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             cmd: String, launch_cvd command.
             local_instance_id: Integer of instance id.
             host_bins_path: String of host package directory.
+            cvd_home_dir: String, the home directory for the instance.
             timeout: Integer, the number of seconds to wait for the AVD to boot up.
 
         Raises:
-            errors.LaunchCVDFail when any CalledProcessError.
+            errors.LaunchCVDFail if launch_cvd times out or returns non-zero.
         """
-        # Delete the cvd home/runtime temp if exist. The runtime folder is
-        # under the cvd home dir, so we only delete them from home dir.
-        cvd_home_dir = instance.GetLocalInstanceHomeDir(local_instance_id)
-        cvd_runtime_dir = instance.GetLocalInstanceRuntimeDir(local_instance_id)
-        shutil.rmtree(cvd_home_dir, ignore_errors=True)
-        os.makedirs(cvd_runtime_dir)
-
         cvd_env = os.environ.copy()
         # launch_cvd assumes host bins are in $ANDROID_HOST_OUT.
         cvd_env[constants.ENV_ANDROID_HOST_OUT] = host_bins_path
@@ -341,6 +348,5 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             timer.cancel()
         if process.returncode == 0:
             return
-        raise errors.LaunchCVDFail(
-            "Can't launch cuttlefish AVD. Return code:%s. \nFor more detail: "
-            "%s/launcher.log" % (str(process.returncode), cvd_runtime_dir))
+        raise errors.LaunchCVDFail("launch_cvd returned %s" %
+                                   process.returncode)
