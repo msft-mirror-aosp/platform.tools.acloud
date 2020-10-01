@@ -42,6 +42,7 @@ from acloud.internal import constants
 from acloud.internal.lib import cvd_runtime_config
 from acloud.internal.lib import utils
 from acloud.internal.lib.adb_tools import AdbTools
+from acloud.internal.lib.local_instance_lock import LocalInstanceLock
 
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,8 @@ logger = logging.getLogger(__name__)
 _ACLOUD_CVD_TEMP = os.path.join(tempfile.gettempdir(), "acloud_cvd_temp")
 _CVD_RUNTIME_FOLDER_NAME = "cuttlefish_runtime"
 _CVD_STATUS_BIN = "cvd_status"
+_LOCAL_INSTANCE_NAME_FORMAT = "local-instance-%(id)d"
+_LOCAL_INSTANCE_NAME_PATTERN = re.compile(r"^local-instance-(?P<id>\d+)$")
 _MSG_UNABLE_TO_CALCULATE = "Unable to calculate"
 _NO_ANDROID_ENV = "android source not available"
 _RE_GROUP_ADB = "local_adb_port"
@@ -76,8 +79,11 @@ def GetDefaultCuttlefishConfig():
     Return:
         String, path of cf runtime config.
     """
-    return os.path.join(os.path.expanduser("~"), _CVD_RUNTIME_FOLDER_NAME,
-                        constants.CUTTLEFISH_CONFIG_FILE)
+    cfg_path = os.path.join(os.path.expanduser("~"), _CVD_RUNTIME_FOLDER_NAME,
+                            constants.CUTTLEFISH_CONFIG_FILE)
+    if os.path.isfile(cfg_path):
+        return cfg_path
+    return None
 
 
 def GetLocalInstanceName(local_instance_id):
@@ -89,7 +95,23 @@ def GetLocalInstanceName(local_instance_id):
     Return:
         String, the instance name.
     """
-    return "%s-%d" % (constants.LOCAL_INS_NAME, local_instance_id)
+    return _LOCAL_INSTANCE_NAME_FORMAT % {"id": local_instance_id}
+
+
+def GetLocalInstanceIdByName(name):
+    """Get local cuttlefish instance id by name.
+
+    Args:
+        name: String of instance name.
+
+    Return:
+        The instance id as an integer if the name is in valid format.
+        None if the name does not represent a local cuttlefish instance.
+    """
+    match = _LOCAL_INSTANCE_NAME_PATTERN.match(name)
+    if match:
+        return int(match.group("id"))
+    return None
 
 
 def GetLocalInstanceConfig(local_instance_id):
@@ -109,27 +131,27 @@ def GetLocalInstanceConfig(local_instance_id):
 
 
 def GetAllLocalInstanceConfigs():
-    """Get the list of instance config.
+    """Get all cuttlefish runtime configs from the known locations.
 
     Return:
-        List of instance config path.
+        List of tuples. Each tuple consists of an instance id and a config
+        path.
     """
-    cfg_list = []
+    id_cfg_pairs = []
     # Check if any instance config is under home folder.
     cfg_path = GetDefaultCuttlefishConfig()
-    if os.path.isfile(cfg_path):
-        cfg_list.append(cfg_path)
+    if cfg_path:
+        id_cfg_pairs.append((1, cfg_path))
 
     # Check if any instance config is under acloud cvd temp folder.
     if os.path.exists(_ACLOUD_CVD_TEMP):
         for ins_name in os.listdir(_ACLOUD_CVD_TEMP):
-            cfg_path = os.path.join(_ACLOUD_CVD_TEMP,
-                                    ins_name,
-                                    _CVD_RUNTIME_FOLDER_NAME,
-                                    constants.CUTTLEFISH_CONFIG_FILE)
-            if os.path.isfile(cfg_path):
-                cfg_list.append(cfg_path)
-    return cfg_list
+            ins_id = GetLocalInstanceIdByName(ins_name)
+            if ins_id is not None:
+                cfg_path = GetLocalInstanceConfig(ins_id)
+                if cfg_path:
+                    id_cfg_pairs.append((ins_id, cfg_path))
+    return id_cfg_pairs
 
 
 def GetLocalInstanceHomeDir(local_instance_id):
@@ -143,6 +165,20 @@ def GetLocalInstanceHomeDir(local_instance_id):
     """
     return os.path.join(_ACLOUD_CVD_TEMP,
                         GetLocalInstanceName(local_instance_id))
+
+
+def GetLocalInstanceLock(local_instance_id):
+    """Get local instance lock.
+
+    Args:
+        local_instance_id: Integer of instance id.
+
+    Returns:
+        LocalInstanceLock object.
+    """
+    file_path = os.path.join(_ACLOUD_CVD_TEMP,
+                             GetLocalInstanceName(local_instance_id) + ".lock")
+    return LocalInstanceLock(file_path)
 
 
 def GetLocalInstanceRuntimeDir(local_instance_id):
@@ -187,6 +223,7 @@ def _GetElapsedTime(start_time):
         return _MSG_UNABLE_TO_CALCULATE
 
 
+# pylint: disable=useless-object-inheritance
 class Instance(object):
     """Class to store data of instance."""
 
@@ -445,6 +482,10 @@ class LocalInstance(Instance):
         # sure adb device is completely gone since it will use the same adb port
         adb_cmd.DisconnectAdb(retry=True)
 
+    def GetLock(self):
+        """Return the LocalInstanceLock for this object."""
+        return GetLocalInstanceLock(self._local_instance_id)
+
     @property
     def instance_dir(self):
         """Return _instance_dir."""
@@ -467,14 +508,23 @@ class LocalInstance(Instance):
 
 
 class LocalGoldfishInstance(Instance):
-    """Class to store data of local goldfish instance."""
+    """Class to store data of local goldfish instance.
+
+    A goldfish instance binds to a console port and an adb port. The console
+    port is for `adb emu` to send emulator-specific commands. The adb port is
+    for `adb connect` to start a TCP connection. By convention, the console
+    port is an even number, and the adb port is the console port + 1. The first
+    instance uses port 5554 and 5555, the second instance uses 5556 and 5557,
+    and so on.
+    """
 
     _INSTANCE_NAME_PATTERN = re.compile(
         r"^local-goldfish-instance-(?P<id>\d+)$")
-    _CREATION_TIMESTAMP_FILE_NAME = "creation_timestamp.txt"
     _INSTANCE_NAME_FORMAT = "local-goldfish-instance-%(id)s"
     _EMULATOR_DEFAULT_CONSOLE_PORT = 5554
-    _GF_ADB_DEVICE_SERIAL = "emulator-%(console_port)s"
+    _DEFAULT_ADB_LOCAL_TRANSPORT_MAX_PORT = 5585
+    _DEVICE_SERIAL_FORMAT = "emulator-%(console_port)s"
+    _DEVICE_SERIAL_PATTERN = re.compile(r"^emulator-(?P<console_port>\d+)$")
 
     def __init__(self, local_instance_id, avd_flavor=None, create_time=None,
                  x_res=None, y_res=None, dpi=None):
@@ -489,8 +539,9 @@ class LocalGoldfishInstance(Instance):
             dpi: Integer of dpi.
         """
         self._id = local_instance_id
-        # By convention, adb port is console port + 1.
         adb_port = self.console_port + 1
+        self._adb = AdbTools(adb_port=adb_port,
+                             device_serial=self.device_serial)
 
         name = self._INSTANCE_NAME_FORMAT % {"id": local_instance_id}
 
@@ -506,9 +557,8 @@ class LocalGoldfishInstance(Instance):
         else:
             display = "unknown"
 
-        adb = AdbTools(adb_port)
-        device_information = (adb.device_information if
-                              adb.device_information else None)
+        device_information = (self._adb.device_information if
+                              self._adb.device_information else None)
 
         super(LocalGoldfishInstance, self).__init__(
             name=name, fullname=fullname, display=display, ip="127.0.0.1",
@@ -523,15 +573,20 @@ class LocalGoldfishInstance(Instance):
         return os.path.join(tempfile.gettempdir(), "acloud_gf_temp")
 
     @property
+    def adb(self):
+        """Return the AdbTools to send emulator commands to this instance."""
+        return self._adb
+
+    @property
     def console_port(self):
-        """Return the console port as an integer"""
+        """Return the console port as an integer."""
         # Emulator requires the console port to be an even number.
         return self._EMULATOR_DEFAULT_CONSOLE_PORT + (self._id - 1) * 2
 
     @property
     def device_serial(self):
         """Return the serial number that contains the console port."""
-        return self._GF_ADB_DEVICE_SERIAL % {"console_port": self.console_port}
+        return self._DEVICE_SERIAL_FORMAT % {"console_port": self.console_port}
 
     @property
     def instance_dir(self):
@@ -539,52 +594,44 @@ class LocalGoldfishInstance(Instance):
         return os.path.join(self._GetInstanceDirRoot(),
                             self._INSTANCE_NAME_FORMAT % {"id": self._id})
 
-    @property
-    def creation_timestamp_path(self):
-        """Return the file path containing the creation timestamp."""
-        return os.path.join(self.instance_dir,
-                            self._CREATION_TIMESTAMP_FILE_NAME)
+    @classmethod
+    def GetLockById(cls, instance_id):
+        """Get LocalInstanceLock by id."""
+        lock_path = os.path.join(
+            cls._GetInstanceDirRoot(),
+            (cls._INSTANCE_NAME_FORMAT % {"id": instance_id}) + ".lock")
+        return LocalInstanceLock(lock_path)
 
-    def WriteCreationTimestamp(self):
-        """Write creation timestamp to file."""
-        with open(self.creation_timestamp_path, "w") as timestamp_file:
-            timestamp_file.write(str(_GetCurrentLocalTime()))
-
-    def DeleteCreationTimestamp(self, ignore_errors):
-        """Delete the creation timestamp file.
-
-        Args:
-            ignore_errors: Boolean, whether to ignore the errors.
-
-        Raises:
-            OSError if fails to delete the file.
-        """
-        try:
-            os.remove(self.creation_timestamp_path)
-        except OSError as e:
-            if not ignore_errors:
-                raise
-            logger.warning("Can't delete creation timestamp: %s", e)
+    def GetLock(self):
+        """Return the LocalInstanceLock for this object."""
+        return self.GetLockById(self._id)
 
     @classmethod
     def GetExistingInstances(cls):
-        """Get a list of instances that have creation timestamp files."""
-        instance_root = cls._GetInstanceDirRoot()
-        if not os.path.isdir(instance_root):
-            return []
-
+        """Get the list of instances that adb can send emu commands to."""
         instances = []
-        for name in os.listdir(instance_root):
-            match = cls._INSTANCE_NAME_PATTERN.match(name)
-            timestamp_path = os.path.join(instance_root, name,
-                                          cls._CREATION_TIMESTAMP_FILE_NAME)
-            if match and os.path.isfile(timestamp_path):
-                instance_id = int(match.group("id"))
-                with open(timestamp_path, "r") as timestamp_file:
-                    timestamp = timestamp_file.read().strip()
-                instances.append(LocalGoldfishInstance(instance_id,
-                                                       create_time=timestamp))
+        for serial in AdbTools.GetDeviceSerials():
+            match = cls._DEVICE_SERIAL_PATTERN.match(serial)
+            if not match:
+                continue
+            port = int(match.group("console_port"))
+            instance_id = (port - cls._EMULATOR_DEFAULT_CONSOLE_PORT) // 2 + 1
+            instances.append(LocalGoldfishInstance(instance_id))
         return instances
+
+    @classmethod
+    def GetMaxNumberOfInstances(cls):
+        """Get number of emulators that adb can detect."""
+        max_port = os.environ.get("ADB_LOCAL_TRANSPORT_MAX_PORT",
+                                  cls._DEFAULT_ADB_LOCAL_TRANSPORT_MAX_PORT)
+        try:
+            max_port = int(max_port)
+        except ValueError:
+            max_port = cls._DEFAULT_ADB_LOCAL_TRANSPORT_MAX_PORT
+        if (max_port < cls._EMULATOR_DEFAULT_CONSOLE_PORT or
+                max_port > constants.MAX_PORT):
+            max_port = cls._DEFAULT_ADB_LOCAL_TRANSPORT_MAX_PORT
+        return (max_port + 1 - cls._EMULATOR_DEFAULT_CONSOLE_PORT) // 2
 
 
 class RemoteInstance(Instance):
@@ -715,9 +762,11 @@ class RemoteInstance(Instance):
 
         default_vnc_port = utils.AVD_PORT_DICT[avd_type].vnc_port
         default_adb_port = utils.AVD_PORT_DICT[avd_type].adb_port
+        # TODO(165888525): Align the SSH tunnel for the order of adb port and
+        # vnc port.
         re_pattern = re.compile(_RE_SSH_TUNNEL_PATTERN %
-                                (_RE_GROUP_VNC, default_vnc_port,
-                                 _RE_GROUP_ADB, default_adb_port, ip))
+                                (_RE_GROUP_ADB, default_adb_port,
+                                 _RE_GROUP_VNC, default_vnc_port, ip))
         adb_port = None
         vnc_port = None
         process_output = utils.CheckOutput(constants.COMMAND_PS)

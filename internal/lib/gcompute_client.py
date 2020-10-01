@@ -54,11 +54,14 @@ _ZONE_RE = re.compile(r"^zones/(?P<zone>.+)")
 # Quota metrics
 _METRIC_CPUS = "CPUS"
 _METRIC_DISKS_GB = "DISKS_TOTAL_GB"
-_METRICS = [_METRIC_CPUS, _METRIC_DISKS_GB]
+_METRIC_USE_ADDRESSES = "IN_USE_ADDRESSES"
+_METRICS = [_METRIC_CPUS, _METRIC_DISKS_GB, _METRIC_USE_ADDRESSES]
 _USAGE = "usage"
 _LIMIT = "limit"
 # The minimum requirement to create an instance.
-_REQUIRE_METRICS = {_METRIC_CPUS: 8, _METRIC_DISKS_GB: 1000}
+_REQUIRE_METRICS = {_METRIC_CPUS: 8,
+                    _METRIC_DISKS_GB: 1000,
+                    _METRIC_USE_ADDRESSES: 1}
 
 BASE_DISK_ARGS = {
     "type": "PERSISTENT",
@@ -1272,6 +1275,7 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
                 "email": "default",
                 "scopes": scopes,
             }],
+            "enableVtpm": True,
         }
 
         if tags:

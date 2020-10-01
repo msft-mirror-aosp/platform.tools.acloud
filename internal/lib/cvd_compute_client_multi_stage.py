@@ -72,9 +72,12 @@ _GUEST_ENFORCE_SECURITY_FALSE = "--guest_enforce_security=false"
 _START_WEBRTC = "--start_webrtc"
 _VM_MANAGER = "--vm_manager=crosvm"
 _WEBRTC_ARGS = [_GUEST_ENFORCE_SECURITY_FALSE, _START_WEBRTC, _VM_MANAGER]
+_VNC_ARGS = ["--start_vnc_server=true"]
 _NO_RETRY = 0
 _MAX_RETRY = 3
 _RETRY_SLEEP_SECS = 3
+# Launch cvd command for acloud report
+_LAUNCH_CVD_COMMAND = "launch_cvd_command"
 
 
 def _ProcessBuild(build_id=None, branch=None, build_target=None):
@@ -136,6 +139,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         self._ssh = None
         self._ip = None
         self._user = constants.GCE_USER
+        self._stage = constants.STAGE_INIT
         self._execution_time = {_FETCH_ARTIFACT: 0, _GCE_CREATE: 0, _LAUNCH_CVD: 0}
 
     def InitRemoteHost(self, ssh, ip, user):
@@ -201,6 +205,11 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             int(self.GetImage(image_name, image_project)["diskSizeGb"]) +
             blank_data_disk_size_gb)
 
+        # Record the system build and kernel build into metadata.
+        self._RecordSystemAndKernelInfo(avd_spec, system_build_id,
+                                        system_build_target, kernel_build_id,
+                                        kernel_build_target)
+
         if avd_spec and avd_spec.instance_name_to_reuse:
             self._ip = self._ReusingGceInstance(avd_spec)
         else:
@@ -240,6 +249,32 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             self._all_failures[instance] = e
             return instance
 
+    def _RecordSystemAndKernelInfo(self, avd_spec, system_build_id,
+                                   system_build_target, kernel_build_id,
+                                   kernel_build_target):
+        """Rocord the system build info and kernel build info into metadata.
+
+        Args:
+            avd_spec: An AVDSpec instance.
+            system_build_id: A string, build id for the system image.
+            system_build_target: Target name for the system image,
+                                e.g. "cf_x86_phone-userdebug"
+            kernel_build_id: Kernel build id, a string, e.g. "223051", "P280427"
+            kernel_build_target: String, Kernel build target name.
+        """
+        if avd_spec and avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
+            system_build_id = avd_spec.system_build_info.get(constants.BUILD_ID)
+            system_build_target = avd_spec.system_build_info.get(constants.BUILD_TARGET)
+            kernel_build_id = avd_spec.kernel_build_info.get(constants.BUILD_ID)
+            kernel_build_target = avd_spec.kernel_build_info.get(constants.BUILD_TARGET)
+        if system_build_id and system_build_target:
+            self._metadata.update({"system_build_id": system_build_id})
+            self._metadata.update({"system_build_target": system_build_target})
+        if kernel_build_id and kernel_build_target:
+            self._metadata.update({"kernel_build_id": kernel_build_id})
+            self._metadata.update({"kernel_build_target": kernel_build_target})
+
+    # pylint: disable=too-many-branches
     def _GetLaunchCvdArgs(self, avd_spec=None, blank_data_disk_size_gb=None,
                           kernel_build=None, decompress_kernel=None):
         """Get launch_cvd args.
@@ -282,6 +317,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                     "-memory_mb=%s" % avd_spec.hw_property[constants.HW_ALIAS_MEMORY])
             if avd_spec.connect_webrtc:
                 launch_cvd_args.extend(_WEBRTC_ARGS)
+            if avd_spec.connect_vnc:
+                launch_cvd_args.extend(_VNC_ARGS)
             if avd_spec.num_avds_per_instance > 1:
                 launch_cvd_args.append(
                     _NUM_AVDS_ARG % {"num_AVD": avd_spec.num_avds_per_instance})
@@ -384,6 +421,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         boot_timeout_secs = boot_timeout_secs or constants.DEFAULT_CF_BOOT_TIMEOUT
         ssh_command = "./bin/launch_cvd -daemon " + " ".join(launch_cvd_args)
         try:
+            self.ExtendReportData(_LAUNCH_CVD_COMMAND, ssh_command)
             self._ssh.Run(ssh_command, boot_timeout_secs, retry=_NO_RETRY)
         except (subprocess.CalledProcessError, errors.DeviceConnectionError) as e:
             # TODO(b/140475060): Distinguish the error is command return error
@@ -408,8 +446,9 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             instance: String, instance name.
         """
         log_files = pull.GetAllLogFilePaths(self._ssh)
-        self._error_log_folder = pull.GetDownloadLogFolder(instance)
-        pull.PullLogs(self._ssh, log_files, self._error_log_folder)
+        error_log_folder = pull.GetDownloadLogFolder(instance)
+        pull.PullLogs(self._ssh, log_files, error_log_folder)
+        self.ExtendReportData(constants.ERROR_LOG_FOLDER, error_log_folder)
 
     @utils.TimeExecute(function_description="Reusing GCE instance")
     def _ReusingGceInstance(self, avd_spec):
@@ -582,6 +621,14 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             "Please specify 'stable_host_image_name' or 'stable_host_image_family'"
             " in config.")
 
+    def SetStage(self, stage):
+        """Set stage to know the create progress.
+
+        Args:
+            stage: Integer, the stage would like STAGE_INIT, STAGE_GCE.
+        """
+        self._stage = stage
+
     @property
     def all_failures(self):
         """Return all_failures"""
@@ -591,3 +638,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
     def execution_time(self):
         """Return execution_time"""
         return self._execution_time
+
+    @property
+    def stage(self):
+        """Return stage"""
+        return self._stage

@@ -27,6 +27,7 @@ from acloud.internal.lib import auth
 from acloud.internal.lib import driver_test_lib
 from acloud.internal.lib import utils
 from acloud.list import list as list_instances
+from acloud.public import config
 
 
 # pylint: disable=invalid-name,protected-access
@@ -138,22 +139,22 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         fake_subprocess.stdout.readline = mock.MagicMock(return_value='')
         fake_subprocess.poll = mock.MagicMock(return_value=0)
         fake_subprocess.returncode = 0
-        return_value = b"Manifest branch: master"
+        return_value = "Manifest branch: fake_branch"
         fake_subprocess.communicate = mock.MagicMock(return_value=(return_value, ''))
         self.Patch(subprocess, "Popen", return_value=fake_subprocess)
 
         mock_gitremote.return_value = "aosp"
-        self.assertEqual(self.AvdSpec._GetBranchFromRepo(), "aosp-master")
+        self.assertEqual(self.AvdSpec._GetBranchFromRepo(), "aosp-fake_branch")
 
         # Check default repo gets default branch prefix.
         mock_gitremote.return_value = ""
-        return_value = b"Manifest branch: master"
+        return_value = "Manifest branch: fake_branch"
         fake_subprocess.communicate = mock.MagicMock(return_value=(return_value, ''))
         self.Patch(subprocess, "Popen", return_value=fake_subprocess)
-        self.assertEqual(self.AvdSpec._GetBranchFromRepo(), "git_master")
+        self.assertEqual(self.AvdSpec._GetBranchFromRepo(), "git_fake_branch")
 
         # Can't get branch from repo info, set it as default branch.
-        return_value = b"Manifest branch:"
+        return_value = "Manifest branch:"
         fake_subprocess.communicate = mock.MagicMock(return_value=(return_value, ''))
         self.Patch(subprocess, "Popen", return_value=fake_subprocess)
         self.assertEqual(self.AvdSpec._GetBranchFromRepo(), "aosp-master")
@@ -325,16 +326,23 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.AvdSpec._ProcessRemoteBuildArgs(self.args)
         self.assertTrue(self.AvdSpec.avd_type == "cuttlefish")
 
+        # Setup acloud config with betty_image spec
+        cfg = mock.MagicMock()
+        cfg.betty_image = 'foobarbaz'
+        self.Patch(config, 'GetAcloudConfig', return_value=cfg)
+        self.AvdSpec = avd_spec.AVDSpec(self.args)
+        # --betty-image from cmdline should override config
         self.args.cheeps_betty_image = 'abcdefg'
         self.AvdSpec._ProcessRemoteBuildArgs(self.args)
         self.assertEqual(
             self.AvdSpec.remote_image[constants.CHEEPS_BETTY_IMAGE],
             self.args.cheeps_betty_image)
+        # acloud config value is used otherwise
         self.args.cheeps_betty_image = None
         self.AvdSpec._ProcessRemoteBuildArgs(self.args)
         self.assertEqual(
             self.AvdSpec.remote_image[constants.CHEEPS_BETTY_IMAGE],
-            self.args.cheeps_betty_image)
+            cfg.betty_image)
 
 
     def testEscapeAnsi(self):
@@ -384,7 +392,7 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(self.AvdSpec._instance_type, constants.INSTANCE_TYPE_REMOTE)
 
         self.args.remote_host = None
-        self.args.local_instance = True
+        self.args.local_instance = 0
         self.AvdSpec._ProcessMiscArgs(self.args)
         self.assertEqual(self.AvdSpec._instance_type, constants.INSTANCE_TYPE_LOCAL)
 
@@ -394,7 +402,7 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(self.AvdSpec._instance_type, constants.INSTANCE_TYPE_HOST)
 
         self.args.remote_host = "1.1.1.1"
-        self.args.local_instance = True
+        self.args.local_instance = 1
         self.AvdSpec._ProcessMiscArgs(self.args)
         self.assertEqual(self.AvdSpec._instance_type, constants.INSTANCE_TYPE_HOST)
 

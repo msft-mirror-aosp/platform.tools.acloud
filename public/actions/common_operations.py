@@ -32,6 +32,15 @@ from acloud.internal.lib.adb_tools import AdbTools
 
 
 logger = logging.getLogger(__name__)
+_ERROR_TYPE = "error_type"
+_DICT_ERROR_TYPE = {
+    constants.STAGE_INIT: "ACLOUD_INIT_ERROR",
+    constants.STAGE_GCE: "ACLOUD_CREATE_GCE_ERROR",
+    constants.STAGE_ARTIFACT: "ACLOUD_DOWNLOAD_ARTIFACT_ERROR",
+    constants.STAGE_BOOT_UP: "ACLOUD_BOOT_UP_ERROR",
+}
+# Error type of GCE quota error.
+_GCE_QUOTA_ERROR = "GCE_QUOTA_ERROR"
 
 
 def CreateSshKeyPairIfNecessary(cfg):
@@ -100,9 +109,11 @@ class DevicePool(object):
             ip = self._compute_client.GetInstanceIP(instance)
             time_info = self._compute_client.execution_time if hasattr(
                 self._compute_client, "execution_time") else {}
+            stage = self._compute_client.stage if hasattr(
+                self._compute_client, "stage") else 0
             self.devices.append(
                 avd.AndroidVirtualDevice(ip=ip, instance_name=instance,
-                                         time_info=time_info))
+                                         time_info=time_info, stage=stage))
 
     @utils.TimeExecute(function_description="Waiting for AVD(s) to boot up",
                        result_evaluator=utils.BootEvaluator)
@@ -126,15 +137,13 @@ class DevicePool(object):
                 failures[device.instance_name] = e
         return failures
 
-    def SetErrorLogFolder(self, reporter):
-        """Set error log folder.
+    def UpdateReport(self, reporter):
+        """Update report from compute client.
 
         Args:
             reporter: Report object.
         """
-        if self._compute_client.error_log_folder:
-            reporter.AddData(key="error_log_folder",
-                             value=self._compute_client.error_log_folder)
+        reporter.UpdateData(self._compute_client.dict_report)
 
     def CollectSerialPortLogs(self, output_file,
                               port=constants.DEFAULT_SERIAL_PORT):
@@ -221,7 +230,6 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
             failures = device_factory.GetFailures()
 
         if failures:
-            device_pool.SetErrorLogFolder(reporter)
             reporter.SetStatus(report.Status.BOOT_FAIL)
         else:
             reporter.SetStatus(report.Status.SUCCESS)
@@ -231,6 +239,7 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
             device_pool.CollectSerialPortLogs(
                 serial_log_file, port=constants.DEFAULT_SERIAL_PORT)
 
+        device_pool.UpdateReport(reporter)
         # Write result to report.
         for device in device_pool.devices:
             ip = (device.ip.internal if report_internal_ip
@@ -263,11 +272,14 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
                     ssh_user=constants.GCE_USER,
                     extra_args_ssh_tunnel=cfg.extra_args_ssh_tunnel)
             if device.instance_name in failures:
+                device_dict[_ERROR_TYPE] = _DICT_ERROR_TYPE[device.stage]
                 reporter.AddData(key="devices_failing_boot", value=device_dict)
                 reporter.AddError(str(failures[device.instance_name]))
             else:
                 reporter.AddData(key="devices", value=device_dict)
-    except errors.DriverError as e:
+    except (errors.DriverError, errors.CheckGCEZonesQuotaError) as e:
+        if isinstance(e, errors.CheckGCEZonesQuotaError):
+            reporter.UpdateData({_ERROR_TYPE: _GCE_QUOTA_ERROR})
         reporter.AddError(str(e))
         reporter.SetStatus(report.Status.FAIL)
     return reporter
