@@ -124,6 +124,17 @@ class GoldfishComputeClient(android_compute_client.AndroidComputeClient):
 
     @staticmethod
     def GetKernelBuildArtifact(target):
+        """Get kernel build artifact name.
+
+        Args:
+            target: String, kernel target name.
+
+        Returns:
+            String of artifact name.
+
+        Raises:
+            errors.DeviceBootError: If it fails to get artifact name.
+        """
         if target == "kernel":
             return "bzImage"
         if target == "kernel_x86_64":
@@ -151,7 +162,8 @@ class GoldfishComputeClient(android_compute_client.AndroidComputeClient):
                        gpu=None,
                        avd_spec=None,
                        extra_scopes=None,
-                       tags=None):
+                       tags=None,
+                       launch_args=None):
         """Create a goldfish instance given a stable host image and a build id.
 
         Args:
@@ -174,6 +186,7 @@ class GoldfishComputeClient(android_compute_client.AndroidComputeClient):
             extra_scopes: A list of extra scopes to be passed to the instance.
             tags: A list of tags to associate with the instance. e.g.
                  ["http-server", "https-server"]
+            launch_args: String of args for launch command.
         """
         self._CheckMachineSize()
 
@@ -205,6 +218,8 @@ class GoldfishComputeClient(android_compute_client.AndroidComputeClient):
             metadata[
                 "cvd_01_fetch_emulator_bid"] = "{branch}/{build_id}".format(
                     branch=emulator_branch, build_id=emulator_build_id)
+        if launch_args:
+            metadata["launch_args"] = launch_args
         metadata["cvd_01_launch"] = "1"
 
         # Update metadata by avd_spec
