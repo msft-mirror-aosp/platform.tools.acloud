@@ -131,6 +131,24 @@ def AddCommonCreateArgs(parser):
         dest="build_id",
         help="Android build id, e.g. 2145099, P2804227")
     parser.add_argument(
+        "--bootloader-branch",
+        type=str,
+        dest="bootloader_branch",
+        help="'cuttlefish only' Branch to consume the bootloader from.",
+        required=False)
+    parser.add_argument(
+        "--bootloader-build-id",
+        type=str,
+        dest="bootloader_build_id",
+        help="'cuttlefish only' Bootloader build id, e.g. P2804227",
+        required=False)
+    parser.add_argument(
+        "--bootloader-build-target",
+        type=str,
+        dest="bootloader_build_target",
+        help="'cuttlefish only' Bootloader build target.",
+        required=False)
+    parser.add_argument(
         "--kernel-build-id",
         type=str,
         dest="kernel_build_id",
@@ -290,6 +308,24 @@ def AddCommonCreateArgs(parser):
         dest="kernel_build_target",
         default="kernel",
         help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--bootloader_branch",
+        type=str,
+        dest="bootloader_branch",
+        help=argparse.SUPPRESS,
+        required=False)
+    parser.add_argument(
+        "--bootloader_build_id",
+        type=str,
+        dest="bootloader_build_id",
+        help=argparse.SUPPRESS,
+        required=False)
+    parser.add_argument(
+        "--bootloader_build_target",
+        type=str,
+        dest="bootloader_build_target",
+        help=argparse.SUPPRESS,
+        required=False)
 
 
 def GetCreateArgParser(subparser):
