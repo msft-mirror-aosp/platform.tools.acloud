@@ -43,7 +43,7 @@ EOF"""
 
     LAUNCH_CVD_CMD_NO_DISK_WITH_GPU = """sg group1 <<EOF
 sg group2
-launch_cvd -daemon -cpus fake -x_res fake -y_res fake -dpi fake -memory_mb fake -run_adb_connector=true -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,enable_sandbox -report_anonymous_usage_stats=y -enable_sandbox=false -start_vnc_server=true -gpu_mode=drm_virgl
+launch_cvd -daemon -cpus fake -x_res fake -y_res fake -dpi fake -memory_mb fake -run_adb_connector=true -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,enable_sandbox -report_anonymous_usage_stats=y -enable_sandbox=false -start_vnc_server=true -gpu_mode=auto
 EOF"""
 
     LAUNCH_CVD_CMD_WITH_WEBRTC = """sg group1 <<EOF

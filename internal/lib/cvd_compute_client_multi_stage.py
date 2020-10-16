@@ -56,7 +56,7 @@ from acloud.pull import pull
 logger = logging.getLogger(__name__)
 
 _DECOMPRESS_KERNEL_ARG = "-decompress_kernel=true"
-_GPU_ARG = "-gpu_mode=drm_virgl"
+_GPU_ARG = "-gpu_mode=auto"
 _AGREEMENT_PROMPT_ARGS = ["-undefok=report_anonymous_usage_stats",
                           "-report_anonymous_usage_stats=y"]
 _NUM_AVDS_ARG = "-num_instances=%(num_AVD)s"
@@ -93,7 +93,8 @@ def _ProcessBuild(build_id=None, branch=None, build_target=None):
     """
     if not build_target:
         return build_id or branch
-    elif build_target and not branch:
+
+    if build_target and not branch:
         branch = _DEFAULT_BRANCH
     return (build_id or branch) + "/" + build_target
 
