@@ -32,6 +32,7 @@ The json format of a report dump looks like:
     "errors": [
       "Can't find instances: ['104.197.110.255']"
     ],
+    "error_type": "error_type_1",
     "status": "FAIL"
   }
 
@@ -109,6 +110,7 @@ class Report(object):
         self.command = command
         self.status = Status.UNKNOWN
         self.errors = []
+        self.error_type = ""
         self.data = {}
 
     def AddData(self, key, value):
@@ -143,6 +145,14 @@ class Report(object):
             errors: A list of string.
         """
         self.errors.extend(errors)
+
+    def SetErrorType(self, error_type):
+        """Set error type.
+
+        Args:
+            error_type: String of error type.
+        """
+        self.error_type = error_type
 
     def SetStatus(self, status):
         """Set status.
@@ -206,6 +216,7 @@ class Report(object):
             command=self.command,
             status=self.status,
             errors=self.errors,
+            error_type=self.error_type,
             data=self.data)
         logger.info("Report: %s", json.dumps(result, indent=2, sort_keys=True))
         if not report_file:
