@@ -165,7 +165,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         cvd_home_dir = instance.GetLocalInstanceHomeDir(local_instance_id)
         create_common.PrepareLocalInstanceDir(cvd_home_dir, avd_spec)
         runtime_dir = instance.GetLocalInstanceRuntimeDir(local_instance_id)
-
+        # TODO(b/168171781): cvd_status of list/delete via the symbolic.
+        self.PrepareLocalCvdToolsLink(cvd_home_dir, host_bins_path)
         launch_cvd_path = os.path.join(host_bins_path, "bin",
                                        constants.CMD_LAUNCH_CVD)
         cmd = self.PrepareLaunchCVDCmd(launch_cvd_path,
@@ -291,6 +292,27 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                                               constants.LIST_CF_USER_GROUPS)
         logger.debug("launch_cvd cmd:\n %s", launch_cmd)
         return launch_cmd
+
+    @staticmethod
+    def PrepareLocalCvdToolsLink(cvd_home_dir, host_bins_path):
+        """Create symbolic link for the cvd tools directory.
+
+        local instance's cvd tools could be generated in /out after local build
+        or be generated in the download image folder. It creates a symbolic
+        link then only check cvd_status using known link for both cases.
+
+        Args:
+            cvd_home_dir: The parent directory of the link
+            host_bins_path: String of host package directory.
+
+        Returns:
+            String of cvd_tools link path
+        """
+        cvd_tools_link_path = os.path.join(cvd_home_dir, constants.CVD_TOOLS_LINK_NAME)
+        if os.path.islink(cvd_tools_link_path):
+            os.unlink(cvd_tools_link_path)
+        os.symlink(host_bins_path, cvd_tools_link_path)
+        return cvd_tools_link_path
 
     @staticmethod
     def _CheckRunningCvd(local_instance_id, no_prompts=False):
