@@ -60,6 +60,13 @@ class ReportTest(unittest.TestCase):
         test_report.SetStatus(report.Status.FAIL)
         self.assertEqual(test_report.status, "BOOT_FAIL")
 
+    def testSetErrorType(self):
+        """test SetErrorType."""
+        error_type = "GCE_QUOTA_ERROR"
+        test_report = report.Report("create")
+        test_report.SetErrorType(error_type)
+        self.assertEqual(test_report.error_type, error_type)
+
     def testAddDevice(self):
         """test AddDevice."""
         test_report = report.Report("create")
