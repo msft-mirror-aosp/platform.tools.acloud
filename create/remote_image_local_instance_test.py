@@ -16,10 +16,10 @@
 import unittest
 from collections import namedtuple
 import os
+import subprocess
 import mock
 
 from acloud import errors
-from acloud.create import create_common
 from acloud.create import remote_image_local_instance
 from acloud.internal.lib import android_build_client
 from acloud.internal.lib import auth
@@ -43,7 +43,8 @@ class RemoteImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
         self.Patch(auth, "CreateCredentials", return_value=mock.MagicMock())
         self.RemoteImageLocalInstance = remote_image_local_instance.RemoteImageLocalInstance()
         self._fake_remote_image = {"build_target" : "aosp_cf_x86_phone-userdebug",
-                                   "build_id": "1234"}
+                                   "build_id": "1234",
+                                   "branch": "aosp_master"}
         self._extract_path = "/tmp/acloud_image_artifacts/1234"
 
     @mock.patch.object(remote_image_local_instance, "DownloadAndProcessImageFiles")
@@ -64,8 +65,7 @@ class RemoteImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
         self.RemoteImageLocalInstance.GetImageArtifactsPath(avd_spec)
         mock_proc.assert_called_once_with(avd_spec)
 
-    @mock.patch.object(create_common, "DownloadRemoteArtifact")
-    def testDownloadAndProcessImageFiles(self, mock_download):
+    def testDownloadAndProcessImageFiles(self):
         """Test process remote cuttlefish image."""
         avd_spec = mock.MagicMock()
         avd_spec.cfg = mock.MagicMock()
@@ -73,21 +73,11 @@ class RemoteImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
         avd_spec.image_download_dir = "/tmp"
         self.Patch(os.path, "exists", return_value=False)
         self.Patch(os, "makedirs")
+        self.Patch(subprocess, "check_call")
         remote_image_local_instance.DownloadAndProcessImageFiles(avd_spec)
-        build_id = "1234"
-        build_target = "aosp_cf_x86_phone-userdebug"
-        checkfile1 = "aosp_cf_x86_phone-img-1234.zip"
-        checkfile2 = "cvd-host_package.tar.gz"
 
-        # To validate DownloadArtifact runs twice.
-        self.assertEqual(mock_download.call_count, 2)
-
-        # To validate DownloadArtifact arguments correct.
-        mock_download.assert_has_calls([
-            mock.call(avd_spec.cfg, build_target, build_id, checkfile1,
-                      self._extract_path, decompress=True),
-            mock.call(avd_spec.cfg, build_target, build_id, checkfile2,
-                      self._extract_path, decompress=True)], any_order=True)
+        self.assertEqual(self.build_client.GetFetchBuildArgs.call_count, 1)
+        self.assertEqual(self.build_client.GetFetchCertArg.call_count, 1)
 
     def testConfirmDownloadRemoteImageDir(self):
         """Test confirm download remote image dir"""
