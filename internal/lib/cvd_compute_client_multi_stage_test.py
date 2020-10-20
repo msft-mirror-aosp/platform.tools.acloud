@@ -114,14 +114,14 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         fake_avd_spec = avd_spec.AVDSpec(self.args)
         expeted_args = ["-x_res=1080", "-y_res=1920", "-dpi=240", "-cpus=2",
                         "-memory_mb=4096", "-num_instances=2", "--setupwizard_mode=REQUIRED",
-                        "-gpu_mode=drm_virgl", "-undefok=report_anonymous_usage_stats",
+                        "-gpu_mode=auto", "-undefok=report_anonymous_usage_stats",
                         "-report_anonymous_usage_stats=y"]
         launch_cvd_args = self.cvd_compute_client_multi_stage._GetLaunchCvdArgs(fake_avd_spec)
         self.assertEqual(launch_cvd_args, expeted_args)
 
         # test GetLaunchCvdArgs without avd_spec
         expeted_args = ["-x_res=720", "-y_res=1280", "-dpi=160",
-                        "--setupwizard_mode=REQUIRED", "-gpu_mode=drm_virgl",
+                        "--setupwizard_mode=REQUIRED", "-gpu_mode=auto",
                         "-undefok=report_anonymous_usage_stats",
                         "-report_anonymous_usage_stats=y"]
         launch_cvd_args = self.cvd_compute_client_multi_stage._GetLaunchCvdArgs(
