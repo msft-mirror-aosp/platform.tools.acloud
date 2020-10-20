@@ -172,6 +172,8 @@ CUTTLEFISH_CONFIG_FILE = "cuttlefish_config.json"
 
 TEMP_ARTIFACTS_FOLDER = "acloud_image_artifacts"
 CVD_HOST_PACKAGE = "cvd-host_package.tar.gz"
+# cvd tools symbolic link name of local instance.
+CVD_TOOLS_LINK_NAME = "host_bins"
 TOOL_NAME = "acloud"
 # Exit code in metrics
 EXIT_SUCCESS = 0

@@ -15,6 +15,7 @@
 # limitations under the License.
 """Tests for LocalImageLocalInstance."""
 
+import os
 import subprocess
 import unittest
 import mock
@@ -142,6 +143,7 @@ EOF"""
                    return_value=local_ins)
         self.Patch(list_instance, "GetActiveCVD",
                    return_value=local_ins)
+        self.Patch(os, "symlink")
 
         # Success
         report = self.local_image_local_instance._CreateInstance(
