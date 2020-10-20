@@ -60,7 +60,7 @@ _CMD_LAUNCH_CVD_ARGS = (" -daemon -cpus %s -x_res %s -y_res %s -dpi %s "
                         "-undefok=report_anonymous_usage_stats,enable_sandbox "
                         "-report_anonymous_usage_stats=y "
                         "-enable_sandbox=false")
-_CMD_LAUNCH_CVD_GPU_ARG = " -gpu_mode=drm_virgl"
+_CMD_LAUNCH_CVD_GPU_ARG = " -gpu_mode=auto"
 _CMD_LAUNCH_CVD_DISK_ARGS = (" -blank_data_image_mb %s "
                              "-data_policy always_create")
 _CMD_LAUNCH_CVD_WEBRTC_ARGS = (" -guest_enforce_security=false "
