@@ -182,7 +182,7 @@ class AndroidBuildClientTest(driver_test_lib.BaseDriverTest):
             expected_args,
             self.client.GetFetchBuildArgs(
                 build_id, build_branch, build_target, None, None, None, None,
-                None, None))
+                None, None, None, None, None))
 
         # Test base image with system image.
         expected_args = ["-default_build=1234/base_target",
@@ -191,7 +191,8 @@ class AndroidBuildClientTest(driver_test_lib.BaseDriverTest):
             expected_args,
             self.client.GetFetchBuildArgs(
                 build_id, build_branch, build_target, system_build_id,
-                system_build_branch, system_build_target, None, None, None))
+                system_build_branch, system_build_target, None, None, None,
+                None, None, None))
 
         # Test base image with kernel image.
         expected_args = ["-default_build=1234/base_target",
@@ -200,7 +201,8 @@ class AndroidBuildClientTest(driver_test_lib.BaseDriverTest):
             expected_args,
             self.client.GetFetchBuildArgs(
                 build_id, build_branch, build_target, None, None, None,
-                kernel_build_id, kernel_build_branch, kernel_build_target))
+                kernel_build_id, kernel_build_branch, kernel_build_target,
+                None, None, None))
 
     def testGetFetchCertArg(self):
         """Test GetFetchCertArg."""
@@ -220,6 +222,30 @@ class AndroidBuildClientTest(driver_test_lib.BaseDriverTest):
         self.Patch(six.moves.builtins, "open", mock.mock_open(read_data=certification))
         cert_arg = self.client.GetFetchCertArg(cert_file_path)
         self.assertEqual(expected_arg, cert_arg)
+
+    def testProcessBuild(self):
+        """Test creating "cuttlefish build" strings."""
+        self.assertEqual(
+            self.client.ProcessBuild(
+                build_id="123", branch="abc", build_target="def"), "123/def")
+        self.assertEqual(
+            self.client.ProcessBuild(
+                build_id=None, branch="abc", build_target="def"), "abc/def")
+        self.assertEqual(
+            self.client.ProcessBuild(
+                build_id="123", branch=None, build_target="def"), "123/def")
+        self.assertEqual(
+            self.client.ProcessBuild(
+                build_id="123", branch="abc", build_target=None), "123")
+        self.assertEqual(
+            self.client.ProcessBuild(
+                build_id=None, branch="abc", build_target=None), "abc")
+        self.assertEqual(
+            self.client.ProcessBuild(
+                build_id="123", branch=None, build_target=None), "123")
+        self.assertEqual(
+            self.client.ProcessBuild(
+                build_id=None, branch=None, build_target=None), None)
 
 
 if __name__ == "__main__":
