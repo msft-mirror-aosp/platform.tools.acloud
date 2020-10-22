@@ -193,39 +193,27 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
                                   self._avd_spec.local_image_dir)
         elif image_source == constants.IMAGE_SRC_REMOTE:
             self._compute_client.UpdateFetchCvd()
-            self._FetchBuild(
-                self._avd_spec.remote_image[constants.BUILD_ID],
-                self._avd_spec.remote_image[constants.BUILD_BRANCH],
-                self._avd_spec.remote_image[constants.BUILD_TARGET],
-                self._avd_spec.system_build_info[constants.BUILD_ID],
-                self._avd_spec.system_build_info[constants.BUILD_BRANCH],
-                self._avd_spec.system_build_info[constants.BUILD_TARGET],
-                self._avd_spec.kernel_build_info[constants.BUILD_ID],
-                self._avd_spec.kernel_build_info[constants.BUILD_BRANCH],
-                self._avd_spec.kernel_build_info[constants.BUILD_TARGET])
+            self._FetchBuild(self._avd_spec)
 
-    def _FetchBuild(self, build_id, branch, build_target, system_build_id,
-                    system_branch, system_build_target, kernel_build_id,
-                    kernel_branch, kernel_build_target):
+    def _FetchBuild(self, avd_spec):
         """Download CF artifacts from android build.
 
         Args:
-            build_branch: String, git branch name. e.g. "aosp-master"
-            build_target: String, the build target, e.g. cf_x86_phone-userdebug
-            build_id: String, build id, e.g. "2263051", "P2804227"
-            kernel_branch: Kernel branch name, e.g. "kernel-common-android-4.14"
-            kernel_build_id: Kernel build id, a string, e.g. "223051", "P280427"
-            kernel_build_target: String, Kernel build target name.
-            system_build_target: Target name for the system image,
-                                 e.g. "cf_x86_phone-userdebug"
-            system_branch: A String, branch name for the system image.
-            system_build_id: A string, build id for the system image.
-
+            avd_spec: AVDSpec object that tells us what we're going to create.
         """
         self._compute_client.FetchBuild(
-            build_id, branch, build_target, system_build_id,
-            system_branch, system_build_target, kernel_build_id,
-            kernel_branch, kernel_build_target)
+            avd_spec.remote_image[constants.BUILD_ID],
+            avd_spec.remote_image[constants.BUILD_BRANCH],
+            avd_spec.remote_image[constants.BUILD_TARGET],
+            avd_spec.system_build_info[constants.BUILD_ID],
+            avd_spec.system_build_info[constants.BUILD_BRANCH],
+            avd_spec.system_build_info[constants.BUILD_TARGET],
+            avd_spec.kernel_build_info[constants.BUILD_ID],
+            avd_spec.kernel_build_info[constants.BUILD_BRANCH],
+            avd_spec.kernel_build_info[constants.BUILD_TARGET],
+            avd_spec.bootloader_build_info[constants.BUILD_ID],
+            avd_spec.bootloader_build_info[constants.BUILD_BRANCH],
+            avd_spec.bootloader_build_info[constants.BUILD_TARGET])
 
     @utils.TimeExecute(function_description="Processing and uploading local images")
     def _UploadArtifacts(self,
