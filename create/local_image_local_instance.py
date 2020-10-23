@@ -104,29 +104,13 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
 
         local_image_path, host_bins_path = self.GetImageArtifactsPath(avd_spec)
 
-        # Determine the instance id.
-        if avd_spec.local_instance_id:
-            ins_id = avd_spec.local_instance_id
-            ins_lock = instance.GetLocalInstanceLock(ins_id)
-            if not ins_lock.Lock():
-                result_report = report.Report(command="create")
-                result_report.AddError("Instance %d is locked by another "
-                                       "process." % ins_id)
-                result_report.SetStatus(report.Status.FAIL)
-                return result_report
-        else:
-            ins_id = None
-            for candidate_id in range(1, _MAX_INSTANCE_ID + 1):
-                ins_lock = instance.GetLocalInstanceLock(candidate_id)
-                if ins_lock.LockIfNotInUse(timeout_secs=0):
-                    ins_id = candidate_id
-                    break
-            if not ins_id:
-                result_report = report.Report(command="create")
-                result_report.AddError(_INSTANCES_IN_USE_MSG)
-                result_report.SetStatus(report.Status.FAIL)
-                return result_report
-            logger.info("Selected instance id: %d", ins_id)
+        try:
+            ins_id, ins_lock = self._SelectAndLockInstance(avd_spec)
+        except errors.CreateError as e:
+            result_report = report.Report(command="create")
+            result_report.AddError(str(e))
+            result_report.SetStatus(report.Status.FAIL)
+            return result_report
 
         try:
             if not self._CheckRunningCvd(ins_id, no_prompts):
@@ -144,6 +128,35 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             return result_report
         finally:
             ins_lock.Unlock()
+
+    @staticmethod
+    def _SelectAndLockInstance(avd_spec):
+        """Select an id and lock the instance.
+
+        Args:
+            avd_spec: AVDSpec for the device.
+
+        Returns:
+            The instance id and the LocalInstanceLock that is locked by this
+            process.
+
+        Raises:
+            errors.CreateError if fails to select or lock the instance.
+        """
+        if avd_spec.local_instance_id:
+            ins_id = avd_spec.local_instance_id
+            ins_lock = instance.GetLocalInstanceLock(ins_id)
+            if ins_lock.Lock():
+                return ins_id, ins_lock
+            raise errors.CreateError("Instance %d is locked by another "
+                                     "process." % ins_id)
+
+        for ins_id in range(1, _MAX_INSTANCE_ID + 1):
+            ins_lock = instance.GetLocalInstanceLock(ins_id)
+            if ins_lock.LockIfNotInUse(timeout_secs=0):
+                logger.info("Selected instance id: %d", ins_id)
+                return ins_id, ins_lock
+        raise errors.CreateError(_INSTANCES_IN_USE_MSG)
 
     def _CreateInstance(self, local_instance_id, local_image_path,
                         host_bins_path, avd_spec, no_prompts):
