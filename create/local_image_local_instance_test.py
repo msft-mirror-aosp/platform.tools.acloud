@@ -78,46 +78,72 @@ EOF"""
     @mock.patch.object(local_image_local_instance.LocalImageLocalInstance,
                        "GetImageArtifactsPath")
     @mock.patch.object(local_image_local_instance.LocalImageLocalInstance,
+                       "_SelectAndLockInstance")
+    @mock.patch.object(local_image_local_instance.LocalImageLocalInstance,
                        "_CheckRunningCvd")
     @mock.patch.object(local_image_local_instance.LocalImageLocalInstance,
                        "_CreateInstance")
     def testCreateAVD(self, mock_create, mock_check_running_cvd,
-                      mock_get_image, mock_utils):
+                      mock_lock_instance, mock_get_image, mock_utils):
         """Test _CreateAVD."""
         mock_utils.IsSupportedPlatform.return_value = True
         mock_get_image.return_value = ("/image/path", "/host/bin/path")
         mock_check_running_cvd.return_value = True
-        mock_avd_spec = mock.Mock(local_instance_id=0)
+        mock_avd_spec = mock.Mock()
         mock_lock = mock.Mock()
-        mock_lock.Lock.return_value = True
-        mock_lock.LockIfNotInUse.side_effect = (False, True)
         mock_lock.Unlock.return_value = False
-        self.Patch(instance, "GetLocalInstanceLock",
-                   return_value=mock_lock)
+        mock_lock_instance.return_value = (1, mock_lock)
 
         # Success
         mock_create.return_value = mock.Mock()
         self.local_image_local_instance._CreateAVD(
             mock_avd_spec, no_prompts=True)
-        mock_lock.Lock.assert_not_called()
-        self.assertEqual(2, mock_lock.LockIfNotInUse.call_count)
+        mock_lock_instance.assert_called_once()
         mock_lock.SetInUse.assert_called_once_with(True)
         mock_lock.Unlock.assert_called_once()
 
+        mock_lock_instance.reset_mock()
         mock_lock.SetInUse.reset_mock()
-        mock_lock.LockIfNotInUse.reset_mock()
         mock_lock.Unlock.reset_mock()
 
         # Failure with no report
-        mock_avd_spec.local_instance_id = 1
         mock_create.side_effect = ValueError("unit test")
         with self.assertRaises(ValueError):
             self.local_image_local_instance._CreateAVD(
                 mock_avd_spec, no_prompts=True)
-        mock_lock.Lock.assert_called_once()
-        mock_lock.LockIfNotInUse.assert_not_called()
+        mock_lock_instance.assert_called_once()
         mock_lock.SetInUse.assert_not_called()
         mock_lock.Unlock.assert_called_once()
+
+        # Failure with report
+        mock_lock_instance.side_effect = errors.CreateError("unit test")
+        report = self.local_image_local_instance._CreateAVD(
+            mock_avd_spec, no_prompts=True)
+        self.assertEqual(report.errors, ["unit test"])
+
+    def testSelectAndLockInstance(self):
+        """test _SelectAndLockInstance."""
+        mock_avd_spec = mock.Mock(local_instance_id=0)
+        mock_lock = mock.Mock()
+        mock_lock.Lock.return_value = True
+        mock_lock.LockIfNotInUse.side_effect = (False, True)
+        self.Patch(instance, "GetLocalInstanceLock",
+                   return_value=mock_lock)
+
+        ins_id, _ = self.local_image_local_instance._SelectAndLockInstance(
+            mock_avd_spec)
+        self.assertEqual(2, ins_id)
+        mock_lock.Lock.assert_not_called()
+        self.assertEqual(2, mock_lock.LockIfNotInUse.call_count)
+
+        mock_lock.LockIfNotInUse.reset_mock()
+
+        mock_avd_spec.local_instance_id = 1
+        ins_id, _ = self.local_image_local_instance._SelectAndLockInstance(
+            mock_avd_spec)
+        self.assertEqual(1, ins_id)
+        mock_lock.Lock.assert_called_once()
+        mock_lock.LockIfNotInUse.assert_not_called()
 
     @mock.patch("acloud.create.local_image_local_instance.utils")
     @mock.patch("acloud.create.local_image_local_instance.create_common")
