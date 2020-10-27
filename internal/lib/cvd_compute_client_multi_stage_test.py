@@ -32,8 +32,6 @@ from acloud.internal.lib import utils
 from acloud.internal.lib.ssh import Ssh
 from acloud.list import list as list_instances
 
-from acloud.internal.lib.cvd_compute_client_multi_stage import _ProcessBuild
-
 
 class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
     """Test CvdComputeClient."""
@@ -127,17 +125,6 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         launch_cvd_args = self.cvd_compute_client_multi_stage._GetLaunchCvdArgs(
             avd_spec=None)
         self.assertEqual(launch_cvd_args, expeted_args)
-
-    # pylint: disable=protected-access
-    def testProcessBuild(self):
-        """Test creating "cuttlefish build" strings."""
-        self.assertEqual(_ProcessBuild(build_id="123", branch="abc", build_target="def"), "123/def")
-        self.assertEqual(_ProcessBuild(build_id=None, branch="abc", build_target="def"), "abc/def")
-        self.assertEqual(_ProcessBuild(build_id="123", branch=None, build_target="def"), "123/def")
-        self.assertEqual(_ProcessBuild(build_id="123", branch="abc", build_target=None), "123")
-        self.assertEqual(_ProcessBuild(build_id=None, branch="abc", build_target=None), "abc")
-        self.assertEqual(_ProcessBuild(build_id="123", branch=None, build_target=None), "123")
-        self.assertEqual(_ProcessBuild(build_id=None, branch=None, build_target=None), None)
 
     @mock.patch.object(utils, "GetBuildEnvironmentVariable", return_value="fake_env_cf_x86")
     @mock.patch.object(glob, "glob", return_value=["fake.img"])
