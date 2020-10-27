@@ -276,7 +276,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         kernel_build = None
         # TODO(b/140076771) Support kernel image for local image mode.
         if self._avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
-            kernel_build = self._compute_client.GetKernelBuild(
+            kernel_build = self._compute_client.build_api.GetKernelBuild(
                 self._avd_spec.kernel_build_info[constants.BUILD_ID],
                 self._avd_spec.kernel_build_info[constants.BUILD_BRANCH],
                 self._avd_spec.kernel_build_info[constants.BUILD_TARGET])
