@@ -95,7 +95,10 @@ def DownloadAndProcessImageFiles(avd_spec):
             avd_spec.system_build_info.get(constants.BUILD_TARGET),
             avd_spec.kernel_build_info.get(constants.BUILD_ID),
             avd_spec.kernel_build_info.get(constants.BUILD_BRANCH),
-            avd_spec.kernel_build_info.get(constants.BUILD_TARGET))
+            avd_spec.kernel_build_info.get(constants.BUILD_TARGET),
+            avd_spec.bootloader_build_info.get(constants.BUILD_ID),
+            avd_spec.bootloader_build_info.get(constants.BUILD_BRANCH),
+            avd_spec.bootloader_build_info.get(constants.BUILD_TARGET))
         creds_cache_file = os.path.join(_HOME_FOLDER, cfg.creds_cache_file)
         fetch_cvd_cert_arg = build_api.GetFetchCertArg(creds_cache_file)
         fetch_cvd_args = [fetch_cvd, "-directory=%s" % extract_path,
