@@ -186,7 +186,6 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         Args:
             image_source: String, the type of image source is remote or local.
         """
-        self._compute_client.SetStage(constants.STAGE_ARTIFACT)
         if image_source == constants.IMAGE_SRC_LOCAL:
             self._UploadArtifacts(self._local_image_artifact,
                                   self._cvd_host_package_artifact,
@@ -272,7 +271,6 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             boot_timeout_secs: Integer, the maximum time to wait for the
                                command to respond.
         """
-        self._compute_client.SetStage(constants.STAGE_BOOT_UP)
         kernel_build = None
         # TODO(b/140076771) Support kernel image for local image mode.
         if self._avd_spec.image_source == constants.IMAGE_SRC_REMOTE:

@@ -381,6 +381,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
            dict of faliures, return this dict for BootEvaluator to handle
            LaunchCvd success or fail messages.
         """
+        self.SetStage(constants.STAGE_BOOT_UP)
         timestart = time.time()
         error_msg = ""
         launch_cvd_args = self._GetLaunchCvdArgs(avd_spec,
@@ -455,6 +456,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         Returns:
             ssh.IP object, that stores internal and external ip of the instance.
         """
+        self.SetStage(constants.STAGE_GCE)
         timestart = time.time()
         metadata = self._metadata.copy()
 
@@ -498,6 +500,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         is on the instance, future commands can use it to download relevant Cuttlefish files from
         the Build API on the instance itself.
         """
+        self.SetStage(constants.STAGE_ARTIFACT)
         download_dir = tempfile.mkdtemp()
         download_target = os.path.join(download_dir, _FETCHER_NAME)
         self._build_api.DownloadFetchcvd(download_target, self._fetch_cvd_version)
