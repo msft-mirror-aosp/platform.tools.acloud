@@ -248,6 +248,13 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
             kernel_build_id, kernel_build_target)
         self.assertEqual(self.cvd_compute_client_multi_stage._metadata, expected_metadata)
 
+    def testSetStage(self):
+        """Test SetStage"""
+        device_stage = "fake_stage"
+        self.cvd_compute_client_multi_stage.SetStage(device_stage)
+        self.assertEqual(self.cvd_compute_client_multi_stage.stage,
+                         device_stage)
+
 
 if __name__ == "__main__":
     unittest.main()
