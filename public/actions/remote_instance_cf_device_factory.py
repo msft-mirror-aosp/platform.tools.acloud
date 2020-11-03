@@ -19,8 +19,10 @@ import glob
 import logging
 import os
 import shutil
+import subprocess
 import tempfile
 
+from acloud import errors
 from acloud.create import create_common
 from acloud.internal import constants
 from acloud.internal.lib import utils
@@ -29,6 +31,10 @@ from acloud.public.actions import gce_device_factory
 
 
 logger = logging.getLogger(__name__)
+# bootloader is one file required to launch AVD.
+_BOOTLOADER = "bootloader"
+_HOME_FOLDER = os.path.expanduser("~")
+
 
 class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
     """A class that can produce a cuttlefish device.
@@ -71,7 +77,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             instance = self._InitRemotehost()
             self._ProcessRemoteHostArtifacts()
             self._LaunchCvd(instance=instance,
-                            decompress_kernel=True,
+                            decompress_kernel=None,
                             boot_timeout_secs=self._avd_spec.boot_timeout_secs)
         else:
             instance = self._CreateGceInstance()
@@ -129,21 +135,48 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
     def _DownloadArtifacts(self, extract_path):
         """Download the CF image artifacts and process them.
 
-        - Download image from the Android Build system, then decompress it.
+        - Download images from the Android Build system.
         - Download cvd host package from the Android Build system.
 
         Args:
             extract_path: String, a path include extracted files.
+
+        Raises:
+            errors.GetRemoteImageError: Fails to download rom images.
         """
         cfg = self._avd_spec.cfg
         build_id = self._avd_spec.remote_image[constants.BUILD_ID]
+        build_branch = self._avd_spec.remote_image[constants.BUILD_BRANCH]
         build_target = self._avd_spec.remote_image[constants.BUILD_TARGET]
 
-        # Image zip
-        remote_image = "%s-img-%s.zip" % (build_target.split('-')[0], build_id)
-        create_common.DownloadRemoteArtifact(
-            cfg, build_target, build_id, remote_image, extract_path, decompress=True)
+        # Download images with fetch_cvd
+        fetch_cvd = os.path.join(extract_path, constants.FETCH_CVD)
+        self._compute_client.build_api.DownloadFetchcvd(fetch_cvd,
+                                                        cfg.fetch_cvd_version)
+        fetch_cvd_build_args = self._compute_client.build_api.GetFetchBuildArgs(
+            build_id, build_branch, build_target,
+            self._avd_spec.system_build_info.get(constants.BUILD_ID),
+            self._avd_spec.system_build_info.get(constants.BUILD_BRANCH),
+            self._avd_spec.system_build_info.get(constants.BUILD_TARGET),
+            self._avd_spec.kernel_build_info.get(constants.BUILD_ID),
+            self._avd_spec.kernel_build_info.get(constants.BUILD_BRANCH),
+            self._avd_spec.kernel_build_info.get(constants.BUILD_TARGET),
+            self._avd_spec.bootloader_build_info.get(constants.BUILD_ID),
+            self._avd_spec.bootloader_build_info.get(constants.BUILD_BRANCH),
+            self._avd_spec.bootloader_build_info.get(constants.BUILD_TARGET))
+        creds_cache_file = os.path.join(_HOME_FOLDER, cfg.creds_cache_file)
+        fetch_cvd_cert_arg = self._compute_client.build_api.GetFetchCertArg(
+            creds_cache_file)
+        fetch_cvd_args = [fetch_cvd, "-directory=%s" % extract_path,
+                          fetch_cvd_cert_arg]
+        fetch_cvd_args.extend(fetch_cvd_build_args)
+        logger.debug("Download images command: %s", fetch_cvd_args)
+        try:
+            subprocess.check_call(fetch_cvd_args)
+        except subprocess.CalledProcessError as e:
+            raise errors.GetRemoteImageError("Fails to download images: %s" % e)
 
+        # TODO(b/170065928) Download host package via fetch_cvd.
         # Cvd host package
         create_common.DownloadRemoteArtifact(
             cfg, build_target, build_id, constants.CVD_HOST_PACKAGE,
@@ -249,6 +282,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
                 artifact_files = [
                     os.path.basename(image) for image in
                     glob.glob(os.path.join(images_dir, "*.img"))]
+                artifact_files.append(_BOOTLOADER)
             cmd = ("tar -cf - --lzop -S -C {images_dir} {artifact_files} | "
                    "{ssh_cmd} -- tar -xf - --lzop -S".format(
                        images_dir=images_dir,

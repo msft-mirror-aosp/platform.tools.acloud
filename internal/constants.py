@@ -203,3 +203,6 @@ STAGE_INIT = 0
 STAGE_GCE = 1
 STAGE_ARTIFACT = 2
 STAGE_BOOT_UP = 3
+
+# The name of download image tool.
+FETCH_CVD = "fetch_cvd"
