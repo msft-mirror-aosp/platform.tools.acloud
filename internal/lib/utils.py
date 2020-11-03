@@ -1196,13 +1196,15 @@ def CheckUserInGroups(group_name_list):
         True if current user is in all the groups.
     """
     logger.info("Checking if user is in following groups: %s", group_name_list)
-    current_groups = [grp.getgrgid(g).gr_name for g in os.getgroups()]
-    all_groups_present = True
+    all_groups = [g.gr_name for g in grp.getgrall()]
     for group in group_name_list:
-        if group not in current_groups:
-            all_groups_present = False
-            logger.info("missing group: %s", group)
-    return all_groups_present
+        if group not in all_groups:
+            logger.info("This group doesn't exist: %s", group)
+            return False
+        if getpass.getuser() not in grp.getgrnam(group).gr_mem:
+            logger.info("Current user isn't in this group: %s", group)
+            return False
+    return True
 
 
 def IsSupportedPlatform(print_warning=False):
