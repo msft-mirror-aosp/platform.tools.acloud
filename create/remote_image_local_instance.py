@@ -40,7 +40,6 @@ _CONFIRM_DOWNLOAD_DIR = ("Download dir %(download_dir)s does not have enough "
                          "space (available space %(available_space)sGB, "
                          "require %(required_space)sGB).\nPlease enter "
                          "alternate path or 'q' to exit: ")
-_FETCH_CVD = "fetch_cvd"
 _HOME_FOLDER = os.path.expanduser("~")
 # The downloaded image artifacts will take up ~8G:
 #   $du -lh --time $ANDROID_PRODUCT_OUT/aosp_cf_x86_phone-img-eng.XXX.zip
@@ -86,7 +85,7 @@ def DownloadAndProcessImageFiles(avd_spec):
             android_build_client.AndroidBuildClient(auth.CreateCredentials(cfg)))
 
         # Download rom images via fetch_cvd
-        fetch_cvd = os.path.join(extract_path, _FETCH_CVD)
+        fetch_cvd = os.path.join(extract_path, constants.FETCH_CVD)
         build_api.DownloadFetchcvd(fetch_cvd, cfg.fetch_cvd_version)
         fetch_cvd_build_args = build_api.GetFetchBuildArgs(
             build_id, build_branch, build_target,
