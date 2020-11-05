@@ -196,7 +196,8 @@ EOF"""
         mock_isfile.return_value = None
 
         with mock.patch.dict("acloud.internal.lib.ota_tools.os.environ",
-                             {"ANDROID_HOST_OUT": cvd_host_dir}, clear=True):
+                             {"ANDROID_HOST_OUT": cvd_host_dir,
+                              "ANDROID_SOONG_HOST_OUT": cvd_host_dir}, clear=True):
             with self.assertRaises(errors.GetCvdLocalHostPackageError):
                 self.local_image_local_instance._FindCvdHostBinaries(
                     [cvd_host_dir])
@@ -205,7 +206,8 @@ EOF"""
             lambda path: path == "/unit/test/bin/launch_cvd")
 
         with mock.patch.dict("acloud.internal.lib.ota_tools.os.environ",
-                             {"ANDROID_HOST_OUT": cvd_host_dir}, clear=True):
+                             {"ANDROID_HOST_OUT": cvd_host_dir,
+                              "ANDROID_SOONG_HOST_OUT": cvd_host_dir}, clear=True):
             path = self.local_image_local_instance._FindCvdHostBinaries([])
             self.assertEqual(path, cvd_host_dir)
 
@@ -278,6 +280,7 @@ EOF"""
         cvd_env[constants.ENV_CVD_HOME] = cvd_home_dir
         cvd_env[constants.ENV_CUTTLEFISH_INSTANCE] = str(local_instance_id)
         cvd_env[constants.ENV_ANDROID_HOST_OUT] = host_bins_path
+        cvd_env[constants.ENV_SECOND_ANDROID_HOST_OUT] = host_bins_path
         process = mock.MagicMock()
         process.wait.return_value = True
         process.returncode = 0
