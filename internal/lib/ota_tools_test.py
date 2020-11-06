@@ -125,7 +125,8 @@ class OtaToolsTest(unittest.TestCase):
         # CVD host package contains lpmake but not all tools.
         self._CreateBinary("lpmake")
         with mock.patch.dict("acloud.internal.lib.ota_tools.os.environ",
-                             {"ANDROID_HOST_OUT": self._temp_dir}, clear=True):
+                             {"ANDROID_HOST_OUT": self._temp_dir,
+                              "ANDROID_SOONG_HOST_OUT": self._temp_dir}, clear=True):
             with self.assertRaises(errors.CheckPathError):
                 ota_tools.FindOtaTools([self._temp_dir])
 
@@ -138,7 +139,8 @@ class OtaToolsTest(unittest.TestCase):
 
         # ANDROID_HOST_OUT contains OTA tools in build environment.
         with mock.patch.dict("acloud.internal.lib.ota_tools.os.environ",
-                             {"ANDROID_HOST_OUT": self._temp_dir}, clear=True):
+                             {"ANDROID_HOST_OUT": self._temp_dir,
+                              "ANDROID_SOONG_HOST_OUT": self._temp_dir}, clear=True):
             self.assertEqual(ota_tools.FindOtaTools([]), self._temp_dir)
 
     # pylint: disable=broad-except
