@@ -275,13 +275,12 @@ def ChooseOneRemoteInstance(cfg):
     return instances_list[0]
 
 
-def _FilterInstancesByNames(instances, names, all_match=True):
+def _FilterInstancesByNames(instances, names):
     """Find instances by names.
 
     Args:
         instances: Collection of Instance objects.
         names: Collection of strings, the names of the instances to search for.
-        all_match: Boolean, True to raise error if any instance is missing.
 
     Returns:
         List of Instance objects.
@@ -298,24 +297,42 @@ def _FilterInstancesByNames(instances, names, all_match=True):
         else:
             missing_instance_names.append(name)
 
-    if missing_instance_names and all_match:
+    if missing_instance_names:
         raise errors.NoInstancesFound("Did not find the following instances: %s" %
                                       " ".join(missing_instance_names))
     return found_instances
 
 
-def GetLocalInstancesByNames(names, all_match=True):
+def GetLocalInstanceLockByName(name):
+    """Get the lock of a local cuttelfish or goldfish instance.
+
+    Args:
+        name: The instance name.
+
+    Returns:
+        LocalInstanceLock object. None if the name is invalid.
+    """
+    cf_id = instance.GetLocalInstanceIdByName(name)
+    if cf_id is not None:
+        return instance.GetLocalInstanceLock(cf_id)
+
+    gf_id = instance.LocalGoldfishInstance.GetIdByName(name)
+    if gf_id is not None:
+        return instance.LocalGoldfishInstance.GetLockById(gf_id)
+
+    return None
+
+
+def GetLocalInstancesByNames(names):
     """Get local cuttlefish and goldfish instances by names.
+
+    This method does not raise an error if it cannot find all instances.
 
     Args:
         names: Collection of instance names.
-        all_match: Boolean, True to raise error if any instance is missing.
 
     Returns:
         List consisting of LocalInstance and LocalGoldfishInstance objects.
-
-    Raises:
-        errors.NoInstancesFound: No instances found.
     """
     id_cfg_pairs = []
     for name in names:
@@ -330,10 +347,11 @@ def GetLocalInstancesByNames(names, all_match=True):
             if cfg_path:
                 id_cfg_pairs.append((ins_id, cfg_path))
 
-    return _FilterInstancesByNames(
-        _GetLocalCuttlefishInstances(id_cfg_pairs) +
-        instance.LocalGoldfishInstance.GetExistingInstances(),
-        names, all_match)
+    gf_instances = [ins for ins in
+                    instance.LocalGoldfishInstance.GetExistingInstances()
+                    if ins.name in names]
+
+    return _GetLocalCuttlefishInstances(id_cfg_pairs) + gf_instances
 
 
 def GetInstancesFromInstanceNames(cfg, instance_names):
@@ -352,8 +370,8 @@ def GetInstancesFromInstanceNames(cfg, instance_names):
         errors.NoInstancesFound: No instances found.
     """
     return _FilterInstancesByNames(
-        GetLocalInstancesByNames(instance_names, all_match=False) +
-        GetRemoteInstances(cfg), instance_names)
+        GetLocalInstancesByNames(instance_names) + GetRemoteInstances(cfg),
+        instance_names)
 
 
 def FilterInstancesByAdbPort(instances, adb_port):
