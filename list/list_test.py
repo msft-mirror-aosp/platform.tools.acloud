@@ -99,26 +99,20 @@ class ListTest(driver_test_lib.BaseDriverTest):
                    return_value="path1")
         self.Patch(instance, "GetDefaultCuttlefishConfig",
                    return_value="path2")
-        mock_ins = mock.Mock()
-        mock_ins.name = "local-instance-1"
+        mock_cf_ins = mock.Mock()
+        mock_cf_ins.name = "local-instance-1"
         mock_get_cf = self.Patch(list_instance,
                                  "_GetLocalCuttlefishInstances",
-                                 return_value=[mock_ins])
+                                 return_value=[mock_cf_ins])
+        mock_gf_ins = mock.Mock()
+        mock_gf_ins.name = "local-goldfish-instance-1"
         self.Patch(instance.LocalGoldfishInstance, "GetExistingInstances",
-                   return_value=[])
+                   return_value=[mock_gf_ins])
 
-        ins_list = list_instance.GetLocalInstancesByNames(["local-instance-1"])
-        self.assertEqual(1, len(ins_list))
+        ins_list = list_instance.GetLocalInstancesByNames([
+            mock_cf_ins.name, "local-instance-6", mock_gf_ins.name])
+        self.assertEqual([mock_cf_ins, mock_gf_ins], ins_list)
         mock_get_cf.assert_called_with([(1, "path1"), (1, "path2")])
-
-        with self.assertRaises(errors.NoInstancesFound):
-            ins_list = list_instance.GetLocalInstancesByNames(
-                ["local-instance-1", "local-instance-6"])
-
-        # test get instance without raising error
-        ins_list = list_instance.GetLocalInstancesByNames(
-            ["local-instance-1", "local-instance-6"], all_match=False)
-        self.assertEqual(1, len(ins_list))
 
     # pylint: disable=attribute-defined-outside-init
     def testFilterInstancesByAdbPort(self):

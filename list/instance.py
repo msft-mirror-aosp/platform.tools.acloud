@@ -595,6 +595,22 @@ class LocalGoldfishInstance(Instance):
                             self._INSTANCE_NAME_FORMAT % {"id": self._id})
 
     @classmethod
+    def GetIdByName(cls, name):
+        """Get id by name.
+
+        Args:
+            name: String of instance name.
+
+        Return:
+            The instance id as an integer if the name is in valid format.
+            None if the name does not represent a local goldfish instance.
+        """
+        match = cls._INSTANCE_NAME_PATTERN.match(name)
+        if match:
+            return int(match.group("id"))
+        return None
+
+    @classmethod
     def GetLockById(cls, instance_id):
         """Get LocalInstanceLock by id."""
         lock_path = os.path.join(
