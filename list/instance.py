@@ -424,13 +424,14 @@ class LocalInstance(Instance):
             #  found exception.
             if not os.path.exists(cvd_status_cmd):
                 logger.warning("Cvd tools path doesn't exist:%s", cvd_status_cmd)
-                if os.environ.get(constants.ENV_ANDROID_HOST_OUT,
-                                  _NO_ANDROID_ENV) in cvd_status_cmd:
-                    logger.warning(
-                        "Can't find the cvd_status tool (Try lunching a "
-                        "cuttlefish target like aosp_cf_x86_phone-userdebug "
-                        "and running 'make hosttar' before list/delete local "
-                        "instances)")
+                for env_host_out in [constants.ENV_ANDROID_SOONG_HOST_OUT,
+                                     constants.ENV_ANDROID_HOST_OUT]:
+                    if os.environ.get(env_host_out, _NO_ANDROID_ENV) in cvd_status_cmd:
+                        logger.warning(
+                            "Can't find the cvd_status tool (Try lunching a "
+                            "cuttlefish target like aosp_cf_x86_phone-userdebug "
+                            "and running 'make hosttar' before list/delete local "
+                            "instances)")
                 return False
             logger.debug("Running cmd[%s] to check cvd status.", cvd_status_cmd)
             process = subprocess.Popen(cvd_status_cmd,
