@@ -79,7 +79,7 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         self.assertEqual("local-instance-2", local_instance.name)
         self.assertEqual(True, local_instance.islocal)
         self.assertEqual("1080x1920 (480)", local_instance.display)
-        expected_full_name = ("device serial: 127.0.0.1:%s (%s) elapsed time: %s"
+        expected_full_name = ("device serial: 0.0.0.0:%s (%s) elapsed time: %s"
                               % ("6521",
                                  "local-instance-2",
                                  "None"))

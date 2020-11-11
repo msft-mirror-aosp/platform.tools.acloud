@@ -378,7 +378,7 @@ class LocalInstance(Instance):
         # cuttlefish_config.json so far.
         name = GetLocalInstanceName(self._local_instance_id)
         fullname = (_FULL_NAME_STRING %
-                    {"device_serial": "127.0.0.1:%s" % self._cf_runtime_cfg.adb_port,
+                    {"device_serial": "0.0.0.0:%s" % self._cf_runtime_cfg.adb_port,
                      "instance_name": name,
                      "elapsed_time": None})
         adb_device = AdbTools(self._cf_runtime_cfg.adb_port)
@@ -387,7 +387,7 @@ class LocalInstance(Instance):
             device_information = adb_device.device_information
 
         super(LocalInstance, self).__init__(
-            name=name, fullname=fullname, display=display, ip="127.0.0.1",
+            name=name, fullname=fullname, display=display, ip="0.0.0.0",
             status=constants.INS_STATUS_RUNNING,
             adb_port=self._cf_runtime_cfg.adb_port,
             vnc_port=self._cf_runtime_cfg.vnc_port,
