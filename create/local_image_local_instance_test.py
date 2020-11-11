@@ -49,7 +49,7 @@ EOF"""
 
     LAUNCH_CVD_CMD_WITH_WEBRTC = """sg group1 <<EOF
 sg group2
-launch_cvd -daemon -cpus fake -x_res fake -y_res fake -dpi fake -memory_mb fake -run_adb_connector=true -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,enable_sandbox -report_anonymous_usage_stats=y -enable_sandbox=false -guest_enforce_security=false -vm_manager=crosvm -start_webrtc=true -webrtc_public_ip=127.0.0.1
+launch_cvd -daemon -cpus fake -x_res fake -y_res fake -dpi fake -memory_mb fake -run_adb_connector=true -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,enable_sandbox -report_anonymous_usage_stats=y -enable_sandbox=false -guest_enforce_security=false -vm_manager=crosvm -start_webrtc=true -webrtc_public_ip=0.0.0.0
 EOF"""
     LAUNCH_CVD_CMD_WITH_ARGS = """sg group1 <<EOF
 sg group2
@@ -59,7 +59,7 @@ EOF"""
     _EXPECTED_DEVICES_IN_REPORT = [
         {
             "instance_name": "local-instance-1",
-            "ip": "127.0.0.1:6520",
+            "ip": "0.0.0.0:6520",
             "adb_port": 6520,
             "vnc_port": 6444
         }
@@ -68,7 +68,7 @@ EOF"""
     _EXPECTED_DEVICES_IN_FAILED_REPORT = [
         {
             "instance_name": "local-instance-1",
-            "ip": "127.0.0.1"
+            "ip": "0.0.0.0"
         }
     ]
 
