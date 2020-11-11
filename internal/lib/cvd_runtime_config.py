@@ -47,10 +47,10 @@ def _GetIdFromInstanceDirStr(instance_dir):
     match = _RE_LOCAL_INSTANCE_ID.match(instance_dir)
     if match:
         return match.group("ins_id")
-    else:
-        # To support the device which is not created by acloud.
-        if os.path.expanduser("~") in instance_dir:
-            return "1"
+
+    # To support the device which is not created by acloud.
+    if os.path.expanduser("~") in instance_dir:
+        return "1"
 
     return None
 
@@ -67,7 +67,7 @@ class CvdRuntimeConfig(object):
         [
             "/path-to-image"
         ],
-    "adb_ip_and_port" : "127.0.0.1:6520",
+    "adb_ip_and_port" : "0.0.0.0:6520",
     "instance_dir" : "/path-to-instance-dir",
     }
 
@@ -80,7 +80,7 @@ class CvdRuntimeConfig(object):
         {
             "1" :
             {
-                "adb_ip_and_port" : "127.0.0.1:6520",
+                "adb_ip_and_port" : "0.0.0.0:6520",
                 "instance_dir" : "/path-to-instance-dir",
                 "virtual_disk_paths" :
                 [
@@ -98,7 +98,7 @@ class CvdRuntimeConfig(object):
     "webrtc_binary" : "/home/vsoc-01/bin/webRTC",
     "webrtc_certs_dir" : "/home/vsoc-01/usr/share/webrtc/certs",
     "webrtc_enable_adb_websocket" : false,
-    "webrtc_public_ip" : "127.0.0.1",
+    "webrtc_public_ip" : "0.0.0.0",
     }
 
     """
