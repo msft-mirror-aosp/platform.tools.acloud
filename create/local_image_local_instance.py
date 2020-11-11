@@ -235,11 +235,13 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                                            constants.CMD_LAUNCH_CVD)):
                 return search_path
 
-        host_out_dir = os.environ.get(constants.ENV_ANDROID_HOST_OUT)
-        if (host_out_dir and
-                os.path.isfile(os.path.join(host_out_dir, "bin",
-                                            constants.CMD_LAUNCH_CVD))):
-            return host_out_dir
+        for env_host_out in [constants.ENV_ANDROID_SOONG_HOST_OUT,
+                             constants.ENV_ANDROID_HOST_OUT]:
+            host_out_dir = os.environ.get(env_host_out)
+            if (host_out_dir and
+                    os.path.isfile(os.path.join(host_out_dir, "bin",
+                                                constants.CMD_LAUNCH_CVD))):
+                return host_out_dir
 
         raise errors.GetCvdLocalHostPackageError(
             "CVD host binaries are not found. Please run `make hosttar`, or "
@@ -373,8 +375,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         """
         cvd_env = os.environ.copy()
         # launch_cvd assumes host bins are in $ANDROID_HOST_OUT.
+        cvd_env[constants.ENV_ANDROID_SOONG_HOST_OUT] = host_bins_path
         cvd_env[constants.ENV_ANDROID_HOST_OUT] = host_bins_path
-        cvd_env[constants.ENV_SECOND_ANDROID_HOST_OUT] = host_bins_path
         cvd_env[constants.ENV_CVD_HOME] = cvd_home_dir
         cvd_env[constants.ENV_CUTTLEFISH_INSTANCE] = str(local_instance_id)
         # Check the result of launch_cvd command.
