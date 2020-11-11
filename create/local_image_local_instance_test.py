@@ -289,8 +289,8 @@ EOF"""
         cvd_env = {}
         cvd_env[constants.ENV_CVD_HOME] = cvd_home_dir
         cvd_env[constants.ENV_CUTTLEFISH_INSTANCE] = str(local_instance_id)
+        cvd_env[constants.ENV_ANDROID_SOONG_HOST_OUT] = host_bins_path
         cvd_env[constants.ENV_ANDROID_HOST_OUT] = host_bins_path
-        cvd_env[constants.ENV_SECOND_ANDROID_HOST_OUT] = host_bins_path
         process = mock.MagicMock()
         process.wait.return_value = True
         process.returncode = 0

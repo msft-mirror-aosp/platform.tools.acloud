@@ -76,7 +76,11 @@ def GetCvdHostPackage():
     Raises:
         errors.GetCvdLocalHostPackageError: Can't find cvd host package.
     """
-    dirs_to_check = list(filter(None, [os.environ.get(constants.ENV_ANDROID_HOST_OUT)]))
+    dirs_to_check = list(
+        filter(None, [
+            os.environ.get(constants.ENV_ANDROID_SOONG_HOST_OUT),
+            os.environ.get(constants.ENV_ANDROID_HOST_OUT)
+        ]))
     dist_dir = utils.GetDistDir()
     if dist_dir:
         dirs_to_check.append(dist_dir)
