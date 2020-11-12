@@ -226,6 +226,9 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.kernel_build_id = "345"
         args.kernel_branch = "kernel_branch"
         args.kernel_build_target = "kernel_target"
+        args.bootloader_build_id = "456"
+        args.bootloader_branch = "bootloader_branch"
+        args.bootloader_build_target = "bootloader_target"
         avd_spec_remote_image = avd_spec.AVDSpec(args)
         factory = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
             avd_spec_remote_image,
@@ -240,7 +243,10 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             "system_build_target": "sys_target",
             "kernel_build_id": "345",
             "kernel_branch": "kernel_branch",
-            "kernel_build_target": "kernel_target"
+            "kernel_build_target": "kernel_target",
+            "bootloader_build_id": "456",
+            "bootloader_branch": "bootloader_branch",
+            "bootloader_build_target": "bootloader_target"
         }
         self.assertEqual(factory.GetBuildInfoDict(), expected_build_info)
 
