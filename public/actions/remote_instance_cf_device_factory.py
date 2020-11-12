@@ -343,4 +343,8 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             {"system_%s" % key: val
              for key, val in self._avd_spec.system_build_info.items() if val}
         )
+        build_info_dict.update(
+            {"bootloader_%s" % key: val
+             for key, val in self._avd_spec.bootloader_build_info.items() if val}
+        )
         return build_info_dict
