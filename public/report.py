@@ -169,7 +169,7 @@ class Report(object):
                 self.status, status)
 
     def AddDevice(self, instance_name, ip_address, adb_port, vnc_port,
-                  key="devices"):
+                  device_serial=None, key="devices"):
         """Add a record of a device.
 
         Args:
@@ -177,6 +177,7 @@ class Report(object):
             ip_address: A string.
             adb_port: An integer.
             vnc_port: An integer.
+            device_serial: String of device serial.
             key: A string, the data entry where the record is added.
         """
         device = {constants.INSTANCE_NAME: instance_name}
@@ -186,12 +187,15 @@ class Report(object):
         else:
             device[constants.IP] = ip_address
 
+        if device_serial:
+            device[constants.DEVICE_SERIAL] = device_serial
+
         if vnc_port:
             device[constants.VNC_PORT] = vnc_port
         self.AddData(key=key, value=device)
 
     def AddDeviceBootFailure(self, instance_name, ip_address, adb_port,
-                             vnc_port, error):
+                             vnc_port, error, device_serial=None):
         """Add a record of device boot failure.
 
         Args:
@@ -200,9 +204,10 @@ class Report(object):
             adb_port: An integer.
             vnc_port: An integer. Can be None if the device doesn't support it.
             error: A string, the error message.
+            device_serial: String of device serial.
         """
         self.AddDevice(instance_name, ip_address, adb_port, vnc_port,
-                       "devices_failing_boot")
+                       device_serial, "devices_failing_boot")
         self.AddError(error)
 
     def Dump(self, report_file):
