@@ -49,13 +49,17 @@ EOF"""
 
     LAUNCH_CVD_CMD_WITH_WEBRTC = """sg group1 <<EOF
 sg group2
-launch_cvd -daemon -cpus fake -x_res fake -y_res fake -dpi fake -memory_mb fake -run_adb_connector=true -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,enable_sandbox -report_anonymous_usage_stats=y -enable_sandbox=false -guest_enforce_security=false -vm_manager=crosvm -start_webrtc=true -webrtc_public_ip=127.0.0.1
+launch_cvd -daemon -cpus fake -x_res fake -y_res fake -dpi fake -memory_mb fake -run_adb_connector=true -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,enable_sandbox -report_anonymous_usage_stats=y -enable_sandbox=false -guest_enforce_security=false -vm_manager=crosvm -start_webrtc=true -webrtc_public_ip=0.0.0.0
+EOF"""
+    LAUNCH_CVD_CMD_WITH_ARGS = """sg group1 <<EOF
+sg group2
+launch_cvd -daemon -cpus fake -x_res fake -y_res fake -dpi fake -memory_mb fake -run_adb_connector=true -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,enable_sandbox -report_anonymous_usage_stats=y -enable_sandbox=false -start_vnc_server=true -setupwizard_mode=REQUIRED
 EOF"""
 
     _EXPECTED_DEVICES_IN_REPORT = [
         {
             "instance_name": "local-instance-1",
-            "ip": "127.0.0.1:6520",
+            "ip": "0.0.0.0:6520",
             "adb_port": 6520,
             "vnc_port": 6444
         }
@@ -64,7 +68,7 @@ EOF"""
     _EXPECTED_DEVICES_IN_FAILED_REPORT = [
         {
             "instance_name": "local-instance-1",
-            "ip": "127.0.0.1"
+            "ip": "0.0.0.0"
         }
     ]
 
@@ -227,7 +231,7 @@ EOF"""
 
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
             constants.CMD_LAUNCH_CVD, hw_property, True, "fake_image_dir",
-            "fake_cvd_dir", False, True, None)
+            "fake_cvd_dir", False, True, None, None)
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_DISK)
 
         # "disk" doesn't exist in hw_property.
@@ -235,19 +239,25 @@ EOF"""
                        "dpi": "fake", "memory": "fake"}
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
             constants.CMD_LAUNCH_CVD, hw_property, True, "fake_image_dir",
-            "fake_cvd_dir", False, True, None)
+            "fake_cvd_dir", False, True, None, None)
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_NO_DISK)
 
         # "gpu" is enabled with "default"
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
             constants.CMD_LAUNCH_CVD, hw_property, True, "fake_image_dir",
-            "fake_cvd_dir", False, True, "default")
+            "fake_cvd_dir", False, True, "default", None)
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_NO_DISK_WITH_GPU)
 
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
             constants.CMD_LAUNCH_CVD, hw_property, True, "fake_image_dir",
-            "fake_cvd_dir", True, False, None)
+            "fake_cvd_dir", True, False, None, None)
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_WEBRTC)
+
+        # Add args into launch command with "-setupwizard_mode=REQUIRED"
+        launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
+            constants.CMD_LAUNCH_CVD, hw_property, True, "fake_image_dir",
+            "fake_cvd_dir", False, True, None, "-setupwizard_mode=REQUIRED")
+        self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_ARGS)
 
     @mock.patch.object(utils, "GetUserAnswerYes")
     @mock.patch.object(list_instance, "GetActiveCVD")
@@ -279,8 +289,8 @@ EOF"""
         cvd_env = {}
         cvd_env[constants.ENV_CVD_HOME] = cvd_home_dir
         cvd_env[constants.ENV_CUTTLEFISH_INSTANCE] = str(local_instance_id)
+        cvd_env[constants.ENV_ANDROID_SOONG_HOST_OUT] = host_bins_path
         cvd_env[constants.ENV_ANDROID_HOST_OUT] = host_bins_path
-        cvd_env[constants.ENV_SECOND_ANDROID_HOST_OUT] = host_bins_path
         process = mock.MagicMock()
         process.wait.return_value = True
         process.returncode = 0
