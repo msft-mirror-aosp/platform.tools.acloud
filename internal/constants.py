@@ -109,6 +109,7 @@ INSTANCE_NAME = "instance_name"
 GCE_USER = "vsoc-01"
 VNC_PORT = "vnc_port"
 ADB_PORT = "adb_port"
+DEVICE_SERIAL = "device_serial"
 # For cuttlefish remote instances
 CF_ADB_PORT = 6520
 CF_VNC_PORT = 6444

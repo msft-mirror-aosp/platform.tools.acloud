@@ -81,17 +81,35 @@ class ReportTest(unittest.TestCase):
         }
         self.assertEqual(test_report.data, expected)
 
+        # Write report with "device_serial"
+        test_report = report.Report("create")
+        device_serial = "emulator-test"
+        test_report.AddDevice("instance_1", "127.0.0.1", 6520, 6444,
+                              device_serial=device_serial)
+        expected = {
+            "devices": [{
+                "instance_name": "instance_1",
+                "ip": "127.0.0.1:6520",
+                "adb_port": 6520,
+                "vnc_port": 6444,
+                "device_serial": device_serial
+            }]
+        }
+        self.assertEqual(test_report.data, expected)
+
     def testAddDeviceBootFailure(self):
         """test AddDeviceBootFailure."""
         test_report = report.Report("create")
+        device_serial = "emulator-test"
         test_report.AddDeviceBootFailure("instance_1", "127.0.0.1", 6520, 6444,
-                                         "some errors")
+                                         "some errors", device_serial)
         expected = {
             "devices_failing_boot": [{
                 "instance_name": "instance_1",
                 "ip": "127.0.0.1:6520",
                 "adb_port": 6520,
-                "vnc_port": 6444
+                "vnc_port": 6444,
+                "device_serial": device_serial
             }]
         }
         self.assertEqual(test_report.data, expected)
