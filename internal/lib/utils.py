@@ -1067,10 +1067,14 @@ def PrintDeviceSummary(report):
     PrintColorString("\n")
     PrintColorString("Device summary:")
     for device in report.data.get("devices", []):
-        adb_serial = "(None)"
-        adb_port = device.get("adb_port")
-        if adb_port:
-            adb_serial = constants.LOCALHOST_ADB_SERIAL % adb_port
+        adb_serial = device.get(constants.DEVICE_SERIAL)
+        if not adb_serial:
+            adb_port = device.get("adb_port")
+            if adb_port:
+                adb_serial = constants.LOCALHOST_ADB_SERIAL % adb_port
+            else:
+                adb_serial = "(None)"
+
         instance_name = device.get("instance_name")
         instance_ip = device.get("ip")
         instance_details = "" if not instance_name else "(%s[%s])" % (
