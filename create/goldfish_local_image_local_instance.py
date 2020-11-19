@@ -267,11 +267,13 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             result_report.SetStatus(report.Status.BOOT_FAIL)
             result_report.AddDeviceBootFailure(ins.name, ins.ip,
                                                ins.adb_port, vnc_port=None,
-                                               error=str(e))
+                                               error=str(e),
+                                               device_serial=ins.device_serial)
         else:
             result_report.SetStatus(report.Status.SUCCESS)
             result_report.AddDevice(ins.name, ins.ip, ins.adb_port,
-                                    vnc_port=None)
+                                    vnc_port=None,
+                                    device_serial=ins.device_serial)
 
         return result_report
 
