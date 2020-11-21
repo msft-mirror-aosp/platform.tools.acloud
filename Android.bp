@@ -102,8 +102,10 @@ python_test_host {
     test_config: "acloud_unittest.xml",
     test_suites: [
         "general-tests",
-        "host-unit-tests",
     ],
+    test_options: {
+        unit_test: true,
+    }
 }
 
 python_library_host {
