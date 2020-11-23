@@ -136,6 +136,7 @@ class CommonOperationsTest(driver_test_lib.BaseDriverTest):
                 "branch": self.BRANCH,
                 "build_id": self.BUILD_ID,
                 "adb_port": 12345,
+                "device_serial": "127.0.0.1:12345",
                 "vnc_port": 56789,
                 "build_target": self.BUILD_TARGET,
                 "gcs_bucket_build_id": self.BUILD_ID,
