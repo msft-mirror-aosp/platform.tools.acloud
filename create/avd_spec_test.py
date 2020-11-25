@@ -188,21 +188,21 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.args.avd_type = constants.TYPE_GCE
         self.assertEqual(
             self.AvdSpec._GetBuildTarget(self.args),
-            "gce_x86_iot-userdebug")
+            "gce_x86_64_iot-userdebug")
 
         self.AvdSpec._remote_image[constants.BUILD_BRANCH] = "aosp-master"
         self.AvdSpec._flavor = constants.FLAVOR_PHONE
         self.args.avd_type = constants.TYPE_CF
         self.assertEqual(
             self.AvdSpec._GetBuildTarget(self.args),
-            "aosp_cf_x86_phone-userdebug")
+            "aosp_cf_x86_64_phone-userdebug")
 
         self.AvdSpec._remote_image[constants.BUILD_BRANCH] = "git_branch"
         self.AvdSpec._flavor = constants.FLAVOR_PHONE
         self.args.avd_type = constants.TYPE_CF
         self.assertEqual(
             self.AvdSpec._GetBuildTarget(self.args),
-            "cf_x86_phone-userdebug")
+            "cf_x86_64_phone-userdebug")
 
     # pylint: disable=protected-access
     def testProcessHWPropertyWithInvalidArgs(self):

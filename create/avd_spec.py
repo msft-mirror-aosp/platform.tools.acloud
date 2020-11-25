@@ -45,7 +45,7 @@ _BRANCH_RE = re.compile(r"^Manifest branch: (?P<branch>.+)")
 _COMMAND_REPO_INFO = "repo info platform/tools/acloud"
 _REPO_TIMEOUT = 3
 _CF_ZIP_PATTERN = "*img*.zip"
-_DEFAULT_BUILD_BITNESS = "x86"
+_DEFAULT_BUILD_BITNESS = "x86_64"
 _DEFAULT_BUILD_TYPE = "userdebug"
 _ENV_ANDROID_PRODUCT_OUT = "ANDROID_PRODUCT_OUT"
 _ENV_ANDROID_BUILD_TOP = "ANDROID_BUILD_TOP"
@@ -669,7 +669,7 @@ class AVDSpec():
 
         Target = {REPO_PREFIX}{avd_type}_{bitness}_{flavor}-
             {DEFAULT_BUILD_TARGET_TYPE}.
-        Example target: aosp_cf_x86_phone-userdebug
+        Example target: aosp_cf_x86_64_phone-userdebug
 
         Args:
             args: Namespace object from argparse.parse_args.
