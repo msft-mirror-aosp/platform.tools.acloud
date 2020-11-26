@@ -205,8 +205,8 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
     def GetFetchCertArg(certification_file):
         """Get cert arg from certification file for fetch_cvd.
 
-        Parse the certification file to get access token and pass it to
-        fetch_cvd command.
+        Parse the certification file to get access token of the latest
+        credential data and pass it to fetch_cvd command.
         Example of certification file:
         {
           "data": [
@@ -232,9 +232,8 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
 
         try:
             with open(certification_file) as cert_file:
-                cert_data = json.load(cert_file)
-                auth_token = cert_data.get("data")[0].get("credential").get(
-                    "access_token")
+                auth_token = json.load(cert_file).get("data")[-1].get(
+                    "credential").get("access_token")
                 if auth_token:
                     cert_arg = "-credential_source=%s" % auth_token
         except Exception as e:
