@@ -267,11 +267,13 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             result_report.SetStatus(report.Status.BOOT_FAIL)
             result_report.AddDeviceBootFailure(ins.name, ins.ip,
                                                ins.adb_port, vnc_port=None,
-                                               error=str(e))
+                                               error=str(e),
+                                               device_serial=ins.device_serial)
         else:
             result_report.SetStatus(report.Status.SUCCESS)
             result_report.AddDevice(ins.name, ins.ip, ins.adb_port,
-                                    vnc_port=None)
+                                    vnc_port=None,
+                                    device_serial=ins.device_serial)
 
         return result_report
 
@@ -446,7 +448,7 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         build_prop_src_path = os.path.join(image_dir, _BUILD_PROP_FILE_NAME)
         if not os.path.isfile(build_prop_src_path):
             raise errors.GetLocalImageError("No %s in %s." %
-                                            _BUILD_PROP_FILE_NAME, image_dir)
+                                            (_BUILD_PROP_FILE_NAME, image_dir))
         build_prop_dir = os.path.dirname(build_prop_path)
         logger.info("Copy %s to %s", _BUILD_PROP_FILE_NAME, build_prop_path)
         if not os.path.exists(build_prop_dir):

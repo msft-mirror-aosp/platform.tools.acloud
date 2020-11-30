@@ -100,7 +100,12 @@ python_test_host {
         "py-oauth2client",
     ],
     test_config: "acloud_unittest.xml",
-    test_suites: ["general-tests"],
+    test_suites: [
+        "general-tests",
+    ],
+    test_options: {
+        unit_test: true,
+    }
 }
 
 python_library_host {

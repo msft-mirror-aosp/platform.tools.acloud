@@ -45,7 +45,7 @@ _BRANCH_RE = re.compile(r"^Manifest branch: (?P<branch>.+)")
 _COMMAND_REPO_INFO = "repo info platform/tools/acloud"
 _REPO_TIMEOUT = 3
 _CF_ZIP_PATTERN = "*img*.zip"
-_DEFAULT_BUILD_BITNESS = "x86"
+_DEFAULT_BUILD_BITNESS = "x86_64"
 _DEFAULT_BUILD_TYPE = "userdebug"
 _ENV_ANDROID_PRODUCT_OUT = "ANDROID_PRODUCT_OUT"
 _ENV_ANDROID_BUILD_TOP = "ANDROID_BUILD_TOP"
@@ -122,6 +122,7 @@ class AVDSpec():
         self._remote_image = None
         self._system_build_info = None
         self._kernel_build_info = None
+        self._bootloader_build_info = None
         self._hw_property = None
         self._remote_host = None
         self._host_user = None
@@ -363,7 +364,7 @@ class AVDSpec():
         if self._avd_type == constants.TYPE_CF:
             self._ProcessCFLocalImageArgs(args.local_image, args.flavor)
         elif self._avd_type == constants.TYPE_FVP:
-            self._ProcessFVPLocalImageArgs(args.local_image)
+            self._ProcessFVPLocalImageArgs()
         elif self._avd_type == constants.TYPE_GF:
             self._local_image_dir = self._ProcessGFLocalImageArgs(
                 args.local_image)
@@ -490,12 +491,8 @@ class AVDSpec():
         if flavor_from_build_string and not flavor_arg:
             self._flavor = flavor_from_build_string
 
-    def _ProcessFVPLocalImageArgs(self, local_image_arg):
-        """Get local built image path for FVP-type AVD.
-
-        Args:
-            local_image_arg: String of local image args.
-        """
+    def _ProcessFVPLocalImageArgs(self):
+        """Get local built image path for FVP-type AVD."""
         build_target = utils.GetBuildEnvironmentVariable(
             constants.ENV_BUILD_TARGET)
         if build_target != "fvp":
@@ -563,6 +560,10 @@ class AVDSpec():
         self._kernel_build_info = {constants.BUILD_ID: args.kernel_build_id,
                                    constants.BUILD_BRANCH: args.kernel_branch,
                                    constants.BUILD_TARGET: args.kernel_build_target}
+        self._bootloader_build_info = {
+            constants.BUILD_ID: args.bootloader_build_id,
+            constants.BUILD_BRANCH: args.bootloader_branch,
+            constants.BUILD_TARGET: args.bootloader_build_target}
 
     @staticmethod
     def _CheckCFBuildTarget(instance_type):
@@ -668,7 +669,7 @@ class AVDSpec():
 
         Target = {REPO_PREFIX}{avd_type}_{bitness}_{flavor}-
             {DEFAULT_BUILD_TARGET_TYPE}.
-        Example target: aosp_cf_x86_phone-userdebug
+        Example target: aosp_cf_x86_64_phone-userdebug
 
         Args:
             args: Namespace object from argparse.parse_args.
@@ -791,6 +792,11 @@ class AVDSpec():
     def kernel_build_info(self):
         """Return kernel build info."""
         return self._kernel_build_info
+
+    @property
+    def bootloader_build_info(self):
+        """Return bootloader build info."""
+        return self._bootloader_build_info
 
     @property
     def flavor(self):

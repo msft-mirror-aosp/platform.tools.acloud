@@ -32,8 +32,6 @@ from acloud.internal.lib import utils
 from acloud.internal.lib.ssh import Ssh
 from acloud.list import list as list_instances
 
-from acloud.internal.lib.cvd_compute_client_multi_stage import _ProcessBuild
-
 
 class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
     """Test CvdComputeClient."""
@@ -114,30 +112,19 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         fake_avd_spec = avd_spec.AVDSpec(self.args)
         expeted_args = ["-x_res=1080", "-y_res=1920", "-dpi=240", "-cpus=2",
                         "-memory_mb=4096", "-num_instances=2", "--setupwizard_mode=REQUIRED",
-                        "-gpu_mode=drm_virgl", "-undefok=report_anonymous_usage_stats",
+                        "-gpu_mode=auto", "-undefok=report_anonymous_usage_stats",
                         "-report_anonymous_usage_stats=y"]
         launch_cvd_args = self.cvd_compute_client_multi_stage._GetLaunchCvdArgs(fake_avd_spec)
         self.assertEqual(launch_cvd_args, expeted_args)
 
         # test GetLaunchCvdArgs without avd_spec
         expeted_args = ["-x_res=720", "-y_res=1280", "-dpi=160",
-                        "--setupwizard_mode=REQUIRED", "-gpu_mode=drm_virgl",
+                        "--setupwizard_mode=REQUIRED", "-gpu_mode=auto",
                         "-undefok=report_anonymous_usage_stats",
                         "-report_anonymous_usage_stats=y"]
         launch_cvd_args = self.cvd_compute_client_multi_stage._GetLaunchCvdArgs(
             avd_spec=None)
         self.assertEqual(launch_cvd_args, expeted_args)
-
-    # pylint: disable=protected-access
-    def testProcessBuild(self):
-        """Test creating "cuttlefish build" strings."""
-        self.assertEqual(_ProcessBuild(build_id="123", branch="abc", build_target="def"), "123/def")
-        self.assertEqual(_ProcessBuild(build_id=None, branch="abc", build_target="def"), "abc/def")
-        self.assertEqual(_ProcessBuild(build_id="123", branch=None, build_target="def"), "123/def")
-        self.assertEqual(_ProcessBuild(build_id="123", branch="abc", build_target=None), "123")
-        self.assertEqual(_ProcessBuild(build_id=None, branch="abc", build_target=None), "abc")
-        self.assertEqual(_ProcessBuild(build_id="123", branch=None, build_target=None), "123")
-        self.assertEqual(_ProcessBuild(build_id=None, branch=None, build_target=None), None)
 
     @mock.patch.object(utils, "GetBuildEnvironmentVariable", return_value="fake_env_cf_x86")
     @mock.patch.object(glob, "glob", return_value=["fake.img"])
@@ -260,6 +247,13 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
             None, system_build_id, system_build_target,
             kernel_build_id, kernel_build_target)
         self.assertEqual(self.cvd_compute_client_multi_stage._metadata, expected_metadata)
+
+    def testSetStage(self):
+        """Test SetStage"""
+        device_stage = "fake_stage"
+        self.cvd_compute_client_multi_stage.SetStage(device_stage)
+        self.assertEqual(self.cvd_compute_client_multi_stage.stage,
+                         device_stage)
 
 
 if __name__ == "__main__":

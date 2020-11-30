@@ -187,6 +187,10 @@ class GetLocalImageError(CreateError):
     """Can't find the local image."""
 
 
+class GetRemoteImageError(CreateError):
+    """An error to download the remote image."""
+
+
 class GetCvdLocalHostPackageError(CreateError):
     """Can't find the lost host package."""
 

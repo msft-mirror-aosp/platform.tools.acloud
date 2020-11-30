@@ -1067,10 +1067,14 @@ def PrintDeviceSummary(report):
     PrintColorString("\n")
     PrintColorString("Device summary:")
     for device in report.data.get("devices", []):
-        adb_serial = "(None)"
-        adb_port = device.get("adb_port")
-        if adb_port:
-            adb_serial = constants.LOCALHOST_ADB_SERIAL % adb_port
+        adb_serial = device.get(constants.DEVICE_SERIAL)
+        if not adb_serial:
+            adb_port = device.get("adb_port")
+            if adb_port:
+                adb_serial = constants.LOCALHOST_ADB_SERIAL % adb_port
+            else:
+                adb_serial = "(None)"
+
         instance_name = device.get("instance_name")
         instance_ip = device.get("ip")
         instance_details = "" if not instance_name else "(%s[%s])" % (
@@ -1196,13 +1200,15 @@ def CheckUserInGroups(group_name_list):
         True if current user is in all the groups.
     """
     logger.info("Checking if user is in following groups: %s", group_name_list)
-    current_groups = [grp.getgrgid(g).gr_name for g in os.getgroups()]
-    all_groups_present = True
+    all_groups = [g.gr_name for g in grp.getgrall()]
     for group in group_name_list:
-        if group not in current_groups:
-            all_groups_present = False
-            logger.info("missing group: %s", group)
-    return all_groups_present
+        if group not in all_groups:
+            logger.info("This group doesn't exist: %s", group)
+            return False
+        if getpass.getuser() not in grp.getgrnam(group).gr_mem:
+            logger.info("Current user isn't in this group: %s", group)
+            return False
+    return True
 
 
 def IsSupportedPlatform(print_warning=False):

@@ -16,11 +16,12 @@
 import glob
 import os
 import shutil
-import six
+import subprocess
 import tempfile
 import unittest
 import uuid
 
+import six
 import mock
 
 from acloud.create import avd_spec
@@ -225,6 +226,9 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.kernel_build_id = "345"
         args.kernel_branch = "kernel_branch"
         args.kernel_build_target = "kernel_target"
+        args.bootloader_build_id = "456"
+        args.bootloader_branch = "bootloader_branch"
+        args.bootloader_build_target = "bootloader_target"
         avd_spec_remote_image = avd_spec.AVDSpec(args)
         factory = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
             avd_spec_remote_image,
@@ -239,7 +243,10 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             "system_build_target": "sys_target",
             "kernel_build_id": "345",
             "kernel_branch": "kernel_branch",
-            "kernel_build_target": "kernel_target"
+            "kernel_build_target": "kernel_target",
+            "bootloader_build_id": "456",
+            "bootloader_branch": "bootloader_branch",
+            "bootloader_build_target": "bootloader_target"
         }
         self.assertEqual(factory.GetBuildInfoDict(), expected_build_info)
 
@@ -278,22 +285,22 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.Patch(glob, "glob", return_value=["fake.img"])
         factory._UploadArtifacts(fake_image, fake_host_package, fake_local_image_dir)
         expected_cmd = (
-            "tar -cf - --lzop -S -C %s fake.img | "
+            "tar -cf - --lzop -S -C %s fake.img bootloader | "
             "%s -- tar -xf - --lzop -S" %
             (fake_local_image_dir, factory._ssh.GetBaseCmd(constants.SSH_BIN)))
         mock_shell.assert_called_once_with(expected_cmd)
 
         mock_shell.reset_mock()
-        m = mock.mock_open(read_data = (
+        required_images = mock.mock_open(read_data=(
             "boot.img\n"
             "cache.img\n"
             "super.img\n"
             "userdata.img\n"
-            "vendor_boot.img\n"))
-        with mock.patch.object(six.moves.builtins, "open", m):
+            "bootloader\n"))
+        with mock.patch.object(six.moves.builtins, "open", required_images):
             factory._UploadArtifacts(fake_image, fake_host_package, fake_local_image_dir)
             expected_cmd = (
-                "tar -cf - --lzop -S -C %s boot.img cache.img super.img userdata.img vendor_boot.img | "
+                "tar -cf - --lzop -S -C %s boot.img cache.img super.img userdata.img bootloader | "
                 "%s -- tar -xf - --lzop -S" %
                 (fake_local_image_dir, factory._ssh.GetBaseCmd(constants.SSH_BIN)))
             mock_shell.assert_called_once_with(expected_cmd)
@@ -358,6 +365,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         """Test process remote cuttlefish image."""
         extract_path = "/tmp/1111/"
         fake_remote_image = {"build_target" : "aosp_cf_x86_phone-userdebug",
+                             "branch" : "aosp-master",
                              "build_id": "1234"}
         self.Patch(
             cvd_compute_client_multi_stage,
@@ -371,23 +379,21 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         fake_avd_spec.image_download_dir = "/tmp"
         self.Patch(os.path, "exists", return_value=False)
         self.Patch(os, "makedirs")
+        self.Patch(subprocess, "check_call")
         factory = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
             fake_avd_spec)
         factory._DownloadArtifacts(extract_path)
         build_id = "1234"
         build_target = "aosp_cf_x86_phone-userdebug"
-        checkfile1 = "aosp_cf_x86_phone-img-1234.zip"
-        checkfile2 = "cvd-host_package.tar.gz"
+        checkfile = "cvd-host_package.tar.gz"
 
-        # To validate DownloadArtifact runs twice.
-        self.assertEqual(mock_download.call_count, 2)
+        # To validate DownloadArtifact runs onece.
+        self.assertEqual(mock_download.call_count, 1)
 
         # To validate DownloadArtifact arguments correct.
         mock_download.assert_has_calls([
-            mock.call(fake_avd_spec.cfg, build_target, build_id, checkfile1,
-                      extract_path, decompress=True),
-            mock.call(fake_avd_spec.cfg, build_target, build_id, checkfile2,
-                      extract_path)], any_order=True)
+            mock.call(fake_avd_spec.cfg, build_target, build_id, checkfile,
+                      extract_path)])
 
     @mock.patch.object(create_common, "DownloadRemoteArtifact")
     @mock.patch.object(remote_instance_cf_device_factory.RemoteInstanceDeviceFactory,
@@ -418,6 +424,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_upload.call_count = 0
         self.Patch(tempfile, "mkdtemp", return_value=fake_tmp_folder)
         self.Patch(shutil, "rmtree")
+        self.Patch(subprocess, "check_call")
         fake_avd_spec.instance_type = constants.INSTANCE_TYPE_HOST
         fake_avd_spec.image_source = constants.IMAGE_SRC_REMOTE
         fake_avd_spec._instance_name_to_reuse = None
@@ -425,7 +432,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             fake_avd_spec)
         factory._ProcessRemoteHostArtifacts()
         self.assertEqual(mock_upload.call_count, 1)
-        self.assertEqual(mock_download.call_count, 2)
+        self.assertEqual(mock_download.call_count, 1)
         shutil.rmtree.assert_called_once_with(fake_tmp_folder)
 
 
