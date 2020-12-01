@@ -32,7 +32,6 @@ from acloud.internal.lib.adb_tools import AdbTools
 
 
 logger = logging.getLogger(__name__)
-_DEVICE_SERIAL = "127.0.0.1:%d"
 _DICT_ERROR_TYPE = {
     constants.STAGE_INIT: "ACLOUD_INIT_ERROR",
     constants.STAGE_GCE: "ACLOUD_CREATE_GCE_ERROR",
@@ -264,7 +263,8 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
                 device_dict[constants.VNC_PORT] = forwarded_ports.vnc_port
                 device_dict[constants.ADB_PORT] = forwarded_ports.adb_port
                 device_dict[constants.DEVICE_SERIAL] = (
-                    _DEVICE_SERIAL % forwarded_ports.adb_port)
+                    constants.REMOTE_INSTANCE_ADB_SERIAL %
+                    forwarded_ports.adb_port)
                 if unlock_screen:
                     AdbTools(forwarded_ports.adb_port).AutoUnlockScreen()
             if connect_webrtc:
