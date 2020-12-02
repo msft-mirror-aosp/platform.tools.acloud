@@ -56,7 +56,8 @@ class ReconnectTest(driver_test_lib.BaseDriverTest):
             constants.IP: "1.1.1.1",
             constants.INSTANCE_NAME: "fake_name",
             constants.VNC_PORT: 6666,
-            constants.ADB_PORT: "8686"
+            constants.ADB_PORT: "8686",
+            constants.DEVICE_SERIAL: "127.0.0.1:8686"
         }
 
         # test ssh tunnel not connected, remote instance.
@@ -95,7 +96,8 @@ class ReconnectTest(driver_test_lib.BaseDriverTest):
             constants.IP: "1.1.1.1",
             constants.INSTANCE_NAME: "fake_name",
             constants.VNC_PORT: 11111,
-            constants.ADB_PORT: 22222
+            constants.ADB_PORT: 22222,
+            constants.DEVICE_SERIAL: "127.0.0.1:22222"
         }
         fake_report.AddData.assert_called_with(key="devices", value=fake_device_dict)
 
