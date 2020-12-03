@@ -219,6 +219,9 @@ def ReconnectInstance(ssh_private_key_path,
         constants.VNC_PORT: vnc_port,
         constants.ADB_PORT: adb_port
     }
+    if adb_port and not instance.islocal:
+        device_dict[constants.DEVICE_SERIAL] = (
+            constants.REMOTE_INSTANCE_ADB_SERIAL % adb_port)
 
     if vnc_port and adb_port:
         reconnect_report.AddData(key="devices", value=device_dict)
