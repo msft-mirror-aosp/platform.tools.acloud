@@ -265,17 +265,23 @@ class AVDSpec():
 
         This method will initialize _hw_property in the following
         manner:
-        1. Get default hw properties from config.
-        2. Override by hw_property args.
+        1. Get default hw properties from flavor.
+        2. Override hw properties from config.
+        3. Override by hw_property args.
 
         Args:
             args: Namespace object from argparse.parse_args.
         """
-        self._cfg.OverrideHwProperty(self._flavor, self._instance_type)
         self._hw_property = {}
-        self._hw_property = self._ParseHWPropertyStr(self._cfg.hw_property)
+        default_property = self._cfg.GetDefaultHwProperty(self._flavor,
+                                                          self._instance_type)
+        self._hw_property = self._ParseHWPropertyStr(default_property)
         logger.debug("Default hw property for [%s] flavor: %s", self._flavor,
                      self._hw_property)
+        if self._cfg.hw_property:
+            cfg_hw_property = self._ParseHWPropertyStr(self._cfg.hw_property)
+            logger.debug("Hw property from config: %s", cfg_hw_property)
+            self._hw_property.update(cfg_hw_property)
 
         if args.hw_property:
             arg_hw_property = self._ParseHWPropertyStr(args.hw_property)
