@@ -15,6 +15,7 @@
 # limitations under the License.
 """Tests for LocalImageLocalInstance."""
 
+import os
 import subprocess
 import unittest
 import mock
@@ -43,18 +44,22 @@ EOF"""
 
     LAUNCH_CVD_CMD_NO_DISK_WITH_GPU = """sg group1 <<EOF
 sg group2
-launch_cvd -daemon -cpus fake -x_res fake -y_res fake -dpi fake -memory_mb fake -run_adb_connector=true -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,enable_sandbox -report_anonymous_usage_stats=y -enable_sandbox=false -start_vnc_server=true -gpu_mode=drm_virgl
+launch_cvd -daemon -cpus fake -x_res fake -y_res fake -dpi fake -memory_mb fake -run_adb_connector=true -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,enable_sandbox -report_anonymous_usage_stats=y -enable_sandbox=false -start_vnc_server=true -gpu_mode=auto
 EOF"""
 
     LAUNCH_CVD_CMD_WITH_WEBRTC = """sg group1 <<EOF
 sg group2
-launch_cvd -daemon -cpus fake -x_res fake -y_res fake -dpi fake -memory_mb fake -run_adb_connector=true -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,enable_sandbox -report_anonymous_usage_stats=y -enable_sandbox=false -guest_enforce_security=false -vm_manager=crosvm -start_webrtc=true -webrtc_public_ip=127.0.0.1
+launch_cvd -daemon -cpus fake -x_res fake -y_res fake -dpi fake -memory_mb fake -run_adb_connector=true -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,enable_sandbox -report_anonymous_usage_stats=y -enable_sandbox=false -guest_enforce_security=false -vm_manager=crosvm -start_webrtc=true -webrtc_public_ip=0.0.0.0
+EOF"""
+    LAUNCH_CVD_CMD_WITH_ARGS = """sg group1 <<EOF
+sg group2
+launch_cvd -daemon -cpus fake -x_res fake -y_res fake -dpi fake -memory_mb fake -run_adb_connector=true -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,enable_sandbox -report_anonymous_usage_stats=y -enable_sandbox=false -start_vnc_server=true -setupwizard_mode=REQUIRED
 EOF"""
 
     _EXPECTED_DEVICES_IN_REPORT = [
         {
             "instance_name": "local-instance-1",
-            "ip": "127.0.0.1:6520",
+            "ip": "0.0.0.0:6520",
             "adb_port": 6520,
             "vnc_port": 6444
         }
@@ -63,7 +68,7 @@ EOF"""
     _EXPECTED_DEVICES_IN_FAILED_REPORT = [
         {
             "instance_name": "local-instance-1",
-            "ip": "127.0.0.1"
+            "ip": "0.0.0.0"
         }
     ]
 
@@ -77,46 +82,72 @@ EOF"""
     @mock.patch.object(local_image_local_instance.LocalImageLocalInstance,
                        "GetImageArtifactsPath")
     @mock.patch.object(local_image_local_instance.LocalImageLocalInstance,
+                       "_SelectAndLockInstance")
+    @mock.patch.object(local_image_local_instance.LocalImageLocalInstance,
                        "_CheckRunningCvd")
     @mock.patch.object(local_image_local_instance.LocalImageLocalInstance,
                        "_CreateInstance")
     def testCreateAVD(self, mock_create, mock_check_running_cvd,
-                      mock_get_image, mock_utils):
+                      mock_lock_instance, mock_get_image, mock_utils):
         """Test _CreateAVD."""
         mock_utils.IsSupportedPlatform.return_value = True
         mock_get_image.return_value = ("/image/path", "/host/bin/path")
         mock_check_running_cvd.return_value = True
-        mock_avd_spec = mock.Mock(local_instance_id=0)
+        mock_avd_spec = mock.Mock()
         mock_lock = mock.Mock()
-        mock_lock.Lock.return_value = True
-        mock_lock.LockIfNotInUse.side_effect = (False, True)
         mock_lock.Unlock.return_value = False
-        self.Patch(instance, "GetLocalInstanceLock",
-                   return_value=mock_lock)
+        mock_lock_instance.return_value = (1, mock_lock)
 
         # Success
         mock_create.return_value = mock.Mock()
         self.local_image_local_instance._CreateAVD(
             mock_avd_spec, no_prompts=True)
-        mock_lock.Lock.assert_not_called()
-        self.assertEqual(2, mock_lock.LockIfNotInUse.call_count)
+        mock_lock_instance.assert_called_once()
         mock_lock.SetInUse.assert_called_once_with(True)
         mock_lock.Unlock.assert_called_once()
 
+        mock_lock_instance.reset_mock()
         mock_lock.SetInUse.reset_mock()
-        mock_lock.LockIfNotInUse.reset_mock()
         mock_lock.Unlock.reset_mock()
 
         # Failure with no report
-        mock_avd_spec.local_instance_id = 1
         mock_create.side_effect = ValueError("unit test")
         with self.assertRaises(ValueError):
             self.local_image_local_instance._CreateAVD(
                 mock_avd_spec, no_prompts=True)
-        mock_lock.Lock.assert_called_once()
-        mock_lock.LockIfNotInUse.assert_not_called()
+        mock_lock_instance.assert_called_once()
         mock_lock.SetInUse.assert_not_called()
         mock_lock.Unlock.assert_called_once()
+
+        # Failure with report
+        mock_lock_instance.side_effect = errors.CreateError("unit test")
+        report = self.local_image_local_instance._CreateAVD(
+            mock_avd_spec, no_prompts=True)
+        self.assertEqual(report.errors, ["unit test"])
+
+    def testSelectAndLockInstance(self):
+        """test _SelectAndLockInstance."""
+        mock_avd_spec = mock.Mock(local_instance_id=0)
+        mock_lock = mock.Mock()
+        mock_lock.Lock.return_value = True
+        mock_lock.LockIfNotInUse.side_effect = (False, True)
+        self.Patch(instance, "GetLocalInstanceLock",
+                   return_value=mock_lock)
+
+        ins_id, _ = self.local_image_local_instance._SelectAndLockInstance(
+            mock_avd_spec)
+        self.assertEqual(2, ins_id)
+        mock_lock.Lock.assert_not_called()
+        self.assertEqual(2, mock_lock.LockIfNotInUse.call_count)
+
+        mock_lock.LockIfNotInUse.reset_mock()
+
+        mock_avd_spec.local_instance_id = 1
+        ins_id, _ = self.local_image_local_instance._SelectAndLockInstance(
+            mock_avd_spec)
+        self.assertEqual(1, ins_id)
+        mock_lock.Lock.assert_called_once()
+        mock_lock.LockIfNotInUse.assert_not_called()
 
     @mock.patch("acloud.create.local_image_local_instance.utils")
     @mock.patch("acloud.create.local_image_local_instance.create_common")
@@ -142,6 +173,7 @@ EOF"""
                    return_value=local_ins)
         self.Patch(list_instance, "GetActiveCVD",
                    return_value=local_ins)
+        self.Patch(os, "symlink")
 
         # Success
         report = self.local_image_local_instance._CreateInstance(
@@ -168,7 +200,8 @@ EOF"""
         mock_isfile.return_value = None
 
         with mock.patch.dict("acloud.internal.lib.ota_tools.os.environ",
-                             {"ANDROID_HOST_OUT": cvd_host_dir}, clear=True):
+                             {"ANDROID_HOST_OUT": cvd_host_dir,
+                              "ANDROID_SOONG_HOST_OUT": cvd_host_dir}, clear=True):
             with self.assertRaises(errors.GetCvdLocalHostPackageError):
                 self.local_image_local_instance._FindCvdHostBinaries(
                     [cvd_host_dir])
@@ -177,7 +210,8 @@ EOF"""
             lambda path: path == "/unit/test/bin/launch_cvd")
 
         with mock.patch.dict("acloud.internal.lib.ota_tools.os.environ",
-                             {"ANDROID_HOST_OUT": cvd_host_dir}, clear=True):
+                             {"ANDROID_HOST_OUT": cvd_host_dir,
+                              "ANDROID_SOONG_HOST_OUT": cvd_host_dir}, clear=True):
             path = self.local_image_local_instance._FindCvdHostBinaries([])
             self.assertEqual(path, cvd_host_dir)
 
@@ -197,7 +231,7 @@ EOF"""
 
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
             constants.CMD_LAUNCH_CVD, hw_property, True, "fake_image_dir",
-            "fake_cvd_dir", False, True, None)
+            "fake_cvd_dir", False, True, None, None)
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_DISK)
 
         # "disk" doesn't exist in hw_property.
@@ -205,19 +239,25 @@ EOF"""
                        "dpi": "fake", "memory": "fake"}
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
             constants.CMD_LAUNCH_CVD, hw_property, True, "fake_image_dir",
-            "fake_cvd_dir", False, True, None)
+            "fake_cvd_dir", False, True, None, None)
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_NO_DISK)
 
         # "gpu" is enabled with "default"
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
             constants.CMD_LAUNCH_CVD, hw_property, True, "fake_image_dir",
-            "fake_cvd_dir", False, True, "default")
+            "fake_cvd_dir", False, True, "default", None)
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_NO_DISK_WITH_GPU)
 
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
             constants.CMD_LAUNCH_CVD, hw_property, True, "fake_image_dir",
-            "fake_cvd_dir", True, False, None)
+            "fake_cvd_dir", True, False, None, None)
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_WEBRTC)
+
+        # Add args into launch command with "-setupwizard_mode=REQUIRED"
+        launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
+            constants.CMD_LAUNCH_CVD, hw_property, True, "fake_image_dir",
+            "fake_cvd_dir", False, True, None, "-setupwizard_mode=REQUIRED")
+        self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_ARGS)
 
     @mock.patch.object(utils, "GetUserAnswerYes")
     @mock.patch.object(list_instance, "GetActiveCVD")
@@ -249,6 +289,7 @@ EOF"""
         cvd_env = {}
         cvd_env[constants.ENV_CVD_HOME] = cvd_home_dir
         cvd_env[constants.ENV_CUTTLEFISH_INSTANCE] = str(local_instance_id)
+        cvd_env[constants.ENV_ANDROID_SOONG_HOST_OUT] = host_bins_path
         cvd_env[constants.ENV_ANDROID_HOST_OUT] = host_bins_path
         process = mock.MagicMock()
         process.wait.return_value = True

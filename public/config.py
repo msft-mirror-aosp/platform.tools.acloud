@@ -289,23 +289,26 @@ class AcloudConfig(object):
 
             self.launch_args = " ".join(scrubbed_args)
 
-    def OverrideHwProperty(self, flavor, instance_type=None):
-        """Override hw configuration values.
+    def GetDefaultHwProperty(self, flavor, instance_type=None):
+        """Get default hw configuration values.
 
         HwProperty will be overrided according to the change of flavor and
         instance type. The format of key is flavor or instance_type-flavor.
         e.g: 'phone' or 'local-phone'.
-        If the giving key is not found, set hw configuration with a default
+        If the giving key is not found, get hw configuration with a default
         phone property.
 
         Args:
             flavor: String of flavor name.
             instance_type: String of instance type.
+
+        Returns:
+            String of device hardware property, it would be like
+            "cpu:4,resolution:720x1280,dpi:320,memory:4g".
         """
         hw_key = ("%s-%s" % (instance_type, flavor)
                   if instance_type == constants.INSTANCE_TYPE_LOCAL else flavor)
-        self.hw_property = self.common_hw_property_map.get(
-            hw_key, _DEFAULT_HW_PROPERTY)
+        return self.common_hw_property_map.get(hw_key, _DEFAULT_HW_PROPERTY)
 
     def Verify(self):
         """Verify configuration fields."""
@@ -322,7 +325,7 @@ class AcloudConfig(object):
 
     def SupportRemoteInstance(self):
         """Return True if gcp project is provided in config."""
-        return True if self.project else False
+        return bool(self.project)
 
 
 class AcloudConfigManager(object):

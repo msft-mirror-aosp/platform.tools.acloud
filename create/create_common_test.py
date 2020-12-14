@@ -78,9 +78,9 @@ class CreateCommonTest(driver_test_lib.BaseDriverTest):
 
         self.Patch(os.environ, "get", return_value="/fake_dir2")
         self.Patch(utils, "GetDistDir", return_value="/fake_dir1")
-        # First path is host out dir, 2nd path is dist dir.
+        # First and 2nd path are host out dirs, 3rd path is dist dir.
         self.Patch(os.path, "exists",
-                   side_effect=[False, True])
+                   side_effect=[False, False, True])
 
         # Find cvd host in dist dir.
         self.assertEqual(

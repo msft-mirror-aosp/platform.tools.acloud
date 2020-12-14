@@ -32,7 +32,6 @@ from acloud.internal.lib.adb_tools import AdbTools
 
 
 logger = logging.getLogger(__name__)
-_ERROR_TYPE = "error_type"
 _DICT_ERROR_TYPE = {
     constants.STAGE_INIT: "ACLOUD_INIT_ERROR",
     constants.STAGE_GCE: "ACLOUD_CREATE_GCE_ERROR",
@@ -263,6 +262,9 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
                     extra_args_ssh_tunnel=cfg.extra_args_ssh_tunnel)
                 device_dict[constants.VNC_PORT] = forwarded_ports.vnc_port
                 device_dict[constants.ADB_PORT] = forwarded_ports.adb_port
+                device_dict[constants.DEVICE_SERIAL] = (
+                    constants.REMOTE_INSTANCE_ADB_SERIAL %
+                    forwarded_ports.adb_port)
                 if unlock_screen:
                     AdbTools(forwarded_ports.adb_port).AutoUnlockScreen()
             if connect_webrtc:
@@ -272,14 +274,14 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
                     ssh_user=constants.GCE_USER,
                     extra_args_ssh_tunnel=cfg.extra_args_ssh_tunnel)
             if device.instance_name in failures:
-                device_dict[_ERROR_TYPE] = _DICT_ERROR_TYPE[device.stage]
+                reporter.SetErrorType(_DICT_ERROR_TYPE[device.stage])
                 reporter.AddData(key="devices_failing_boot", value=device_dict)
                 reporter.AddError(str(failures[device.instance_name]))
             else:
                 reporter.AddData(key="devices", value=device_dict)
     except (errors.DriverError, errors.CheckGCEZonesQuotaError) as e:
         if isinstance(e, errors.CheckGCEZonesQuotaError):
-            reporter.UpdateData({_ERROR_TYPE: _GCE_QUOTA_ERROR})
+            reporter.SetErrorType(_GCE_QUOTA_ERROR)
         reporter.AddError(str(e))
         reporter.SetStatus(report.Status.FAIL)
     return reporter

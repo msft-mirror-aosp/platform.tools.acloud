@@ -37,8 +37,6 @@ Android build, and start Android within the host instance.
 
 import logging
 import os
-import ssl
-import stat
 import subprocess
 import tempfile
 import time
@@ -56,7 +54,7 @@ from acloud.pull import pull
 logger = logging.getLogger(__name__)
 
 _DECOMPRESS_KERNEL_ARG = "-decompress_kernel=true"
-_GPU_ARG = "-gpu_mode=drm_virgl"
+_GPU_ARG = "-gpu_mode=auto"
 _AGREEMENT_PROMPT_ARGS = ["-undefok=report_anonymous_usage_stats",
                           "-report_anonymous_usage_stats=y"]
 _NUM_AVDS_ARG = "-num_instances=%(num_AVD)s"
@@ -70,32 +68,13 @@ _LAUNCH_CVD = "launch_cvd_time"
 # WebRTC args for launching AVD
 _GUEST_ENFORCE_SECURITY_FALSE = "--guest_enforce_security=false"
 _START_WEBRTC = "--start_webrtc"
+_WEBRTC_ID = "--webrtc_device_id=%(instance)s"
 _VM_MANAGER = "--vm_manager=crosvm"
 _WEBRTC_ARGS = [_GUEST_ENFORCE_SECURITY_FALSE, _START_WEBRTC, _VM_MANAGER]
 _VNC_ARGS = ["--start_vnc_server=true"]
 _NO_RETRY = 0
-_MAX_RETRY = 3
-_RETRY_SLEEP_SECS = 3
 # Launch cvd command for acloud report
 _LAUNCH_CVD_COMMAND = "launch_cvd_command"
-
-
-def _ProcessBuild(build_id=None, branch=None, build_target=None):
-    """Create a Cuttlefish fetch_cvd build string.
-
-    Args:
-        build_id: A specific build number to load from. Takes precedence over `branch`.
-        branch: A manifest-branch at which to get the latest build.
-        build_target: A particular device to load at the desired build.
-
-    Returns:
-        A string, used in the fetch_cvd cmd or None if all args are None.
-    """
-    if not build_target:
-        return build_id or branch
-    elif build_target and not branch:
-        branch = _DEFAULT_BRANCH
-    return (build_id or branch) + "/" + build_target
 
 
 class CvdComputeClient(android_compute_client.AndroidComputeClient):
@@ -161,6 +140,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         self.StopCvd()
         self.CleanUp()
 
+    # TODO(171376263): Refactor CreateInstance() args with avd_spec.
     # pylint: disable=arguments-differ,too-many-locals,broad-except
     def CreateInstance(self, instance, image_name, image_project,
                        build_target=None, branch=None, build_id=None,
@@ -168,7 +148,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                        kernel_build_target=None, blank_data_disk_size_gb=None,
                        avd_spec=None, extra_scopes=None,
                        system_build_target=None, system_branch=None,
-                       system_build_id=None):
+                       system_build_id=None, bootloader_build_target=None,
+                       bootloader_branch=None, bootloader_build_id=None):
 
         """Create/Reuse a single configured cuttlefish device.
         1. Prepare GCE instance.
@@ -190,10 +171,13 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             blank_data_disk_size_gb: Size of the blank data disk in GB.
             avd_spec: An AVDSpec instance.
             extra_scopes: A list of extra scopes to be passed to the instance.
-            system_build_target: Target name for the system image,
-                                e.g. "cf_x86_phone-userdebug"
-            system_branch: A String, branch name for the system image.
-            system_build_id: A string, build id for the system image.
+            system_build_target: String of the system image target name,
+                                 e.g. "cf_x86_phone-userdebug"
+            system_branch: String of the system image branch name.
+            system_build_id: String of the system image build id.
+            bootloader_build_target: String of the bootloader target name.
+            bootloader_branch: String of the bootloader branch name.
+            bootloader_build_id: String of the bootloader build id.
 
         Returns:
             A string, representing instance name.
@@ -235,10 +219,11 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
 
             self.FetchBuild(build_id, branch, build_target, system_build_id,
                             system_branch, system_build_target, kernel_build_id,
-                            kernel_branch, kernel_build_target)
-            kernel_build = self.GetKernelBuild(kernel_build_id,
-                                               kernel_branch,
-                                               kernel_build_target)
+                            kernel_branch, kernel_build_target, bootloader_build_id,
+                            bootloader_branch, bootloader_build_target)
+            kernel_build = self._build_api.GetKernelBuild(kernel_build_id,
+                                                          kernel_branch,
+                                                          kernel_build_target)
             self.LaunchCvd(instance,
                            blank_data_disk_size_gb=blank_data_disk_size_gb,
                            kernel_build=kernel_build,
@@ -276,7 +261,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
 
     # pylint: disable=too-many-branches
     def _GetLaunchCvdArgs(self, avd_spec=None, blank_data_disk_size_gb=None,
-                          kernel_build=None, decompress_kernel=None):
+                          kernel_build=None, decompress_kernel=None,
+                          instance=None):
         """Get launch_cvd args.
 
         Args:
@@ -284,6 +270,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             blank_data_disk_size_gb: Size of the blank data disk in GB.
             kernel_build: String, kernel build info.
             decompress_kernel: Boolean, if true decompress the kernel.
+            instance: String, instance name.
 
         Returns:
             String, args of launch_cvd.
@@ -317,6 +304,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                     "-memory_mb=%s" % avd_spec.hw_property[constants.HW_ALIAS_MEMORY])
             if avd_spec.connect_webrtc:
                 launch_cvd_args.extend(_WEBRTC_ARGS)
+                launch_cvd_args.append(_WEBRTC_ID % {"instance": instance})
             if avd_spec.connect_vnc:
                 launch_cvd_args.extend(_VNC_ARGS)
             if avd_spec.num_avds_per_instance > 1:
@@ -342,25 +330,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
 
         launch_cvd_args.extend(_AGREEMENT_PROMPT_ARGS)
         return launch_cvd_args
-
-    @staticmethod
-    def GetKernelBuild(kernel_build_id, kernel_branch, kernel_build_target):
-        """Get kernel build args for fetch_cvd.
-
-        Args:
-            kernel_branch: Kernel branch name, e.g. "kernel-common-android-4.14"
-            kernel_build_id: Kernel build id, a string, e.g. "223051", "P280427"
-            kernel_build_target: String, Kernel build target name.
-
-        Returns:
-            String of kernel build args for fetch_cvd.
-            If no kernel build then return None.
-        """
-        # kernel_target have default value "kernel". If user provide kernel_build_id
-        # or kernel_branch, then start to process kernel image.
-        if kernel_build_id or kernel_branch:
-            return _ProcessBuild(kernel_build_id, kernel_branch, kernel_build_target)
-        return None
 
     def StopCvd(self):
         """Stop CVD.
@@ -412,12 +381,14 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
            dict of faliures, return this dict for BootEvaluator to handle
            LaunchCvd success or fail messages.
         """
+        self.SetStage(constants.STAGE_BOOT_UP)
         timestart = time.time()
         error_msg = ""
         launch_cvd_args = self._GetLaunchCvdArgs(avd_spec,
                                                  blank_data_disk_size_gb,
                                                  kernel_build,
-                                                 decompress_kernel)
+                                                 decompress_kernel,
+                                                 instance)
         boot_timeout_secs = boot_timeout_secs or constants.DEFAULT_CF_BOOT_TIMEOUT
         ssh_command = "./bin/launch_cvd -daemon " + " ".join(launch_cvd_args)
         try:
@@ -485,6 +456,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         Returns:
             ssh.IP object, that stores internal and external ip of the instance.
         """
+        self.SetStage(constants.STAGE_GCE)
         timestart = time.time()
         metadata = self._metadata.copy()
 
@@ -528,23 +500,10 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         is on the instance, future commands can use it to download relevant Cuttlefish files from
         the Build API on the instance itself.
         """
-        # TODO(schuffelen): Support fetch_cvd_version="latest" when there is
-        # stronger automated testing on it.
+        self.SetStage(constants.STAGE_ARTIFACT)
         download_dir = tempfile.mkdtemp()
         download_target = os.path.join(download_dir, _FETCHER_NAME)
-        utils.RetryExceptionType(
-            exception_types=ssl.SSLError,
-            max_retries=_MAX_RETRY,
-            functor=self._build_api.DownloadArtifact,
-            sleep_multiplier=_RETRY_SLEEP_SECS,
-            retry_backoff_factor=utils.DEFAULT_RETRY_BACKOFF_FACTOR,
-            build_target=_FETCHER_BUILD_TARGET,
-            build_id=self._fetch_cvd_version,
-            resource_id=_FETCHER_NAME,
-            local_dest=download_target,
-            attempt_id="latest")
-        fetch_cvd_stat = os.stat(download_target)
-        os.chmod(download_target, fetch_cvd_stat.st_mode | stat.S_IEXEC)
+        self._build_api.DownloadFetchcvd(download_target, self._fetch_cvd_version)
         self._ssh.ScpPushFile(src_file=download_target, dst_file=_FETCHER_NAME)
         os.remove(download_target)
         os.rmdir(download_dir)
@@ -552,26 +511,37 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
     @utils.TimeExecute(function_description="Downloading build on instance")
     def FetchBuild(self, build_id, branch, build_target, system_build_id,
                    system_branch, system_build_target, kernel_build_id,
-                   kernel_branch, kernel_build_target):
+                   kernel_branch, kernel_build_target, bootloader_build_id,
+                   bootloader_branch, bootloader_build_target):
         """Execute fetch_cvd on the remote instance to get Cuttlefish runtime files.
 
         Args:
-            fetch_args: String of arguments to pass to fetch_cvd.
+            build_id: String of build id, e.g. "2263051", "P2804227"
+            branch: String of branch name, e.g. "aosp-master"
+            build_target: String of target name.
+                          e.g. "aosp_cf_x86_phone-userdebug"
+            system_build_id: String of the system image build id.
+            system_branch: String of the system image branch name.
+            system_build_target: String of the system image target name,
+                                 e.g. "cf_x86_phone-userdebug"
+            kernel_build_id: String of the kernel image build id.
+            kernel_branch: String of the kernel image branch name.
+            kernel_build_target: String of the kernel image target name,
+            bootloader_build_id: String of the bootloader build id.
+            bootloader_branch: String of the bootloader branch name.
+            bootloader_build_target: String of the bootloader target name.
+
+        Returns:
+            List of string args for fetch_cvd.
         """
         timestart = time.time()
         fetch_cvd_args = ["-credential_source=gce"]
-
-        default_build = _ProcessBuild(build_id, branch, build_target)
-        if default_build:
-            fetch_cvd_args.append("-default_build=" + default_build)
-        system_build = _ProcessBuild(system_build_id, system_branch, system_build_target)
-        if system_build:
-            fetch_cvd_args.append("-system_build=" + system_build)
-        kernel_build = self.GetKernelBuild(kernel_build_id,
-                                           kernel_branch,
-                                           kernel_build_target)
-        if kernel_build:
-            fetch_cvd_args.append("-kernel_build=" + kernel_build)
+        fetch_cvd_build_args = self._build_api.GetFetchBuildArgs(
+            build_id, branch, build_target, system_build_id, system_branch,
+            system_build_target, kernel_build_id, kernel_branch,
+            kernel_build_target, bootloader_build_id, bootloader_branch,
+            bootloader_build_target)
+        fetch_cvd_args.extend(fetch_cvd_build_args)
 
         self._ssh.Run("./fetch_cvd " + " ".join(fetch_cvd_args),
                       timeout=constants.DEFAULT_SSH_TIMEOUT)
@@ -643,3 +613,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
     def stage(self):
         """Return stage"""
         return self._stage
+
+    @property
+    def build_api(self):
+        """Return build_api"""
+        return self._build_api

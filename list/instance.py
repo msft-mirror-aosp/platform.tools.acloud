@@ -378,7 +378,7 @@ class LocalInstance(Instance):
         # cuttlefish_config.json so far.
         name = GetLocalInstanceName(self._local_instance_id)
         fullname = (_FULL_NAME_STRING %
-                    {"device_serial": "127.0.0.1:%s" % self._cf_runtime_cfg.adb_port,
+                    {"device_serial": "0.0.0.0:%s" % self._cf_runtime_cfg.adb_port,
                      "instance_name": name,
                      "elapsed_time": None})
         adb_device = AdbTools(self._cf_runtime_cfg.adb_port)
@@ -387,7 +387,7 @@ class LocalInstance(Instance):
             device_information = adb_device.device_information
 
         super(LocalInstance, self).__init__(
-            name=name, fullname=fullname, display=display, ip="127.0.0.1",
+            name=name, fullname=fullname, display=display, ip="0.0.0.0",
             status=constants.INS_STATUS_RUNNING,
             adb_port=self._cf_runtime_cfg.adb_port,
             vnc_port=self._cf_runtime_cfg.vnc_port,
@@ -424,13 +424,14 @@ class LocalInstance(Instance):
             #  found exception.
             if not os.path.exists(cvd_status_cmd):
                 logger.warning("Cvd tools path doesn't exist:%s", cvd_status_cmd)
-                if os.environ.get(constants.ENV_ANDROID_HOST_OUT,
-                                  _NO_ANDROID_ENV) in cvd_status_cmd:
-                    logger.warning(
-                        "Can't find the cvd_status tool (Try lunching a "
-                        "cuttlefish target like aosp_cf_x86_phone-userdebug "
-                        "and running 'make hosttar' before list/delete local "
-                        "instances)")
+                for env_host_out in [constants.ENV_ANDROID_SOONG_HOST_OUT,
+                                     constants.ENV_ANDROID_HOST_OUT]:
+                    if os.environ.get(env_host_out, _NO_ANDROID_ENV) in cvd_status_cmd:
+                        logger.warning(
+                            "Can't find the cvd_status tool (Try lunching a "
+                            "cuttlefish target like aosp_cf_x86_phone-userdebug "
+                            "and running 'make hosttar' before list/delete local "
+                            "instances)")
                 return False
             logger.debug("Running cmd[%s] to check cvd status.", cvd_status_cmd)
             process = subprocess.Popen(cvd_status_cmd,
@@ -593,6 +594,22 @@ class LocalGoldfishInstance(Instance):
         """Return the path to instance directory."""
         return os.path.join(self._GetInstanceDirRoot(),
                             self._INSTANCE_NAME_FORMAT % {"id": self._id})
+
+    @classmethod
+    def GetIdByName(cls, name):
+        """Get id by name.
+
+        Args:
+            name: String of instance name.
+
+        Return:
+            The instance id as an integer if the name is in valid format.
+            None if the name does not represent a local goldfish instance.
+        """
+        match = cls._INSTANCE_NAME_PATTERN.match(name)
+        if match:
+            return int(match.group("id"))
+        return None
 
     @classmethod
     def GetLockById(cls, instance_id):

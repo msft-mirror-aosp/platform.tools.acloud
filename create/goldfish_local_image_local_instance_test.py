@@ -30,7 +30,8 @@ class GoldfishLocalImageLocalInstance(unittest.TestCase):
         {
             "instance_name": "local-goldfish-instance",
             "ip": "127.0.0.1:5555",
-            "adb_port": 5555
+            "adb_port": 5555,
+            "device_serial": "unittest"
         }
     ]
 

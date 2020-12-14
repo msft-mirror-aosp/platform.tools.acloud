@@ -109,6 +109,7 @@ INSTANCE_NAME = "instance_name"
 GCE_USER = "vsoc-01"
 VNC_PORT = "vnc_port"
 ADB_PORT = "adb_port"
+DEVICE_SERIAL = "device_serial"
 # For cuttlefish remote instances
 CF_ADB_PORT = 6520
 CF_VNC_PORT = 6444
@@ -133,13 +134,16 @@ CMD_STOP_CVD = "stop_cvd"
 CMD_RUN_CVD = "run_cvd"
 ENV_ANDROID_BUILD_TOP = "ANDROID_BUILD_TOP"
 ENV_ANDROID_EMULATOR_PREBUILTS = "ANDROID_EMULATOR_PREBUILTS"
+# TODO(b/172535794): Remove the deprecated "ANDROID_HOST_OUT" by 2021Q4.
 ENV_ANDROID_HOST_OUT = "ANDROID_HOST_OUT"
 ENV_ANDROID_PRODUCT_OUT = "ANDROID_PRODUCT_OUT"
+ENV_ANDROID_SOONG_HOST_OUT = "ANDROID_SOONG_HOST_OUT"
 ENV_ANDROID_TMP = "ANDROID_TMP"
 ENV_BUILD_TARGET = "TARGET_PRODUCT"
 
-LOCALHOST = "127.0.0.1"
+LOCALHOST = "0.0.0.0"
 LOCALHOST_ADB_SERIAL = LOCALHOST + ":%d"
+REMOTE_INSTANCE_ADB_SERIAL = "127.0.0.1:%s"
 
 SSH_BIN = "ssh"
 SCP_BIN = "scp"
@@ -172,6 +176,8 @@ CUTTLEFISH_CONFIG_FILE = "cuttlefish_config.json"
 
 TEMP_ARTIFACTS_FOLDER = "acloud_image_artifacts"
 CVD_HOST_PACKAGE = "cvd-host_package.tar.gz"
+# cvd tools symbolic link name of local instance.
+CVD_TOOLS_LINK_NAME = "host_bins"
 TOOL_NAME = "acloud"
 # Exit code in metrics
 EXIT_SUCCESS = 0
@@ -201,3 +207,6 @@ STAGE_INIT = 0
 STAGE_GCE = 1
 STAGE_ARTIFACT = 2
 STAGE_BOOT_UP = 3
+
+# The name of download image tool.
+FETCH_CVD = "fetch_cvd"

@@ -60,7 +60,7 @@ _CMD_LAUNCH_CVD_ARGS = (" -daemon -cpus %s -x_res %s -y_res %s -dpi %s "
                         "-undefok=report_anonymous_usage_stats,enable_sandbox "
                         "-report_anonymous_usage_stats=y "
                         "-enable_sandbox=false")
-_CMD_LAUNCH_CVD_GPU_ARG = " -gpu_mode=drm_virgl"
+_CMD_LAUNCH_CVD_GPU_ARG = " -gpu_mode=auto"
 _CMD_LAUNCH_CVD_DISK_ARGS = (" -blank_data_image_mb %s "
                              "-data_policy always_create")
 _CMD_LAUNCH_CVD_WEBRTC_ARGS = (" -guest_enforce_security=false "
@@ -104,29 +104,13 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
 
         local_image_path, host_bins_path = self.GetImageArtifactsPath(avd_spec)
 
-        # Determine the instance id.
-        if avd_spec.local_instance_id:
-            ins_id = avd_spec.local_instance_id
-            ins_lock = instance.GetLocalInstanceLock(ins_id)
-            if not ins_lock.Lock():
-                result_report = report.Report(command="create")
-                result_report.AddError("Instance %d is locked by another "
-                                       "process." % ins_id)
-                result_report.SetStatus(report.Status.FAIL)
-                return result_report
-        else:
-            ins_id = None
-            for candidate_id in range(1, _MAX_INSTANCE_ID + 1):
-                ins_lock = instance.GetLocalInstanceLock(candidate_id)
-                if ins_lock.LockIfNotInUse(timeout_secs=0):
-                    ins_id = candidate_id
-                    break
-            if not ins_id:
-                result_report = report.Report(command="create")
-                result_report.AddError(_INSTANCES_IN_USE_MSG)
-                result_report.SetStatus(report.Status.FAIL)
-                return result_report
-            logger.info("Selected instance id: %d", ins_id)
+        try:
+            ins_id, ins_lock = self._SelectAndLockInstance(avd_spec)
+        except errors.CreateError as e:
+            result_report = report.Report(command="create")
+            result_report.AddError(str(e))
+            result_report.SetStatus(report.Status.FAIL)
+            return result_report
 
         try:
             if not self._CheckRunningCvd(ins_id, no_prompts):
@@ -144,6 +128,35 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             return result_report
         finally:
             ins_lock.Unlock()
+
+    @staticmethod
+    def _SelectAndLockInstance(avd_spec):
+        """Select an id and lock the instance.
+
+        Args:
+            avd_spec: AVDSpec for the device.
+
+        Returns:
+            The instance id and the LocalInstanceLock that is locked by this
+            process.
+
+        Raises:
+            errors.CreateError if fails to select or lock the instance.
+        """
+        if avd_spec.local_instance_id:
+            ins_id = avd_spec.local_instance_id
+            ins_lock = instance.GetLocalInstanceLock(ins_id)
+            if ins_lock.Lock():
+                return ins_id, ins_lock
+            raise errors.CreateError("Instance %d is locked by another "
+                                     "process." % ins_id)
+
+        for ins_id in range(1, _MAX_INSTANCE_ID + 1):
+            ins_lock = instance.GetLocalInstanceLock(ins_id)
+            if ins_lock.LockIfNotInUse(timeout_secs=0):
+                logger.info("Selected instance id: %d", ins_id)
+                return ins_id, ins_lock
+        raise errors.CreateError(_INSTANCES_IN_USE_MSG)
 
     def _CreateInstance(self, local_instance_id, local_image_path,
                         host_bins_path, avd_spec, no_prompts):
@@ -165,7 +178,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         cvd_home_dir = instance.GetLocalInstanceHomeDir(local_instance_id)
         create_common.PrepareLocalInstanceDir(cvd_home_dir, avd_spec)
         runtime_dir = instance.GetLocalInstanceRuntimeDir(local_instance_id)
-
+        # TODO(b/168171781): cvd_status of list/delete via the symbolic.
+        self.PrepareLocalCvdToolsLink(cvd_home_dir, host_bins_path)
         launch_cvd_path = os.path.join(host_bins_path, "bin",
                                        constants.CMD_LAUNCH_CVD)
         cmd = self.PrepareLaunchCVDCmd(launch_cvd_path,
@@ -175,7 +189,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                                        runtime_dir,
                                        avd_spec.connect_webrtc,
                                        avd_spec.connect_vnc,
-                                       avd_spec.gpu)
+                                       avd_spec.gpu,
+                                       avd_spec.cfg.launch_args)
 
         result_report = report.Report(command="create")
         instance_name = instance.GetLocalInstanceName(local_instance_id)
@@ -220,11 +235,13 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                                            constants.CMD_LAUNCH_CVD)):
                 return search_path
 
-        host_out_dir = os.environ.get(constants.ENV_ANDROID_HOST_OUT)
-        if (host_out_dir and
-                os.path.isfile(os.path.join(host_out_dir, "bin",
-                                            constants.CMD_LAUNCH_CVD))):
-            return host_out_dir
+        for env_host_out in [constants.ENV_ANDROID_SOONG_HOST_OUT,
+                             constants.ENV_ANDROID_HOST_OUT]:
+            host_out_dir = os.environ.get(env_host_out)
+            if (host_out_dir and
+                    os.path.isfile(os.path.join(host_out_dir, "bin",
+                                                constants.CMD_LAUNCH_CVD))):
+                return host_out_dir
 
         raise errors.GetCvdLocalHostPackageError(
             "CVD host binaries are not found. Please run `make hosttar`, or "
@@ -250,7 +267,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
     @staticmethod
     def PrepareLaunchCVDCmd(launch_cvd_path, hw_property, connect_adb,
                             system_image_dir, runtime_dir, connect_webrtc,
-                            connect_vnc, gpu):
+                            connect_vnc, gpu, launch_args):
         """Prepare launch_cvd command.
 
         Create the launch_cvd commands with all the required args and add
@@ -266,6 +283,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             connect_vnc: Boolean of connect_vnc.
             gpu: String of gpu name, the gpu name of local instance should be
                  "default" if gpu is enabled.
+            launch_args: String of launch args.
 
         Returns:
             String, launch_cvd cmd.
@@ -287,10 +305,34 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         if gpu:
             launch_cvd_w_args = launch_cvd_w_args + _CMD_LAUNCH_CVD_GPU_ARG
 
+        if launch_args:
+            launch_cvd_w_args = launch_cvd_w_args + " " + launch_args
+
         launch_cmd = utils.AddUserGroupsToCmd(launch_cvd_w_args,
                                               constants.LIST_CF_USER_GROUPS)
         logger.debug("launch_cvd cmd:\n %s", launch_cmd)
         return launch_cmd
+
+    @staticmethod
+    def PrepareLocalCvdToolsLink(cvd_home_dir, host_bins_path):
+        """Create symbolic link for the cvd tools directory.
+
+        local instance's cvd tools could be generated in /out after local build
+        or be generated in the download image folder. It creates a symbolic
+        link then only check cvd_status using known link for both cases.
+
+        Args:
+            cvd_home_dir: The parent directory of the link
+            host_bins_path: String of host package directory.
+
+        Returns:
+            String of cvd_tools link path
+        """
+        cvd_tools_link_path = os.path.join(cvd_home_dir, constants.CVD_TOOLS_LINK_NAME)
+        if os.path.islink(cvd_tools_link_path):
+            os.unlink(cvd_tools_link_path)
+        os.symlink(host_bins_path, cvd_tools_link_path)
+        return cvd_tools_link_path
 
     @staticmethod
     def _CheckRunningCvd(local_instance_id, no_prompts=False):
@@ -333,6 +375,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         """
         cvd_env = os.environ.copy()
         # launch_cvd assumes host bins are in $ANDROID_HOST_OUT.
+        cvd_env[constants.ENV_ANDROID_SOONG_HOST_OUT] = host_bins_path
         cvd_env[constants.ENV_ANDROID_HOST_OUT] = host_bins_path
         cvd_env[constants.ENV_CVD_HOME] = cvd_home_dir
         cvd_env[constants.ENV_CUTTLEFISH_INSTANCE] = str(local_instance_id)
