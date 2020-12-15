@@ -81,6 +81,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
     """Client that manages Android Virtual Device."""
 
     DATA_POLICY_CREATE_IF_MISSING = "create_if_missing"
+    # Data policy to customize disk size.
+    DATA_POLICY_ALWAYS_CREATE = "always_create"
 
     def __init__(self,
                  acloud_config,
@@ -102,7 +104,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                                 external ip.
             gpu: String, GPU to attach to the device.
         """
-        super(CvdComputeClient, self).__init__(acloud_config, oauth2_credentials)
+        super().__init__(acloud_config, oauth2_credentials)
 
         self._fetch_cvd_version = acloud_config.fetch_cvd_version
         self._build_api = (
@@ -292,7 +294,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                 "-dpi=" + avd_spec.hw_property[constants.HW_ALIAS_DPI])
             if constants.HW_ALIAS_DISK in avd_spec.hw_property:
                 launch_cvd_args.append(
-                    "-data_policy=" + self.DATA_POLICY_CREATE_IF_MISSING)
+                    "-data_policy=" + self.DATA_POLICY_ALWAYS_CREATE)
                 launch_cvd_args.append(
                     "-blank_data_image_mb="
                     + avd_spec.hw_property[constants.HW_ALIAS_DISK])
