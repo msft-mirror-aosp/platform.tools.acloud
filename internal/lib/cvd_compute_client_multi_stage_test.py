@@ -80,7 +80,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
 
     def setUp(self):
         """Set up the test."""
-        super(CvdComputeClientTest, self).setUp()
+        super().setUp()
         self.Patch(cvd_compute_client_multi_stage.CvdComputeClient, "InitResourceHandle")
         self.Patch(cvd_compute_client_multi_stage.CvdComputeClient, "_VerifyZoneByQuota",
                    return_value=True)
@@ -99,7 +99,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.args.avd_type = constants.TYPE_CF
         self.args.flavor = "phone"
         self.args.adb_port = None
-        self.args.hw_property = "cpu:2,resolution:1080x1920,dpi:240,memory:4g"
+        self.args.hw_property = "cpu:2,resolution:1080x1920,dpi:240,memory:4g,disk:10g"
         self.args.num_avds_per_instance = 2
         self.args.remote_host = False
 
@@ -110,9 +110,11 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         """test GetLaunchCvdArgs."""
         # test GetLaunchCvdArgs with avd_spec
         fake_avd_spec = avd_spec.AVDSpec(self.args)
-        expeted_args = ["-x_res=1080", "-y_res=1920", "-dpi=240", "-cpus=2",
-                        "-memory_mb=4096", "-num_instances=2", "--setupwizard_mode=REQUIRED",
-                        "-gpu_mode=auto", "-undefok=report_anonymous_usage_stats",
+        expeted_args = ["-x_res=1080", "-y_res=1920", "-dpi=240",
+                        "-data_policy=always_create", "-blank_data_image_mb=10240",
+                        "-cpus=2", "-memory_mb=4096", "-num_instances=2",
+                        "--setupwizard_mode=REQUIRED", "-gpu_mode=auto",
+                        "-undefok=report_anonymous_usage_stats",
                         "-report_anonymous_usage_stats=y"]
         launch_cvd_args = self.cvd_compute_client_multi_stage._GetLaunchCvdArgs(fake_avd_spec)
         self.assertEqual(launch_cvd_args, expeted_args)
