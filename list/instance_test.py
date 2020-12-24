@@ -29,6 +29,7 @@ import mock
 from acloud.internal import constants
 from acloud.internal.lib import cvd_runtime_config
 from acloud.internal.lib import driver_test_lib
+from acloud.internal.lib import utils
 from acloud.internal.lib.adb_tools import AdbTools
 from acloud.list import instance
 
@@ -41,8 +42,6 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
                       "-o UserKnownHostsFile=/dev/null "
                       "-o StrictHostKeyChecking=no -L 54321:127.0.0.1:6520 "
                       "-L 12345:127.0.0.1:6444 -N -f -l user 1.1.1.1")
-    PS_LAUNCH_CVD = b("Sat Nov 10 21:55:10 2018 /fake_path/bin/run_cvd ")
-    PS_RUNTIME_CF_CONFIG = {"x_res": "1080", "y_res": "1920", "dpi": "480"}
     GCE_INSTANCE = {
         constants.INS_KEY_NAME: "fake_ins_name",
         constants.INS_KEY_CREATETIME: "fake_create_time",
@@ -58,11 +57,10 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
                       "value":"fake_flavor"}]}
     }
 
-    # pylint: disable=protected-access
-    def testCreateLocalInstance(self):
-        """"Test get local instance info from launch_cvd process."""
-        self.Patch(subprocess, "check_output", return_value=self.PS_LAUNCH_CVD)
-        cf_config = mock.MagicMock(
+    @staticmethod
+    def _MockCvdRuntimeConfig():
+        """Create a mock CvdRuntimeConfig."""
+        return mock.MagicMock(
             instance_id=2,
             x_res=1080,
             y_res=1920,
@@ -71,10 +69,19 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
             adb_port=6521,
             vnc_port=6445,
             adb_ip_port="127.0.0.1:6521",
+            cvd_tools_path="fake_cvd_tools_path",
+            config_path="fake_config_path",
         )
+
+    @mock.patch("acloud.list.instance.AdbTools")
+    def testCreateLocalInstance(self, mock_adb_tools):
+        """Test getting local instance info from cvd runtime config."""
+        mock_adb_tools_object = mock.Mock(device_information={})
+        mock_adb_tools_object.IsAdbConnected.return_value = True
+        mock_adb_tools.return_value = mock_adb_tools_object
         self.Patch(cvd_runtime_config, "CvdRuntimeConfig",
-                   return_value=cf_config)
-        local_instance = instance.LocalInstance(cf_config)
+                   return_value=self._MockCvdRuntimeConfig())
+        local_instance = instance.LocalInstance("fake_config_path")
 
         self.assertEqual("local-instance-2", local_instance.name)
         self.assertEqual(True, local_instance.islocal)
@@ -86,6 +93,32 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(expected_full_name, local_instance.fullname)
         self.assertEqual(6521, local_instance.adb_port)
         self.assertEqual(6445, local_instance.vnc_port)
+
+    @mock.patch("acloud.list.instance.AdbTools")
+    def testDeleteLocalInstance(self, mock_adb_tools):
+        """Test executing stop_cvd command."""
+        self.Patch(cvd_runtime_config, "CvdRuntimeConfig",
+                   return_value=self._MockCvdRuntimeConfig())
+        mock_adb_tools_object = mock.Mock(device_information={})
+        mock_adb_tools_object.IsAdbConnected.return_value = True
+        mock_adb_tools.return_value = mock_adb_tools_object
+        self.Patch(utils, "AddUserGroupsToCmd",
+                   side_effect=lambda cmd, groups: cmd)
+        mock_check_call = self.Patch(subprocess, "check_call")
+
+        local_instance = instance.LocalInstance("fake_config_path")
+        with mock.patch.dict("acloud.list.instance.os.environ", clear=True):
+            local_instance.Delete()
+
+        expected_env = {
+            'CUTTLEFISH_INSTANCE': '2',
+            'HOME': '/tmp/acloud_cvd_temp/local-instance-2',
+            'CUTTLEFISH_CONFIG_FILE': 'fake_config_path',
+        }
+        mock_check_call.assert_called_with(
+            'fake_cvd_tools_path/stop_cvd', stderr=subprocess.STDOUT,
+            shell=True, env=expected_env)
+        mock_adb_tools_object.DisconnectAdb.assert_called()
 
     @mock.patch("acloud.list.instance.tempfile")
     @mock.patch("acloud.list.instance.AdbTools")
@@ -133,6 +166,7 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
             num = instance.LocalGoldfishInstance.GetMaxNumberOfInstances()
         self.assertEqual(num, 6)
 
+    # pylint: disable=protected-access
     def testGetElapsedTime(self):
         """Test _GetElapsedTime"""
         # Instance time can't parse
