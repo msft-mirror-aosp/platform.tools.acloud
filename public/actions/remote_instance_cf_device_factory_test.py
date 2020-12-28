@@ -42,7 +42,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
 
     def setUp(self):
         """Set up the test."""
-        super(RemoteInstanceDeviceFactoryTest, self).setUp()
+        super().setUp()
         self.Patch(auth, "CreateCredentials", return_value=mock.MagicMock())
         self.Patch(android_build_client.AndroidBuildClient, "InitResourceHandle")
         self.Patch(cvd_compute_client_multi_stage.CvdComputeClient, "InitResourceHandle")
@@ -64,7 +64,8 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.config_file = ""
         args.avd_type = constants.TYPE_CF
         args.flavor = "phone"
-        args.local_image = None
+        args.local_image = constants.FIND_IN_BUILD_ENV
+        args.local_system_image = None
         avd_spec_local_img = avd_spec.AVDSpec(args)
         fake_image_name = "/fake/aosp_cf_x86_phone-img-eng.username.zip"
         fake_host_package_name = "/fake/host_package.tar.gz"
@@ -76,7 +77,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(mock_upload.call_count, 1)
 
         # Test image source type is remote.
-        args.local_image = ""
+        args.local_image = None
         args.build_id = "1234"
         args.branch = "fake_branch"
         args.build_target = "fake_target"
@@ -102,7 +103,8 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.config_file = ""
         args.avd_type = constants.TYPE_CF
         args.flavor = "phone"
-        args.local_image = None
+        args.local_image = constants.FIND_IN_BUILD_ENV
+        args.local_system_image = None
         args.adb_port = None
         fake_avd_spec = avd_spec.AVDSpec(args)
         fake_avd_spec.cfg.enable_multi_stage = True
@@ -146,7 +148,8 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.avd_type = constants.TYPE_CF
         args.flavor = "phone"
         args.remote_host = "1.1.1.1"
-        args.local_image = None
+        args.local_image = constants.FIND_IN_BUILD_ENV
+        args.local_system_image = None
         args.adb_port = None
         fake_avd_spec = avd_spec.AVDSpec(args)
         fake_avd_spec.cfg.enable_multi_stage = True
@@ -178,7 +181,8 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.config_file = ""
         args.avd_type = constants.TYPE_CF
         args.flavor = "phone"
-        args.local_image = None
+        args.local_image = constants.FIND_IN_BUILD_ENV
+        args.local_system_image = None
         args.adb_port = None
         fake_avd_spec = avd_spec.AVDSpec(args)
         fake_avd_spec.cfg.enable_multi_stage = True
@@ -206,6 +210,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.avd_type = constants.TYPE_CF
         args.flavor = "phone"
         args.local_image = "fake_local_image"
+        args.local_system_image = None
         args.adb_port = None
         args.cheeps_betty_image = None
         avd_spec_local_image = avd_spec.AVDSpec(args)
@@ -216,7 +221,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(factory.GetBuildInfoDict(), None)
 
         # Test image source type is remote.
-        args.local_image = ""
+        args.local_image = None
         args.build_id = "123"
         args.branch = "fake_branch"
         args.build_target = "fake_target"
@@ -264,6 +269,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.avd_type = constants.TYPE_CF
         args.flavor = "phone"
         args.local_image = "fake_local_image"
+        args.local_system_image = None
         args.adb_port = None
         avd_spec_local_image = avd_spec.AVDSpec(args)
         factory = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
