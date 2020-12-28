@@ -72,6 +72,33 @@ def FindOtaTools(search_paths):
                                 {"tool_name": "OTA tool directory"})
 
 
+def GetImageForPartition(partition_name, image_dir, **image_paths):
+    """Map a partition name to an image path.
+
+    This function is used with BuildSuperImage or MkCombinedImg to mix
+    image_dir and image_paths into the output file.
+
+    Args:
+        partition_name: String, e.g., "system", "product", and "vendor".
+        image_dir: String, the directory to search for the images that are not
+                   given in image_paths.
+        image_paths: Pairs of partition names and image paths.
+
+    Returns:
+        The image path if the partition is in image_paths.
+        Otherwise, this function returns the path under image_dir.
+
+    Raises
+        errors.GetLocalImageError if the image does not exist.
+    """
+    image_path = (image_paths.get(partition_name) or
+                  os.path.join(image_dir, partition_name + ".img"))
+    if not os.path.isfile(image_path):
+        raise errors.GetLocalImageError(
+            "Cannot find image for partition %s" % partition_name)
+    return image_path
+
+
 class OtaTools:
     """The class that executes OTA tool commands."""
 
