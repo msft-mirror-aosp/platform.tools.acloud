@@ -92,15 +92,37 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.AvdSpec._ProcessLocalImageArgs(self.args)
         self.assertEqual(self.AvdSpec._local_image_dir, expected_image_dir)
 
-        # Specified --avd-type=goldfish --local_image without arg
-        self.Patch(utils, "GetBuildEnvironmentVariable",
-                   return_value="test_environ")
-        self.Patch(os.path, "isdir", return_value=True)
+        # Specified --local-image and --local-system-image with dirs
+        self.args.local_image = expected_image_dir
+        self.args.local_system_image = expected_image_dir
+        self.AvdSpec._avd_type = constants.TYPE_CF
+        self.AvdSpec._instance_type = constants.INSTANCE_TYPE_LOCAL
+        with mock.patch("os.path.isfile", return_value=False), \
+             mock.patch("os.path.isdir",
+                        side_effect=lambda path: path == expected_image_dir), \
+             mock.patch("acloud.create.avd_spec.utils."
+                        "GetBuildEnvironmentVariable",
+                        return_value="cf_x86_phone"):
+            self.AvdSpec._ProcessLocalImageArgs(self.args)
+        self.assertEqual(self.AvdSpec._local_image_dir, expected_image_dir)
+        self.assertEqual(self.AvdSpec._local_system_image_dir,
+                         expected_image_dir)
+
+        # Specified --avd-type=goldfish, --local_image, and
+        # --local-system-image without args
         self.args.local_image = constants.FIND_IN_BUILD_ENV
+        self.args.local_system_image = constants.FIND_IN_BUILD_ENV
         self.AvdSpec._avd_type = constants.TYPE_GF
         self.AvdSpec._instance_type = constants.INSTANCE_TYPE_LOCAL
-        self.AvdSpec._ProcessLocalImageArgs(self.args)
-        self.assertEqual(self.AvdSpec._local_image_dir, "test_environ")
+        with mock.patch("os.path.isdir",
+                        side_effect=lambda path: path == expected_image_dir), \
+             mock.patch("acloud.create.avd_spec.utils."
+                        "GetBuildEnvironmentVariable",
+                        return_value=expected_image_dir):
+            self.AvdSpec._ProcessLocalImageArgs(self.args)
+        self.assertEqual(self.AvdSpec._local_image_dir, expected_image_dir)
+        self.assertEqual(self.AvdSpec._local_system_image_dir,
+                         expected_image_dir)
 
     def testProcessImageArgs(self):
         """Test process image source."""
