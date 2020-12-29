@@ -34,7 +34,7 @@ class RemoteImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
 
     def setUp(self):
         """Initialize remote_image_local_instance."""
-        super(RemoteImageLocalInstanceTest, self).setUp()
+        super().setUp()
         self.build_client = mock.MagicMock()
         self.Patch(
             android_build_client,
@@ -50,6 +50,7 @@ class RemoteImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
     @mock.patch.object(remote_image_local_instance, "DownloadAndProcessImageFiles")
     def testGetImageArtifactsPath(self, mock_proc):
         """Test get image artifacts path."""
+        mock_proc.return_value = "/unit/test"
         avd_spec = mock.MagicMock()
         # raise errors.NoCuttlefishCommonInstalled
         self.Patch(setup_common, "PackageInstalled", return_value=False)
@@ -62,8 +63,10 @@ class RemoteImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
         self.Patch(remote_image_local_instance,
                    "ConfirmDownloadRemoteImageDir", return_value="/tmp")
         self.Patch(os.path, "exists", return_value=True)
-        self.RemoteImageLocalInstance.GetImageArtifactsPath(avd_spec)
+        paths = self.RemoteImageLocalInstance.GetImageArtifactsPath(avd_spec)
         mock_proc.assert_called_once_with(avd_spec)
+        self.assertEqual(paths.image_dir, "/unit/test")
+        self.assertEqual(paths.host_bins, "/unit/test")
 
     def testDownloadAndProcessImageFiles(self):
         """Test process remote cuttlefish image."""
