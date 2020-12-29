@@ -35,6 +35,7 @@ To delete the local instance, we will call stop_cvd with the environment variabl
 [CUTTLEFISH_CONFIG_FILE] which is pointing to the runtime cuttlefish json.
 """
 
+import collections
 import logging
 import os
 import subprocess
@@ -80,6 +81,11 @@ _CONFIRM_RELAUNCH = ("\nCuttlefish AVD[id:%d] is already running. \n"
                      "Enter 'y' to terminate current instance and launch a new "
                      "instance, enter anything else to exit out[y/N]: ")
 
+# The collection of image folder and CVD host package folder for local
+# instances.
+ArtifactPaths = collections.namedtuple(
+    "ArtifactPaths", ["image_dir", "host_bins"])
+
 
 class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
     """Create class for a local image local instance AVD."""
@@ -102,7 +108,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             result_report.SetStatus(report.Status.FAIL)
             return result_report
 
-        local_image_path, host_bins_path = self.GetImageArtifactsPath(avd_spec)
+        artifact_paths = self.GetImageArtifactsPath(avd_spec)
 
         try:
             ins_id, ins_lock = self._SelectAndLockInstance(avd_spec)
@@ -118,9 +124,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                 ins_lock.SetInUse(True)
                 sys.exit(constants.EXIT_BY_USER)
 
-            result_report = self._CreateInstance(ins_id, local_image_path,
-                                                 host_bins_path, avd_spec,
-                                                 no_prompts)
+            result_report = self._CreateInstance(ins_id, artifact_paths,
+                                                 avd_spec, no_prompts)
             # The infrastructure is able to delete the instance only if the
             # instance name is reported. This method changes the state to
             # in-use after creating the report.
@@ -158,14 +163,13 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                 return ins_id, ins_lock
         raise errors.CreateError(_INSTANCES_IN_USE_MSG)
 
-    def _CreateInstance(self, local_instance_id, local_image_path,
-                        host_bins_path, avd_spec, no_prompts):
+    def _CreateInstance(self, local_instance_id, artifact_paths, avd_spec,
+                        no_prompts):
         """Create a CVD instance.
 
         Args:
             local_instance_id: Integer of instance id.
-            local_image_path: String of local image directory.
-            host_bins_path: String of host package directory.
+            artifact_paths: ArtifactPaths object.
             avd_spec: AVDSpec for the instance.
             no_prompts: Boolean, True to skip all prompts.
 
@@ -179,13 +183,13 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         create_common.PrepareLocalInstanceDir(cvd_home_dir, avd_spec)
         runtime_dir = instance.GetLocalInstanceRuntimeDir(local_instance_id)
         # TODO(b/168171781): cvd_status of list/delete via the symbolic.
-        self.PrepareLocalCvdToolsLink(cvd_home_dir, host_bins_path)
-        launch_cvd_path = os.path.join(host_bins_path, "bin",
+        self.PrepareLocalCvdToolsLink(cvd_home_dir, artifact_paths.host_bins)
+        launch_cvd_path = os.path.join(artifact_paths.host_bins, "bin",
                                        constants.CMD_LAUNCH_CVD)
         cmd = self.PrepareLaunchCVDCmd(launch_cvd_path,
                                        avd_spec.hw_property,
                                        avd_spec.connect_adb,
-                                       local_image_path,
+                                       artifact_paths.image_dir,
                                        runtime_dir,
                                        avd_spec.connect_webrtc,
                                        avd_spec.connect_vnc,
@@ -195,7 +199,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         result_report = report.Report(command="create")
         instance_name = instance.GetLocalInstanceName(local_instance_id)
         try:
-            self._LaunchCvd(cmd, local_instance_id, host_bins_path,
+            self._LaunchCvd(cmd, local_instance_id, artifact_paths.host_bins,
                             cvd_home_dir, (avd_spec.boot_timeout_secs or
                                            constants.DEFAULT_CF_BOOT_TIMEOUT))
         except errors.LaunchCVDFail as launch_error:
@@ -259,10 +263,12 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             avd_spec: AVDSpec object that tells us what we're going to create.
 
         Returns:
-            Tuple of (local image file, host bins package) paths.
+            ArtifactPaths object consisting of image directory and host bins
+            package.
         """
-        return (avd_spec.local_image_dir,
-                self._FindCvdHostBinaries(avd_spec.local_tool_dirs))
+        return ArtifactPaths(
+            avd_spec.local_image_dir,
+            self._FindCvdHostBinaries(avd_spec.local_tool_dirs))
 
     @staticmethod
     def PrepareLaunchCVDCmd(launch_cvd_path, hw_property, connect_adb,
