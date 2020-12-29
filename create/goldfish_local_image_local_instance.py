@@ -66,11 +66,6 @@ _BUILD_PROP_FILE_NAME = "build.prop"
 _MISC_INFO_FILE_NAME = "misc_info.txt"
 _SYSTEM_QEMU_CONFIG_FILE_NAME = "system-qemu-config.txt"
 
-# Partition names
-_SYSTEM_PARTITION_NAME = "system"
-_SUPER_PARTITION_NAME = "super"
-_VBMETA_PARTITION_NAME = "vbmeta"
-
 # Timeout
 _DEFAULT_EMULATOR_TIMEOUT_SECS = 150
 _EMULATOR_TIMEOUT_ERROR = "Emulator did not boot within %(timeout)d secs."
@@ -89,63 +84,6 @@ _MISSING_EMULATOR_MSG = ("Emulator binary is not found. Check "
 _INSTANCES_IN_USE_MSG = ("All instances are in use. Try resetting an instance "
                          "by specifying --local-instance and an id between 1 "
                          "and %(max_id)d.")
-
-
-def _GetImageForLogicalPartition(partition_name, system_image_path, image_dir):
-    """Map a logical partition name to an image path.
-
-    Args:
-        partition_name: String. On emulator, the logical partitions include
-                        "system", "vendor", and "product".
-        system_image_path: String. The path to system image.
-        image_dir: String. The directory containing the other images.
-
-    Returns:
-        system_image_path if the partition is "system".
-        Otherwise, this method returns the path under image_dir.
-
-    Raises
-        errors.GetLocalImageError if the image does not exist.
-    """
-    if partition_name == _SYSTEM_PARTITION_NAME:
-        image_path = system_image_path
-    else:
-        image_path = os.path.join(image_dir, partition_name + ".img")
-    if not os.path.isfile(image_path):
-        raise errors.GetLocalImageError(
-            "Cannot find image for logical partition %s" % partition_name)
-    return image_path
-
-
-def _GetImageForPhysicalPartition(partition_name, super_image_path,
-                                  vbmeta_image_path, image_dir):
-    """Map a physical partition name to an image path.
-
-    Args:
-        partition_name: String. On emulator, the physical partitions include
-                        "super" and "vbmeta".
-        super_image_path: String. The path to super image.
-        vbmeta_image_path: String. The path to vbmeta image.
-        image_dir: String. The directory containing the other images.
-
-    Returns:
-        super_image_path if the partition is "super".
-        vbmeta_image_path if the partition is "vbmeta".
-        Otherwise, this method returns the path under image_dir.
-
-    Raises:
-        errors.GetLocalImageError if the image does not exist.
-    """
-    if partition_name == _SUPER_PARTITION_NAME:
-        image_path = super_image_path
-    elif partition_name == _VBMETA_PARTITION_NAME:
-        image_path = vbmeta_image_path
-    else:
-        image_path = os.path.join(image_dir, partition_name + ".img")
-    if not os.path.isfile(image_path):
-        raise errors.GetLocalImageError(
-            "Unexpected physical partition: %s" % partition_name)
-    return image_path
 
 
 class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
@@ -294,10 +232,11 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         # Create the super image.
         mixed_super_image_path = os.path.join(output_dir, "mixed_super.img")
         system_image_path = os.path.join(system_image_dir, _SYSTEM_IMAGE_NAME)
-        ota.BuildSuperImage(mixed_super_image_path,
-                            os.path.join(image_dir, _MISC_INFO_FILE_NAME),
-                            lambda partition: _GetImageForLogicalPartition(
-                                partition, system_image_path, image_dir))
+        ota.BuildSuperImage(
+            mixed_super_image_path,
+            os.path.join(image_dir, _MISC_INFO_FILE_NAME),
+            lambda partition: ota_tools.GetImageForPartition(
+                partition, image_dir, system=system_image_path))
 
         # Create the vbmeta image.
         disabled_vbmeta_image_path = os.path.join(output_dir,
@@ -306,12 +245,12 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
 
         # Create the disk image.
         combined_image = os.path.join(output_dir, "combined.img")
-        ota.MkCombinedImg(combined_image,
-                          os.path.join(image_dir,
-                                       _SYSTEM_QEMU_CONFIG_FILE_NAME),
-                          lambda partition: _GetImageForPhysicalPartition(
-                              partition, mixed_super_image_path,
-                              disabled_vbmeta_image_path, image_dir))
+        ota.MkCombinedImg(
+            combined_image,
+            os.path.join(image_dir, _SYSTEM_QEMU_CONFIG_FILE_NAME),
+            lambda partition: ota_tools.GetImageForPartition(
+                partition, image_dir, super=mixed_super_image_path,
+                vbmeta=disabled_vbmeta_image_path))
         return combined_image
 
     @staticmethod
