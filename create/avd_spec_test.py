@@ -36,10 +36,11 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
 
     def setUp(self):
         """Initialize new avd_spec.AVDSpec."""
-        super(AvdSpecTest, self).setUp()
+        super().setUp()
         self.args = mock.MagicMock()
         self.args.flavor = ""
-        self.args.local_image = ""
+        self.args.local_image = None
+        self.args.local_system_image = None
         self.args.config_file = ""
         self.args.build_target = "fake_build_target"
         self.args.adb_port = None
@@ -74,7 +75,7 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(self.AvdSpec._local_image_dir, expected_image_dir)
 
         # Specified local_image without arg
-        self.args.local_image = None
+        self.args.local_image = constants.FIND_IN_BUILD_ENV
         self.Patch(utils, "GetBuildEnvironmentVariable",
                    side_effect=["cf_x86_auto", "test_environ", "test_environ"])
         self.AvdSpec._ProcessLocalImageArgs(self.args)
@@ -95,7 +96,7 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.Patch(utils, "GetBuildEnvironmentVariable",
                    return_value="test_environ")
         self.Patch(os.path, "isdir", return_value=True)
-        self.args.local_image = None
+        self.args.local_image = constants.FIND_IN_BUILD_ENV
         self.AvdSpec._avd_type = constants.TYPE_GF
         self.AvdSpec._instance_type = constants.INSTANCE_TYPE_LOCAL
         self.AvdSpec._ProcessLocalImageArgs(self.args)
@@ -105,7 +106,7 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         """Test process image source."""
         self.Patch(glob, "glob", return_value=["fake.img"])
         # No specified local_image, image source is from remote
-        self.args.local_image = ""
+        self.args.local_image = None
         self.AvdSpec._ProcessImageArgs(self.args)
         self.assertEqual(self.AvdSpec._image_source, constants.IMAGE_SRC_REMOTE)
         self.assertEqual(self.AvdSpec._local_image_dir, None)
