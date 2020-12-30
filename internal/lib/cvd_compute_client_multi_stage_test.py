@@ -94,7 +94,8 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.cvd_compute_client_multi_stage = cvd_compute_client_multi_stage.CvdComputeClient(
             self._GetFakeConfig(), mock.MagicMock(), gpu=self.GPU)
         self.args = mock.MagicMock()
-        self.args.local_image = None
+        self.args.local_image = constants.FIND_IN_BUILD_ENV
+        self.args.local_system_image = None
         self.args.config_file = ""
         self.args.avd_type = constants.TYPE_CF
         self.args.flavor = "phone"

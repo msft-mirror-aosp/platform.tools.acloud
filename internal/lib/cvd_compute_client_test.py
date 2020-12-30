@@ -75,7 +75,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
 
     def setUp(self):
         """Set up the test."""
-        super(CvdComputeClientTest, self).setUp()
+        super().setUp()
         self.Patch(cvd_compute_client.CvdComputeClient, "InitResourceHandle")
         self.Patch(list_instances, "ChooseOneRemoteInstance", return_value=mock.MagicMock())
         self.Patch(list_instances, "GetInstancesFromInstanceNames", return_value=mock.MagicMock())
@@ -147,7 +147,8 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         local_image_metadata = dict(expected_metadata_local_image)
         args = mock.MagicMock()
         mock_check_img.return_value = True
-        args.local_image = None
+        args.local_image = constants.FIND_IN_BUILD_ENV
+        args.local_system_image = None
         args.config_file = ""
         args.avd_type = constants.TYPE_CF
         args.flavor = "phone"
