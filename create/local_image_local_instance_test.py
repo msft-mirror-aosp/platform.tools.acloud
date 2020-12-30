@@ -74,7 +74,7 @@ EOF"""
 
     def setUp(self):
         """Initialize new LocalImageLocalInstance."""
-        super(LocalImageLocalInstanceTest, self).setUp()
+        super().setUp()
         self.local_image_local_instance = local_image_local_instance.LocalImageLocalInstance()
 
     # pylint: disable=protected-access
@@ -91,7 +91,8 @@ EOF"""
                       mock_lock_instance, mock_get_image, mock_utils):
         """Test _CreateAVD."""
         mock_utils.IsSupportedPlatform.return_value = True
-        mock_get_image.return_value = ("/image/path", "/host/bin/path")
+        mock_get_image.return_value = local_image_local_instance.ArtifactPaths(
+            "/image/path", "/host/bin/path")
         mock_check_running_cvd.return_value = True
         mock_avd_spec = mock.Mock()
         mock_lock = mock.Mock()
@@ -163,6 +164,8 @@ EOF"""
         """Test the report returned by _CreateInstance."""
         self.Patch(instance, "GetLocalInstanceName",
                    return_value="local-instance-1")
+        artifact_paths = local_image_local_instance.ArtifactPaths(
+            "/image/path", "/host/bin/path")
         mock_avd_spec = mock.Mock(unlock_screen=False)
         local_ins = mock.Mock(
             adb_port=6520,
@@ -177,7 +180,7 @@ EOF"""
 
         # Success
         report = self.local_image_local_instance._CreateInstance(
-            1, "/image/path", "/host/bin/path", mock_avd_spec, no_prompts=True)
+            1, artifact_paths, mock_avd_spec, no_prompts=True)
 
         self.assertEqual(report.data.get("devices"),
                          self._EXPECTED_DEVICES_IN_REPORT)
@@ -186,7 +189,7 @@ EOF"""
         mock_launch_cvd.side_effect = errors.LaunchCVDFail("unit test")
 
         report = self.local_image_local_instance._CreateInstance(
-            1, "/image/path", "/host/bin/path", mock_avd_spec, no_prompts=True)
+            1, artifact_paths, mock_avd_spec, no_prompts=True)
 
         self.assertEqual(report.data.get("devices_failing_boot"),
                          self._EXPECTED_DEVICES_IN_FAILED_REPORT)
