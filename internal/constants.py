@@ -33,6 +33,9 @@ BUILD_TARGET = "build_target"
 BUILD_BRANCH = "branch"
 BUILD_ID = "build_id"
 
+# Special value of local image parameters
+FIND_IN_BUILD_ENV = ""
+
 # AVD types
 TYPE_CHEEPS = "cheeps"
 TYPE_CF = "cuttlefish"
