@@ -52,6 +52,7 @@ _CVD_RUNTIME_FOLDER_NAME = "cuttlefish_runtime"
 _CVD_STATUS_BIN = "cvd_status"
 _LOCAL_INSTANCE_NAME_FORMAT = "local-instance-%(id)d"
 _LOCAL_INSTANCE_NAME_PATTERN = re.compile(r"^local-instance-(?P<id>\d+)$")
+_ACLOUDWEB_INSTANCE_START_STRING = "cf-"
 _MSG_UNABLE_TO_CALCULATE = "Unable to calculate"
 _NO_ANDROID_ENV = "android source not available"
 _RE_GROUP_ADB = "local_adb_port"
@@ -700,6 +701,9 @@ class RemoteInstance(Instance):
                 avd_type = value
             elif key == constants.INS_KEY_AVD_FLAVOR:
                 avd_flavor = value
+        # TODO(176884236): Insert avd information into metadata of instance.
+        if not avd_type and name.startswith(_ACLOUDWEB_INSTANCE_START_STRING):
+            avd_type = constants.TYPE_CF
 
         # Find ssl tunnel info.
         adb_port = None
