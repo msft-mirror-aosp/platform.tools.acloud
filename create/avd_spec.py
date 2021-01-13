@@ -467,6 +467,13 @@ class AVDSpec():
             self._CheckCFBuildTarget(self._instance_type)
             local_image_path = utils.GetBuildEnvironmentVariable(
                 _ENV_ANDROID_PRODUCT_OUT)
+            # Since dir is provided, check that any images exist to ensure user
+            # didn't forget to 'make' before launch AVD.
+            image_list = glob.glob(os.path.join(local_image_path, "*.img"))
+            if not image_list:
+                raise errors.GetLocalImageError(
+                    "No image found(Did you choose a lunch target and run `m`?)"
+                    ": %s.\n " % local_image_path)
         else:
             local_image_path = local_image_arg
 
@@ -480,14 +487,6 @@ class AVDSpec():
                                    utils.TextColors.WARNING)
         else:
             self._local_image_dir = local_image_path
-            # Since dir is provided, so checking that any images exist to ensure
-            # user didn't forget to 'make' before launch AVD.
-            image_list = glob.glob(os.path.join(self.local_image_dir, "*.img"))
-            if not image_list:
-                raise errors.GetLocalImageError(
-                    "No image found(Did you choose a lunch target and run `m`?)"
-                    ": %s.\n " % self.local_image_dir)
-
             try:
                 flavor_from_build_string = self._GetFlavorFromString(
                     utils.GetBuildEnvironmentVariable(constants.ENV_BUILD_TARGET))
