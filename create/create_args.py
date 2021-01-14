@@ -555,9 +555,8 @@ def _VerifyLocalArgs(args):
         raise errors.CheckPathError(
             "Specified path doesn't exist: %s" % args.local_instance_dir)
 
-    # TODO(b/133211308): Support TYPE_CF.
     if not (args.local_system_image is None or
-            args.avd_type == constants.TYPE_GF):
+            args.avd_type in (constants.TYPE_CF, constants.TYPE_GF)):
         raise errors.UnsupportedCreateArgs("%s instance does not support "
                                            "--local-system-image" %
                                            args.avd_type)
