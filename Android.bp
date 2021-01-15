@@ -55,6 +55,7 @@ python_binary_host {
         "acloud_metrics",
         "acloud_proto",
         "acloud_public",
+        "acloud_restart",
         "acloud_setup",
         "py-apitools",
         "py-dateutil",
@@ -91,6 +92,7 @@ python_test_host {
         "acloud_pull",
         "acloud_proto",
         "acloud_public",
+        "acloud_restart",
         "acloud_setup",
         "asuite_cc_client",
         "py-apitools",
@@ -201,6 +203,14 @@ python_library_host{
     defaults: ["acloud_default"],
     srcs: [
          "powerwash/*.py",
+    ],
+}
+
+python_library_host{
+    name: "acloud_restart",
+    defaults: ["acloud_default"],
+    srcs: [
+         "restart/*.py",
     ],
 }
 
