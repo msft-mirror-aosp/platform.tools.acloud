@@ -131,6 +131,8 @@ from acloud.public.actions import create_cuttlefish_action
 from acloud.public.actions import create_goldfish_action
 from acloud.pull import pull
 from acloud.pull import pull_args
+from acloud.restart import restart
+from acloud.restart import restart_args
 from acloud.setup import setup
 from acloud.setup import setup_args
 
@@ -169,6 +171,7 @@ def _ParseArgs(args):
         delete_args.CMD_DELETE,
         reconnect_args.CMD_RECONNECT,
         pull_args.CMD_PULL,
+        restart_args.CMD_RESTART,
     ])
     parser = argparse.ArgumentParser(
         description=__doc__,
@@ -242,6 +245,9 @@ def _ParseArgs(args):
 
     # Command "reconnect"
     subparser_list.append(reconnect_args.GetReconnectArgParser(subparsers))
+
+    # Command "restart"
+    subparser_list.append(restart_args.GetRestartArgParser(subparsers))
 
     # Command "powerwash"
     subparser_list.append(powerwash_args.GetPowerwashArgParser(subparsers))
@@ -429,6 +435,8 @@ def main(argv=None):
         list_instances.Run(args)
     elif args.which == reconnect_args.CMD_RECONNECT:
         reconnect.Run(args)
+    elif args.which == restart_args.CMD_RESTART:
+        report = restart.Run(args)
     elif args.which == powerwash_args.CMD_POWERWASH:
         report = powerwash.Run(args)
     elif args.which == pull_args.CMD_PULL:
