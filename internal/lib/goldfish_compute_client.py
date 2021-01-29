@@ -188,6 +188,7 @@ class GoldfishComputeClient(android_compute_client.AndroidComputeClient):
                  ["http-server", "https-server"]
             launch_args: String of args for launch command.
         """
+        self._VerifyZoneByQuota()
         self._CheckMachineSize()
 
         # Add space for possible data partition.

@@ -73,7 +73,7 @@ class GoldfishComputeClientTest(driver_test_lib.BaseDriverTest):
 
     def setUp(self):
         """Set up the test."""
-        super(GoldfishComputeClientTest, self).setUp()
+        super().setUp()
         self.Patch(goldfish_compute_client.GoldfishComputeClient,
                    "InitResourceHandle")
         self.goldfish_compute_client = (
@@ -94,6 +94,9 @@ class GoldfishComputeClientTest(driver_test_lib.BaseDriverTest):
             return_value=[{
                 "fake_arg": "fake_value"
             }])
+        self.Patch(goldfish_compute_client.GoldfishComputeClient,
+                   "_VerifyZoneByQuota",
+                   return_value=True)
 
     @mock.patch("getpass.getuser", return_value="fake_user")
     def testCreateInstance(self, _mock_user):
