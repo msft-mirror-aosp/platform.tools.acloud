@@ -45,7 +45,7 @@ _BRANCH_RE = re.compile(r"^Manifest branch: (?P<branch>.+)")
 _COMMAND_REPO_INFO = "repo info platform/tools/acloud"
 _REPO_TIMEOUT = 3
 _CF_ZIP_PATTERN = "*img*.zip"
-_DEFAULT_BUILD_BITNESS = "x86"
+_DEFAULT_BUILD_BITNESS = "x86_64"
 _DEFAULT_BUILD_TYPE = "userdebug"
 _ENV_ANDROID_PRODUCT_OUT = "ANDROID_PRODUCT_OUT"
 _ENV_ANDROID_BUILD_TOP = "ANDROID_BUILD_TOP"
@@ -122,6 +122,7 @@ class AVDSpec():
         self._remote_image = None
         self._system_build_info = None
         self._kernel_build_info = None
+        self._bootloader_build_info = None
         self._hw_property = None
         self._remote_host = None
         self._host_user = None
@@ -199,7 +200,7 @@ class AVDSpec():
             args: Namespace object from argparse.parse_args.
         """
         # If user didn't specify --local-image, infer remote image args
-        if args.local_image == "":
+        if args.local_image is None:
             self._image_source = constants.IMAGE_SRC_REMOTE
             if (self._avd_type == constants.TYPE_GF and
                     self._instance_type != constants.INSTANCE_TYPE_REMOTE):
@@ -264,17 +265,23 @@ class AVDSpec():
 
         This method will initialize _hw_property in the following
         manner:
-        1. Get default hw properties from config.
-        2. Override by hw_property args.
+        1. Get default hw properties from flavor.
+        2. Override hw properties from config.
+        3. Override by hw_property args.
 
         Args:
             args: Namespace object from argparse.parse_args.
         """
-        self._cfg.OverrideHwProperty(self._flavor, self._instance_type)
         self._hw_property = {}
-        self._hw_property = self._ParseHWPropertyStr(self._cfg.hw_property)
+        default_property = self._cfg.GetDefaultHwProperty(self._flavor,
+                                                          self._instance_type)
+        self._hw_property = self._ParseHWPropertyStr(default_property)
         logger.debug("Default hw property for [%s] flavor: %s", self._flavor,
                      self._hw_property)
+        if self._cfg.hw_property:
+            cfg_hw_property = self._ParseHWPropertyStr(self._cfg.hw_property)
+            logger.debug("Hw property from config: %s", cfg_hw_property)
+            self._hw_property.update(cfg_hw_property)
 
         if args.hw_property:
             arg_hw_property = self._ParseHWPropertyStr(args.hw_property)
@@ -363,13 +370,10 @@ class AVDSpec():
         if self._avd_type == constants.TYPE_CF:
             self._ProcessCFLocalImageArgs(args.local_image, args.flavor)
         elif self._avd_type == constants.TYPE_FVP:
-            self._ProcessFVPLocalImageArgs(args.local_image)
+            self._ProcessFVPLocalImageArgs()
         elif self._avd_type == constants.TYPE_GF:
-            self._local_image_dir = self._ProcessGFLocalImageArgs(
+            self._local_image_dir = self._ProcessLocalImageDirArgs(
                 args.local_image)
-            if args.local_system_image != "":
-                self._local_system_image_dir = self._ProcessGFLocalImageArgs(
-                    args.local_system_image)
         elif self._avd_type == constants.TYPE_GCE:
             self._local_image_artifact = self._GetGceLocalImagePath(
                 args.local_image)
@@ -377,6 +381,10 @@ class AVDSpec():
             raise errors.CreateError(
                 "Local image doesn't support the AVD type: %s" % self._avd_type
             )
+
+        if args.local_system_image is not None:
+            self._local_system_image_dir = self._ProcessLocalImageDirArgs(
+                args.local_system_image)
 
     @staticmethod
     def _GetGceLocalImagePath(local_image_dir):
@@ -414,14 +422,12 @@ class AVDSpec():
                                      ", ".join(_GCE_LOCAL_IMAGE_CANDIDATES))
 
     @staticmethod
-    def _ProcessGFLocalImageArgs(local_image_arg):
-        """Get local built image path for goldfish.
+    def _ProcessLocalImageDirArgs(local_image_arg):
+        """Get local image directory from argument or environment variable.
 
         Args:
-            local_image_arg: The path to the unzipped update package or SDK
-                             repository, i.e., <target>-img-<build>.zip or
-                             sdk-repo-<os>-system-images-<build>.zip.
-                             If the value is empty, this method returns
+            local_image_arg: The path to the unzipped image package. If the
+                             value is empty, this method returns
                              ANDROID_PRODUCT_OUT in build environment.
 
         Returns:
@@ -430,9 +436,11 @@ class AVDSpec():
         Raises:
             errors.GetLocalImageError if the directory is not found.
         """
-        image_dir = (local_image_arg if local_image_arg else
-                     utils.GetBuildEnvironmentVariable(
-                         constants.ENV_ANDROID_PRODUCT_OUT))
+        if local_image_arg == constants.FIND_IN_BUILD_ENV:
+            image_dir = utils.GetBuildEnvironmentVariable(
+                constants.ENV_ANDROID_PRODUCT_OUT)
+        else:
+            image_dir = local_image_arg
 
         if not os.path.isdir(image_dir):
             raise errors.GetLocalImageError(
@@ -455,10 +463,17 @@ class AVDSpec():
 
         """
         flavor_from_build_string = None
-        if not local_image_arg:
+        if local_image_arg == constants.FIND_IN_BUILD_ENV:
             self._CheckCFBuildTarget(self._instance_type)
             local_image_path = utils.GetBuildEnvironmentVariable(
                 _ENV_ANDROID_PRODUCT_OUT)
+            # Since dir is provided, check that any images exist to ensure user
+            # didn't forget to 'make' before launch AVD.
+            image_list = glob.glob(os.path.join(local_image_path, "*.img"))
+            if not image_list:
+                raise errors.GetLocalImageError(
+                    "No image found(Did you choose a lunch target and run `m`?)"
+                    ": %s.\n " % local_image_path)
         else:
             local_image_path = local_image_arg
 
@@ -472,14 +487,6 @@ class AVDSpec():
                                    utils.TextColors.WARNING)
         else:
             self._local_image_dir = local_image_path
-            # Since dir is provided, so checking that any images exist to ensure
-            # user didn't forget to 'make' before launch AVD.
-            image_list = glob.glob(os.path.join(self.local_image_dir, "*.img"))
-            if not image_list:
-                raise errors.GetLocalImageError(
-                    "No image found(Did you choose a lunch target and run `m`?)"
-                    ": %s.\n " % self.local_image_dir)
-
             try:
                 flavor_from_build_string = self._GetFlavorFromString(
                     utils.GetBuildEnvironmentVariable(constants.ENV_BUILD_TARGET))
@@ -490,12 +497,8 @@ class AVDSpec():
         if flavor_from_build_string and not flavor_arg:
             self._flavor = flavor_from_build_string
 
-    def _ProcessFVPLocalImageArgs(self, local_image_arg):
-        """Get local built image path for FVP-type AVD.
-
-        Args:
-            local_image_arg: String of local image args.
-        """
+    def _ProcessFVPLocalImageArgs(self):
+        """Get local built image path for FVP-type AVD."""
         build_target = utils.GetBuildEnvironmentVariable(
             constants.ENV_BUILD_TARGET)
         if build_target != "fvp":
@@ -563,6 +566,10 @@ class AVDSpec():
         self._kernel_build_info = {constants.BUILD_ID: args.kernel_build_id,
                                    constants.BUILD_BRANCH: args.kernel_branch,
                                    constants.BUILD_TARGET: args.kernel_build_target}
+        self._bootloader_build_info = {
+            constants.BUILD_ID: args.bootloader_build_id,
+            constants.BUILD_BRANCH: args.bootloader_branch,
+            constants.BUILD_TARGET: args.bootloader_build_target}
 
     @staticmethod
     def _CheckCFBuildTarget(instance_type):
@@ -596,12 +603,11 @@ class AVDSpec():
         """
         try:
             android_build_top = os.environ[constants.ENV_ANDROID_BUILD_TOP]
-        except KeyError:
+        except KeyError as e:
             raise errors.GetAndroidBuildEnvVarError(
                 "Could not get environment var: %s\n"
                 "Try to run '#source build/envsetup.sh && lunch <target>'"
-                % _ENV_ANDROID_BUILD_TOP
-            )
+                % _ENV_ANDROID_BUILD_TOP) from e
 
         acloud_project = os.path.join(android_build_top, "tools", "acloud")
         return EscapeAnsi(utils.CheckOutput(_COMMAND_GIT_REMOTE,
@@ -668,7 +674,7 @@ class AVDSpec():
 
         Target = {REPO_PREFIX}{avd_type}_{bitness}_{flavor}-
             {DEFAULT_BUILD_TARGET_TYPE}.
-        Example target: aosp_cf_x86_phone-userdebug
+        Example target: aosp_cf_x86_64_phone-userdebug
 
         Args:
             args: Namespace object from argparse.parse_args.
@@ -791,6 +797,11 @@ class AVDSpec():
     def kernel_build_info(self):
         """Return kernel build info."""
         return self._kernel_build_info
+
+    @property
+    def bootloader_build_info(self):
+        """Return bootloader build info."""
+        return self._bootloader_build_info
 
     @property
     def flavor(self):

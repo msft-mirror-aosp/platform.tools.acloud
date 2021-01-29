@@ -36,10 +36,11 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
 
     def setUp(self):
         """Initialize new avd_spec.AVDSpec."""
-        super(AvdSpecTest, self).setUp()
+        super().setUp()
         self.args = mock.MagicMock()
         self.args.flavor = ""
-        self.args.local_image = ""
+        self.args.local_image = None
+        self.args.local_system_image = None
         self.args.config_file = ""
         self.args.build_target = "fake_build_target"
         self.args.adb_port = None
@@ -74,7 +75,7 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(self.AvdSpec._local_image_dir, expected_image_dir)
 
         # Specified local_image without arg
-        self.args.local_image = None
+        self.args.local_image = constants.FIND_IN_BUILD_ENV
         self.Patch(utils, "GetBuildEnvironmentVariable",
                    side_effect=["cf_x86_auto", "test_environ", "test_environ"])
         self.AvdSpec._ProcessLocalImageArgs(self.args)
@@ -91,21 +92,43 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.AvdSpec._ProcessLocalImageArgs(self.args)
         self.assertEqual(self.AvdSpec._local_image_dir, expected_image_dir)
 
-        # Specified --avd-type=goldfish --local_image without arg
-        self.Patch(utils, "GetBuildEnvironmentVariable",
-                   return_value="test_environ")
-        self.Patch(os.path, "isdir", return_value=True)
-        self.args.local_image = None
+        # Specified --local-image and --local-system-image with dirs
+        self.args.local_image = expected_image_dir
+        self.args.local_system_image = expected_image_dir
+        self.AvdSpec._avd_type = constants.TYPE_CF
+        self.AvdSpec._instance_type = constants.INSTANCE_TYPE_LOCAL
+        with mock.patch("os.path.isfile", return_value=False), \
+             mock.patch("os.path.isdir",
+                        side_effect=lambda path: path == expected_image_dir), \
+             mock.patch("acloud.create.avd_spec.utils."
+                        "GetBuildEnvironmentVariable",
+                        return_value="cf_x86_phone"):
+            self.AvdSpec._ProcessLocalImageArgs(self.args)
+        self.assertEqual(self.AvdSpec._local_image_dir, expected_image_dir)
+        self.assertEqual(self.AvdSpec._local_system_image_dir,
+                         expected_image_dir)
+
+        # Specified --avd-type=goldfish, --local_image, and
+        # --local-system-image without args
+        self.args.local_image = constants.FIND_IN_BUILD_ENV
+        self.args.local_system_image = constants.FIND_IN_BUILD_ENV
         self.AvdSpec._avd_type = constants.TYPE_GF
         self.AvdSpec._instance_type = constants.INSTANCE_TYPE_LOCAL
-        self.AvdSpec._ProcessLocalImageArgs(self.args)
-        self.assertEqual(self.AvdSpec._local_image_dir, "test_environ")
+        with mock.patch("os.path.isdir",
+                        side_effect=lambda path: path == expected_image_dir), \
+             mock.patch("acloud.create.avd_spec.utils."
+                        "GetBuildEnvironmentVariable",
+                        return_value=expected_image_dir):
+            self.AvdSpec._ProcessLocalImageArgs(self.args)
+        self.assertEqual(self.AvdSpec._local_image_dir, expected_image_dir)
+        self.assertEqual(self.AvdSpec._local_system_image_dir,
+                         expected_image_dir)
 
     def testProcessImageArgs(self):
         """Test process image source."""
         self.Patch(glob, "glob", return_value=["fake.img"])
         # No specified local_image, image source is from remote
-        self.args.local_image = ""
+        self.args.local_image = None
         self.AvdSpec._ProcessImageArgs(self.args)
         self.assertEqual(self.AvdSpec._image_source, constants.IMAGE_SRC_REMOTE)
         self.assertEqual(self.AvdSpec._local_image_dir, None)
@@ -188,21 +211,21 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.args.avd_type = constants.TYPE_GCE
         self.assertEqual(
             self.AvdSpec._GetBuildTarget(self.args),
-            "gce_x86_iot-userdebug")
+            "gce_x86_64_iot-userdebug")
 
         self.AvdSpec._remote_image[constants.BUILD_BRANCH] = "aosp-master"
         self.AvdSpec._flavor = constants.FLAVOR_PHONE
         self.args.avd_type = constants.TYPE_CF
         self.assertEqual(
             self.AvdSpec._GetBuildTarget(self.args),
-            "aosp_cf_x86_phone-userdebug")
+            "aosp_cf_x86_64_phone-userdebug")
 
         self.AvdSpec._remote_image[constants.BUILD_BRANCH] = "git_branch"
         self.AvdSpec._flavor = constants.FLAVOR_PHONE
         self.args.avd_type = constants.TYPE_CF
         self.assertEqual(
             self.AvdSpec._GetBuildTarget(self.args),
-            "cf_x86_phone-userdebug")
+            "cf_x86_64_phone-userdebug")
 
     # pylint: disable=protected-access
     def testProcessHWPropertyWithInvalidArgs(self):

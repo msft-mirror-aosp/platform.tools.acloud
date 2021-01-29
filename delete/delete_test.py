@@ -119,17 +119,53 @@ class DeleteTest(driver_test_lib.BaseDriverTest):
         mock_lock.SetInUse.assert_called_once_with(False)
         mock_lock.Unlock.assert_called_once()
 
+    def testResetLocalInstanceLockByName(self):
+        """test ResetLocalInstanceLockByName."""
+        mock_lock = mock.Mock()
+        mock_lock.Lock.return_value = True
+        self.Patch(list_instances, "GetLocalInstanceLockByName",
+                   return_value=mock_lock)
+        delete_report = report.Report(command="delete")
+        delete.ResetLocalInstanceLockByName("unittest", delete_report)
+
+        self.assertEqual(delete_report.data, {
+            "deleted": [
+                {
+                    "type": "instance",
+                    "name": "unittest",
+                },
+            ],
+        })
+        mock_lock.Lock.assert_called_once()
+        mock_lock.SetInUse.assert_called_once_with(False)
+        mock_lock.Unlock.assert_called_once()
+
+    def testResetLocalInstanceLockByNameFailure(self):
+        """test ResetLocalInstanceLockByName with an invalid name."""
+        self.Patch(list_instances, "GetLocalInstanceLockByName",
+                   return_value=None)
+        delete_report = report.Report(command="delete")
+        delete.ResetLocalInstanceLockByName("unittest", delete_report)
+
+        self.assertTrue(len(delete_report.errors) > 0)
+        self.assertEqual(delete_report.status, "FAIL")
+
     @mock.patch.object(delete, "DeleteInstances", return_value="")
+    @mock.patch.object(delete, "ResetLocalInstanceLockByName")
     @mock.patch.object(delete, "DeleteRemoteInstances", return_value="")
     def testDeleteInstanceByNames(self, mock_delete_remote_ins,
-                                  mock_delete_local_ins):
+                                  mock_reset_lock, mock_delete_local_ins):
         """test DeleteInstanceByNames."""
         cfg = mock.Mock()
         # Test delete local instances.
         instances = ["local-instance-1", "local-instance-2"]
-        self.Patch(list_instances, "GetLocalInstancesByNames", return_value=[])
+        mock_local_ins = mock.Mock()
+        mock_local_ins.name = "local-instance-1"
+        self.Patch(list_instances, "GetLocalInstancesByNames",
+                   return_value=[mock_local_ins])
         delete.DeleteInstanceByNames(cfg, instances)
-        mock_delete_local_ins.assert_called()
+        mock_delete_local_ins.assert_called_with(cfg, [mock_local_ins])
+        mock_reset_lock.assert_called_with("local-instance-2", mock.ANY)
 
         # Test delete remote instances.
         instances = ["ins-id1-cf-x86-phone-userdebug",

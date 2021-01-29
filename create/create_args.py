@@ -131,6 +131,24 @@ def AddCommonCreateArgs(parser):
         dest="build_id",
         help="Android build id, e.g. 2145099, P2804227")
     parser.add_argument(
+        "--bootloader-branch",
+        type=str,
+        dest="bootloader_branch",
+        help="'cuttlefish only' Branch to consume the bootloader from.",
+        required=False)
+    parser.add_argument(
+        "--bootloader-build-id",
+        type=str,
+        dest="bootloader_build_id",
+        help="'cuttlefish only' Bootloader build id, e.g. P2804227",
+        required=False)
+    parser.add_argument(
+        "--bootloader-build-target",
+        type=str,
+        dest="bootloader_build_target",
+        help="'cuttlefish only' Bootloader build target.",
+        required=False)
+    parser.add_argument(
         "--kernel-build-id",
         type=str,
         dest="kernel_build_id",
@@ -290,6 +308,24 @@ def AddCommonCreateArgs(parser):
         dest="kernel_build_target",
         default="kernel",
         help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--bootloader_branch",
+        type=str,
+        dest="bootloader_branch",
+        help=argparse.SUPPRESS,
+        required=False)
+    parser.add_argument(
+        "--bootloader_build_id",
+        type=str,
+        dest="bootloader_build_id",
+        help=argparse.SUPPRESS,
+        required=False)
+    parser.add_argument(
+        "--bootloader_build_target",
+        type=str,
+        dest="bootloader_build_target",
+        help=argparse.SUPPRESS,
+        required=False)
 
 
 def GetCreateArgParser(subparser):
@@ -339,10 +375,10 @@ def GetCreateArgParser(subparser):
         help="The device flavor of the AVD (default %s)." % constants.FLAVOR_PHONE)
     create_parser.add_argument(
         "--local-image",
+        const=constants.FIND_IN_BUILD_ENV,
         type=str,
         dest="local_image",
         nargs="?",
-        default="",
         required=False,
         help="Use the locally built image for the AVD. Look for the image "
         "artifact in $ANDROID_PRODUCT_OUT if no args value is provided."
@@ -350,10 +386,10 @@ def GetCreateArgParser(subparser):
         "/path/to/file")
     create_parser.add_argument(
         "--local-system-image",
+        const=constants.FIND_IN_BUILD_ENV,
         type=str,
         dest="local_system_image",
         nargs="?",
-        default="",
         required=False,
         help="Use the locally built system images for the AVD. Look for the "
         "images in $ANDROID_PRODUCT_OUT if no args value is provided. "
@@ -492,8 +528,8 @@ def _PositiveInteger(arg):
     """Convert an argument from a string to a positive integer."""
     try:
         value = int(arg)
-    except ValueError:
-        raise argparse.ArgumentTypeError(arg + " is not an integer.")
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(arg + " is not an integer.") from e
     if value <= 0:
         raise argparse.ArgumentTypeError(arg + " is not positive.")
     return value
@@ -519,8 +555,8 @@ def _VerifyLocalArgs(args):
         raise errors.CheckPathError(
             "Specified path doesn't exist: %s" % args.local_instance_dir)
 
-    # TODO(b/133211308): Support TYPE_CF.
-    if args.local_system_image != "" and args.avd_type != constants.TYPE_GF:
+    if not (args.local_system_image is None or
+            args.avd_type in (constants.TYPE_CF, constants.TYPE_GF)):
         raise errors.UnsupportedCreateArgs("%s instance does not support "
                                            "--local-system-image" %
                                            args.avd_type)

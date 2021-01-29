@@ -52,6 +52,7 @@ _CVD_RUNTIME_FOLDER_NAME = "cuttlefish_runtime"
 _CVD_STATUS_BIN = "cvd_status"
 _LOCAL_INSTANCE_NAME_FORMAT = "local-instance-%(id)d"
 _LOCAL_INSTANCE_NAME_PATTERN = re.compile(r"^local-instance-(?P<id>\d+)$")
+_ACLOUDWEB_INSTANCE_START_STRING = "cf-"
 _MSG_UNABLE_TO_CALCULATE = "Unable to calculate"
 _NO_ANDROID_ENV = "android source not available"
 _RE_GROUP_ADB = "local_adb_port"
@@ -378,7 +379,7 @@ class LocalInstance(Instance):
         # cuttlefish_config.json so far.
         name = GetLocalInstanceName(self._local_instance_id)
         fullname = (_FULL_NAME_STRING %
-                    {"device_serial": "127.0.0.1:%s" % self._cf_runtime_cfg.adb_port,
+                    {"device_serial": "0.0.0.0:%s" % self._cf_runtime_cfg.adb_port,
                      "instance_name": name,
                      "elapsed_time": None})
         adb_device = AdbTools(self._cf_runtime_cfg.adb_port)
@@ -386,8 +387,8 @@ class LocalInstance(Instance):
         if adb_device.IsAdbConnected():
             device_information = adb_device.device_information
 
-        super(LocalInstance, self).__init__(
-            name=name, fullname=fullname, display=display, ip="127.0.0.1",
+        super().__init__(
+            name=name, fullname=fullname, display=display, ip="0.0.0.0",
             status=constants.INS_STATUS_RUNNING,
             adb_port=self._cf_runtime_cfg.adb_port,
             vnc_port=self._cf_runtime_cfg.vnc_port,
@@ -398,7 +399,7 @@ class LocalInstance(Instance):
     def Summary(self):
         """Return the string that this class is holding."""
         instance_home = "%s instance home: %s" % (_INDENT, self._instance_dir)
-        return "%s\n%s" % (super(LocalInstance, self).Summary(), instance_home)
+        return "%s\n%s" % (super().Summary(), instance_home)
 
     def CvdStatus(self):
         """check if local instance is active.
@@ -424,13 +425,14 @@ class LocalInstance(Instance):
             #  found exception.
             if not os.path.exists(cvd_status_cmd):
                 logger.warning("Cvd tools path doesn't exist:%s", cvd_status_cmd)
-                if os.environ.get(constants.ENV_ANDROID_HOST_OUT,
-                                  _NO_ANDROID_ENV) in cvd_status_cmd:
-                    logger.warning(
-                        "Can't find the cvd_status tool (Try lunching a "
-                        "cuttlefish target like aosp_cf_x86_phone-userdebug "
-                        "and running 'make hosttar' before list/delete local "
-                        "instances)")
+                for env_host_out in [constants.ENV_ANDROID_SOONG_HOST_OUT,
+                                     constants.ENV_ANDROID_HOST_OUT]:
+                    if os.environ.get(env_host_out, _NO_ANDROID_ENV) in cvd_status_cmd:
+                        logger.warning(
+                            "Can't find the cvd_status tool (Try lunching a "
+                            "cuttlefish target like aosp_cf_x86_phone-userdebug "
+                            "and running 'make hosttar' before list/delete local "
+                            "instances)")
                 return False
             logger.debug("Running cmd[%s] to check cvd status.", cvd_status_cmd)
             process = subprocess.Popen(cvd_status_cmd,
@@ -462,20 +464,19 @@ class LocalInstance(Instance):
         stop_cvd_cmd = os.path.join(self.cf_runtime_cfg.cvd_tools_path,
                                     constants.CMD_STOP_CVD)
         logger.debug("Running cmd[%s] to delete local cvd", stop_cvd_cmd)
-        with open(os.devnull, "w") as dev_null:
-            cvd_env = os.environ.copy()
-            if self.instance_dir:
-                cvd_env[constants.ENV_CUTTLEFISH_CONFIG_FILE] = self._cf_runtime_cfg.config_path
-                cvd_env[constants.ENV_CVD_HOME] = GetLocalInstanceHomeDir(
-                    self._local_instance_id)
-                cvd_env[constants.ENV_CUTTLEFISH_INSTANCE] = str(self._local_instance_id)
-            else:
-                logger.error("instance_dir is null!! instance[%d] might not be"
-                             " deleted", self._local_instance_id)
-            subprocess.check_call(
-                utils.AddUserGroupsToCmd(stop_cvd_cmd,
-                                         constants.LIST_CF_USER_GROUPS),
-                stderr=dev_null, stdout=dev_null, shell=True, env=cvd_env)
+        cvd_env = os.environ.copy()
+        if self.instance_dir:
+            cvd_env[constants.ENV_CUTTLEFISH_CONFIG_FILE] = self._cf_runtime_cfg.config_path
+            cvd_env[constants.ENV_CVD_HOME] = GetLocalInstanceHomeDir(
+                self._local_instance_id)
+            cvd_env[constants.ENV_CUTTLEFISH_INSTANCE] = str(self._local_instance_id)
+        else:
+            logger.error("instance_dir is null!! instance[%d] might not be"
+                         " deleted", self._local_instance_id)
+        subprocess.check_call(
+            utils.AddUserGroupsToCmd(stop_cvd_cmd,
+                                     constants.LIST_CF_USER_GROUPS),
+            stderr=subprocess.STDOUT, shell=True, env=cvd_env)
 
         adb_cmd = AdbTools(self.adb_port)
         # When relaunch a local instance, we need to pass in retry=True to make
@@ -560,7 +561,7 @@ class LocalGoldfishInstance(Instance):
         device_information = (self._adb.device_information if
                               self._adb.device_information else None)
 
-        super(LocalGoldfishInstance, self).__init__(
+        super().__init__(
             name=name, fullname=fullname, display=display, ip="127.0.0.1",
             status=None, adb_port=adb_port, avd_type=constants.TYPE_GF,
             createtime=create_time, elapsed_time=elapsed_time,
@@ -593,6 +594,22 @@ class LocalGoldfishInstance(Instance):
         """Return the path to instance directory."""
         return os.path.join(self._GetInstanceDirRoot(),
                             self._INSTANCE_NAME_FORMAT % {"id": self._id})
+
+    @classmethod
+    def GetIdByName(cls, name):
+        """Get id by name.
+
+        Args:
+            name: String of instance name.
+
+        Return:
+            The instance id as an integer if the name is in valid format.
+            None if the name does not represent a local goldfish instance.
+        """
+        match = cls._INSTANCE_NAME_PATTERN.match(name)
+        if match:
+            return int(match.group("id"))
+        return None
 
     @classmethod
     def GetLockById(cls, instance_id):
@@ -684,6 +701,9 @@ class RemoteInstance(Instance):
                 avd_type = value
             elif key == constants.INS_KEY_AVD_FLAVOR:
                 avd_flavor = value
+        # TODO(176884236): Insert avd information into metadata of instance.
+        if not avd_type and name.startswith(_ACLOUDWEB_INSTANCE_START_STRING):
+            avd_type = constants.TYPE_CF
 
         # Find ssl tunnel info.
         adb_port = None
@@ -715,7 +735,7 @@ class RemoteInstance(Instance):
                          "instance_name": name,
                          "elapsed_time": elapsed_time})
 
-        super(RemoteInstance, self).__init__(
+        super().__init__(
             name=name, fullname=fullname, display=display, ip=ip, status=status,
             adb_port=adb_port, vnc_port=vnc_port,
             ssh_tunnel_is_connected=ssh_tunnel_is_connected,

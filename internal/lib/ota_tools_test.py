@@ -125,7 +125,8 @@ class OtaToolsTest(unittest.TestCase):
         # CVD host package contains lpmake but not all tools.
         self._CreateBinary("lpmake")
         with mock.patch.dict("acloud.internal.lib.ota_tools.os.environ",
-                             {"ANDROID_HOST_OUT": self._temp_dir}, clear=True):
+                             {"ANDROID_HOST_OUT": self._temp_dir,
+                              "ANDROID_SOONG_HOST_OUT": self._temp_dir}, clear=True):
             with self.assertRaises(errors.CheckPathError):
                 ota_tools.FindOtaTools([self._temp_dir])
 
@@ -138,8 +139,34 @@ class OtaToolsTest(unittest.TestCase):
 
         # ANDROID_HOST_OUT contains OTA tools in build environment.
         with mock.patch.dict("acloud.internal.lib.ota_tools.os.environ",
-                             {"ANDROID_HOST_OUT": self._temp_dir}, clear=True):
+                             {"ANDROID_HOST_OUT": self._temp_dir,
+                              "ANDROID_SOONG_HOST_OUT": self._temp_dir}, clear=True):
             self.assertEqual(ota_tools.FindOtaTools([]), self._temp_dir)
+
+    def testGetImageForPartition(self):
+        """Test GetImageForPartition."""
+        image_dir = os.path.join(self._temp_dir, "images")
+        vendor_path = os.path.join(image_dir, "vendor.img")
+        override_system_path = os.path.join(self._temp_dir, "system.img")
+        self._CreateFile(vendor_path, "")
+        self._CreateFile(os.path.join(image_dir, "system.img"), "")
+        self._CreateFile(override_system_path, "")
+
+        returned_path = ota_tools.GetImageForPartition(
+            "system", image_dir, system=override_system_path)
+        self.assertEqual(returned_path, override_system_path)
+
+        returned_path = ota_tools.GetImageForPartition(
+            "vendor", image_dir, system=override_system_path)
+        self.assertEqual(returned_path, vendor_path)
+
+        with self.assertRaises(errors.GetLocalImageError):
+            ota_tools.GetImageForPartition("not_exist", image_dir)
+
+        with self.assertRaises(errors.GetLocalImageError):
+            ota_tools.GetImageForPartition(
+                "system", image_dir,
+                system=os.path.join(self._temp_dir, "not_exist"))
 
     # pylint: disable=broad-except
     def _TestBuildSuperImage(self, mock_popen, mock_popen_object,

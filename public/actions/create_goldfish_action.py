@@ -166,7 +166,8 @@ class GoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
             blank_data_disk_size_gb=self._blank_data_disk_size_gb,
             avd_spec=self._avd_spec,
             tags=self._tags,
-            extra_scopes=self._extra_scopes)
+            extra_scopes=self._extra_scopes,
+            launch_args=self._cfg.launch_args)
 
         return instance
 

@@ -55,6 +55,7 @@ python_binary_host {
         "acloud_metrics",
         "acloud_proto",
         "acloud_public",
+        "acloud_restart",
         "acloud_setup",
         "py-apitools",
         "py-dateutil",
@@ -91,6 +92,7 @@ python_test_host {
         "acloud_pull",
         "acloud_proto",
         "acloud_public",
+        "acloud_restart",
         "acloud_setup",
         "asuite_cc_client",
         "py-apitools",
@@ -100,7 +102,12 @@ python_test_host {
         "py-oauth2client",
     ],
     test_config: "acloud_unittest.xml",
-    test_suites: ["general-tests"],
+    test_suites: [
+        "general-tests",
+    ],
+    test_options: {
+        unit_test: true,
+    }
 }
 
 python_library_host {
@@ -196,6 +203,14 @@ python_library_host{
     defaults: ["acloud_default"],
     srcs: [
          "powerwash/*.py",
+    ],
+}
+
+python_library_host{
+    name: "acloud_restart",
+    defaults: ["acloud_default"],
+    srcs: [
+         "restart/*.py",
     ],
 }
 

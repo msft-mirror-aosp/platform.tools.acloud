@@ -60,15 +60,43 @@ def FindOtaTools(search_paths):
         if os.path.isfile(os.path.join(search_path, _BIN_DIR_NAME,
                                        _BUILD_SUPER_IMAGE)):
             return search_path
-
-    host_out_dir = os.environ.get(constants.ENV_ANDROID_HOST_OUT)
-    if (host_out_dir and
-            os.path.isfile(os.path.join(host_out_dir, _BIN_DIR_NAME,
-                                        _BUILD_SUPER_IMAGE))):
-        return host_out_dir
+    for env_host_out in [constants.ENV_ANDROID_SOONG_HOST_OUT,
+                         constants.ENV_ANDROID_HOST_OUT]:
+        host_out_dir = os.environ.get(env_host_out)
+        if (host_out_dir and
+                os.path.isfile(os.path.join(host_out_dir, _BIN_DIR_NAME,
+                                            _BUILD_SUPER_IMAGE))):
+            return host_out_dir
 
     raise errors.CheckPathError(_MISSING_OTA_TOOLS_MSG %
                                 {"tool_name": "OTA tool directory"})
+
+
+def GetImageForPartition(partition_name, image_dir, **image_paths):
+    """Map a partition name to an image path.
+
+    This function is used with BuildSuperImage or MkCombinedImg to mix
+    image_dir and image_paths into the output file.
+
+    Args:
+        partition_name: String, e.g., "system", "product", and "vendor".
+        image_dir: String, the directory to search for the images that are not
+                   given in image_paths.
+        image_paths: Pairs of partition names and image paths.
+
+    Returns:
+        The image path if the partition is in image_paths.
+        Otherwise, this function returns the path under image_dir.
+
+    Raises
+        errors.GetLocalImageError if the image does not exist.
+    """
+    image_path = (image_paths.get(partition_name) or
+                  os.path.join(image_dir, partition_name + ".img"))
+    if not os.path.isfile(image_path):
+        raise errors.GetLocalImageError(
+            "Cannot find image for partition %s" % partition_name)
+    return image_path
 
 
 class OtaTools:
