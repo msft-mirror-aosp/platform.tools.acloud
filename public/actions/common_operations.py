@@ -32,14 +32,16 @@ from acloud.internal.lib.adb_tools import AdbTools
 
 
 logger = logging.getLogger(__name__)
+_ACLOUD_BOOT_UP_ERROR = "ACLOUD_BOOT_UP_ERROR"
+_ACLOUD_DOWNLOAD_ARTIFACT_ERROR = "ACLOUD_DOWNLOAD_ARTIFACT_ERROR"
+# Error type of GCE quota error.
+_GCE_QUOTA_ERROR = "GCE_QUOTA_ERROR"
 _DICT_ERROR_TYPE = {
     constants.STAGE_INIT: "ACLOUD_INIT_ERROR",
     constants.STAGE_GCE: "ACLOUD_CREATE_GCE_ERROR",
-    constants.STAGE_ARTIFACT: "ACLOUD_DOWNLOAD_ARTIFACT_ERROR",
-    constants.STAGE_BOOT_UP: "ACLOUD_BOOT_UP_ERROR",
+    constants.STAGE_ARTIFACT: _ACLOUD_DOWNLOAD_ARTIFACT_ERROR,
+    constants.STAGE_BOOT_UP: _ACLOUD_BOOT_UP_ERROR,
 }
-# Error type of GCE quota error.
-_GCE_QUOTA_ERROR = "GCE_QUOTA_ERROR"
 
 
 def CreateSshKeyPairIfNecessary(cfg):
@@ -274,7 +276,9 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
                     ssh_user=constants.GCE_USER,
                     extra_args_ssh_tunnel=cfg.extra_args_ssh_tunnel)
             if device.instance_name in failures:
-                reporter.SetErrorType(_DICT_ERROR_TYPE[device.stage])
+                reporter.SetErrorType(_ACLOUD_BOOT_UP_ERROR)
+                if device.stage:
+                    reporter.SetErrorType(_DICT_ERROR_TYPE[device.stage])
                 reporter.AddData(key="devices_failing_boot", value=device_dict)
                 reporter.AddError(str(failures[device.instance_name]))
             else:
@@ -282,6 +286,8 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
     except (errors.DriverError, errors.CheckGCEZonesQuotaError) as e:
         if isinstance(e, errors.CheckGCEZonesQuotaError):
             reporter.SetErrorType(_GCE_QUOTA_ERROR)
+        if isinstance(e, errors.DownloadArtifactError):
+            reporter.SetErrorType(_ACLOUD_DOWNLOAD_ARTIFACT_ERROR)
         reporter.AddError(str(e))
         reporter.SetStatus(report.Status.FAIL)
     return reporter
