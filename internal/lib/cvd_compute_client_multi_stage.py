@@ -81,6 +81,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
     """Client that manages Android Virtual Device."""
 
     DATA_POLICY_CREATE_IF_MISSING = "create_if_missing"
+    # Data policy to customize disk size.
+    DATA_POLICY_ALWAYS_CREATE = "always_create"
 
     def __init__(self,
                  acloud_config,
@@ -102,7 +104,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                                 external ip.
             gpu: String, GPU to attach to the device.
         """
-        super(CvdComputeClient, self).__init__(acloud_config, oauth2_credentials)
+        super().__init__(acloud_config, oauth2_credentials)
 
         self._fetch_cvd_version = acloud_config.fetch_cvd_version
         self._build_api = (
@@ -189,10 +191,10 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             int(self.GetImage(image_name, image_project)["diskSizeGb"]) +
             blank_data_disk_size_gb)
 
-        # Record the system build and kernel build into metadata.
-        self._RecordSystemAndKernelInfo(avd_spec, system_build_id,
-                                        system_build_target, kernel_build_id,
-                                        kernel_build_target)
+        # Record the build info into metadata.
+        self._RecordBuildInfo(avd_spec, build_id, build_target,
+                              system_build_id, system_build_target,
+                              kernel_build_id, kernel_build_target)
 
         if avd_spec and avd_spec.instance_name_to_reuse:
             self._ip = self._ReusingGceInstance(avd_spec)
@@ -234,24 +236,35 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             self._all_failures[instance] = e
             return instance
 
-    def _RecordSystemAndKernelInfo(self, avd_spec, system_build_id,
-                                   system_build_target, kernel_build_id,
-                                   kernel_build_target):
-        """Rocord the system build info and kernel build info into metadata.
+    def _RecordBuildInfo(self, avd_spec, build_id, build_target,
+                         system_build_id, system_build_target,
+                         kernel_build_id, kernel_build_target):
+        """Rocord the build information into metadata.
+
+        The build information includes build id and build target of base image,
+        system image, and kernel image.
 
         Args:
             avd_spec: An AVDSpec instance.
-            system_build_id: A string, build id for the system image.
-            system_build_target: Target name for the system image,
-                                e.g. "cf_x86_phone-userdebug"
-            kernel_build_id: Kernel build id, a string, e.g. "223051", "P280427"
-            kernel_build_target: String, Kernel build target name.
+            build_id: String, build id for the base image.
+            build_target: String, target name for the base image,
+                          e.g. "cf_x86_phone-userdebug"
+            system_build_id: String, build id for the system image.
+            system_build_target: String, system build target name,
+                                 e.g. "cf_x86_phone-userdebug"
+            kernel_build_id: String, kernel build id, e.g. "223051", "P280427"
+            kernel_build_target: String, kernel build target name.
         """
         if avd_spec and avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
+            build_id = avd_spec.remote_image.get(constants.BUILD_ID)
+            build_target = avd_spec.remote_image.get(constants.BUILD_TARGET)
             system_build_id = avd_spec.system_build_info.get(constants.BUILD_ID)
             system_build_target = avd_spec.system_build_info.get(constants.BUILD_TARGET)
             kernel_build_id = avd_spec.kernel_build_info.get(constants.BUILD_ID)
             kernel_build_target = avd_spec.kernel_build_info.get(constants.BUILD_TARGET)
+        if build_id and build_target:
+            self._metadata.update({"build_id": build_id})
+            self._metadata.update({"build_target": build_target})
         if system_build_id and system_build_target:
             self._metadata.update({"system_build_id": system_build_id})
             self._metadata.update({"system_build_target": system_build_target})
@@ -292,7 +305,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                 "-dpi=" + avd_spec.hw_property[constants.HW_ALIAS_DPI])
             if constants.HW_ALIAS_DISK in avd_spec.hw_property:
                 launch_cvd_args.append(
-                    "-data_policy=" + self.DATA_POLICY_CREATE_IF_MISSING)
+                    "-data_policy=" + self.DATA_POLICY_ALWAYS_CREATE)
                 launch_cvd_args.append(
                     "-blank_data_image_mb="
                     + avd_spec.hw_property[constants.HW_ALIAS_DISK])
