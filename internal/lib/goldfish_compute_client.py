@@ -107,15 +107,16 @@ class GoldfishComputeClient(android_compute_client.AndroidComputeClient):
             instance: String
 
         Raises:
-            Raises an errors.DeviceBootError exception if a failure is detected.
+            errors.DownloadArtifactError: If it fails to download artifact.
+            errors.DeviceBootError: If it fails to boot up.
         """
         if self.BOOT_FAILED_MSG in serial_out:
             if self.EMULATOR_FETCH_FAILED_MSG in serial_out:
-                raise errors.DeviceBootError(
+                raise errors.DownloadArtifactError(
                     "Failed to download emulator build. Re-run with a newer build."
                 )
             if self.ANDROID_FETCH_FAILED_MSG in serial_out:
-                raise errors.DeviceBootError(
+                raise errors.DownloadArtifactError(
                     "Failed to download system image build. Re-run with a newer build."
                 )
             if self.BOOT_TIMEOUT_MSG in serial_out:
