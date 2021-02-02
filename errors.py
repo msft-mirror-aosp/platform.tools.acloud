@@ -41,7 +41,7 @@ class HttpError(DriverError):
 
     def __init__(self, code, message):
         self.code = code
-        super(HttpError, self).__init__(message)
+        super().__init__(message)
 
     @staticmethod
     def CreateFromHttpError(http_error):
@@ -81,6 +81,10 @@ class AuthenticationError(DriverError):
 
 class DeviceBootError(DriverError):
     """To catch device boot errors."""
+
+
+class DownloadArtifactError(DriverError):
+    """To catch download artifact errors."""
 
 
 class NoSubnetwork(DriverError):
