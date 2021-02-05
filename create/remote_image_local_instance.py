@@ -167,7 +167,7 @@ class RemoteImageLocalInstance(local_image_local_instance.LocalImageLocalInstanc
             errors.NoCuttlefishCommonInstalled: cuttlefish-common doesn't install.
 
         Returns:
-            Tuple of (local image file, host bins package) paths.
+            local_image_local_instance.ArtifactPaths object.
         """
         if not setup_common.PackageInstalled("cuttlefish-common"):
             raise errors.NoCuttlefishCommonInstalled(
@@ -184,4 +184,6 @@ class RemoteImageLocalInstance(local_image_local_instance.LocalImageLocalInstanc
             raise errors.GetCvdLocalHostPackageError(
                 "No launch_cvd found. Please check downloaded artifacts dir: %s"
                 % image_dir)
-        return image_dir, image_dir
+        # This method does not set the optional fields because launch_cvd loads
+        # the paths from the fetcher config in image_dir.
+        return local_image_local_instance.ArtifactPaths(image_dir, image_dir)

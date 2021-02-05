@@ -200,7 +200,7 @@ class AVDSpec():
             args: Namespace object from argparse.parse_args.
         """
         # If user didn't specify --local-image, infer remote image args
-        if args.local_image == "":
+        if args.local_image is None:
             self._image_source = constants.IMAGE_SRC_REMOTE
             if (self._avd_type == constants.TYPE_GF and
                     self._instance_type != constants.INSTANCE_TYPE_REMOTE):
@@ -372,11 +372,8 @@ class AVDSpec():
         elif self._avd_type == constants.TYPE_FVP:
             self._ProcessFVPLocalImageArgs()
         elif self._avd_type == constants.TYPE_GF:
-            self._local_image_dir = self._ProcessGFLocalImageArgs(
+            self._local_image_dir = self._ProcessLocalImageDirArgs(
                 args.local_image)
-            if args.local_system_image != "":
-                self._local_system_image_dir = self._ProcessGFLocalImageArgs(
-                    args.local_system_image)
         elif self._avd_type == constants.TYPE_GCE:
             self._local_image_artifact = self._GetGceLocalImagePath(
                 args.local_image)
@@ -384,6 +381,10 @@ class AVDSpec():
             raise errors.CreateError(
                 "Local image doesn't support the AVD type: %s" % self._avd_type
             )
+
+        if args.local_system_image is not None:
+            self._local_system_image_dir = self._ProcessLocalImageDirArgs(
+                args.local_system_image)
 
     @staticmethod
     def _GetGceLocalImagePath(local_image_dir):
@@ -421,14 +422,12 @@ class AVDSpec():
                                      ", ".join(_GCE_LOCAL_IMAGE_CANDIDATES))
 
     @staticmethod
-    def _ProcessGFLocalImageArgs(local_image_arg):
-        """Get local built image path for goldfish.
+    def _ProcessLocalImageDirArgs(local_image_arg):
+        """Get local image directory from argument or environment variable.
 
         Args:
-            local_image_arg: The path to the unzipped update package or SDK
-                             repository, i.e., <target>-img-<build>.zip or
-                             sdk-repo-<os>-system-images-<build>.zip.
-                             If the value is empty, this method returns
+            local_image_arg: The path to the unzipped image package. If the
+                             value is empty, this method returns
                              ANDROID_PRODUCT_OUT in build environment.
 
         Returns:
@@ -437,9 +436,11 @@ class AVDSpec():
         Raises:
             errors.GetLocalImageError if the directory is not found.
         """
-        image_dir = (local_image_arg if local_image_arg else
-                     utils.GetBuildEnvironmentVariable(
-                         constants.ENV_ANDROID_PRODUCT_OUT))
+        if local_image_arg == constants.FIND_IN_BUILD_ENV:
+            image_dir = utils.GetBuildEnvironmentVariable(
+                constants.ENV_ANDROID_PRODUCT_OUT)
+        else:
+            image_dir = local_image_arg
 
         if not os.path.isdir(image_dir):
             raise errors.GetLocalImageError(
@@ -462,10 +463,17 @@ class AVDSpec():
 
         """
         flavor_from_build_string = None
-        if not local_image_arg:
+        if local_image_arg == constants.FIND_IN_BUILD_ENV:
             self._CheckCFBuildTarget(self._instance_type)
             local_image_path = utils.GetBuildEnvironmentVariable(
                 _ENV_ANDROID_PRODUCT_OUT)
+            # Since dir is provided, check that any images exist to ensure user
+            # didn't forget to 'make' before launch AVD.
+            image_list = glob.glob(os.path.join(local_image_path, "*.img"))
+            if not image_list:
+                raise errors.GetLocalImageError(
+                    "No image found(Did you choose a lunch target and run `m`?)"
+                    ": %s.\n " % local_image_path)
         else:
             local_image_path = local_image_arg
 
@@ -479,14 +487,6 @@ class AVDSpec():
                                    utils.TextColors.WARNING)
         else:
             self._local_image_dir = local_image_path
-            # Since dir is provided, so checking that any images exist to ensure
-            # user didn't forget to 'make' before launch AVD.
-            image_list = glob.glob(os.path.join(self.local_image_dir, "*.img"))
-            if not image_list:
-                raise errors.GetLocalImageError(
-                    "No image found(Did you choose a lunch target and run `m`?)"
-                    ": %s.\n " % self.local_image_dir)
-
             try:
                 flavor_from_build_string = self._GetFlavorFromString(
                     utils.GetBuildEnvironmentVariable(constants.ENV_BUILD_TARGET))
@@ -603,12 +603,11 @@ class AVDSpec():
         """
         try:
             android_build_top = os.environ[constants.ENV_ANDROID_BUILD_TOP]
-        except KeyError:
+        except KeyError as e:
             raise errors.GetAndroidBuildEnvVarError(
                 "Could not get environment var: %s\n"
                 "Try to run '#source build/envsetup.sh && lunch <target>'"
-                % _ENV_ANDROID_BUILD_TOP
-            )
+                % _ENV_ANDROID_BUILD_TOP) from e
 
         acloud_project = os.path.join(android_build_top, "tools", "acloud")
         return EscapeAnsi(utils.CheckOutput(_COMMAND_GIT_REMOTE,
