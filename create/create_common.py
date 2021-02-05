@@ -29,7 +29,7 @@ from acloud.internal.lib import utils
 logger = logging.getLogger(__name__)
 
 
-def ParseHWPropertyArgs(dict_str, item_separator=",", key_value_separator=":"):
+def ParseKeyValuePairArgs(dict_str, item_separator=",", key_value_separator=":"):
     """Helper function to initialize a dict object from string.
 
     e.g.
@@ -47,9 +47,9 @@ def ParseHWPropertyArgs(dict_str, item_separator=",", key_value_separator=":"):
     Raises:
         error.MalformedDictStringError: If dict_str is malformed.
     """
-    hw_dict = {}
+    args_dict = {}
     if not dict_str:
-        return hw_dict
+        return args_dict
 
     for item in dict_str.split(item_separator):
         if key_value_separator not in item:
@@ -59,9 +59,9 @@ def ParseHWPropertyArgs(dict_str, item_separator=",", key_value_separator=":"):
         if not value or not key:
             raise errors.MalformedDictStringError(
                 "Missing key or value in %s, expecting form of 'a:b'" % item)
-        hw_dict[key.strip()] = value.strip()
+        args_dict[key.strip()] = value.strip()
 
-    return hw_dict
+    return args_dict
 
 
 def GetCvdHostPackage():
