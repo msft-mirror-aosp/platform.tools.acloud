@@ -429,6 +429,13 @@ def GetCreateArgParser(subparser):
         "provided. Select one gce instance to reuse if --reuse-gce is "
         "provided.")
     create_parser.add_argument(
+        "--gce-metadata",
+        type=str,
+        dest="gce_metadata",
+        default=None,
+        help="'GCE instance only' Record data into GCE instance metadata with "
+        "key-value pair format. e.g. id:12,name:unknown.")
+    create_parser.add_argument(
         "--host",
         type=str,
         dest="remote_host",
@@ -646,7 +653,7 @@ def VerifyArgs(args):
     if args.adb_port:
         utils.CheckPortFree(args.adb_port)
 
-    hw_properties = create_common.ParseHWPropertyArgs(args.hw_property)
+    hw_properties = create_common.ParseKeyValuePairArgs(args.hw_property)
     for key in hw_properties:
         if key not in constants.HW_PROPERTIES:
             raise errors.InvalidHWPropertyError(
