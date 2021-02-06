@@ -48,23 +48,23 @@ class CreateCommonTest(driver_test_lib.BaseDriverTest):
 
     # pylint: disable=protected-access
     def testProcessHWPropertyWithInvalidArgs(self):
-        """Test ParseHWPropertyArgs with invalid args."""
+        """Test ParseKeyValuePairArgs with invalid args."""
         # Checking wrong property value.
         args_str = "cpu:3,disk:"
         with self.assertRaises(errors.MalformedDictStringError):
-            create_common.ParseHWPropertyArgs(args_str)
+            create_common.ParseKeyValuePairArgs(args_str)
 
         # Checking wrong property format.
         args_str = "cpu:3,disk"
         with self.assertRaises(errors.MalformedDictStringError):
-            create_common.ParseHWPropertyArgs(args_str)
+            create_common.ParseKeyValuePairArgs(args_str)
 
     def testParseHWPropertyStr(self):
-        """Test ParseHWPropertyArgs."""
+        """Test ParseKeyValuePairArgs."""
         expected_dict = {"cpu": "2", "resolution": "1080x1920", "dpi": "240",
                          "memory": "4g", "disk": "4g"}
         args_str = "cpu:2,resolution:1080x1920,dpi:240,memory:4g,disk:4g"
-        result_dict = create_common.ParseHWPropertyArgs(args_str)
+        result_dict = create_common.ParseKeyValuePairArgs(args_str)
         self.assertTrue(expected_dict == result_dict)
 
     def testGetCvdHostPackage(self):

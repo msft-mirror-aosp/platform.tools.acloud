@@ -480,6 +480,9 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                 avd_spec.hw_property[constants.HW_X_RES],
                 avd_spec.hw_property[constants.HW_Y_RES],
                 avd_spec.hw_property[constants.HW_ALIAS_DPI]))
+            if avd_spec.gce_metadata:
+                for key, value in avd_spec.gce_metadata.items():
+                    metadata[key] = value
 
         disk_args = self._GetDiskArgs(
             instance, image_name, image_project, boot_disk_size_gb)
