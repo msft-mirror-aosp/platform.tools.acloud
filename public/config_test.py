@@ -276,25 +276,8 @@ common_hw_property_map {
             config.AcloudConfigManager.LoadConfigFromProtocolBuffer(
                 self.config_file, internal_config_pb2.InternalConfig)
 
-    def testOverrideWithHWProperty(self):
-        """Test override hw property by flavor type."""
-        # test override with an exist flavor.
-        self.cfg.hw_property = None
-        args = mock.MagicMock()
-        args.flavor = "phone"
-        args.which = "create"
-        self.cfg.OverrideWithArgs(args)
-        self.assertEqual(self.cfg.hw_property,
-                         "cpu:2,resolution:1080x1920,dpi:420,memory:4g,disk:8g")
-
-        # test override with a nonexistent flavor.
-        self.cfg.hw_property = None
-        args = mock.MagicMock()
-        args.flavor = "non-exist-flavor"
-        args.which = "create"
-        self.cfg.OverrideWithArgs(args)
-        self.assertEqual(self.cfg.hw_property, "")
-
+    def testOverrideWithArgs(self):
+        """Test OverrideWithArgs."""
         # test override zone.
         self.cfg.zone = "us-central1-f"
         args = mock.MagicMock()
