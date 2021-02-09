@@ -269,9 +269,6 @@ class AcloudConfig(object):
                 parsed_args.service_account_json_private_key_path)
         if parsed_args.which == "create_gf" and parsed_args.base_image:
             self.stable_goldfish_host_image_name = parsed_args.base_image
-        if parsed_args.which == create_args.CMD_CREATE and not self.hw_property:
-            flavor = parsed_args.flavor or constants.FLAVOR_PHONE
-            self.hw_property = self.common_hw_property_map.get(flavor, "")
         if parsed_args.which in [create_args.CMD_CREATE, "create_cf"]:
             if parsed_args.network:
                 self.network = parsed_args.network
