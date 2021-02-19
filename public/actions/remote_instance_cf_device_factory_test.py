@@ -288,10 +288,10 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
 
         # Test local image get from local folder case.
         fake_image = None
-        self.Patch(glob, "glob", return_value=["fake.img"])
+        self.Patch(glob, "glob", side_effect=[["fake.img"], ["bootloader"], ["kernel"]])
         factory._UploadArtifacts(fake_image, fake_host_package, fake_local_image_dir)
         expected_cmd = (
-            "tar -cf - --lzop -S -C %s fake.img bootloader | "
+            "tar -cf - --lzop -S -C %s fake.img bootloader kernel | "
             "%s -- tar -xf - --lzop -S" %
             (fake_local_image_dir, factory._ssh.GetBaseCmd(constants.SSH_BIN)))
         mock_shell.assert_called_once_with(expected_cmd)

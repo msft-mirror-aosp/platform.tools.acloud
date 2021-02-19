@@ -31,8 +31,10 @@ from acloud.public.actions import gce_device_factory
 
 
 logger = logging.getLogger(__name__)
-# bootloader is one file required to launch AVD.
+# bootloader and kernel are files required to launch AVD.
 _BOOTLOADER = "bootloader"
+_KERNEL = "kernel"
+_ARTIFACT_FILES = ["*.img", _BOOTLOADER, _KERNEL]
 _HOME_FOLDER = os.path.expanduser("~")
 
 
@@ -52,7 +54,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
     """
     def __init__(self, avd_spec, local_image_artifact=None,
                  cvd_host_package_artifact=None):
-        super(RemoteInstanceDeviceFactory, self).__init__(avd_spec, local_image_artifact)
+        super().__init__(avd_spec, local_image_artifact)
         self._cvd_host_package_artifact = cvd_host_package_artifact
 
     # pylint: disable=broad-except
@@ -279,10 +281,11 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             except IOError:
                 # Older builds may not have a required_images file. In this case
                 # we fall back to *.img.
-                artifact_files = [
-                    os.path.basename(image) for image in
-                    glob.glob(os.path.join(images_dir, "*.img"))]
-                artifact_files.append(_BOOTLOADER)
+                artifact_files = []
+                for file_name in _ARTIFACT_FILES:
+                    artifact_files.extend(
+                        os.path.basename(image) for image in glob.glob(
+                            os.path.join(images_dir, file_name)))
             cmd = ("tar -cf - --lzop -S -C {images_dir} {artifact_files} | "
                    "{ssh_cmd} -- tar -xf - --lzop -S".format(
                        images_dir=images_dir,
