@@ -74,7 +74,7 @@ def DownloadAndProcessImageFiles(avd_spec):
     extract_path = os.path.join(
         avd_spec.image_download_dir,
         constants.TEMP_ARTIFACTS_FOLDER,
-        build_id)
+        build_id + build_target)
 
     logger.debug("Extract path: %s", extract_path)
     # TODO(b/117189191): If extract folder exists, check if the files are
