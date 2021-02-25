@@ -99,7 +99,7 @@ EOF"""
         """Test _CreateAVD."""
         mock_utils.IsSupportedPlatform.return_value = True
         mock_get_image.return_value = local_image_local_instance.ArtifactPaths(
-            "/image/path", "/host/bin/path")
+            "/image/path", "/host/bin/path", None, None, None)
         mock_check_running_cvd.return_value = True
         mock_avd_spec = mock.Mock()
         mock_lock = mock.Mock()
