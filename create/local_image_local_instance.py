@@ -107,8 +107,7 @@ _CONFIRM_RELAUNCH = ("\nCuttlefish AVD[id:%d] is already running. \n"
 # are optional. They are set when the AVD spec requires to mix images.
 ArtifactPaths = collections.namedtuple(
     "ArtifactPaths",
-    ["image_dir", "host_bins", "misc_info", "ota_tools_dir", "system_image"],
-    defaults=[None, None, None])
+    ["image_dir", "host_bins", "misc_info", "ota_tools_dir", "system_image"])
 
 
 class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
@@ -351,7 +350,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         host_bins_path = self._FindCvdHostBinaries(avd_spec.local_tool_dirs)
 
         if not avd_spec.local_system_image_dir:
-            return ArtifactPaths(image_dir, host_bins_path)
+            return ArtifactPaths(image_dir, host_bins_path, None, None, None)
 
         misc_info_path = self._FindMiscInfo(image_dir)
         image_dir = self._FindImageDir(image_dir)
