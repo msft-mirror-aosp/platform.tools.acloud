@@ -75,12 +75,12 @@ _MISC_INFO_FILE_NAME = "misc_info.txt"
 _TARGET_FILES_IMAGES_DIR_NAME = "IMAGES"
 _TARGET_FILES_META_DIR_NAME = "META"
 _MIXED_SUPER_IMAGE_NAME = "mixed_super.img"
-_CMD_LAUNCH_CVD_ARGS = (" -daemon -cpus %s -x_res %s -y_res %s -dpi %s "
-                        "-memory_mb %s -run_adb_connector=%s "
+_CMD_LAUNCH_CVD_ARGS = (" -daemon -config=%s -run_adb_connector=%s "
                         "-system_image_dir %s -instance_dir %s "
                         "-undefok=report_anonymous_usage_stats,enable_sandbox "
                         "-report_anonymous_usage_stats=y "
                         "-enable_sandbox=false")
+_CMD_LAUNCH_CVD_HW_ARGS = " -cpus %s -x_res %s -y_res %s -dpi %s -memory_mb %s"
 _CMD_LAUNCH_CVD_GPU_ARG = " -gpu_mode=auto"
 _CMD_LAUNCH_CVD_DISK_ARGS = (" -blank_data_image_mb %s "
                              "-data_policy always_create")
@@ -186,6 +186,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                 return ins_id, ins_lock
         raise errors.CreateError(_INSTANCES_IN_USE_MSG)
 
+    #pylint: disable=too-many-locals
     def _CreateInstance(self, local_instance_id, artifact_paths, avd_spec,
                         no_prompts):
         """Create a CVD instance.
@@ -213,8 +214,11 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         self.PrepareLocalCvdToolsLink(cvd_home_dir, artifact_paths.host_bins)
         launch_cvd_path = os.path.join(artifact_paths.host_bins, "bin",
                                        constants.CMD_LAUNCH_CVD)
+        hw_property = None
+        if avd_spec.hw_customize:
+            hw_property = avd_spec.hw_property
         cmd = self.PrepareLaunchCVDCmd(launch_cvd_path,
-                                       avd_spec.hw_property,
+                                       hw_property,
                                        avd_spec.connect_adb,
                                        artifact_paths.image_dir,
                                        runtime_dir,
@@ -222,7 +226,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                                        avd_spec.connect_vnc,
                                        avd_spec.gpu,
                                        super_image_path,
-                                       avd_spec.cfg.launch_args)
+                                       avd_spec.cfg.launch_args,
+                                       avd_spec.flavor)
 
         result_report = report.Report(command="create")
         instance_name = instance.GetLocalInstanceName(local_instance_id)
@@ -391,7 +396,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
     def PrepareLaunchCVDCmd(launch_cvd_path, hw_property, connect_adb,
                             image_dir, runtime_dir, connect_webrtc,
                             connect_vnc, gpu, super_image_path,
-                            launch_args):
+                            launch_args, flavor):
         """Prepare launch_cvd command.
 
         Create the launch_cvd commands with all the required args and add
@@ -409,17 +414,20 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                  "default" if gpu is enabled.
             super_image_path: String of non-default super image path.
             launch_args: String of launch args.
+            flavor: String of flavor name.
 
         Returns:
             String, launch_cvd cmd.
         """
         launch_cvd_w_args = launch_cvd_path + _CMD_LAUNCH_CVD_ARGS % (
-            hw_property["cpu"], hw_property["x_res"], hw_property["y_res"],
-            hw_property["dpi"], hw_property["memory"],
-            ("true" if connect_adb else "false"), image_dir, runtime_dir)
-        if constants.HW_ALIAS_DISK in hw_property:
-            launch_cvd_w_args = (launch_cvd_w_args + _CMD_LAUNCH_CVD_DISK_ARGS %
-                                 hw_property[constants.HW_ALIAS_DISK])
+            flavor, ("true" if connect_adb else "false"), image_dir, runtime_dir)
+        if hw_property:
+            launch_cvd_w_args = launch_cvd_w_args + _CMD_LAUNCH_CVD_HW_ARGS % (
+                hw_property["cpu"], hw_property["x_res"], hw_property["y_res"],
+                hw_property["dpi"], hw_property["memory"])
+            if constants.HW_ALIAS_DISK in hw_property:
+                launch_cvd_w_args = (launch_cvd_w_args + _CMD_LAUNCH_CVD_DISK_ARGS %
+                                     hw_property[constants.HW_ALIAS_DISK])
         if connect_webrtc:
             launch_cvd_w_args = launch_cvd_w_args + _CMD_LAUNCH_CVD_WEBRTC_ARGS
 
