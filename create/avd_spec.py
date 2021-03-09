@@ -124,6 +124,7 @@ class AVDSpec():
         self._kernel_build_info = None
         self._bootloader_build_info = None
         self._hw_property = None
+        self._hw_customize = False
         self._remote_host = None
         self._gce_metadata = None
         self._host_user = None
@@ -280,11 +281,13 @@ class AVDSpec():
         logger.debug("Default hw property for [%s] flavor: %s", self._flavor,
                      self._hw_property)
         if self._cfg.hw_property:
+            self._hw_customize = True
             cfg_hw_property = self._ParseHWPropertyStr(self._cfg.hw_property)
             logger.debug("Hw property from config: %s", cfg_hw_property)
             self._hw_property.update(cfg_hw_property)
 
         if args.hw_property:
+            self._hw_customize = True
             arg_hw_property = self._ParseHWPropertyStr(args.hw_property)
             logger.debug("Use custom hw property: %s", arg_hw_property)
             self._hw_property.update(arg_hw_property)
@@ -705,6 +708,11 @@ class AVDSpec():
     def hw_property(self):
         """Return the hw_property."""
         return self._hw_property
+
+    @property
+    def hw_customize(self):
+        """Return the hw_customize."""
+        return self._hw_customize
 
     @property
     def local_image_dir(self):
