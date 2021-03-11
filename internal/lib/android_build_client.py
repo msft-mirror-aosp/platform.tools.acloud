@@ -65,7 +65,7 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
     LATEST = "latest"
     # FETCH_CVD variables.
     FETCHER_NAME = "fetch_cvd"
-    FETCHER_BUILD_TARGET = "aosp_cf_x86_64_phone-userdebug"
+    FETCHER_BUILD_TARGET = "aosp_cf_x86_phone-userdebug"
     MAX_RETRY = 3
     RETRY_SLEEP_SECS = 3
 
