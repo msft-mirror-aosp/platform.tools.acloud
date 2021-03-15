@@ -75,11 +75,12 @@ _MISC_INFO_FILE_NAME = "misc_info.txt"
 _TARGET_FILES_IMAGES_DIR_NAME = "IMAGES"
 _TARGET_FILES_META_DIR_NAME = "META"
 _MIXED_SUPER_IMAGE_NAME = "mixed_super.img"
-_CMD_LAUNCH_CVD_ARGS = (" -daemon -config=%s -run_adb_connector=%s "
-                        "-system_image_dir %s -instance_dir %s "
-                        "-undefok=report_anonymous_usage_stats,enable_sandbox "
-                        "-report_anonymous_usage_stats=y "
-                        "-enable_sandbox=false")
+_CMD_LAUNCH_CVD_ARGS = (
+    " -daemon -config=%s -run_adb_connector=%s "
+    "-system_image_dir %s -instance_dir %s "
+    "-undefok=report_anonymous_usage_stats,enable_sandbox,config "
+    "-report_anonymous_usage_stats=y "
+    "-enable_sandbox=false")
 _CMD_LAUNCH_CVD_HW_ARGS = " -cpus %s -x_res %s -y_res %s -dpi %s -memory_mb %s"
 _CMD_LAUNCH_CVD_GPU_ARG = " -gpu_mode=auto"
 _CMD_LAUNCH_CVD_DISK_ARGS = (" -blank_data_image_mb %s "
