@@ -30,8 +30,7 @@ required.
   should be an unzipped SDK image repository, i.e.,
   sdk-repo-<os>-system-images-<build>.zip.
 - If the instance requires mixed images, the local image directory should
-  contain both the unzipped update package and the unzipped extra image
-  package, i.e., <target>-img-<build>.zip and
+  be an unzipped extra image package, i.e.,
   emu-extra-<os>-system-images-<build>.zip.
 - If the instance requires mixed images, one of the local tool directories
   should be an unzipped OTA tools package, i.e., otatools.zip.
@@ -323,6 +322,7 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         Raises:
             errors.GetLocalImageError if the images are not found.
         """
+        image_dir = os.path.abspath(image_dir)
         entries = os.listdir(image_dir)
         if len(entries) == 1:
             first_entry = os.path.join(image_dir, entries[0])
@@ -452,7 +452,7 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                 shutil.rmtree(mixed_image_dir)
             os.mkdir(mixed_image_dir)
 
-            image_dir = os.path.abspath(avd_spec.local_image_dir)
+            image_dir = self._FindImageDir(avd_spec.local_image_dir)
 
             ota_tools_dir = ota_tools.FindOtaTools(avd_spec.local_tool_dirs)
             ota_tools_dir = os.path.abspath(ota_tools_dir)
