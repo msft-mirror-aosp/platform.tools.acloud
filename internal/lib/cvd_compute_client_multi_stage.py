@@ -331,9 +331,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             launch_cvd_args.append("-y_res=" + resolution[1])
             launch_cvd_args.append("-dpi=" + resolution[3])
 
-        if kernel_build:
-            launch_cvd_args.append("-kernel_path=kernel")
-
         if self._launch_args:
             launch_cvd_args.append(self._launch_args)
 
