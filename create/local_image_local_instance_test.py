@@ -19,7 +19,8 @@ import os
 import subprocess
 import tempfile
 import unittest
-import mock
+
+from unittest import mock
 
 from acloud import errors
 from acloud.create import local_image_local_instance
