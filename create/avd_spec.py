@@ -124,7 +124,9 @@ class AVDSpec():
         self._kernel_build_info = None
         self._bootloader_build_info = None
         self._hw_property = None
+        self._hw_customize = False
         self._remote_host = None
+        self._gce_metadata = None
         self._host_user = None
         self._host_ssh_private_key_path = None
         # Create config instance for android_build_client to query build api.
@@ -230,7 +232,7 @@ class AVDSpec():
         Raises:
             error.MalformedHWPropertyError: If hw_property_str is malformed.
         """
-        hw_dict = create_common.ParseHWPropertyArgs(hw_property_str)
+        hw_dict = create_common.ParseKeyValuePairArgs(hw_property_str)
         arg_hw_properties = {}
         for key, value in hw_dict.items():
             # Parsing HW properties int to avdspec.
@@ -279,11 +281,13 @@ class AVDSpec():
         logger.debug("Default hw property for [%s] flavor: %s", self._flavor,
                      self._hw_property)
         if self._cfg.hw_property:
+            self._hw_customize = True
             cfg_hw_property = self._ParseHWPropertyStr(self._cfg.hw_property)
             logger.debug("Hw property from config: %s", cfg_hw_property)
             self._hw_property.update(cfg_hw_property)
 
         if args.hw_property:
+            self._hw_customize = True
             arg_hw_property = self._ParseHWPropertyStr(args.hw_property)
             logger.debug("Use custom hw property: %s", arg_hw_property)
             self._hw_property.update(arg_hw_property)
@@ -317,6 +321,7 @@ class AVDSpec():
         self._serial_log_file = args.serial_log_file
         self._emulator_build_id = args.emulator_build_id
         self._gpu = args.gpu
+        self._gce_metadata = create_common.ParseKeyValuePairArgs(args.gce_metadata)
 
         self._stable_cheeps_host_image_name = args.stable_cheeps_host_image_name
         self._stable_cheeps_host_image_project = args.stable_cheeps_host_image_project
@@ -705,6 +710,11 @@ class AVDSpec():
         return self._hw_property
 
     @property
+    def hw_customize(self):
+        """Return the hw_customize."""
+        return self._hw_customize
+
+    @property
     def local_image_dir(self):
         """Return local image dir."""
         return self._local_image_dir
@@ -908,3 +918,8 @@ class AVDSpec():
     def no_pull_log(self):
         """Return no_pull_log."""
         return self._no_pull_log
+
+    @property
+    def gce_metadata(self):
+        """Return gce_metadata."""
+        return self._gce_metadata
