@@ -55,8 +55,8 @@ logger = logging.getLogger(__name__)
 
 _DECOMPRESS_KERNEL_ARG = "-decompress_kernel=true"
 _GPU_ARG = "-gpu_mode=auto"
-_AGREEMENT_PROMPT_ARGS = ["-undefok=report_anonymous_usage_stats",
-                          "-report_anonymous_usage_stats=y"]
+_AGREEMENT_PROMPT_ARG = "-report_anonymous_usage_stats=y"
+_UNDEFOK_ARG = "-undefok=report_anonymous_usage_stats,config"
 _NUM_AVDS_ARG = "-num_instances=%(num_AVD)s"
 _DEFAULT_BRANCH = "aosp-master"
 _FETCHER_BUILD_TARGET = "aosp_cf_x86_phone-userdebug"
@@ -297,24 +297,26 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             launch_cvd_args.append(
                 "-blank_data_image_mb=%d" % (blank_data_disk_size_gb * 1024))
         if avd_spec:
-            launch_cvd_args.append(
-                "-x_res=" + avd_spec.hw_property[constants.HW_X_RES])
-            launch_cvd_args.append(
-                "-y_res=" + avd_spec.hw_property[constants.HW_Y_RES])
-            launch_cvd_args.append(
-                "-dpi=" + avd_spec.hw_property[constants.HW_ALIAS_DPI])
-            if constants.HW_ALIAS_DISK in avd_spec.hw_property:
+            launch_cvd_args.append("-config=%s" % avd_spec.flavor)
+            if avd_spec.hw_customize:
                 launch_cvd_args.append(
-                    "-data_policy=" + self.DATA_POLICY_ALWAYS_CREATE)
+                    "-x_res=" + avd_spec.hw_property[constants.HW_X_RES])
                 launch_cvd_args.append(
-                    "-blank_data_image_mb="
-                    + avd_spec.hw_property[constants.HW_ALIAS_DISK])
-            if constants.HW_ALIAS_CPUS in avd_spec.hw_property:
+                    "-y_res=" + avd_spec.hw_property[constants.HW_Y_RES])
                 launch_cvd_args.append(
-                    "-cpus=%s" % avd_spec.hw_property[constants.HW_ALIAS_CPUS])
-            if constants.HW_ALIAS_MEMORY in avd_spec.hw_property:
-                launch_cvd_args.append(
-                    "-memory_mb=%s" % avd_spec.hw_property[constants.HW_ALIAS_MEMORY])
+                    "-dpi=" + avd_spec.hw_property[constants.HW_ALIAS_DPI])
+                if constants.HW_ALIAS_DISK in avd_spec.hw_property:
+                    launch_cvd_args.append(
+                        "-data_policy=" + self.DATA_POLICY_ALWAYS_CREATE)
+                    launch_cvd_args.append(
+                        "-blank_data_image_mb="
+                        + avd_spec.hw_property[constants.HW_ALIAS_DISK])
+                if constants.HW_ALIAS_CPUS in avd_spec.hw_property:
+                    launch_cvd_args.append(
+                        "-cpus=%s" % avd_spec.hw_property[constants.HW_ALIAS_CPUS])
+                if constants.HW_ALIAS_MEMORY in avd_spec.hw_property:
+                    launch_cvd_args.append(
+                        "-memory_mb=%s" % avd_spec.hw_property[constants.HW_ALIAS_MEMORY])
             if avd_spec.connect_webrtc:
                 launch_cvd_args.extend(_WEBRTC_ARGS)
                 launch_cvd_args.append(_WEBRTC_ID % {"instance": instance})
@@ -341,7 +343,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         if self._gpu:
             launch_cvd_args.append(_GPU_ARG)
 
-        launch_cvd_args.extend(_AGREEMENT_PROMPT_ARGS)
+        launch_cvd_args.append(_UNDEFOK_ARG)
+        launch_cvd_args.append(_AGREEMENT_PROMPT_ARG)
         return launch_cvd_args
 
     def StopCvd(self):
