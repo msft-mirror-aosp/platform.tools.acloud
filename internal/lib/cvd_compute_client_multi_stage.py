@@ -55,8 +55,8 @@ logger = logging.getLogger(__name__)
 
 _DECOMPRESS_KERNEL_ARG = "-decompress_kernel=true"
 _GPU_ARG = "-gpu_mode=auto"
-_AGREEMENT_PROMPT_ARG = "-report_anonymous_usage_stats=y"
-_UNDEFOK_ARG = "-undefok=report_anonymous_usage_stats,config"
+_AGREEMENT_PROMPT_ARGS = ["-undefok=report_anonymous_usage_stats",
+                          "-report_anonymous_usage_stats=y"]
 _NUM_AVDS_ARG = "-num_instances=%(num_AVD)s"
 _DEFAULT_BRANCH = "aosp-master"
 _FETCHER_BUILD_TARGET = "aosp_cf_x86_phone-userdebug"
@@ -343,8 +343,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         if self._gpu:
             launch_cvd_args.append(_GPU_ARG)
 
-        launch_cvd_args.append(_UNDEFOK_ARG)
-        launch_cvd_args.append(_AGREEMENT_PROMPT_ARG)
+        launch_cvd_args.extend(_AGREEMENT_PROMPT_ARGS)
         return launch_cvd_args
 
     def StopCvd(self):

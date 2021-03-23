@@ -23,6 +23,7 @@ import subprocess
 import tempfile
 
 from acloud import errors
+from acloud.create import create_common
 from acloud.internal import constants
 from acloud.internal.lib import utils
 from acloud.internal.lib import ssh
@@ -30,7 +31,6 @@ from acloud.public.actions import gce_device_factory
 
 
 logger = logging.getLogger(__name__)
-_ALL_FILES = "*"
 # bootloader and kernel are files required to launch AVD.
 _BOOTLOADER = "bootloader"
 _KERNEL = "kernel"
@@ -178,6 +178,12 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         except subprocess.CalledProcessError as e:
             raise errors.GetRemoteImageError("Fails to download images: %s" % e)
 
+        # TODO(b/170065928) Download host package via fetch_cvd.
+        # Cvd host package
+        create_common.DownloadRemoteArtifact(
+            cfg, build_target, build_id, constants.CVD_HOST_PACKAGE,
+            extract_path)
+
     def _ProcessRemoteHostArtifacts(self):
         """Process remote host artifacts.
 
@@ -188,7 +194,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
           is no permission to fetch build rom on the remote host.
         """
         if self._avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
-            self._UploadLocalImageArtifacts(
+            self._UploadArtifacts(
                 self._local_image_artifact, self._cvd_host_package_artifact,
                 self._avd_spec.local_image_dir)
         else:
@@ -196,7 +202,10 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
                 artifacts_path = tempfile.mkdtemp()
                 logger.debug("Extracted path of artifacts: %s", artifacts_path)
                 self._DownloadArtifacts(artifacts_path)
-                self._UploadRemoteImageArtifacts(artifacts_path)
+                self._UploadArtifacts(
+                    None,
+                    os.path.join(artifacts_path, constants.CVD_HOST_PACKAGE),
+                    artifacts_path)
             finally:
                 shutil.rmtree(artifacts_path)
 
@@ -213,9 +222,9 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             image_source: String, the type of image source is remote or local.
         """
         if image_source == constants.IMAGE_SRC_LOCAL:
-            self._UploadLocalImageArtifacts(self._local_image_artifact,
-                                            self._cvd_host_package_artifact,
-                                            self._avd_spec.local_image_dir)
+            self._UploadArtifacts(self._local_image_artifact,
+                                  self._cvd_host_package_artifact,
+                                  self._avd_spec.local_image_dir)
         elif image_source == constants.IMAGE_SRC_REMOTE:
             self._compute_client.UpdateFetchCvd()
             self._FetchBuild(self._avd_spec)
@@ -241,10 +250,10 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             avd_spec.bootloader_build_info[constants.BUILD_TARGET])
 
     @utils.TimeExecute(function_description="Processing and uploading local images")
-    def _UploadLocalImageArtifacts(self,
-                                   local_image_zip,
-                                   cvd_host_package_artifact,
-                                   images_dir):
+    def _UploadArtifacts(self,
+                         local_image_zip,
+                         cvd_host_package_artifact,
+                         images_dir):
         """Upload local images and avd local host package to instance.
 
         There are two ways to upload local images.
@@ -289,26 +298,6 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         remote_cmd = ("tar -x -z -f - < %s" % cvd_host_package_artifact)
         logger.debug("remote_cmd:\n %s", remote_cmd)
         self._ssh.Run(remote_cmd)
-
-    @utils.TimeExecute(function_description="Uploading remote image artifacts")
-    def _UploadRemoteImageArtifacts(self, images_dir):
-        """Upload remote image artifacts to instance.
-
-        Args:
-            images_dir: String, directory of local artifacts downloaded by fetch_cvd.
-        """
-        artifact_files = [
-            os.path.basename(image)
-            for image in glob.glob(os.path.join(images_dir, _ALL_FILES))
-        ]
-        # TODO(b/182259589): Refactor upload image command into a function.
-        cmd = ("tar -cf - --lzop -S -C {images_dir} {artifact_files} | "
-                "{ssh_cmd} -- tar -xf - --lzop -S".format(
-                    images_dir=images_dir,
-                    artifact_files=" ".join(artifact_files),
-                    ssh_cmd=self._ssh.GetBaseCmd(constants.SSH_BIN)))
-        logger.debug("cmd:\n %s", cmd)
-        ssh.ShellCmdWithRetry(cmd)
 
     def _LaunchCvd(self, instance, decompress_kernel=None,
                    boot_timeout_secs=None):
