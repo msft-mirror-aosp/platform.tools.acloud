@@ -53,7 +53,6 @@ import glob
 import logging
 import os
 import subprocess
-import threading
 import sys
 
 from acloud import errors
@@ -496,7 +495,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
     @staticmethod
     @utils.TimeExecute(function_description="Waiting for AVD(s) to boot up")
     def _LaunchCvd(cmd, local_instance_id, host_bins_path, cvd_home_dir,
-                   timeout=None):
+                   timeout):
         """Execute Launch CVD.
 
         Kick off the launch_cvd command and log the output.
@@ -519,15 +518,12 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         cvd_env[constants.ENV_CUTTLEFISH_INSTANCE] = str(local_instance_id)
         # Check the result of launch_cvd command.
         # An exit code of 0 is equivalent to VIRTUAL_DEVICE_BOOT_COMPLETED
-        process = subprocess.Popen(cmd, shell=True, stderr=subprocess.STDOUT,
-                                   env=cvd_env)
-        if timeout:
-            timer = threading.Timer(timeout, process.kill)
-            timer.start()
-        process.wait()
-        if timeout:
-            timer.cancel()
-        if process.returncode == 0:
-            return
-        raise errors.LaunchCVDFail("launch_cvd returned %s" %
-                                   process.returncode)
+        try:
+            subprocess.check_call(cmd, shell=True, stderr=subprocess.STDOUT,
+                                  env=cvd_env, timeout=timeout)
+        except subprocess.TimeoutExpired as e:
+            raise errors.LaunchCVDFail("Device did not boot within %d secs." %
+                                       timeout) from e
+        except subprocess.CalledProcessError as e:
+            raise errors.LaunchCVDFail("launch_cvd returned %s." %
+                                       e.returncode) from e
