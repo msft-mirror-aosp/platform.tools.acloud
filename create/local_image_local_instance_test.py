@@ -392,32 +392,55 @@ EOF"""
         self.assertTrue(answer)
 
     # pylint: disable=protected-access
+    @mock.patch("acloud.create.local_image_local_instance.subprocess."
+                "check_call")
     @mock.patch.dict("os.environ", clear=True)
-    def testLaunchCVD(self):
-        """test _LaunchCvd should call subprocess.Popen with the specific env"""
+    def testLaunchCVD(self, mock_check_call):
+        """test _LaunchCvd should call subprocess.check_call with the env."""
         local_instance_id = 3
         launch_cvd_cmd = "launch_cvd"
         host_bins_path = "host_bins_path"
         cvd_home_dir = "fake_home"
+        timeout = 100
         cvd_env = {}
         cvd_env[constants.ENV_CVD_HOME] = cvd_home_dir
         cvd_env[constants.ENV_CUTTLEFISH_INSTANCE] = str(local_instance_id)
         cvd_env[constants.ENV_ANDROID_SOONG_HOST_OUT] = host_bins_path
         cvd_env[constants.ENV_ANDROID_HOST_OUT] = host_bins_path
-        process = mock.MagicMock()
-        process.wait.return_value = True
-        process.returncode = 0
-        self.Patch(subprocess, "Popen", return_value=process)
 
         self.local_image_local_instance._LaunchCvd(launch_cvd_cmd,
                                                    local_instance_id,
                                                    host_bins_path,
-                                                   cvd_home_dir)
-        # pylint: disable=no-member
-        subprocess.Popen.assert_called_once_with(launch_cvd_cmd,
-                                                 shell=True,
-                                                 stderr=subprocess.STDOUT,
-                                                 env=cvd_env)
+                                                   cvd_home_dir,
+                                                   timeout)
+
+        mock_check_call.assert_called_once_with(launch_cvd_cmd,
+                                                shell=True,
+                                                stderr=subprocess.STDOUT,
+                                                env=cvd_env,
+                                                timeout=timeout)
+
+    @mock.patch("acloud.create.local_image_local_instance.subprocess."
+                "check_call")
+    def testLaunchCVDTimeout(self, mock_check_call):
+        """test _LaunchCvd with subprocess errors."""
+        mock_check_call.side_effect = subprocess.TimeoutExpired(
+            cmd="launch_cvd", timeout=100)
+        with self.assertRaises(errors.LaunchCVDFail):
+            self.local_image_local_instance._LaunchCvd("launch_cvd",
+                                                       3,
+                                                       "host_bins_path",
+                                                       "cvd_home_dir",
+                                                       100)
+
+        mock_check_call.side_effect = subprocess.CalledProcessError(
+            cmd="launch_cvd", returncode=1)
+        with self.assertRaises(errors.LaunchCVDFail):
+            self.local_image_local_instance._LaunchCvd("launch_cvd",
+                                                       3,
+                                                       "host_bins_path",
+                                                       "cvd_home_dir",
+                                                       100)
 
 
 if __name__ == "__main__":
