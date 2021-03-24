@@ -114,7 +114,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         expeted_args = ["-config=phone", "-x_res=1080", "-y_res=1920", "-dpi=240",
                         "-data_policy=always_create", "-blank_data_image_mb=10240",
                         "-cpus=2", "-memory_mb=4096", "-num_instances=2",
-                        "--setupwizard_mode=REQUIRED", "-gpu_mode=auto",
+                        "--setupwizard_mode=REQUIRED",
                         "-undefok=report_anonymous_usage_stats,config",
                         "-report_anonymous_usage_stats=y"]
         launch_cvd_args = self.cvd_compute_client_multi_stage._GetLaunchCvdArgs(fake_avd_spec)
@@ -122,7 +122,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
 
         # test GetLaunchCvdArgs without avd_spec
         expeted_args = ["-x_res=720", "-y_res=1280", "-dpi=160",
-                        "--setupwizard_mode=REQUIRED", "-gpu_mode=auto",
+                        "--setupwizard_mode=REQUIRED",
                         "-undefok=report_anonymous_usage_stats,config",
                         "-report_anonymous_usage_stats=y"]
         launch_cvd_args = self.cvd_compute_client_multi_stage._GetLaunchCvdArgs(
