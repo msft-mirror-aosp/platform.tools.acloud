@@ -36,6 +36,7 @@ _ACLOUD_BOOT_UP_ERROR = "ACLOUD_BOOT_UP_ERROR"
 _ACLOUD_DOWNLOAD_ARTIFACT_ERROR = "ACLOUD_DOWNLOAD_ARTIFACT_ERROR"
 # Error type of GCE quota error.
 _GCE_QUOTA_ERROR = "GCE_QUOTA_ERROR"
+_GCE_QUOTA_ERROR_MSG = "Quota exceeded for quota"
 _DICT_ERROR_TYPE = {
     constants.STAGE_INIT: "ACLOUD_INIT_ERROR",
     constants.STAGE_GCE: "ACLOUD_CREATE_GCE_ERROR",
@@ -76,7 +77,7 @@ def CreateSshKeyPairIfNecessary(cfg):
             "Unexpected error in CreateSshKeyPairIfNecessary")
 
 
-class DevicePool(object):
+class DevicePool:
     """A class that manages a pool of virtual devices.
 
     Attributes:
@@ -288,6 +289,8 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
             reporter.SetErrorType(_GCE_QUOTA_ERROR)
         if isinstance(e, errors.DownloadArtifactError):
             reporter.SetErrorType(_ACLOUD_DOWNLOAD_ARTIFACT_ERROR)
+        if _GCE_QUOTA_ERROR_MSG in str(e):
+            reporter.SetErrorType(_GCE_QUOTA_ERROR)
         reporter.AddError(str(e))
         reporter.SetStatus(report.Status.FAIL)
     return reporter
