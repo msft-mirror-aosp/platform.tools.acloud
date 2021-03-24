@@ -172,7 +172,7 @@ def _CheckForSetup(args):
     args.force = False
     args.update_config = None
     # Remote image/instance requires the GCP config setup.
-    if not args.local_instance or args.local_image == "":
+    if args.local_instance is None or args.local_image is None:
         gcp_setup = gcp_setup_runner.GcpTaskRunner(args.config_file)
         if gcp_setup.ShouldRun():
             args.gcp_init = True
@@ -183,7 +183,7 @@ def _CheckForSetup(args):
     # The following local instance create will trigger this if statment and go
     # through the whole setup again even though it's already done because the
     # user groups aren't set until the user logs out and back in.
-    if args.local_instance:
+    if args.local_instance is not None:
         host_pkg_setup = host_setup_runner.AvdPkgInstaller()
         if host_pkg_setup.ShouldRun():
             args.host = True
