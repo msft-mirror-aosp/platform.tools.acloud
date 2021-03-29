@@ -16,7 +16,8 @@
 """Tests for acloud.internal.lib.cheeps_compute_client."""
 
 import unittest
-import mock
+
+from unittest import mock
 
 from acloud.internal import constants
 from acloud.internal.lib import cheeps_compute_client
