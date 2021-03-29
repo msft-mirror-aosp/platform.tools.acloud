@@ -19,7 +19,8 @@
 import time
 
 import unittest
-import mock
+
+from unittest import mock
 
 from acloud import errors
 from acloud.internal.lib import base_cloud_client
