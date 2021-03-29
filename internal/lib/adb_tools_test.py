@@ -15,8 +15,9 @@
 
 import subprocess
 import unittest
+
+from unittest import mock
 from six import b
-import mock
 
 from acloud import errors
 from acloud.internal.lib import adb_tools

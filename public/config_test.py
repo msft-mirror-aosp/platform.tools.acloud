@@ -18,7 +18,8 @@
 import unittest
 import os
 import tempfile
-import mock
+
+from unittest import mock
 
 import six
 
