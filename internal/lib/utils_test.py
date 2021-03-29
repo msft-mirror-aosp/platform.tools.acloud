@@ -27,8 +27,9 @@ import time
 import webbrowser
 
 import unittest
+
+from unittest import mock
 import six
-import mock
 
 from acloud import errors
 from acloud.internal.lib import driver_test_lib
