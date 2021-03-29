@@ -20,7 +20,8 @@ import copy
 import os
 
 import unittest
-import mock
+
+from unittest import mock
 import six
 
 # pylint: disable=import-error
