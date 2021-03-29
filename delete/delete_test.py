@@ -15,7 +15,8 @@
 
 import subprocess
 import unittest
-import mock
+
+from unittest import mock
 
 from acloud.delete import delete
 from acloud.internal.lib import driver_test_lib

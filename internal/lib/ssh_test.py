@@ -20,7 +20,8 @@ import subprocess
 import unittest
 import threading
 import time
-import mock
+
+from unittest import mock
 
 from acloud import errors
 from acloud.internal import constants
