@@ -17,7 +17,8 @@
 
 import os
 import unittest
-import mock
+
+from unittest import mock
 import six
 
 from acloud.internal.lib import cvd_runtime_config as cf_cfg
