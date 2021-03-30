@@ -20,7 +20,8 @@ import glob
 import os
 import subprocess
 import unittest
-import mock
+
+from unittest import mock
 
 from acloud.create import avd_spec
 from acloud.internal import constants

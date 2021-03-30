@@ -20,7 +20,8 @@ import os
 import shutil
 import tempfile
 import unittest
-import mock
+
+from unittest import mock
 
 from acloud import errors
 from acloud.internal.lib import local_instance_lock

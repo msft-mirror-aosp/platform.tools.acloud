@@ -15,7 +15,8 @@
 # limitations under the License.
 """Tests for acloud.internal.lib.goldfish_compute_client."""
 import unittest
-import mock
+
+from unittest import mock
 
 from acloud.internal.lib import driver_test_lib
 from acloud.internal.lib import gcompute_client
