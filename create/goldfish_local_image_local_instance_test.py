@@ -17,7 +17,8 @@ import os
 import shutil
 import tempfile
 import unittest
-import mock
+
+from unittest import mock
 
 from acloud import errors
 import acloud.create.goldfish_local_image_local_instance as instance_module
