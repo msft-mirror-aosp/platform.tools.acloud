@@ -17,7 +17,7 @@ import collections
 import unittest
 import subprocess
 
-import mock
+from unittest import mock
 
 from acloud import errors
 from acloud.internal import constants
