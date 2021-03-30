@@ -21,7 +21,8 @@ Tests for acloud.public.actions.create_cuttlefish_action.
 
 import uuid
 import unittest
-import mock
+
+from unittest import mock
 
 from acloud.internal.lib import android_build_client
 from acloud.internal.lib import android_compute_client
