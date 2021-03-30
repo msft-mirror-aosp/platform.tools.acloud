@@ -19,12 +19,13 @@ import collections
 import datetime
 import subprocess
 import unittest
+
+from unittest import mock
 from six import b
 
 # pylint: disable=import-error
 import dateutil.parser
 import dateutil.tz
-import mock
 
 from acloud.internal import constants
 from acloud.internal.lib import cvd_runtime_config

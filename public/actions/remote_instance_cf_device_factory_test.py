@@ -21,8 +21,9 @@ import tempfile
 import unittest
 import uuid
 
+from unittest import mock
+
 import six
-import mock
 
 from acloud.create import avd_spec
 from acloud.internal import constants
@@ -419,12 +420,14 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.Patch(shutil, "rmtree")
         fake_avd_spec = mock.MagicMock()
         fake_avd_spec.cfg = mock.MagicMock()
+        fake_avd_spec.cfg.creds_cache_file = "cache.file"
         fake_avd_spec.remote_image = fake_remote_image
         fake_avd_spec.image_download_dir = "/tmp"
         self.Patch(os.path, "exists", return_value=False)
         self.Patch(os, "makedirs")
         factory = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
             fake_avd_spec)
+
         factory._DownloadArtifacts(extract_path)
         self.assertEqual(mock_check_call.call_count, 1)
 
@@ -446,6 +449,8 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         fake_avd_spec.instance_type = constants.INSTANCE_TYPE_HOST
         fake_avd_spec.image_source = constants.IMAGE_SRC_LOCAL
         fake_avd_spec._instance_name_to_reuse = None
+        fake_avd_spec.cfg = mock.MagicMock()
+        fake_avd_spec.cfg.creds_cache_file = "cache.file"
         fake_host_package_name = "/fake/host_package.tar.gz"
         fake_image_name = ""
         factory = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
