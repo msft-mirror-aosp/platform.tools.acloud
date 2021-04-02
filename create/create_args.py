@@ -369,10 +369,11 @@ def GetCreateArgParser(subparser):
                  constants.TYPE_FVP],
         help="Android Virtual Device type (default %s)." % constants.TYPE_CF)
     create_parser.add_argument(
-        "--flavor",
+        "--config", "--flavor",
         type=str,
         dest="flavor",
-        help="The device flavor of the AVD (default %s)." % constants.FLAVOR_PHONE)
+        help="The device flavor of the AVD (default %s). e.g. phone, tv, foldable."
+        % constants.FLAVOR_PHONE)
     create_parser.add_argument(
         "--local-image",
         const=constants.FIND_IN_BUILD_ENV,
