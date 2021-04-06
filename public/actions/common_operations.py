@@ -34,6 +34,7 @@ from acloud.internal.lib.adb_tools import AdbTools
 logger = logging.getLogger(__name__)
 _ACLOUD_BOOT_UP_ERROR = "ACLOUD_BOOT_UP_ERROR"
 _ACLOUD_DOWNLOAD_ARTIFACT_ERROR = "ACLOUD_DOWNLOAD_ARTIFACT_ERROR"
+_ACLOUD_GENERIC_ERROR = "ACLOUD_GENERIC_ERROR"
 # Error type of GCE quota error.
 _GCE_QUOTA_ERROR = "GCE_QUOTA_ERROR"
 _GCE_QUOTA_ERROR_MSG = "Quota exceeded for quota"
@@ -185,6 +186,23 @@ class DevicePool:
         """
         return self._devices
 
+def _GetErrorType(error):
+    """Get proper error type from the exception error.
+
+    Args:
+        error: errors object.
+
+    Returns:
+        String of error type. e.g. "ACLOUD_BOOT_UP_ERROR".
+    """
+    if isinstance(error, errors.CheckGCEZonesQuotaError):
+        return _GCE_QUOTA_ERROR
+    if isinstance(error, errors.DownloadArtifactError):
+        return _ACLOUD_DOWNLOAD_ARTIFACT_ERROR
+    if _GCE_QUOTA_ERROR_MSG in str(error):
+        return _GCE_QUOTA_ERROR
+    return _ACLOUD_GENERIC_ERROR
+
 # pylint: disable=too-many-locals,unused-argument,too-many-branches
 def CreateDevices(command, cfg, device_factory, num, avd_type,
                   report_internal_ip=False, autoconnect=False,
@@ -285,12 +303,7 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
             else:
                 reporter.AddData(key="devices", value=device_dict)
     except (errors.DriverError, errors.CheckGCEZonesQuotaError) as e:
-        if isinstance(e, errors.CheckGCEZonesQuotaError):
-            reporter.SetErrorType(_GCE_QUOTA_ERROR)
-        if isinstance(e, errors.DownloadArtifactError):
-            reporter.SetErrorType(_ACLOUD_DOWNLOAD_ARTIFACT_ERROR)
-        if _GCE_QUOTA_ERROR_MSG in str(e):
-            reporter.SetErrorType(_GCE_QUOTA_ERROR)
+        reporter.SetErrorType(_GetErrorType(e))
         reporter.AddError(str(e))
         reporter.SetStatus(report.Status.FAIL)
     return reporter
