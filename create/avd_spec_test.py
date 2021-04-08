@@ -430,6 +430,10 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.AvdSpec._ProcessMiscArgs(self.args)
         self.assertEqual(self.AvdSpec._instance_type, constants.INSTANCE_TYPE_HOST)
 
+        self.args.oxygen = True
+        self.AvdSpec._ProcessMiscArgs(self.args)
+        self.assertTrue(self.AvdSpec._oxygen)
+
         # Test avd_spec.autoconnect
         self.args.autoconnect = False
         self.AvdSpec._ProcessMiscArgs(self.args)

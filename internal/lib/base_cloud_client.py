@@ -37,7 +37,7 @@ from acloud.internal.lib import utils
 logger = logging.getLogger(__name__)
 
 
-class BaseCloudApiClient(object):
+class BaseCloudApiClient():
     """A class that does basic setup for a cloud API."""
 
     # To be overriden by subclasses.
