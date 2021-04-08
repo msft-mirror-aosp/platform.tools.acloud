@@ -53,6 +53,7 @@ from acloud.pull import pull
 
 logger = logging.getLogger(__name__)
 
+_CONFIG_ARG = "-config"
 _DECOMPRESS_KERNEL_ARG = "-decompress_kernel=true"
 _AGREEMENT_PROMPT_ARG = "-report_anonymous_usage_stats=y"
 _UNDEFOK_ARG = "-undefok=report_anonymous_usage_stats,config"
@@ -291,7 +292,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                 "-blank_data_image_mb=%d" % (blank_data_disk_size_gb * 1024))
         if avd_spec:
             launch_cvd_args.append("-config=%s" % avd_spec.flavor)
-            if avd_spec.hw_customize:
+            if avd_spec.hw_customize or not self._ArgSupportInLaunchCVD(_CONFIG_ARG):
                 launch_cvd_args.append(
                     "-x_res=" + avd_spec.hw_property[constants.HW_X_RES])
                 launch_cvd_args.append(
@@ -333,6 +334,19 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         launch_cvd_args.append(_UNDEFOK_ARG)
         launch_cvd_args.append(_AGREEMENT_PROMPT_ARG)
         return launch_cvd_args
+
+    def _ArgSupportInLaunchCVD(self, arg):
+        """Check if the arg is supported in launch_cvd.
+
+        Args:
+            arg: String of the arg. e.g. "-config".
+
+        Returns:
+            True if this arg is supported. Otherwise False.
+        """
+        if arg in self._ssh.GetCmdOutput("./bin/launch_cvd --help"):
+            return True
+        return False
 
     def StopCvd(self):
         """Stop CVD.

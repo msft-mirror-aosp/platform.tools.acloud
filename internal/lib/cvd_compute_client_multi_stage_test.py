@@ -85,6 +85,9 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.Patch(cvd_compute_client_multi_stage.CvdComputeClient, "InitResourceHandle")
         self.Patch(cvd_compute_client_multi_stage.CvdComputeClient, "_VerifyZoneByQuota",
                    return_value=True)
+        self.Patch(cvd_compute_client_multi_stage.CvdComputeClient,
+                   "_ArgSupportInLaunchCVD",
+                   return_value=True)
         self.Patch(android_build_client.AndroidBuildClient, "InitResourceHandle")
         self.Patch(android_build_client.AndroidBuildClient, "DownloadArtifact")
         self.Patch(list_instances, "GetInstancesFromInstanceNames", return_value=mock.MagicMock())
@@ -263,6 +266,13 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.cvd_compute_client_multi_stage.SetStage(device_stage)
         self.assertEqual(self.cvd_compute_client_multi_stage.stage,
                          device_stage)
+
+    def testArgSupportInLaunchCVD(self):
+        """Test ArgSupportInLaunchCVD"""
+        self.Patch(Ssh, "GetCmdOutput", return_value="-config (Config)")
+        self.assertTrue(
+            self.cvd_compute_client_multi_stage._ArgSupportInLaunchCVD(
+                "-config"))
 
 
 if __name__ == "__main__":

@@ -63,7 +63,7 @@ logger = logging.getLogger(__name__)
 _CONFIG_DATA_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "data")
 _DEFAULT_CONFIG_FILE = "acloud.config"
-_DEFAULT_HW_PROPERTY = "cpu:2,resolution:720x1280,dpi:320,memory:4g"
+_DEFAULT_HW_PROPERTY = "cpu:4,resolution:720x1280,dpi:320,memory:4g"
 
 # VERSION
 _VERSION_FILE = "VERSION"
@@ -111,7 +111,7 @@ def GetAcloudConfig(args):
     return cfg
 
 
-class AcloudConfig(object):
+class AcloudConfig():
     """A class that holds all configurations for acloud."""
 
     REQUIRED_FIELD = [
@@ -325,7 +325,7 @@ class AcloudConfig(object):
         return bool(self.project)
 
 
-class AcloudConfigManager(object):
+class AcloudConfigManager():
     """A class that loads configurations."""
 
     _DEFAULT_INTERNAL_CONFIG_PATH = os.path.join(_CONFIG_DATA_PATH,
