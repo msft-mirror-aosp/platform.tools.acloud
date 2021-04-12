@@ -176,6 +176,11 @@ class CommonOperationsTest(driver_test_lib.BaseDriverTest):
         expected_result = common_operations._ACLOUD_DOWNLOAD_ARTIFACT_ERROR
         self.assertEqual(common_operations._GetErrorType(error), expected_result)
 
+        # Test with DeviceConnectionError()
+        error = errors.DeviceConnectionError()
+        expected_result = common_operations._ACLOUD_SSH_CONNECT_ERROR
+        self.assertEqual(common_operations._GetErrorType(error), expected_result)
+
         # Test with ACLOUD_GENERIC_ERROR
         error = errors.DriverError()
         expected_result = common_operations._ACLOUD_GENERIC_ERROR
