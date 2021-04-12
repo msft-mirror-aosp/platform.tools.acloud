@@ -209,8 +209,9 @@ ERROR_LOG_FOLDER = "error_log_folder"
 # Stages for create progress
 STAGE_INIT = 0
 STAGE_GCE = 1
-STAGE_ARTIFACT = 2
-STAGE_BOOT_UP = 3
+STAGE_SSH_CONNECT = 2
+STAGE_ARTIFACT = 3
+STAGE_BOOT_UP = 4
 
 # The name of download image tool.
 FETCH_CVD = "fetch_cvd"
