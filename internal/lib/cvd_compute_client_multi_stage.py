@@ -135,6 +135,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                 remote host, e.g. "external:140.110.20.1, internal:10.0.0.1"
             user: String of user log in to the instance.
         """
+        self.SetStage(constants.STAGE_SSH_CONNECT)
         self._ssh = ssh
         self._ip = ip
         self._user = user
@@ -209,6 +210,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                         extra_args_ssh_tunnel=self._extra_args_ssh_tunnel,
                         report_internal_ip=self._report_internal_ip)
         try:
+            self.SetStage(constants.STAGE_SSH_CONNECT)
             self._ssh.WaitForSsh(timeout=self._ins_timeout_secs)
             if avd_spec:
                 if avd_spec.instance_name_to_reuse:
