@@ -187,6 +187,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
           build to local and unzip it then upload to remote host, because there
           is no permission to fetch build rom on the remote host.
         """
+        self._compute_client.SetStage(constants.STAGE_ARTIFACT)
         if self._avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
             self._UploadLocalImageArtifacts(
                 self._local_image_artifact, self._cvd_host_package_artifact,
