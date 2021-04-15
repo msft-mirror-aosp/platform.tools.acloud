@@ -19,7 +19,8 @@ import os
 import subprocess
 import tempfile
 import unittest
-import mock
+
+from unittest import mock
 
 from acloud import errors
 from acloud.create import local_image_local_instance
@@ -45,7 +46,7 @@ EOF"""
 
     LAUNCH_CVD_CMD_NO_DISK_WITH_GPU = """sg group1 <<EOF
 sg group2
-launch_cvd -daemon -config=phone -run_adb_connector=true -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,enable_sandbox,config -report_anonymous_usage_stats=y -enable_sandbox=false -cpus fake -x_res fake -y_res fake -dpi fake -memory_mb fake -start_vnc_server=true -gpu_mode=auto
+launch_cvd -daemon -config=phone -run_adb_connector=true -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,enable_sandbox,config -report_anonymous_usage_stats=y -enable_sandbox=false -cpus fake -x_res fake -y_res fake -dpi fake -memory_mb fake -start_vnc_server=true
 EOF"""
 
     LAUNCH_CVD_CMD_WITH_WEBRTC = """sg group1 <<EOF
@@ -337,7 +338,7 @@ EOF"""
 
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
             constants.CMD_LAUNCH_CVD, hw_property, True, "fake_image_dir",
-            "fake_cvd_dir", False, True, None, None, None, "phone")
+            "fake_cvd_dir", False, True, None, None, "phone")
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_DISK)
 
         # "disk" doesn't exist in hw_property.
@@ -345,30 +346,30 @@ EOF"""
                        "dpi": "fake", "memory": "fake"}
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
             constants.CMD_LAUNCH_CVD, hw_property, True, "fake_image_dir",
-            "fake_cvd_dir", False, True, None, None, None, "phone")
+            "fake_cvd_dir", False, True, None, None, "phone")
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_NO_DISK)
 
         # "gpu" is enabled with "default"
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
             constants.CMD_LAUNCH_CVD, hw_property, True, "fake_image_dir",
-            "fake_cvd_dir", False, True, "default", None, None, "phone")
+            "fake_cvd_dir", False, True, None, None, "phone")
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_NO_DISK_WITH_GPU)
 
         # Following test with hw_property is None.
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
             constants.CMD_LAUNCH_CVD, None, True, "fake_image_dir",
-            "fake_cvd_dir", True, False, None, None, None, "auto")
+            "fake_cvd_dir", True, False, None, None, "auto")
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_WEBRTC)
 
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
             constants.CMD_LAUNCH_CVD, None, True, "fake_image_dir",
-            "fake_cvd_dir", False, True, None, "fake_super_image", None, "phone")
+            "fake_cvd_dir", False, True, "fake_super_image", None, "phone")
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_SUPER_IMAGE)
 
         # Add args into launch command with "-setupwizard_mode=REQUIRED"
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
             constants.CMD_LAUNCH_CVD, None, True, "fake_image_dir",
-            "fake_cvd_dir", False, True, None, None,
+            "fake_cvd_dir", False, True, None,
             "-setupwizard_mode=REQUIRED", "phone")
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_ARGS)
 
@@ -392,32 +393,55 @@ EOF"""
         self.assertTrue(answer)
 
     # pylint: disable=protected-access
+    @mock.patch("acloud.create.local_image_local_instance.subprocess."
+                "check_call")
     @mock.patch.dict("os.environ", clear=True)
-    def testLaunchCVD(self):
-        """test _LaunchCvd should call subprocess.Popen with the specific env"""
+    def testLaunchCVD(self, mock_check_call):
+        """test _LaunchCvd should call subprocess.check_call with the env."""
         local_instance_id = 3
         launch_cvd_cmd = "launch_cvd"
         host_bins_path = "host_bins_path"
         cvd_home_dir = "fake_home"
+        timeout = 100
         cvd_env = {}
         cvd_env[constants.ENV_CVD_HOME] = cvd_home_dir
         cvd_env[constants.ENV_CUTTLEFISH_INSTANCE] = str(local_instance_id)
         cvd_env[constants.ENV_ANDROID_SOONG_HOST_OUT] = host_bins_path
         cvd_env[constants.ENV_ANDROID_HOST_OUT] = host_bins_path
-        process = mock.MagicMock()
-        process.wait.return_value = True
-        process.returncode = 0
-        self.Patch(subprocess, "Popen", return_value=process)
 
         self.local_image_local_instance._LaunchCvd(launch_cvd_cmd,
                                                    local_instance_id,
                                                    host_bins_path,
-                                                   cvd_home_dir)
-        # pylint: disable=no-member
-        subprocess.Popen.assert_called_once_with(launch_cvd_cmd,
-                                                 shell=True,
-                                                 stderr=subprocess.STDOUT,
-                                                 env=cvd_env)
+                                                   cvd_home_dir,
+                                                   timeout)
+
+        mock_check_call.assert_called_once_with(launch_cvd_cmd,
+                                                shell=True,
+                                                stderr=subprocess.STDOUT,
+                                                env=cvd_env,
+                                                timeout=timeout)
+
+    @mock.patch("acloud.create.local_image_local_instance.subprocess."
+                "check_call")
+    def testLaunchCVDTimeout(self, mock_check_call):
+        """test _LaunchCvd with subprocess errors."""
+        mock_check_call.side_effect = subprocess.TimeoutExpired(
+            cmd="launch_cvd", timeout=100)
+        with self.assertRaises(errors.LaunchCVDFail):
+            self.local_image_local_instance._LaunchCvd("launch_cvd",
+                                                       3,
+                                                       "host_bins_path",
+                                                       "cvd_home_dir",
+                                                       100)
+
+        mock_check_call.side_effect = subprocess.CalledProcessError(
+            cmd="launch_cvd", returncode=1)
+        with self.assertRaises(errors.LaunchCVDFail):
+            self.local_image_local_instance._LaunchCvd("launch_cvd",
+                                                       3,
+                                                       "host_bins_path",
+                                                       "cvd_home_dir",
+                                                       100)
 
 
 if __name__ == "__main__":

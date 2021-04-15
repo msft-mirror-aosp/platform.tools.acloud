@@ -53,8 +53,8 @@ from acloud.pull import pull
 
 logger = logging.getLogger(__name__)
 
+_CONFIG_ARG = "-config"
 _DECOMPRESS_KERNEL_ARG = "-decompress_kernel=true"
-_GPU_ARG = "-gpu_mode=auto"
 _AGREEMENT_PROMPT_ARG = "-report_anonymous_usage_stats=y"
 _UNDEFOK_ARG = "-undefok=report_anonymous_usage_stats,config"
 _NUM_AVDS_ARG = "-num_instances=%(num_AVD)s"
@@ -135,6 +135,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                 remote host, e.g. "external:140.110.20.1, internal:10.0.0.1"
             user: String of user log in to the instance.
         """
+        self.SetStage(constants.STAGE_SSH_CONNECT)
         self._ssh = ssh
         self._ip = ip
         self._user = user
@@ -209,6 +210,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                         extra_args_ssh_tunnel=self._extra_args_ssh_tunnel,
                         report_internal_ip=self._report_internal_ip)
         try:
+            self.SetStage(constants.STAGE_SSH_CONNECT)
             self._ssh.WaitForSsh(timeout=self._ins_timeout_secs)
             if avd_spec:
                 if avd_spec.instance_name_to_reuse:
@@ -223,12 +225,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                             system_branch, system_build_target, kernel_build_id,
                             kernel_branch, kernel_build_target, bootloader_build_id,
                             bootloader_branch, bootloader_build_target)
-            kernel_build = self._build_api.GetKernelBuild(kernel_build_id,
-                                                          kernel_branch,
-                                                          kernel_build_target)
             self.LaunchCvd(instance,
                            blank_data_disk_size_gb=blank_data_disk_size_gb,
-                           kernel_build=kernel_build,
                            boot_timeout_secs=self._boot_timeout_secs)
 
             return instance
@@ -274,14 +272,12 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
 
     # pylint: disable=too-many-branches
     def _GetLaunchCvdArgs(self, avd_spec=None, blank_data_disk_size_gb=None,
-                          kernel_build=None, decompress_kernel=None,
-                          instance=None):
+                          decompress_kernel=None, instance=None):
         """Get launch_cvd args.
 
         Args:
             avd_spec: An AVDSpec instance.
             blank_data_disk_size_gb: Size of the blank data disk in GB.
-            kernel_build: String, kernel build info.
             decompress_kernel: Boolean, if true decompress the kernel.
             instance: String, instance name.
 
@@ -298,7 +294,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                 "-blank_data_image_mb=%d" % (blank_data_disk_size_gb * 1024))
         if avd_spec:
             launch_cvd_args.append("-config=%s" % avd_spec.flavor)
-            if avd_spec.hw_customize:
+            if avd_spec.hw_customize or not self._ArgSupportInLaunchCVD(_CONFIG_ARG):
                 launch_cvd_args.append(
                     "-x_res=" + avd_spec.hw_property[constants.HW_X_RES])
                 launch_cvd_args.append(
@@ -331,21 +327,28 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             launch_cvd_args.append("-y_res=" + resolution[1])
             launch_cvd_args.append("-dpi=" + resolution[3])
 
-        if kernel_build:
-            launch_cvd_args.append("-kernel_path=kernel")
-
         if self._launch_args:
             launch_cvd_args.append(self._launch_args)
 
         if decompress_kernel:
             launch_cvd_args.append(_DECOMPRESS_KERNEL_ARG)
 
-        if self._gpu:
-            launch_cvd_args.append(_GPU_ARG)
-
         launch_cvd_args.append(_UNDEFOK_ARG)
         launch_cvd_args.append(_AGREEMENT_PROMPT_ARG)
         return launch_cvd_args
+
+    def _ArgSupportInLaunchCVD(self, arg):
+        """Check if the arg is supported in launch_cvd.
+
+        Args:
+            arg: String of the arg. e.g. "-config".
+
+        Returns:
+            True if this arg is supported. Otherwise False.
+        """
+        if arg in self._ssh.GetCmdOutput("./bin/launch_cvd --help"):
+            return True
+        return False
 
     def StopCvd(self):
         """Stop CVD.
@@ -376,7 +379,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
     @utils.TimeExecute(function_description="Launching AVD(s) and waiting for boot up",
                        result_evaluator=utils.BootEvaluator)
     def LaunchCvd(self, instance, avd_spec=None,
-                  blank_data_disk_size_gb=None, kernel_build=None,
+                  blank_data_disk_size_gb=None,
                   decompress_kernel=None,
                   boot_timeout_secs=None):
         """Launch CVD.
@@ -388,7 +391,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             instance: String, instance name.
             avd_spec: An AVDSpec instance.
             blank_data_disk_size_gb: Size of the blank data disk in GB.
-            kernel_build: String, kernel build info.
             decompress_kernel: Boolean, if true decompress the kernel.
             boot_timeout_secs: Integer, the maximum time to wait for the
                                command to respond.
@@ -402,7 +404,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         error_msg = ""
         launch_cvd_args = self._GetLaunchCvdArgs(avd_spec,
                                                  blank_data_disk_size_gb,
-                                                 kernel_build,
                                                  decompress_kernel,
                                                  instance)
         boot_timeout_secs = boot_timeout_secs or constants.DEFAULT_CF_BOOT_TIMEOUT

@@ -187,6 +187,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
           build to local and unzip it then upload to remote host, because there
           is no permission to fetch build rom on the remote host.
         """
+        self._compute_client.SetStage(constants.STAGE_ARTIFACT)
         if self._avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
             self._UploadLocalImageArtifacts(
                 self._local_image_artifact, self._cvd_host_package_artifact,
@@ -319,18 +320,11 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             boot_timeout_secs: Integer, the maximum time to wait for the
                                command to respond.
         """
-        kernel_build = None
         # TODO(b/140076771) Support kernel image for local image mode.
-        if self._avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
-            kernel_build = self._compute_client.build_api.GetKernelBuild(
-                self._avd_spec.kernel_build_info[constants.BUILD_ID],
-                self._avd_spec.kernel_build_info[constants.BUILD_BRANCH],
-                self._avd_spec.kernel_build_info[constants.BUILD_TARGET])
         self._compute_client.LaunchCvd(
             instance,
             self._avd_spec,
             self._cfg.extra_data_disk_size_gb,
-            kernel_build,
             decompress_kernel,
             boot_timeout_secs)
 

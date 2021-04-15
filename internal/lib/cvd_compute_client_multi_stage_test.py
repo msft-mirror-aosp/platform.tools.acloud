@@ -20,7 +20,8 @@ import glob
 import os
 import subprocess
 import unittest
-import mock
+
+from unittest import mock
 
 from acloud.create import avd_spec
 from acloud.internal import constants
@@ -84,6 +85,9 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.Patch(cvd_compute_client_multi_stage.CvdComputeClient, "InitResourceHandle")
         self.Patch(cvd_compute_client_multi_stage.CvdComputeClient, "_VerifyZoneByQuota",
                    return_value=True)
+        self.Patch(cvd_compute_client_multi_stage.CvdComputeClient,
+                   "_ArgSupportInLaunchCVD",
+                   return_value=True)
         self.Patch(android_build_client.AndroidBuildClient, "InitResourceHandle")
         self.Patch(android_build_client.AndroidBuildClient, "DownloadArtifact")
         self.Patch(list_instances, "GetInstancesFromInstanceNames", return_value=mock.MagicMock())
@@ -114,7 +118,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         expeted_args = ["-config=phone", "-x_res=1080", "-y_res=1920", "-dpi=240",
                         "-data_policy=always_create", "-blank_data_image_mb=10240",
                         "-cpus=2", "-memory_mb=4096", "-num_instances=2",
-                        "--setupwizard_mode=REQUIRED", "-gpu_mode=auto",
+                        "--setupwizard_mode=REQUIRED",
                         "-undefok=report_anonymous_usage_stats,config",
                         "-report_anonymous_usage_stats=y"]
         launch_cvd_args = self.cvd_compute_client_multi_stage._GetLaunchCvdArgs(fake_avd_spec)
@@ -122,7 +126,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
 
         # test GetLaunchCvdArgs without avd_spec
         expeted_args = ["-x_res=720", "-y_res=1280", "-dpi=160",
-                        "--setupwizard_mode=REQUIRED", "-gpu_mode=auto",
+                        "--setupwizard_mode=REQUIRED",
                         "-undefok=report_anonymous_usage_stats,config",
                         "-report_anonymous_usage_stats=y"]
         launch_cvd_args = self.cvd_compute_client_multi_stage._GetLaunchCvdArgs(
@@ -262,6 +266,13 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.cvd_compute_client_multi_stage.SetStage(device_stage)
         self.assertEqual(self.cvd_compute_client_multi_stage.stage,
                          device_stage)
+
+    def testArgSupportInLaunchCVD(self):
+        """Test ArgSupportInLaunchCVD"""
+        self.Patch(Ssh, "GetCmdOutput", return_value="-config (Config)")
+        self.assertTrue(
+            self.cvd_compute_client_multi_stage._ArgSupportInLaunchCVD(
+                "-config"))
 
 
 if __name__ == "__main__":

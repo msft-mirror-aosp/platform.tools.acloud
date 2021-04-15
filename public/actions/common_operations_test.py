@@ -20,8 +20,10 @@ from __future__ import division
 
 import shlex
 import unittest
-import mock
 
+from unittest import mock
+
+from acloud import errors
 from acloud.internal.lib import android_build_client
 from acloud.internal.lib import android_compute_client
 from acloud.internal.lib import auth
@@ -45,7 +47,7 @@ class CommonOperationsTest(driver_test_lib.BaseDriverTest):
     # pylint: disable=protected-access
     def setUp(self):
         """Set up the test."""
-        super(CommonOperationsTest, self).setUp()
+        super().setUp()
         self.build_client = mock.MagicMock()
         self.device_factory = mock.MagicMock()
         self.Patch(
@@ -161,6 +163,34 @@ class CommonOperationsTest(driver_test_lib.BaseDriverTest):
                 "build_target": self.BUILD_TARGET,
                 "gcs_bucket_build_id": self.BUILD_ID,
             }]})
+
+    def testGetErrorType(self):
+        """Test GetErrorType."""
+        # Test with CheckGCEZonesQuotaError()
+        error = errors.CheckGCEZonesQuotaError()
+        expected_result = common_operations._GCE_QUOTA_ERROR
+        self.assertEqual(common_operations._GetErrorType(error), expected_result)
+
+        # Test with DownloadArtifactError()
+        error = errors.DownloadArtifactError()
+        expected_result = common_operations._ACLOUD_DOWNLOAD_ARTIFACT_ERROR
+        self.assertEqual(common_operations._GetErrorType(error), expected_result)
+
+        # Test with DeviceConnectionError()
+        error = errors.DeviceConnectionError()
+        expected_result = common_operations._ACLOUD_SSH_CONNECT_ERROR
+        self.assertEqual(common_operations._GetErrorType(error), expected_result)
+
+        # Test with ACLOUD_GENERIC_ERROR
+        error = errors.DriverError()
+        expected_result = common_operations._ACLOUD_GENERIC_ERROR
+        self.assertEqual(common_operations._GetErrorType(error), expected_result)
+
+        # Test with error message about GCE quota issue
+        error = errors.DriverError("Quota exceeded for quota read group.")
+        expected_result = common_operations._GCE_QUOTA_ERROR
+        self.assertEqual(common_operations._GetErrorType(error), expected_result)
+
 
 if __name__ == "__main__":
     unittest.main()
