@@ -25,6 +25,7 @@ from acloud.internal.lib import utils
 from acloud.internal.lib.ssh import Ssh
 from acloud.internal.lib.ssh import IP
 from acloud.list import list as list_instances
+from acloud.powerwash import powerwash
 from acloud.public import config
 from acloud.public import report
 from acloud.reconnect import reconnect
@@ -33,13 +34,14 @@ from acloud.reconnect import reconnect
 logger = logging.getLogger(__name__)
 
 
-def RestartFromInstance(cfg, instance, instance_id):
+def RestartFromInstance(cfg, instance, instance_id, powerwash_data):
     """Restart AVD from remote CF instance.
 
     Args:
         cfg: AcloudConfig object.
         instance: list.Instance() object.
         instance_id: Integer of the instance id.
+        powerwash_data: Boolean, True to powerwash AVD data.
 
     Returns:
         A Report instance.
@@ -50,7 +52,10 @@ def RestartFromInstance(cfg, instance, instance_id):
               extra_args_ssh_tunnel=cfg.extra_args_ssh_tunnel)
     logger.info("Start to restart AVD id (%s) from the instance: %s.",
                 instance_id, instance.name)
-    RestartDevice(ssh, instance_id)
+    if powerwash_data:
+        powerwash.PowerwashDevice(ssh, instance_id)
+    else:
+        RestartDevice(ssh, instance_id)
     reconnect.ReconnectInstance(cfg.ssh_private_key_path,
                                 instance,
                                 report.Report(command="reconnect"),
@@ -89,7 +94,9 @@ def Run(args):
     if args.instance_name:
         instance = list_instances.GetInstancesFromInstanceNames(
             cfg, [args.instance_name])
-        return RestartFromInstance(cfg, instance[0], args.instance_id)
+        return RestartFromInstance(
+            cfg, instance[0], args.instance_id, args.powerwash)
     return RestartFromInstance(cfg,
                                list_instances.ChooseOneRemoteInstance(cfg),
-                               args.instance_id)
+                               args.instance_id,
+                               args.powerwash)

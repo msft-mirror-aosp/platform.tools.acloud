@@ -53,6 +53,7 @@ def PowerwashFromInstance(cfg, instance, instance_id):
     return report.Report(command="powerwash")
 
 
+@utils.TimeExecute(function_description="Waiting for AVD to powerwash")
 def PowerwashDevice(ssh, instance_id):
     """Powerwash AVD with the instance id.
 
