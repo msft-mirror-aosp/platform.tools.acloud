@@ -34,12 +34,13 @@ class RestartTest(driver_test_lib.BaseDriverTest):
         # Test case with provided instance name.
         args.instance_name = "instance_1"
         args.instance_id = 1
+        args.powerwash = False
         self.Patch(config, "GetAcloudConfig", return_value=cfg)
         self.Patch(list_instances, "GetInstancesFromInstanceNames",
                    return_value=[instance_obj])
         restart.Run(args)
         mock_restart.assert_has_calls([
-            mock.call(cfg, instance_obj, args.instance_id)])
+            mock.call(cfg, instance_obj, args.instance_id, args.powerwash)])
 
         # Test case for user select one instance to restart AVD.
         selected_instance = mock.MagicMock()
@@ -48,7 +49,7 @@ class RestartTest(driver_test_lib.BaseDriverTest):
         args.instance_name = None
         restart.Run(args)
         mock_restart.assert_has_calls([
-            mock.call(cfg, selected_instance, args.instance_id)])
+            mock.call(cfg, selected_instance, args.instance_id, args.powerwash)])
 
 
 if __name__ == '__main__':
