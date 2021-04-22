@@ -199,7 +199,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         Returns:
             A Report instance.
         """
-        webrtc_port = self._GetWebrtcSigServerPort(local_instance_id)
+        webrtc_port = self.GetWebrtcSigServerPort(local_instance_id)
         if avd_spec.connect_webrtc:
             utils.ReleasePort(webrtc_port)
 
@@ -265,7 +265,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         return result_report
 
     @staticmethod
-    def _GetWebrtcSigServerPort(instance_id):
+    def GetWebrtcSigServerPort(instance_id):
         """Get the port of the signaling server.
 
         Args:

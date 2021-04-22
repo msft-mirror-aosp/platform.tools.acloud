@@ -449,7 +449,7 @@ EOF"""
         instance_id = 3
         expected_port = 8445
         self.assertEqual(
-            self.local_image_local_instance._GetWebrtcSigServerPort(instance_id),
+            self.local_image_local_instance.GetWebrtcSigServerPort(instance_id),
             expected_port)
 
 
