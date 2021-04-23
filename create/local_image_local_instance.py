@@ -199,8 +199,9 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         Returns:
             A Report instance.
         """
+        webrtc_port = self._GetWebrtcSigServerPort(local_instance_id)
         if avd_spec.connect_webrtc:
-            utils.ReleasePort(constants.WEBRTC_LOCAL_PORT)
+            utils.ReleasePort(webrtc_port)
 
         cvd_home_dir = instance.GetLocalInstanceHomeDir(local_instance_id)
         create_common.PrepareLocalInstanceDir(cvd_home_dir, avd_spec)
@@ -246,7 +247,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         if active_ins:
             result_report.SetStatus(report.Status.SUCCESS)
             result_report.AddDevice(instance_name, constants.LOCALHOST,
-                                    active_ins.adb_port, active_ins.vnc_port)
+                                    active_ins.adb_port, active_ins.vnc_port,
+                                    webrtc_port)
             # Launch vnc client if we're auto-connecting.
             if avd_spec.connect_vnc:
                 utils.LaunchVNCFromReport(result_report, avd_spec, no_prompts)
@@ -261,6 +263,18 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             result_report.AddDeviceBootFailure(
                 instance_name, constants.LOCALHOST, None, None, error=err_msg)
         return result_report
+
+    @staticmethod
+    def _GetWebrtcSigServerPort(instance_id):
+        """Get the port of the signaling server.
+
+        Args:
+            instance_id: Integer of instance id.
+
+        Returns:
+            Integer of signaling server port.
+        """
+        return constants.WEBRTC_LOCAL_PORT + instance_id - 1
 
     @staticmethod
     def _FindCvdHostBinaries(search_paths):

@@ -69,7 +69,8 @@ EOF"""
             "instance_name": "local-instance-1",
             "ip": "0.0.0.0:6520",
             "adb_port": 6520,
-            "vnc_port": 6444
+            "vnc_port": 6444,
+            "webrtc_port": 8443
         }
     ]
 
@@ -442,6 +443,14 @@ EOF"""
                                                        "host_bins_path",
                                                        "cvd_home_dir",
                                                        100)
+
+    def testGetWebrtcSigServerPort(self):
+        """test GetWebrtcSigServerPort."""
+        instance_id = 3
+        expected_port = 8445
+        self.assertEqual(
+            self.local_image_local_instance._GetWebrtcSigServerPort(instance_id),
+            expected_port)
 
 
 if __name__ == "__main__":
