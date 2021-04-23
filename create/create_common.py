@@ -96,6 +96,27 @@ def GetCvdHostPackage():
         '\n'.join(dirs_to_check))
 
 
+def FindLocalImage(path, default_name):
+    """Find an image file in the given path.
+
+    Args:
+        path: The path to the file or the parent directory.
+        default_name: The file to look for if the path is a directory.
+
+    Returns:
+        The absolute path to the image file.
+
+    Raises:
+        errors.GetLocalImageError if this method cannot find the image.
+    """
+    path = os.path.abspath(path)
+    if os.path.isdir(path):
+        path = os.path.join(path, default_name)
+    if os.path.isfile(path):
+        return path
+    raise errors.GetLocalImageError("%s is not a file." % path)
+
+
 def DownloadRemoteArtifact(cfg, build_target, build_id, artifact, extract_path,
                            decompress=False):
     """Download remote artifact.
