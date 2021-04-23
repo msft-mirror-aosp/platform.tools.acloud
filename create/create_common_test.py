@@ -96,6 +96,22 @@ class CreateCommonTest(driver_test_lib.BaseDriverTest):
                 create_common.GetCvdHostPackage(),
                 "/fake_dir2/cvd-host_package.tar.gz")
 
+    @mock.patch("acloud.create.create_common.os.path.isfile",
+                side_effect=lambda path: path == "/dir/name")
+    @mock.patch("acloud.create.create_common.os.path.isdir",
+                side_effect=lambda path: path == "/dir")
+    def testFindLocalImage(self, _mock_isdir, _mock_isfile):
+        """Test FindLocalImage."""
+        self.assertEqual(
+            "/dir/name",
+            create_common.FindLocalImage("/test/../dir/name", "not_exist"))
+
+        self.assertEqual("/dir/name",
+                         create_common.FindLocalImage("/dir/", "name"))
+
+        with self.assertRaises(errors.GetLocalImageError):
+            create_common.FindLocalImage("/dir", "not_exist")
+
     @mock.patch.object(utils, "Decompress")
     def testDownloadRemoteArtifact(self, mock_decompress):
         """Test Download cuttlefish package."""

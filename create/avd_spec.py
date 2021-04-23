@@ -113,7 +113,7 @@ class AVDSpec():
         self._local_image_dir = None
         self._local_image_artifact = None
         self._local_instance_dir = None
-        self._local_system_image_dir = None
+        self._local_system_image = None
         self._local_tool_dirs = None
         self._image_download_dir = None
         self._num_of_instances = None
@@ -377,8 +377,11 @@ class AVDSpec():
         elif self._avd_type == constants.TYPE_FVP:
             self._ProcessFVPLocalImageArgs()
         elif self._avd_type == constants.TYPE_GF:
-            self._local_image_dir = self._ProcessLocalImageDirArgs(
+            self._local_image_dir = self._GetLocalImagePath(
                 args.local_image)
+            if not os.path.isdir(self._local_image_dir):
+                raise errors.GetLocalImageError("%s is not a directory." %
+                                                args.local_image)
         elif self._avd_type == constants.TYPE_GCE:
             self._local_image_artifact = self._GetGceLocalImagePath(
                 args.local_image)
@@ -388,7 +391,7 @@ class AVDSpec():
             )
 
         if args.local_system_image is not None:
-            self._local_system_image_dir = self._ProcessLocalImageDirArgs(
+            self._local_system_image = self._GetLocalImagePath(
                 args.local_system_image)
 
     @staticmethod
@@ -427,8 +430,8 @@ class AVDSpec():
                                      ", ".join(_GCE_LOCAL_IMAGE_CANDIDATES))
 
     @staticmethod
-    def _ProcessLocalImageDirArgs(local_image_arg):
-        """Get local image directory from argument or environment variable.
+    def _GetLocalImagePath(local_image_arg):
+        """Get local image path from argument or environment variable.
 
         Args:
             local_image_arg: The path to the unzipped image package. If the
@@ -436,22 +439,21 @@ class AVDSpec():
                              ANDROID_PRODUCT_OUT in build environment.
 
         Returns:
-            String, the path to the image directory.
+            String, the path to the image file or directory.
 
         Raises:
-            errors.GetLocalImageError if the directory is not found.
+            errors.GetLocalImageError if the path does not exist.
         """
         if local_image_arg == constants.FIND_IN_BUILD_ENV:
-            image_dir = utils.GetBuildEnvironmentVariable(
+            image_path = utils.GetBuildEnvironmentVariable(
                 constants.ENV_ANDROID_PRODUCT_OUT)
         else:
-            image_dir = local_image_arg
+            image_path = local_image_arg
 
-        if not os.path.isdir(image_dir):
-            raise errors.GetLocalImageError(
-                "%s is not a directory." % image_dir)
-
-        return image_dir
+        if not os.path.exists(image_path):
+            raise errors.GetLocalImageError("%s does not exist." %
+                                            local_image_arg)
+        return image_path
 
     def _ProcessCFLocalImageArgs(self, local_image_arg, flavor_arg):
         """Get local built image path for cuttlefish-type AVD.
@@ -730,9 +732,9 @@ class AVDSpec():
         return self._local_instance_dir
 
     @property
-    def local_system_image_dir(self):
-        """Return local system image dir."""
-        return self._local_system_image_dir
+    def local_system_image(self):
+        """Return local system image path."""
+        return self._local_system_image
 
     @property
     def local_tool_dirs(self):

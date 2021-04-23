@@ -366,18 +366,15 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         image_dir = os.path.abspath(avd_spec.local_image_dir)
         host_bins_path = self._FindCvdHostBinaries(avd_spec.local_tool_dirs)
 
-        if not avd_spec.local_system_image_dir:
+        if not avd_spec.local_system_image:
             return ArtifactPaths(image_dir, host_bins_path, None, None, None)
 
         misc_info_path = self._FindMiscInfo(image_dir)
         image_dir = self._FindImageDir(image_dir)
         ota_tools_dir = os.path.abspath(
             ota_tools.FindOtaTools(avd_spec.local_tool_dirs))
-        system_image_path = os.path.abspath(
-            os.path.join(avd_spec.local_system_image_dir, _SYSTEM_IMAGE_NAME))
-        if not os.path.isfile(system_image_path):
-            raise errors.GetLocalImageError(
-                "Cannot find %s." % system_image_path)
+        system_image_path = create_common.FindLocalImage(
+            avd_spec.local_system_image, _SYSTEM_IMAGE_NAME)
 
         return ArtifactPaths(image_dir, host_bins_path,
                              misc_info=misc_info_path,
