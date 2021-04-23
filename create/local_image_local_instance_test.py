@@ -257,7 +257,7 @@ EOF"""
 
             mock_avd_spec = mock.Mock(
                 local_image_dir=image_dir,
-                local_system_image_dir=None,
+                local_system_image=None,
                 local_tool_dirs=[cvd_dir])
 
             paths = self.local_image_local_instance.GetImageArtifactsPath(
@@ -283,7 +283,7 @@ EOF"""
 
             mock_avd_spec = mock.Mock(
                 local_image_dir=image_dir,
-                local_system_image_dir=system_image_dir,
+                local_system_image=system_image_dir,
                 local_tool_dirs=[])
 
             with mock.patch.dict("acloud.create.local_image_local_instance."
@@ -307,8 +307,7 @@ EOF"""
         with tempfile.TemporaryDirectory() as temp_dir:
             image_dir = os.path.join(temp_dir, "image")
             cvd_dir = os.path.join(temp_dir, "cvd-host_package")
-            system_image_dir = os.path.join(temp_dir, "system_image")
-            system_image_path = os.path.join(system_image_dir, "system.img")
+            system_image_path = os.path.join(temp_dir, "system", "test.img")
             misc_info_path = os.path.join(image_dir, "META", "misc_info.txt")
             self._CreateEmptyFile(os.path.join(image_dir, "IMAGES",
                                                "boot.img"))
@@ -318,7 +317,7 @@ EOF"""
 
             mock_avd_spec = mock.Mock(
                 local_image_dir=image_dir,
-                local_system_image_dir=system_image_dir,
+                local_system_image=system_image_path,
                 local_tool_dirs=[ota_tools_dir, cvd_dir])
 
             paths = self.local_image_local_instance.GetImageArtifactsPath(
