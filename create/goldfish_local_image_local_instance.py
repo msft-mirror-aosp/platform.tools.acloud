@@ -215,14 +215,14 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         return result_report
 
     @staticmethod
-    def _MixImages(output_dir, image_dir, system_image_dir, ota):
+    def _MixImages(output_dir, image_dir, system_image_path, ota):
         """Mix emulator images and a system image into a disk image.
 
         Args:
             output_dir: The path to the output directory.
             image_dir: The input directory that provides images except
                        system.img.
-            system_image_dir: The input directory that provides system.img.
+            system_image_path: The path to the system image.
             ota: An instance of ota_tools.OtaTools.
 
         Returns:
@@ -230,7 +230,6 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         """
         # Create the super image.
         mixed_super_image_path = os.path.join(output_dir, "mixed_super.img")
-        system_image_path = os.path.join(system_image_dir, _SYSTEM_IMAGE_NAME)
         ota.BuildSuperImage(
             mixed_super_image_path,
             os.path.join(image_dir, _MISC_INFO_FILE_NAME),
@@ -333,7 +332,7 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                 os.path.isfile(os.path.join(image_dir, _SYSTEM_IMAGE_NAME))):
             return image_dir
 
-        raise errors.GetLocalImageError("No system image in %s." % image_dir)
+        raise errors.GetLocalImageError("No device image in %s." % image_dir)
 
     @staticmethod
     def _IsEmulatorRunning(adb):
@@ -446,7 +445,7 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         if not avd_spec.autoconnect:
             args.append("-no-window")
 
-        if avd_spec.local_system_image_dir:
+        if avd_spec.local_system_image:
             mixed_image_dir = os.path.join(instance_dir, "mixed_images")
             if os.path.exists(mixed_image_dir):
                 shutil.rmtree(mixed_image_dir)
@@ -454,12 +453,14 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
 
             image_dir = self._FindImageDir(avd_spec.local_image_dir)
 
+            system_image_path = create_common.FindLocalImage(
+                avd_spec.local_system_image, _SYSTEM_IMAGE_NAME)
+
             ota_tools_dir = ota_tools.FindOtaTools(avd_spec.local_tool_dirs)
             ota_tools_dir = os.path.abspath(ota_tools_dir)
 
             mixed_image = self._MixImages(
-                mixed_image_dir, image_dir,
-                os.path.abspath(avd_spec.local_system_image_dir),
+                mixed_image_dir, image_dir, system_image_path,
                 ota_tools.OtaTools(ota_tools_dir))
 
             # TODO(b/142228085): Use -system instead of modifying image_dir.
