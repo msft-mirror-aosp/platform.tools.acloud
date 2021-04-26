@@ -159,6 +159,7 @@ class ReconnectTest(driver_test_lib.BaseDriverTest):
         instance_object.islocal = False
         instance_object.adb_port = "8686"
         instance_object.avd_type = "cuttlefish"
+        instance_object.webrtc_port = 8443
         self.Patch(subprocess, "check_call", return_value=True)
         self.Patch(utils, "LaunchVncClient")
         self.Patch(utils, "AutoConnect")
