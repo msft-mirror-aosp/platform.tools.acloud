@@ -119,6 +119,7 @@ class AVDSpec():
         self._num_of_instances = None
         self._num_avds_per_instance = None
         self._no_pull_log = None
+        self._oxygen = None
         self._remote_image = None
         self._system_build_info = None
         self._kernel_build_info = None
@@ -318,6 +319,7 @@ class AVDSpec():
         self._num_of_instances = args.num
         self._num_avds_per_instance = args.num_avds_per_instance
         self._no_pull_log = args.no_pull_log
+        self._oxygen = args.oxygen
         self._serial_log_file = args.serial_log_file
         self._emulator_build_id = args.emulator_build_id
         self._gpu = args.gpu
@@ -925,3 +927,8 @@ class AVDSpec():
     def gce_metadata(self):
         """Return gce_metadata."""
         return self._gce_metadata
+
+    @property
+    def oxygen(self):
+        """Return oxygen."""
+        return self._oxygen
