@@ -199,8 +199,9 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         Returns:
             A Report instance.
         """
+        webrtc_port = self.GetWebrtcSigServerPort(local_instance_id)
         if avd_spec.connect_webrtc:
-            utils.ReleasePort(constants.WEBRTC_LOCAL_PORT)
+            utils.ReleasePort(webrtc_port)
 
         cvd_home_dir = instance.GetLocalInstanceHomeDir(local_instance_id)
         create_common.PrepareLocalInstanceDir(cvd_home_dir, avd_spec)
@@ -246,7 +247,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         if active_ins:
             result_report.SetStatus(report.Status.SUCCESS)
             result_report.AddDevice(instance_name, constants.LOCALHOST,
-                                    active_ins.adb_port, active_ins.vnc_port)
+                                    active_ins.adb_port, active_ins.vnc_port,
+                                    webrtc_port)
             # Launch vnc client if we're auto-connecting.
             if avd_spec.connect_vnc:
                 utils.LaunchVNCFromReport(result_report, avd_spec, no_prompts)
@@ -261,6 +263,18 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             result_report.AddDeviceBootFailure(
                 instance_name, constants.LOCALHOST, None, None, error=err_msg)
         return result_report
+
+    @staticmethod
+    def GetWebrtcSigServerPort(instance_id):
+        """Get the port of the signaling server.
+
+        Args:
+            instance_id: Integer of instance id.
+
+        Returns:
+            Integer of signaling server port.
+        """
+        return constants.WEBRTC_LOCAL_PORT + instance_id - 1
 
     @staticmethod
     def _FindCvdHostBinaries(search_paths):
@@ -352,18 +366,15 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         image_dir = os.path.abspath(avd_spec.local_image_dir)
         host_bins_path = self._FindCvdHostBinaries(avd_spec.local_tool_dirs)
 
-        if not avd_spec.local_system_image_dir:
+        if not avd_spec.local_system_image:
             return ArtifactPaths(image_dir, host_bins_path, None, None, None)
 
         misc_info_path = self._FindMiscInfo(image_dir)
         image_dir = self._FindImageDir(image_dir)
         ota_tools_dir = os.path.abspath(
             ota_tools.FindOtaTools(avd_spec.local_tool_dirs))
-        system_image_path = os.path.abspath(
-            os.path.join(avd_spec.local_system_image_dir, _SYSTEM_IMAGE_NAME))
-        if not os.path.isfile(system_image_path):
-            raise errors.GetLocalImageError(
-                "Cannot find %s." % system_image_path)
+        system_image_path = create_common.FindLocalImage(
+            avd_spec.local_system_image, _SYSTEM_IMAGE_NAME)
 
         return ArtifactPaths(image_dir, host_bins_path,
                              misc_info=misc_info_path,

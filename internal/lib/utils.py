@@ -987,7 +987,8 @@ def LaunchBrowserFromReport(report):
     for device in report.data.get("devices", []):
         if device.get("ip"):
             LaunchBrowser(constants.WEBRTC_LOCAL_HOST,
-                          constants.WEBRTC_LOCAL_PORT)
+                          device.get(constants.WEBRTC_PORT,
+                                     constants.WEBRTC_LOCAL_PORT))
 
 
 def LaunchBrowser(ip_addr, port):

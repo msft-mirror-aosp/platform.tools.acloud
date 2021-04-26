@@ -247,6 +247,12 @@ def AddCommonCreateArgs(parser):
         default=1,
         help=argparse.SUPPRESS)
     parser.add_argument(
+        "--oxygen",
+        action="store_true",
+        dest="oxygen",
+        required=False,
+        help=argparse.SUPPRESS)
+    parser.add_argument(
         "--zone",
         type=str,
         dest="zone",
@@ -395,7 +401,8 @@ def GetCreateArgParser(subparser):
         required=False,
         help="Use the locally built system images for the AVD. Look for the "
         "images in $ANDROID_PRODUCT_OUT if no args value is provided. "
-        "e.g., --local-system-image or --local-system-image /path/to/dir")
+        "e.g., --local-system-image, --local-system-image /path/to/dir, or "
+        "--local-system-image /path/to/img")
     create_parser.add_argument(
         "--local-tool",
         type=str,
