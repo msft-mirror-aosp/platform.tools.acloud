@@ -247,6 +247,12 @@ def AddCommonCreateArgs(parser):
         default=1,
         help=argparse.SUPPRESS)
     parser.add_argument(
+        "--oxygen",
+        action="store_true",
+        dest="oxygen",
+        required=False,
+        help=argparse.SUPPRESS)
+    parser.add_argument(
         "--zone",
         type=str,
         dest="zone",

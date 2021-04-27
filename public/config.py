@@ -232,6 +232,8 @@ class AcloudConfig():
         self.hw_property = usr_cfg.hw_property
 
         self.launch_args = usr_cfg.launch_args
+        self.api_key = usr_cfg.api_key
+        self.api_url = usr_cfg.api_url
         self.instance_name_pattern = (
             usr_cfg.instance_name_pattern or
             internal_cfg.default_usr_cfg.instance_name_pattern)
