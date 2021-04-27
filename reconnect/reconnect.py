@@ -172,6 +172,7 @@ def ReconnectInstance(ssh_private_key_path,
     adb_cmd = AdbTools(instance.adb_port)
     vnc_port = instance.vnc_port
     adb_port = instance.adb_port
+    webrtc_port = instance.webrtc_port
     # ssh tunnel is up but device is disconnected on adb
     if instance.ssh_tunnel_is_connected and not adb_cmd.IsAdbConnectionAlive():
         adb_cmd.DisconnectAdb()
@@ -209,7 +210,7 @@ def ReconnectInstance(ssh_private_key_path,
                 ssh_user=constants.GCE_USER,
                 extra_args_ssh_tunnel=extra_args_ssh_tunnel)
         utils.LaunchBrowser(constants.WEBRTC_LOCAL_HOST,
-                            constants.WEBRTC_LOCAL_PORT)
+                            webrtc_port)
     elif(vnc_port and connect_vnc):
         StartVnc(vnc_port, instance.display)
 
