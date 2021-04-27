@@ -112,4 +112,10 @@ message UserConfig {
 
   // [CHEEPS only] The name of the L1 betty image (used with Cheeps controller)
   optional string betty_image = 31;
+
+  // [Oxygen only] The OAuth Credentials of API key.
+  optional string api_key = 32;
+
+  // [Oxygen only] The API service url.
+  optional string api_url = 33;
 }
