@@ -96,7 +96,7 @@ _DEFAULT_DISPLAY_SCALE = 1.0
 _DIST_DIR = "DIST_DIR"
 
 # For webrtc
-_WEBRTC_URL = "https://%(webrtc_ip)s:%(webrtc_port)d/?use_tcp=true"
+_WEBRTC_URL = "https://%(webrtc_ip)s:%(webrtc_port)d"
 
 _CONFIRM_CONTINUE = ("In order to display the screen to the AVD, we'll need to "
                      "install a vnc client (ssvnc). \nWould you like acloud to "
