@@ -311,7 +311,7 @@ class AcloudConfig():
 
     def Verify(self):
         """Verify configuration fields."""
-        missing = [f for f in self.REQUIRED_FIELD if not getattr(self, f)]
+        missing = self.GetMissingFields(self.REQUIRED_FIELD)
         if missing:
             raise errors.ConfigError(
                 "Missing required configuration fields: %s" % missing)
@@ -321,6 +321,17 @@ class AcloudConfig():
                 "Supported extra_data_disk_size_gb options(gb): %s, "
                 "invalid value: %d" % (self.precreated_data_image_map.keys(),
                                        self.extra_data_disk_size_gb))
+
+    def GetMissingFields(self, fields):
+        """Get missing required fields.
+
+        Args:
+            fields: List of field names.
+
+        Returns:
+            List of missing field names.
+        """
+        return [f for f in fields if not getattr(self, f)]
 
     def SupportRemoteInstance(self):
         """Return True if gcp project is provided in config."""
