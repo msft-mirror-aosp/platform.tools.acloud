@@ -298,6 +298,13 @@ common_hw_property_map {
         expected = "cpu:4,resolution:1280x800,dpi:160,memory:4g"
         self.assertEqual(expected, self.cfg.GetDefaultHwProperty("auto"))
 
+    def testGetMissingFields(self):
+        """Test GetMissingFields."""
+        fields = ["project", "zone", "hw_property"]
+        self.cfg.hw_property = ""
+        expected = ["hw_property"]
+        self.assertEqual(expected, self.cfg.GetMissingFields(fields))
+
 
 if __name__ == "__main__":
     unittest.main()
