@@ -67,6 +67,16 @@ class ReportTest(unittest.TestCase):
         test_report.SetErrorType(error_type)
         self.assertEqual(test_report.error_type, error_type)
 
+    def testUpdateFailure(self):
+        """test UpdateFailure."""
+        error_type = "GCE_QUOTA_ERROR"
+        error_msg = "Reach quota limit."
+        test_report = report.Report("create")
+        test_report.UpdateFailure(error_msg, error_type)
+        self.assertEqual(test_report.status, "FAIL")
+        self.assertEqual(test_report.errors, [error_msg])
+        self.assertEqual(test_report.error_type, error_type)
+
     def testAddDevice(self):
         """test AddDevice."""
         test_report = report.Report("create")
