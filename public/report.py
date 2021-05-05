@@ -216,6 +216,18 @@ class Report():
                        webrtc_port, device_serial, "devices_failing_boot")
         self.AddError(error)
 
+    def UpdateFailure(self, error, error_type=None):
+        """Update the falure information of report.
+
+        Args:
+            error: String, the error message.
+            error_type: String, the error type.
+        """
+        self.AddError(error)
+        self.SetStatus(Status.FAIL)
+        if error_type:
+            self.SetErrorType(error_type)
+
     def Dump(self, report_file):
         """Dump report content to a file.
 
