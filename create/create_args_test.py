@@ -36,6 +36,7 @@ def _CreateArgs():
         password=None,
         cheeps_betty_image=None,
         local_image=None,
+        local_kernel_image=None,
         local_system_image=None,
         system_branch=None,
         system_build_id=None,
