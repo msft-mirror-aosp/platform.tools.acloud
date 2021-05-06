@@ -100,7 +100,9 @@ class CreateCommonTest(driver_test_lib.BaseDriverTest):
                 side_effect=lambda path: path == "/dir/name")
     @mock.patch("acloud.create.create_common.os.path.isdir",
                 side_effect=lambda path: path == "/dir")
-    def testFindLocalImage(self, _mock_isdir, _mock_isfile):
+    @mock.patch("acloud.create.create_common.os.listdir",
+                return_value=["name", "name2"])
+    def testFindLocalImage(self, _mock_listdir, _mock_isdir, _mock_isfile):
         """Test FindLocalImage."""
         self.assertEqual(
             "/dir/name",
@@ -111,6 +113,9 @@ class CreateCommonTest(driver_test_lib.BaseDriverTest):
 
         with self.assertRaises(errors.GetLocalImageError):
             create_common.FindLocalImage("/dir", "not_exist")
+
+        with self.assertRaises(errors.GetLocalImageError):
+            create_common.FindLocalImage("/dir", "name.?")
 
     @mock.patch.object(utils, "Decompress")
     def testDownloadRemoteArtifact(self, mock_decompress):
