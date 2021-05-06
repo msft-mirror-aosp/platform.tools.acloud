@@ -59,6 +59,7 @@ _EMULATOR_BIN_NAME = "emulator"
 _EMULATOR_BIN_DIR_NAMES = ("bin64", "qemu")
 _SDK_REPO_EMULATOR_DIR_NAME = "emulator"
 _SYSTEM_IMAGE_NAME = "system.img"
+_SYSTEM_IMAGE_NAME_PATTERN = r"system\.img"
 _SYSTEM_QEMU_IMAGE_NAME = "system-qemu.img"
 _NON_MIXED_BACKUP_IMAGE_EXT = ".bak-non-mixed"
 _BUILD_PROP_FILE_NAME = "build.prop"
@@ -454,7 +455,7 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             image_dir = self._FindImageDir(avd_spec.local_image_dir)
 
             system_image_path = create_common.FindLocalImage(
-                avd_spec.local_system_image, _SYSTEM_IMAGE_NAME)
+                avd_spec.local_system_image, _SYSTEM_IMAGE_NAME_PATTERN)
 
             ota_tools_dir = ota_tools.FindOtaTools(avd_spec.local_tool_dirs)
             ota_tools_dir = os.path.abspath(ota_tools_dir)
