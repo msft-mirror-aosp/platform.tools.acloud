@@ -187,4 +187,4 @@ class RemoteImageLocalInstance(local_image_local_instance.LocalImageLocalInstanc
         # This method does not set the optional fields because launch_cvd loads
         # the paths from the fetcher config in image_dir.
         return local_image_local_instance.ArtifactPaths(
-            image_dir, image_dir, None, None, None)
+            image_dir, image_dir, None, None, None, None)
