@@ -113,6 +113,7 @@ class AVDSpec():
         self._local_image_dir = None
         self._local_image_artifact = None
         self._local_instance_dir = None
+        self._local_kernel_image = None
         self._local_system_image = None
         self._local_tool_dirs = None
         self._image_download_dir = None
@@ -391,6 +392,10 @@ class AVDSpec():
             raise errors.CreateError(
                 "Local image doesn't support the AVD type: %s" % self._avd_type
             )
+
+        if args.local_kernel_image is not None:
+            self._local_kernel_image = self._GetLocalImagePath(
+                args.local_kernel_image)
 
         if args.local_system_image is not None:
             self._local_system_image = self._GetLocalImagePath(
@@ -732,6 +737,11 @@ class AVDSpec():
     def local_instance_dir(self):
         """Return local instance directory."""
         return self._local_instance_dir
+
+    @property
+    def local_kernel_image(self):
+        """Return local kernel image path."""
+        return self._local_kernel_image
 
     @property
     def local_system_image(self):
