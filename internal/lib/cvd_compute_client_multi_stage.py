@@ -37,6 +37,7 @@ Android build, and start Android within the host instance.
 
 import logging
 import os
+import re
 import subprocess
 import tempfile
 import time
@@ -75,6 +76,7 @@ _VNC_ARGS = ["--start_vnc_server=true"]
 _NO_RETRY = 0
 # Launch cvd command for acloud report
 _LAUNCH_CVD_COMMAND = "launch_cvd_command"
+_CONFIG_RE = re.compile(r"^config=(?P<config>.+)")
 
 
 class CvdComputeClient(android_compute_client.AndroidComputeClient):
@@ -270,6 +272,22 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             self._metadata.update({"kernel_build_id": kernel_build_id})
             self._metadata.update({"kernel_build_target": kernel_build_target})
 
+    def _GetConfigFromAndroidInfo(self):
+        """Get config value from android-info.txt.
+
+        The config in android-info.txt would like "config=phone".
+
+        Returns:
+            Strings of config value.
+        """
+        android_info = self._ssh.GetCmdOutput(
+            "cat %s" % constants.ANDROID_INFO_FILE)
+        logger.debug("Android info: %s", android_info)
+        config_match = _CONFIG_RE.match(android_info)
+        if config_match:
+            return config_match.group("config")
+        return None
+
     # pylint: disable=too-many-branches
     def _GetLaunchCvdArgs(self, avd_spec=None, blank_data_disk_size_gb=None,
                           decompress_kernel=None, instance=None):
@@ -293,8 +311,10 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             launch_cvd_args.append(
                 "-blank_data_image_mb=%d" % (blank_data_disk_size_gb * 1024))
         if avd_spec:
-            launch_cvd_args.append("-config=%s" % avd_spec.flavor)
-            if avd_spec.hw_customize or not self._ArgSupportInLaunchCVD(_CONFIG_ARG):
+            config = self._GetConfigFromAndroidInfo()
+            if config:
+                launch_cvd_args.append("-config=%s" % config)
+            if avd_spec.hw_customize or not config:
                 launch_cvd_args.append(
                     "-x_res=" + avd_spec.hw_property[constants.HW_X_RES])
                 launch_cvd_args.append(
@@ -336,19 +356,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         launch_cvd_args.append(_UNDEFOK_ARG)
         launch_cvd_args.append(_AGREEMENT_PROMPT_ARG)
         return launch_cvd_args
-
-    def _ArgSupportInLaunchCVD(self, arg):
-        """Check if the arg is supported in launch_cvd.
-
-        Args:
-            arg: String of the arg. e.g. "-config".
-
-        Returns:
-            True if this arg is supported. Otherwise False.
-        """
-        if arg in self._ssh.GetCmdOutput("./bin/launch_cvd --help"):
-            return True
-        return False
 
     def StopCvd(self):
         """Stop CVD.
