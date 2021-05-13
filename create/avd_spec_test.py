@@ -46,6 +46,7 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.args.config_file = ""
         self.args.build_target = "fake_build_target"
         self.args.adb_port = None
+        self.args.launch_args = None
         self.Patch(list_instances, "ChooseOneRemoteInstance", return_value=mock.MagicMock())
         self.Patch(list_instances, "GetInstancesFromInstanceNames", return_value=mock.MagicMock())
         self.AvdSpec = avd_spec.AVDSpec(self.args)
@@ -337,6 +338,7 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         """Test _ProcessRemoteBuildArgs."""
         self.args.branch = "git_master"
         self.args.build_id = "1234"
+        self.args.launch_args = None
 
         # Verify auto-assigned avd_type if build_targe contains "_gce_".
         self.args.build_target = "aosp_gce_x86_phone-userdebug"
@@ -379,6 +381,7 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         # Setup acloud config with betty_image spec
         cfg = mock.MagicMock()
         cfg.betty_image = 'foobarbaz'
+        cfg.launch_args = None
         self.Patch(config, 'GetAcloudConfig', return_value=cfg)
         self.AvdSpec = avd_spec.AVDSpec(self.args)
         # --betty-image from cmdline should override config
