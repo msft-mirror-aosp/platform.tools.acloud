@@ -236,7 +236,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                                        avd_spec.connect_vnc,
                                        super_image_path,
                                        artifact_paths.boot_image,
-                                       avd_spec.cfg.launch_args,
+                                       avd_spec.launch_args,
                                        avd_spec.flavor)
 
         result_report = report.Report(command="create")

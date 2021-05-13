@@ -197,6 +197,12 @@ def AddCommonCreateArgs(parser):
         help="'cuttlefish only' System image build target, specify if different "
         "from --build-target",
         required=False)
+    parser.add_argument(
+        "--launch-args",
+        type=str,
+        dest="launch_args",
+        help="'cuttlefish only' Add extra args to launch_cvd command.",
+        required=False)
     # TODO(146314062): Remove --multi-stage-launch after infra don't use this
     # args.
     parser.add_argument(
