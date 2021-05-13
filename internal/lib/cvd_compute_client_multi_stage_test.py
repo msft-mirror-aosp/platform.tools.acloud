@@ -107,6 +107,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.args.hw_property = "cpu:2,resolution:1080x1920,dpi:240,memory:4g,disk:10g"
         self.args.num_avds_per_instance = 2
         self.args.remote_host = False
+        self.args.launch_args = self.LAUNCH_ARGS
 
     # pylint: disable=protected-access
     @mock.patch.object(utils, "GetBuildEnvironmentVariable", return_value="fake_env_cf_x86")
