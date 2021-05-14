@@ -321,13 +321,15 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             if avd_spec.num_avds_per_instance > 1:
                 launch_cvd_args.append(
                     _NUM_AVDS_ARG % {"num_AVD": avd_spec.num_avds_per_instance})
+            if avd_spec.launch_args:
+                launch_cvd_args.append(avd_spec.launch_args)
         else:
             resolution = self._resolution.split("x")
             launch_cvd_args.append("-x_res=" + resolution[0])
             launch_cvd_args.append("-y_res=" + resolution[1])
             launch_cvd_args.append("-dpi=" + resolution[3])
 
-        if self._launch_args:
+        if not avd_spec and self._launch_args:
             launch_cvd_args.append(self._launch_args)
 
         if decompress_kernel:
