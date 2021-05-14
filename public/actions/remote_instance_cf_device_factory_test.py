@@ -66,6 +66,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.flavor = "phone"
         args.local_image = constants.FIND_IN_BUILD_ENV
         args.local_system_image = None
+        args.launch_args = None
         avd_spec_local_img = avd_spec.AVDSpec(args)
         fake_image_name = "/fake/aosp_cf_x86_phone-img-eng.username.zip"
         fake_host_package_name = "/fake/host_package.tar.gz"
@@ -106,6 +107,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.local_image = constants.FIND_IN_BUILD_ENV
         args.local_system_image = None
         args.adb_port = None
+        args.launch_args = None
         fake_avd_spec = avd_spec.AVDSpec(args)
         fake_avd_spec.cfg.enable_multi_stage = True
         fake_avd_spec._instance_name_to_reuse = None
@@ -151,6 +153,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.local_image = constants.FIND_IN_BUILD_ENV
         args.local_system_image = None
         args.adb_port = None
+        args.launch_args = None
         fake_avd_spec = avd_spec.AVDSpec(args)
         fake_avd_spec.cfg.enable_multi_stage = True
         fake_avd_spec._instance_name_to_reuse = None
@@ -184,6 +187,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.local_image = constants.FIND_IN_BUILD_ENV
         args.local_system_image = None
         args.adb_port = None
+        args.launch_args = None
         fake_avd_spec = avd_spec.AVDSpec(args)
         fake_avd_spec.cfg.enable_multi_stage = True
         fake_avd_spec._instance_name_to_reuse = "fake-1234-userbuild-fake-target"
@@ -213,6 +217,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.local_system_image = None
         args.adb_port = None
         args.cheeps_betty_image = None
+        args.launch_args = None
         avd_spec_local_image = avd_spec.AVDSpec(args)
         factory = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
             avd_spec_local_image,
@@ -271,6 +276,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.local_image = "fake_local_image"
         args.local_system_image = None
         args.adb_port = None
+        args.launch_args = None
         avd_spec_local_image = avd_spec.AVDSpec(args)
         factory = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
             avd_spec_local_image,
@@ -332,6 +338,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.local_image = "fake_local_image"
         args.local_system_image = None
         args.adb_port = None
+        args.launch_args = None
         avd_spec_local_image = avd_spec.AVDSpec(args)
         factory = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
             avd_spec_local_image,
