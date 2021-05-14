@@ -110,6 +110,7 @@ class AVDSpec():
         self._flavor = None
         self._image_source = None
         self._instance_type = None
+        self._launch_args = None
         self._local_image_dir = None
         self._local_image_artifact = None
         self._local_instance_dir = None
@@ -333,6 +334,8 @@ class AVDSpec():
 
         self._boot_timeout_secs = args.boot_timeout_secs
         self._ins_timeout_secs = args.ins_timeout_secs
+        self._launch_args = " ".join(
+            list(filter(None, [self._cfg.launch_args, args.launch_args])))
 
         if args.reuse_gce:
             if args.reuse_gce != constants.SELECT_ONE_GCE_INSTANCE:
@@ -942,3 +945,8 @@ class AVDSpec():
     def oxygen(self):
         """Return oxygen."""
         return self._oxygen
+
+    @property
+    def launch_args(self):
+        """Return launch_args."""
+        return self._launch_args
