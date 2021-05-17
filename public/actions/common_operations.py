@@ -34,7 +34,7 @@ from acloud.internal.lib.adb_tools import AdbTools
 logger = logging.getLogger(__name__)
 _ACLOUD_BOOT_UP_ERROR = "ACLOUD_BOOT_UP_ERROR"
 _ACLOUD_DOWNLOAD_ARTIFACT_ERROR = "ACLOUD_DOWNLOAD_ARTIFACT_ERROR"
-_ACLOUD_GENERIC_ERROR = "ACLOUD_GENERIC_ERROR"
+_ACLOUD_UNRECOGNIZED_ERROR_TYPE = "ACLOUD_UNRECOGNIZED_ERROR_TYPE"
 _ACLOUD_SSH_CONNECT_ERROR = "ACLOUD_SSH_CONNECT_ERROR"
 # Error type of GCE quota error.
 _GCE_QUOTA_ERROR = "GCE_QUOTA_ERROR"
@@ -205,7 +205,7 @@ def _GetErrorType(error):
         return _ACLOUD_SSH_CONNECT_ERROR
     if _GCE_QUOTA_ERROR_MSG in str(error):
         return _GCE_QUOTA_ERROR
-    return _ACLOUD_GENERIC_ERROR
+    return _ACLOUD_UNRECOGNIZED_ERROR_TYPE
 
 # pylint: disable=too-many-locals,unused-argument,too-many-branches
 def CreateDevices(command, cfg, device_factory, num, avd_type,
