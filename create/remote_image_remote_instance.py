@@ -33,6 +33,7 @@ from acloud.public import report
 
 logger = logging.getLogger(__name__)
 _DEVICE = "device"
+_DEVICES = "devices"
 _DEVICE_KEY_MAPPING = {"serverUrl": "ip", "sessionId": "instance_name"}
 _LAUNCH_CVD_TIME = "launch_cvd_time"
 
@@ -96,7 +97,8 @@ class RemoteImageRemoteInstance(base_avd_create.BaseAVDCreate):
             device_data = response[_DEVICE]
             device_data[_LAUNCH_CVD_TIME] = execution_time
             self._ReplaceDeviceDataKeys(device_data)
-            reporter.UpdateData(response)
+            dict_devices = {_DEVICES: [device_data]}
+            reporter.UpdateData(dict_devices)
         else:
             reporter.SetStatus(report.Status.FAIL)
             reporter.AddError(response.get("errorMessage"))
