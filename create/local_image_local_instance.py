@@ -381,7 +381,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             misc_info_path = self._FindMiscInfo(image_dir)
             image_dir = self._FindImageDir(image_dir)
             ota_tools_dir = os.path.abspath(
-                ota_tools.FindOtaTools(avd_spec.local_tool_dirs))
+                ota_tools.FindOtaToolsDir(avd_spec.local_tool_dirs))
             system_image_path = create_common.FindLocalImage(
                 avd_spec.local_system_image, _SYSTEM_IMAGE_NAME_PATTERN)
         else:
