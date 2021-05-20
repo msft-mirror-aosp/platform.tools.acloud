@@ -59,8 +59,19 @@ _EMULATOR_BIN_NAME = "emulator"
 _EMULATOR_BIN_DIR_NAMES = ("bin64", "qemu")
 _SDK_REPO_EMULATOR_DIR_NAME = "emulator"
 _SYSTEM_IMAGE_NAME = "system.img"
-_SYSTEM_IMAGE_NAME_PATTERN = r"system\.img"
 _SYSTEM_QEMU_IMAGE_NAME = "system-qemu.img"
+# The pattern corresponds to the officially released GKI (Generic Kernel
+# Image). The names are boot-<kernel version>.img. Emulator has no boot.img.
+_BOOT_IMAGE_NAME_PATTERN = r"boot-[\d.]+\.img"
+_SYSTEM_IMAGE_NAME_PATTERN = r"system\.img"
+# File names in an unpacked boot image.
+_UNPACK_DIR_NAME = "unpacked_boot_img"
+_UNPACKED_KERNEL_IMAGE_NAME = "kernel"
+_UNPACKED_RAMDISK_IMAGE_NAME = "ramdisk"
+# File names in a build environment or an SDK repository. They follow the
+# search order of emulator.
+_DISK_IMAGE_NAMES = (_SYSTEM_QEMU_IMAGE_NAME, _SYSTEM_IMAGE_NAME)
+_RAMDISK_IMAGE_NAMES = ("ramdisk-qemu.img", "ramdisk.img")
 _NON_MIXED_BACKUP_IMAGE_EXT = ".bak-non-mixed"
 _BUILD_PROP_FILE_NAME = "build.prop"
 _MISC_INFO_FILE_NAME = "misc_info.txt"
@@ -216,6 +227,78 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         return result_report
 
     @staticmethod
+    def _FindFileByNames(parent_dir, names):
+        """Find file under a directory by names.
+
+        Args:
+            parent_dir: The directory to find the file in.
+            names: A list of file names.
+
+        Returns:
+            The path to the first existing file in the list.
+
+        Raises:
+            errors.GetLocalImageError if none of the files exist.
+        """
+        for name in names:
+            path = os.path.join(parent_dir, name)
+            if os.path.isfile(path):
+                return path
+        raise errors.GetLocalImageError("No %s in %s." %
+                                        (", ".join(names), parent_dir))
+
+    @staticmethod
+    def _FindKernelImagesInBootImage(boot_image_path, instance_dir, ota):
+        """Unpack a boot image and find kernel images.
+
+        Args:
+            boot_image_path: The path to the boot image.
+            instance_dir: The directory where the boot image is unpacked.
+            ota: An instance of ota_tools.OtaTools.
+
+        Returns:
+            The kernel image path and the ramdisk image path.
+
+        Raises:
+            errors.GetLocalImageError if any image is not found.
+        """
+        unpack_dir = os.path.join(instance_dir, _UNPACK_DIR_NAME)
+        if os.path.exists(unpack_dir):
+            shutil.rmtree(unpack_dir)
+
+        ota.UnpackBootImg(unpack_dir, boot_image_path)
+
+        kernel_path = os.path.join(unpack_dir, _UNPACKED_KERNEL_IMAGE_NAME)
+        ramdisk_path = os.path.join(unpack_dir, _UNPACKED_RAMDISK_IMAGE_NAME)
+        if not os.path.isfile(kernel_path):
+            raise errors.GetLocalImageError("No kernel in %s." %
+                                            boot_image_path)
+        if not os.path.isfile(ramdisk_path):
+            raise errors.GetLocalImageError("No ramdisk in %s." %
+                                            boot_image_path)
+        return kernel_path, ramdisk_path
+
+    @staticmethod
+    def _MixRamdiskImages(output_path, original_ramdisk_path,
+                          boot_ramdisk_path):
+        """Mix an emulator ramdisk and a boot ramdisk.
+
+        An emulator ramdisk consists of a boot ramdisk and a vendor ramdisk.
+        This method overlays a new boot ramdisk on the emulator ramdisk by
+        concatenating them.
+
+        Args:
+            output_path: The path to the output ramdisk.
+            original_ramdisk_path: The path to the emulator ramdisk.
+            boot_ramdisk_path: The path to the boot ramdisk.
+        """
+        with open(output_path, "wb") as mixed_ramdisk:
+            with open(original_ramdisk_path, "rb") as ramdisk:
+                shutil.copyfileobj(ramdisk, mixed_ramdisk)
+            with open(boot_ramdisk_path, "rb") as ramdisk:
+                shutil.copyfileobj(ramdisk, mixed_ramdisk)
+
+    @staticmethod
     def _MixImages(output_dir, image_dir, system_image_path, ota):
         """Mix emulator images and a system image into a disk image.
 
@@ -243,14 +326,14 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         ota.MakeDisabledVbmetaImage(disabled_vbmeta_image_path)
 
         # Create the disk image.
-        combined_image = os.path.join(output_dir, "combined.img")
+        disk_image = os.path.join(output_dir, "mixed_disk.img")
         ota.MkCombinedImg(
-            combined_image,
+            disk_image,
             os.path.join(image_dir, _SYSTEM_QEMU_CONFIG_FILE_NAME),
             lambda partition: ota_tools.GetImageForPartition(
                 partition, image_dir, super=mixed_super_image_path,
                 vbmeta=disabled_vbmeta_image_path))
-        return combined_image
+        return disk_image
 
     @staticmethod
     def _FindEmulatorBinary(search_paths):
@@ -329,8 +412,8 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             if os.path.isdir(first_entry):
                 image_dir = first_entry
 
-        if (os.path.isfile(os.path.join(image_dir, _SYSTEM_QEMU_IMAGE_NAME)) or
-                os.path.isfile(os.path.join(image_dir, _SYSTEM_IMAGE_NAME))):
+        if any(os.path.isfile(os.path.join(image_dir, name)) for name in
+               _DISK_IMAGE_NAMES):
             return image_dir
 
         raise errors.GetLocalImageError("No device image in %s." % image_dir)
@@ -446,6 +529,8 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         if not avd_spec.autoconnect:
             args.append("-no-window")
 
+        image_dir = None
+        ota = None
         if avd_spec.local_system_image:
             mixed_image_dir = os.path.join(instance_dir, "mixed_images")
             if os.path.exists(mixed_image_dir):
@@ -457,12 +542,10 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             system_image_path = create_common.FindLocalImage(
                 avd_spec.local_system_image, _SYSTEM_IMAGE_NAME_PATTERN)
 
-            ota_tools_dir = ota_tools.FindOtaTools(avd_spec.local_tool_dirs)
-            ota_tools_dir = os.path.abspath(ota_tools_dir)
+            ota = ota_tools.FindOtaTools(avd_spec.local_tool_dirs)
 
-            mixed_image = self._MixImages(
-                mixed_image_dir, image_dir, system_image_path,
-                ota_tools.OtaTools(ota_tools_dir))
+            mixed_image = self._MixImages(mixed_image_dir, image_dir,
+                                          system_image_path, ota)
 
             # TODO(b/142228085): Use -system instead of modifying image_dir.
             self._ReplaceSystemQemuImg(mixed_image, image_dir)
@@ -470,6 +553,27 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             # Unlock the device so that the disabled vbmeta takes effect.
             args.extend(("-qemu", "-append",
                          "androidboot.verifiedbootstate=orange"))
+
+        if avd_spec.local_kernel_image:
+            # Unpack kernel and ramdisk from boot image.
+            boot_image_path = create_common.FindLocalImage(
+                avd_spec.local_kernel_image, _BOOT_IMAGE_NAME_PATTERN)
+            if not ota:
+                ota = ota_tools.FindOtaTools(avd_spec.local_tool_dirs)
+            kernel_path, ramdisk_path = self._FindKernelImagesInBootImage(
+                boot_image_path, instance_dir, ota)
+            # Find emulator ramdisk.
+            if not image_dir:
+                image_dir = self._FindImageDir(avd_spec.local_image_dir)
+            mixed_ramdisk_path = os.path.join(instance_dir, "mixed_ramdisk")
+            original_ramdisk_path = self._FindFileByNames(image_dir,
+                                                          _RAMDISK_IMAGE_NAMES)
+
+            self._MixRamdiskImages(mixed_ramdisk_path, original_ramdisk_path,
+                                   ramdisk_path)
+
+            args.extend(("-kernel", kernel_path,
+                         "-ramdisk", mixed_ramdisk_path))
 
         return args
 

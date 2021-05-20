@@ -264,7 +264,7 @@ EOF"""
             paths = self.local_image_local_instance.GetImageArtifactsPath(
                 mock_avd_spec)
 
-        mock_ota_tools.FindOtaTools.assert_not_called()
+        mock_ota_tools.FindOtaToolsDir.assert_not_called()
         self.assertEqual(paths, (image_dir, cvd_dir, None, None, None, None))
 
     @mock.patch("acloud.create.local_image_local_instance.ota_tools")
@@ -273,7 +273,7 @@ EOF"""
         with tempfile.TemporaryDirectory() as temp_dir:
             image_dir = os.path.join(temp_dir, "image")
             cvd_dir = os.path.join(temp_dir, "cvd-host_package")
-            mock_ota_tools.FindOtaTools.return_value = cvd_dir
+            mock_ota_tools.FindOtaToolsDir.return_value = cvd_dir
             extra_image_dir = os.path.join(temp_dir, "extra_image")
             system_image_path = os.path.join(extra_image_dir, "system.img")
             boot_image_path = os.path.join(extra_image_dir, "boot.img")
@@ -299,7 +299,7 @@ EOF"""
                 paths = self.local_image_local_instance.GetImageArtifactsPath(
                     mock_avd_spec)
 
-        mock_ota_tools.FindOtaTools.assert_called_once()
+        mock_ota_tools.FindOtaToolsDir.assert_called_once()
         self.assertEqual(paths,
                          (image_dir, cvd_dir, misc_info_path, cvd_dir,
                           system_image_path, boot_image_path))
@@ -308,7 +308,7 @@ EOF"""
     def testGetImageFromTargetFiles(self, mock_ota_tools):
         """Test GetImageArtifactsPath with extracted target files."""
         ota_tools_dir = "/mock_ota_tools"
-        mock_ota_tools.FindOtaTools.return_value = ota_tools_dir
+        mock_ota_tools.FindOtaToolsDir.return_value = ota_tools_dir
 
         with tempfile.TemporaryDirectory() as temp_dir:
             image_dir = os.path.join(temp_dir, "image")
@@ -332,7 +332,7 @@ EOF"""
             paths = self.local_image_local_instance.GetImageArtifactsPath(
                 mock_avd_spec)
 
-        mock_ota_tools.FindOtaTools.assert_called_once()
+        mock_ota_tools.FindOtaToolsDir.assert_called_once()
         self.assertEqual(paths,
                          (os.path.join(image_dir, "IMAGES"), cvd_dir,
                           misc_info_path, ota_tools_dir, system_image_path,
