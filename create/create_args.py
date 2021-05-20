@@ -203,6 +203,13 @@ def AddCommonCreateArgs(parser):
         dest="launch_args",
         help="'cuttlefish only' Add extra args to launch_cvd command.",
         required=False)
+    parser.add_argument(
+        "--gce-metadata",
+        type=str,
+        dest="gce_metadata",
+        default=None,
+        help="'GCE instance only' Record data into GCE instance metadata with "
+        "key-value pair format. e.g. id:12,name:unknown.")
     # TODO(146314062): Remove --multi-stage-launch after infra don't use this
     # args.
     parser.add_argument(
@@ -455,13 +462,6 @@ def GetCreateArgParser(subparser):
         "Reusing specific gce instance if --reuse-gce [instance_name] is "
         "provided. Select one gce instance to reuse if --reuse-gce is "
         "provided.")
-    create_parser.add_argument(
-        "--gce-metadata",
-        type=str,
-        dest="gce_metadata",
-        default=None,
-        help="'GCE instance only' Record data into GCE instance metadata with "
-        "key-value pair format. e.g. id:12,name:unknown.")
     create_parser.add_argument(
         "--host",
         type=str,
