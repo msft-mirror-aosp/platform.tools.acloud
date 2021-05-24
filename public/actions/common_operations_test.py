@@ -181,9 +181,9 @@ class CommonOperationsTest(driver_test_lib.BaseDriverTest):
         expected_result = common_operations._ACLOUD_SSH_CONNECT_ERROR
         self.assertEqual(common_operations._GetErrorType(error), expected_result)
 
-        # Test with ACLOUD_UNRECOGNIZED_ERROR_TYPE
+        # Test with ACLOUD_UNKNOWN_ERROR
         error = errors.DriverError()
-        expected_result = common_operations._ACLOUD_UNRECOGNIZED_ERROR_TYPE
+        expected_result = common_operations._ACLOUD_UNKNOWN_ERROR
         self.assertEqual(common_operations._GetErrorType(error), expected_result)
 
         # Test with error message about GCE quota issue
