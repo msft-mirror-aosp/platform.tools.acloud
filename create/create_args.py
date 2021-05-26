@@ -119,7 +119,7 @@ def AddCommonCreateArgs(parser):
         "--build-target",
         type=str,
         dest="build_target",
-        help="Android build target, e.g. aosp_cf_x86_phone-userdebug, "
+        help="Android build target, e.g. aosp_cf_x86_64_phone-userdebug, "
              "or short names: phone, tablet, or tablet_mobile.")
     parser.add_argument(
         "--branch",
