@@ -44,6 +44,7 @@ from acloud.internal.lib import cvd_runtime_config
 from acloud.internal.lib import utils
 from acloud.internal.lib.adb_tools import AdbTools
 from acloud.internal.lib.local_instance_lock import LocalInstanceLock
+from acloud.internal.lib.gcompute_client import GetInstanceIP
 
 
 logger = logging.getLogger(__name__)
@@ -694,10 +695,8 @@ class RemoteInstance(Instance):
         status = gce_instance.get(constants.INS_KEY_STATUS)
         zone = self._GetZoneName(gce_instance.get(constants.INS_KEY_ZONE))
 
-        ip = None
-        for network_interface in gce_instance.get("networkInterfaces"):
-            for access_config in network_interface.get("accessConfigs"):
-                ip = access_config.get("natIP")
+        instance_ip = GetInstanceIP(gce_instance)
+        ip = instance_ip.external or instance_ip.internal
 
         # Get metadata
         display = None
