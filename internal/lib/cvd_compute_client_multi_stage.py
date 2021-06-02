@@ -59,7 +59,7 @@ _AGREEMENT_PROMPT_ARG = "-report_anonymous_usage_stats=y"
 _UNDEFOK_ARG = "-undefok=report_anonymous_usage_stats,config"
 _NUM_AVDS_ARG = "-num_instances=%(num_AVD)s"
 _DEFAULT_BRANCH = "aosp-master"
-_FETCHER_BUILD_TARGET = "aosp_cf_x86_phone-userdebug"
+_FETCHER_BUILD_TARGET = "aosp_cf_x86_64_phone-userdebug"
 _FETCHER_NAME = "fetch_cvd"
 # Time info to write in report.
 _FETCH_ARTIFACT = "fetch_artifact_time"
@@ -165,7 +165,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             image_name: A string, the name of the GCE image.
             image_project: A string, name of the project where the image lives.
                            Assume the default project if None.
-            build_target: Target name, e.g. "aosp_cf_x86_phone-userdebug"
+            build_target: Target name, e.g. "aosp_cf_x86_64_phone-userdebug"
             branch: Branch name, e.g. "aosp-master"
             build_id: Build id, a string, e.g. "2263051", "P2804227"
             kernel_branch: Kernel branch name, e.g. "kernel-common-android-4.14"
@@ -541,7 +541,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             build_id: String of build id, e.g. "2263051", "P2804227"
             branch: String of branch name, e.g. "aosp-master"
             build_target: String of target name.
-                          e.g. "aosp_cf_x86_phone-userdebug"
+                          e.g. "aosp_cf_x86_64_phone-userdebug"
             system_build_id: String of the system image build id.
             system_branch: String of the system image branch name.
             system_build_target: String of the system image target name,

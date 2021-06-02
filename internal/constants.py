@@ -18,7 +18,7 @@ BRANCH_PREFIX = "git_"
 BUILD_TARGET_MAPPING = {
     # TODO: Add aosp goldfish targets and internal cf targets to vendor code
     # base.
-    "aosp_phone": "aosp_cf_x86_phone-userdebug",
+    "aosp_phone": "aosp_cf_x86_64_phone-userdebug",
     "aosp_tablet": "aosp_cf_x86_tablet-userdebug",
 }
 SPEC_NAMES = {
