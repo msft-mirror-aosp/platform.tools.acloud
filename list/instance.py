@@ -441,7 +441,7 @@ class LocalInstance(Instance):
                     if os.environ.get(env_host_out, _NO_ANDROID_ENV) in cvd_status_cmd:
                         logger.warning(
                             "Can't find the cvd_status tool (Try lunching a "
-                            "cuttlefish target like aosp_cf_x86_phone-userdebug "
+                            "cuttlefish target like aosp_cf_x86_64_phone-userdebug "
                             "and running 'make hosttar' before list/delete local "
                             "instances)")
                 return False

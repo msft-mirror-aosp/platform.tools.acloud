@@ -43,7 +43,7 @@ class RemoteImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
             return_value=self.build_client)
         self.Patch(auth, "CreateCredentials", return_value=mock.MagicMock())
         self.RemoteImageLocalInstance = remote_image_local_instance.RemoteImageLocalInstance()
-        self._fake_remote_image = {"build_target" : "aosp_cf_x86_phone-userdebug",
+        self._fake_remote_image = {"build_target" : "aosp_cf_x86_64_phone-userdebug",
                                    "build_id": "1234",
                                    "branch": "aosp_master"}
         self._extract_path = "/tmp/acloud_image_artifacts/1234"
