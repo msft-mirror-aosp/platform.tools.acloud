@@ -40,7 +40,7 @@ class AndroidComputeClientTest(driver_test_lib.BaseDriverTest):
     ZONE = "fake-zone"
     ORIENTATION = "portrait"
     DEVICE_RESOLUTION = "1200x1200x1200x1200"
-    TARGET = "aosp_cf_x86_phone-userdebug"
+    TARGET = "aosp_cf_x86_64_phone-userdebug"
     BUILD_ID = "2263051"
     INSTANCE = "fake-instance"
     BOOT_COMPLETED_MSG = "VIRTUAL_DEVICE_BOOT_COMPLETED"
