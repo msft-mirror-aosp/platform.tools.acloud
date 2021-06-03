@@ -73,7 +73,7 @@ class AndroidVirtualDevicePool(object):
         using launch control api. And then create a Gce image.
 
         Args:
-            build_target: Target name, e.g. "aosp_cf_x86_phone-userdebug"
+            build_target: Target name, e.g. "aosp_cf_x86_64_phone-userdebug"
             build_id: Build id, a string, e.g. "2263051", "P2804227"
 
         Returns:
@@ -179,7 +179,7 @@ class AndroidVirtualDevicePool(object):
 
         Args:
             num: Number of devices to create.
-            build_target: Target name, e.g. "aosp_cf_x86_phone-userdebug"
+            build_target: Target name, e.g. "aosp_cf_x86_64_phone-userdebug"
             build_id: Build id, a string, e.g. "2263051", "P2804227"
             gce_image: string, if given, will use this image
                        instead of creating a new one.
@@ -349,7 +349,7 @@ def CreateGCETypeAVD(cfg,
 
     Args:
         cfg: An AcloudConfig instance.
-        build_target: Target name, e.g. "aosp_cf_x86_phone-userdebug"
+        build_target: Target name, e.g. "aosp_cf_x86_64_phone-userdebug"
         build_id: Build id, a string, e.g. "2263051", "P2804227"
         num: Number of devices to create.
         gce_image: string, if given, will use this gce image
