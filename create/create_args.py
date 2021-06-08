@@ -91,6 +91,12 @@ def AddCommonCreateArgs(parser):
              "ip. Using the internal ip is used when connecting from another "
              "GCE instance.")
     parser.add_argument(
+        "--disable-external-ip",
+        action="store_true",
+        dest="disable_external_ip",
+        required=False,
+        help="Disable the external ip of the created instance.")
+    parser.add_argument(
         "--network",
         type=str,
         dest="network",
