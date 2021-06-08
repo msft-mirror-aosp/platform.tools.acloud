@@ -106,6 +106,7 @@ class AVDSpec():
         self._instance_name_to_reuse = None
         self._unlock_screen = None
         self._report_internal_ip = None
+        self._disable_external_ip = None
         self._avd_type = None
         self._flavor = None
         self._image_source = None
@@ -304,6 +305,7 @@ class AVDSpec():
         self._autoconnect = args.autoconnect
         self._unlock_screen = args.unlock_screen
         self._report_internal_ip = args.report_internal_ip
+        self._disable_external_ip = args.disable_external_ip
         self._avd_type = args.avd_type
         self._flavor = args.flavor or constants.FLAVOR_PHONE
         if args.remote_host:
@@ -819,6 +821,11 @@ class AVDSpec():
     def report_internal_ip(self):
         """Return report internal ip."""
         return self._report_internal_ip
+
+    @property
+    def disable_external_ip(self):
+        """Return disable_external_ip."""
+        return self._disable_external_ip
 
     @property
     def kernel_build_info(self):
