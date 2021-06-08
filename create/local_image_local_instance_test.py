@@ -462,6 +462,16 @@ EOF"""
             self.local_image_local_instance.GetWebrtcSigServerPort(instance_id),
             expected_port)
 
+    def testGetConfigFromAndroidInfo(self):
+        """Test GetConfigFromAndroidInfo"""
+        self.Patch(os.path, "exists", return_value=True)
+        mock_open = mock.mock_open(read_data="config=phone")
+        expected = "phone"
+        with mock.patch("builtins.open", mock_open):
+            self.assertEqual(
+                self.local_image_local_instance._GetConfigFromAndroidInfo("file"),
+                expected)
+
 
 if __name__ == "__main__":
     unittest.main()
