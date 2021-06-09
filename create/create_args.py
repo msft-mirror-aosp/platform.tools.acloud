@@ -91,6 +91,12 @@ def AddCommonCreateArgs(parser):
              "ip. Using the internal ip is used when connecting from another "
              "GCE instance.")
     parser.add_argument(
+        "--disable-external-ip",
+        action="store_true",
+        dest="disable_external_ip",
+        required=False,
+        help="Disable the external ip of the created instance.")
+    parser.add_argument(
         "--network",
         type=str,
         dest="network",
@@ -406,7 +412,7 @@ def GetCreateArgParser(subparser):
         "e.g --local-image or --local-image /path/to/dir or --local-image "
         "/path/to/file")
     create_parser.add_argument(
-        "--local-kernel-image",
+        "--local-kernel-image", "--local-boot-image",
         const=constants.FIND_IN_BUILD_ENV,
         type=str,
         dest="local_kernel_image",
