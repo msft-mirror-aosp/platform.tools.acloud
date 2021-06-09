@@ -278,6 +278,8 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
                     artifact_files.extend(
                         os.path.basename(image) for image in glob.glob(
                             os.path.join(images_dir, file_name)))
+            # Upload android-info.txt to parse config value.
+            artifact_files.append(constants.ANDROID_INFO_FILE)
             cmd = ("tar -cf - --lzop -S -C {images_dir} {artifact_files} | "
                    "{ssh_cmd} -- tar -xf - --lzop -S".format(
                        images_dir=images_dir,
