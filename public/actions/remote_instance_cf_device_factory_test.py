@@ -301,7 +301,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                                            fake_host_package,
                                            fake_local_image_dir)
         expected_cmd = (
-            "tar -cf - --lzop -S -C %s fake.img bootloader kernel | "
+            "tar -cf - --lzop -S -C %s fake.img bootloader kernel android-info.txt | "
             "%s -- tar -xf - --lzop -S" %
             (fake_local_image_dir, factory._ssh.GetBaseCmd(constants.SSH_BIN)))
         mock_shell.assert_called_once_with(expected_cmd)
@@ -318,8 +318,8 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                                                fake_host_package,
                                                fake_local_image_dir)
             expected_cmd = (
-                "tar -cf - --lzop -S -C %s boot.img cache.img super.img userdata.img bootloader | "
-                "%s -- tar -xf - --lzop -S" %
+                "tar -cf - --lzop -S -C %s boot.img cache.img super.img userdata.img "
+                "bootloader android-info.txt | %s -- tar -xf - --lzop -S" %
                 (fake_local_image_dir, factory._ssh.GetBaseCmd(constants.SSH_BIN)))
             mock_shell.assert_called_once_with(expected_cmd)
 
