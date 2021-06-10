@@ -332,7 +332,11 @@ def _ParsingConfig(args, cfg):
     if args.which == CMD_CREATE_CUTTLEFISH:
         missing_fields.extend(cfg.GetMissingFields(_CREATE_CF_REQUIRE_FIELDS))
     if missing_fields:
-        return "Missing required configuration fields: %s" % missing_fields
+        return (
+            "Config file (%s) missing required fields: %s, please add these "
+            "fields or reset config file. For reset config information: "
+            "go/acloud-googler-setup#reset-configuration" %
+            (config.GetUserConfigPath(args.config_file), missing_fields))
     return None
 
 
