@@ -96,6 +96,22 @@ def GetDefaultConfigFile():
     return os.path.join(config_path, _DEFAULT_CONFIG_FILE)
 
 
+def GetUserConfigPath(config_path):
+    """Get Acloud user config file path.
+
+    If there is no config provided, Acloud would use default config path.
+
+    Args:
+        config_path: String, path of Acloud config file.
+
+    Returns:
+        Path (string) of the Acloud config.
+    """
+    if config_path:
+        return config_path
+    return GetDefaultConfigFile()
+
+
 def GetAcloudConfig(args):
     """Helper function to initialize Config object.
 
