@@ -63,7 +63,7 @@ logger = logging.getLogger(__name__)
 _CONFIG_DATA_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "data")
 _DEFAULT_CONFIG_FILE = "acloud.config"
-_DEFAULT_HW_PROPERTY = "cpu:2,resolution:720x1280,dpi:320,memory:4g"
+_DEFAULT_HW_PROPERTY = "cpu:4,resolution:720x1280,dpi:320,memory:4g"
 
 # VERSION
 _VERSION_FILE = "VERSION"
@@ -96,6 +96,22 @@ def GetDefaultConfigFile():
     return os.path.join(config_path, _DEFAULT_CONFIG_FILE)
 
 
+def GetUserConfigPath(config_path):
+    """Get Acloud user config file path.
+
+    If there is no config provided, Acloud would use default config path.
+
+    Args:
+        config_path: String, path of Acloud config file.
+
+    Returns:
+        Path (string) of the Acloud config.
+    """
+    if config_path:
+        return config_path
+    return GetDefaultConfigFile()
+
+
 def GetAcloudConfig(args):
     """Helper function to initialize Config object.
 
@@ -111,7 +127,7 @@ def GetAcloudConfig(args):
     return cfg
 
 
-class AcloudConfig(object):
+class AcloudConfig():
     """A class that holds all configurations for acloud."""
 
     REQUIRED_FIELD = [
@@ -232,6 +248,8 @@ class AcloudConfig(object):
         self.hw_property = usr_cfg.hw_property
 
         self.launch_args = usr_cfg.launch_args
+        self.api_key = usr_cfg.api_key
+        self.api_url = usr_cfg.api_url
         self.instance_name_pattern = (
             usr_cfg.instance_name_pattern or
             internal_cfg.default_usr_cfg.instance_name_pattern)
@@ -309,7 +327,7 @@ class AcloudConfig(object):
 
     def Verify(self):
         """Verify configuration fields."""
-        missing = [f for f in self.REQUIRED_FIELD if not getattr(self, f)]
+        missing = self.GetMissingFields(self.REQUIRED_FIELD)
         if missing:
             raise errors.ConfigError(
                 "Missing required configuration fields: %s" % missing)
@@ -320,12 +338,23 @@ class AcloudConfig(object):
                 "invalid value: %d" % (self.precreated_data_image_map.keys(),
                                        self.extra_data_disk_size_gb))
 
+    def GetMissingFields(self, fields):
+        """Get missing required fields.
+
+        Args:
+            fields: List of field names.
+
+        Returns:
+            List of missing field names.
+        """
+        return [f for f in fields if not getattr(self, f)]
+
     def SupportRemoteInstance(self):
         """Return True if gcp project is provided in config."""
         return bool(self.project)
 
 
-class AcloudConfigManager(object):
+class AcloudConfigManager():
     """A class that loads configurations."""
 
     _DEFAULT_INTERNAL_CONFIG_PATH = os.path.join(_CONFIG_DATA_PATH,

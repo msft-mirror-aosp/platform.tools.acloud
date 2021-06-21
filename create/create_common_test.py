@@ -18,7 +18,7 @@ import shutil
 import tempfile
 import unittest
 
-import mock
+from unittest import mock
 
 from acloud import errors
 from acloud.create import create_common
@@ -96,6 +96,27 @@ class CreateCommonTest(driver_test_lib.BaseDriverTest):
                 create_common.GetCvdHostPackage(),
                 "/fake_dir2/cvd-host_package.tar.gz")
 
+    @mock.patch("acloud.create.create_common.os.path.isfile",
+                side_effect=lambda path: path == "/dir/name")
+    @mock.patch("acloud.create.create_common.os.path.isdir",
+                side_effect=lambda path: path == "/dir")
+    @mock.patch("acloud.create.create_common.os.listdir",
+                return_value=["name", "name2"])
+    def testFindLocalImage(self, _mock_listdir, _mock_isdir, _mock_isfile):
+        """Test FindLocalImage."""
+        self.assertEqual(
+            "/dir/name",
+            create_common.FindLocalImage("/test/../dir/name", "not_exist"))
+
+        self.assertEqual("/dir/name",
+                         create_common.FindLocalImage("/dir/", "name"))
+
+        with self.assertRaises(errors.GetLocalImageError):
+            create_common.FindLocalImage("/dir", "not_exist")
+
+        with self.assertRaises(errors.GetLocalImageError):
+            create_common.FindLocalImage("/dir", "name.?")
+
     @mock.patch.object(utils, "Decompress")
     def testDownloadRemoteArtifact(self, mock_decompress):
         """Test Download cuttlefish package."""
@@ -107,10 +128,10 @@ class CreateCommonTest(driver_test_lib.BaseDriverTest):
         self.Patch(auth, "CreateCredentials", return_value=mock.MagicMock())
         avd_spec = mock.MagicMock()
         avd_spec.cfg = mock.MagicMock()
-        avd_spec.remote_image = {"build_target" : "aosp_cf_x86_phone-userdebug",
+        avd_spec.remote_image = {"build_target" : "aosp_cf_x86_64_phone-userdebug",
                                  "build_id": "1234"}
         build_id = "1234"
-        build_target = "aosp_cf_x86_phone-userdebug"
+        build_target = "aosp_cf_x86_64_phone-userdebug"
         checkfile1 = "aosp_cf_x86_phone-img-1234.zip"
         checkfile2 = "cvd-host_package.tar.gz"
         extract_path = "/tmp/1234"

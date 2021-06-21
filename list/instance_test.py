@@ -19,12 +19,13 @@ import collections
 import datetime
 import subprocess
 import unittest
+
+from unittest import mock
 from six import b
 
 # pylint: disable=import-error
 import dateutil.parser
 import dateutil.tz
-import mock
 
 from acloud.internal import constants
 from acloud.internal.lib import cvd_runtime_config
@@ -93,6 +94,7 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(expected_full_name, local_instance.fullname)
         self.assertEqual(6521, local_instance.adb_port)
         self.assertEqual(6445, local_instance.vnc_port)
+        self.assertEqual(8444, local_instance.webrtc_port)
 
     @mock.patch("acloud.list.instance.AdbTools")
     def testDeleteLocalInstance(self, mock_adb_tools):
@@ -279,6 +281,7 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
                           "   display: None\n "
                           "   vnc: 127.0.0.1:654321\n "
                           "   zone: fake_zone\n "
+                          "   webrtc port: 8443\n "
                           "   adb serial: 127.0.0.1:123456\n "
                           "   product: None\n "
                           "   model: None\n "
@@ -302,6 +305,7 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
                           "   display: None\n "
                           "   vnc: 127.0.0.1:None\n "
                           "   zone: fake_zone\n "
+                          "   webrtc port: 8443\n "
                           "   adb serial: disconnected")
         self.assertEqual(remote_instance.Summary(), result_summary)
 

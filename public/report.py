@@ -66,7 +66,7 @@ from acloud.internal import constants
 logger = logging.getLogger(__name__)
 
 
-class Status(object):
+class Status():
     """Status of acloud command."""
 
     SUCCESS = "SUCCESS"
@@ -98,7 +98,7 @@ class Status(object):
         return cls.SEVERITY_ORDER[candidate] > cls.SEVERITY_ORDER[reference]
 
 
-class Report(object):
+class Report():
     """A class that stores and generates report."""
 
     def __init__(self, command):
@@ -169,7 +169,7 @@ class Report(object):
                 self.status, status)
 
     def AddDevice(self, instance_name, ip_address, adb_port, vnc_port,
-                  device_serial=None, key="devices"):
+                  webrtc_port=None, device_serial=None, key="devices"):
         """Add a record of a device.
 
         Args:
@@ -177,6 +177,7 @@ class Report(object):
             ip_address: A string.
             adb_port: An integer.
             vnc_port: An integer.
+            webrtc_port: An integer, the port to display device screen.
             device_serial: String of device serial.
             key: A string, the data entry where the record is added.
         """
@@ -192,10 +193,14 @@ class Report(object):
 
         if vnc_port:
             device[constants.VNC_PORT] = vnc_port
+
+        if webrtc_port:
+            device[constants.WEBRTC_PORT] = webrtc_port
         self.AddData(key=key, value=device)
 
     def AddDeviceBootFailure(self, instance_name, ip_address, adb_port,
-                             vnc_port, error, device_serial=None):
+                             vnc_port, error, device_serial=None,
+                             webrtc_port=None):
         """Add a record of device boot failure.
 
         Args:
@@ -205,10 +210,23 @@ class Report(object):
             vnc_port: An integer. Can be None if the device doesn't support it.
             error: A string, the error message.
             device_serial: String of device serial.
+            webrtc_port: An integer.
         """
         self.AddDevice(instance_name, ip_address, adb_port, vnc_port,
-                       device_serial, "devices_failing_boot")
+                       webrtc_port, device_serial, "devices_failing_boot")
         self.AddError(error)
+
+    def UpdateFailure(self, error, error_type=None):
+        """Update the falure information of report.
+
+        Args:
+            error: String, the error message.
+            error_type: String, the error type.
+        """
+        self.AddError(error)
+        self.SetStatus(Status.FAIL)
+        if error_type:
+            self.SetErrorType(error_type)
 
     def Dump(self, report_file):
         """Dump report content to a file.

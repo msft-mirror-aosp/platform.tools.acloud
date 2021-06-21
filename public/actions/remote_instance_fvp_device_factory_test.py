@@ -17,8 +17,9 @@ import glob
 import os
 import unittest
 
+from unittest import mock
+
 import six
-import mock
 
 from acloud.create import avd_spec
 from acloud.internal import constants
@@ -66,6 +67,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.local_image = "fake_local_image"
         args.local_system_image = None
         args.adb_port = None
+        args.launch_args = None
         avd_spec_local_image = avd_spec.AVDSpec(args)
         factory = remote_instance_fvp_device_factory.RemoteInstanceDeviceFactory(
             avd_spec_local_image)

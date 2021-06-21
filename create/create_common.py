@@ -17,6 +17,7 @@
 
 import logging
 import os
+import re
 import shutil
 
 from acloud import errors
@@ -92,8 +93,37 @@ def GetCvdHostPackage():
             return cvd_host_package
     raise errors.GetCvdLocalHostPackageError(
         "Can't find the cvd host package (Try lunching a cuttlefish target"
-        " like aosp_cf_x86_phone-userdebug and running 'm'): \n%s" %
+        " like aosp_cf_x86_64_phone-userdebug and running 'm'): \n%s" %
         '\n'.join(dirs_to_check))
+
+
+def FindLocalImage(path, default_name_pattern):
+    """Find an image file in the given path.
+
+    Args:
+        path: The path to the file or the parent directory.
+        default_name_pattern: A regex string, the file to look for if the path
+                              is a directory.
+
+    Returns:
+        The absolute path to the image file.
+
+    Raises:
+        errors.GetLocalImageError if this method cannot find exactly one image.
+    """
+    path = os.path.abspath(path)
+    if os.path.isdir(path):
+        names = [name for name in os.listdir(path) if
+                 re.fullmatch(default_name_pattern, name)]
+        if not names:
+            raise errors.GetLocalImageError("No image in %s." % path)
+        if len(names) != 1:
+            raise errors.GetLocalImageError("More than one image in %s: %s" %
+                                            (path, " ".join(names)))
+        path = os.path.join(path, names[0])
+    if os.path.isfile(path):
+        return path
+    raise errors.GetLocalImageError("%s is not a file." % path)
 
 
 def DownloadRemoteArtifact(cfg, build_target, build_id, artifact, extract_path,

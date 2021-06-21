@@ -17,9 +17,11 @@
 
 import os
 import unittest
-import mock
+
+from unittest import mock
 import six
 
+from acloud import errors
 from acloud.internal.lib import cvd_runtime_config as cf_cfg
 from acloud.internal.lib import driver_test_lib
 
@@ -113,6 +115,12 @@ class CvdRuntimeconfigTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(fake_cvd_runtime_config_webrtc.adb_port, 6520)
         self.assertEqual(fake_cvd_runtime_config_webrtc.virtual_disk_paths, ['/path-to-image'])
         self.assertEqual(fake_cvd_runtime_config_webrtc.cvd_tools_path, "/home/vsoc-01/bin")
+
+        # Test exception with no config file and no raw_data.
+        self.assertRaises(errors.ConfigError,
+                          cf_cfg.CvdRuntimeConfig,
+                          config_path=None,
+                          raw_data=None)
 
 
 class CvdRuntimeconfigFunctionTest(driver_test_lib.BaseDriverTest):

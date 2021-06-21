@@ -17,7 +17,8 @@ import unittest
 from collections import namedtuple
 import os
 import subprocess
-import mock
+
+from unittest import mock
 
 from acloud import errors
 from acloud.create import remote_image_local_instance
@@ -42,7 +43,7 @@ class RemoteImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
             return_value=self.build_client)
         self.Patch(auth, "CreateCredentials", return_value=mock.MagicMock())
         self.RemoteImageLocalInstance = remote_image_local_instance.RemoteImageLocalInstance()
-        self._fake_remote_image = {"build_target" : "aosp_cf_x86_phone-userdebug",
+        self._fake_remote_image = {"build_target" : "aosp_cf_x86_64_phone-userdebug",
                                    "build_id": "1234",
                                    "branch": "aosp_master"}
         self._extract_path = "/tmp/acloud_image_artifacts/1234"
@@ -72,6 +73,7 @@ class RemoteImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
         """Test process remote cuttlefish image."""
         avd_spec = mock.MagicMock()
         avd_spec.cfg = mock.MagicMock()
+        avd_spec.cfg.creds_cache_file = "cache.file"
         avd_spec.remote_image = self._fake_remote_image
         avd_spec.image_download_dir = "/tmp"
         self.Patch(os.path, "exists", return_value=False)

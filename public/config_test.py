@@ -18,7 +18,8 @@
 import unittest
 import os
 import tempfile
-import mock
+
+from unittest import mock
 
 import six
 
@@ -296,6 +297,13 @@ common_hw_property_map {
         # test with "auto" flavor
         expected = "cpu:4,resolution:1280x800,dpi:160,memory:4g"
         self.assertEqual(expected, self.cfg.GetDefaultHwProperty("auto"))
+
+    def testGetMissingFields(self):
+        """Test GetMissingFields."""
+        fields = ["project", "zone", "hw_property"]
+        self.cfg.hw_property = ""
+        expected = ["hw_property"]
+        self.assertEqual(expected, self.cfg.GetMissingFields(fields))
 
 
 if __name__ == "__main__":

@@ -41,11 +41,12 @@ required.
 - If the instance doesn't require mixed images, the local image directory
   should be an unzipped update package, i.e., <target>-img-<build>.zip,
   which contains a super image.
-- If the instance requires mixed images, the local image directory should
-  be an unzipped target files package, i.e., <target>-target_files-<build>.zip,
+- If the instance requires mixing system image, the local image directory
+  should be an unzipped target files package, i.e.,
+  <target>-target_files-<build>.zip,
   which contains misc info and images not packed into a super image.
-- If the instance requires mixed images, one of the local tool directories
-  should be an unzipped OTA tools package, i.e., otatools.zip.
+- If the instance requires mixing system image, one of the local tool
+  directories should be an unzipped OTA tools package, i.e., otatools.zip.
 """
 
 import collections
@@ -53,7 +54,6 @@ import glob
 import logging
 import os
 import subprocess
-import threading
 import sys
 
 from acloud import errors
@@ -70,18 +70,25 @@ from acloud.public import report
 
 logger = logging.getLogger(__name__)
 
-_SYSTEM_IMAGE_NAME = "system.img"
+# The boot image name pattern corresponds to the use cases:
+# - In a cuttlefish build environment, ANDROID_PRODUCT_OUT conatins boot.img
+#   and boot-debug.img. The former is the default boot image. The latter is not
+#   useful for cuttlefish.
+# - In an officially released GKI (Generic Kernel Image) package, the image
+#   name is boot-<kernel version>.img.
+_BOOT_IMAGE_NAME_PATTERN = r"boot(-[\d.]+)?\.img"
+_SYSTEM_IMAGE_NAME_PATTERN = r"system\.img"
 _MISC_INFO_FILE_NAME = "misc_info.txt"
 _TARGET_FILES_IMAGES_DIR_NAME = "IMAGES"
 _TARGET_FILES_META_DIR_NAME = "META"
 _MIXED_SUPER_IMAGE_NAME = "mixed_super.img"
-_CMD_LAUNCH_CVD_ARGS = (" -daemon -config=%s -run_adb_connector=%s "
-                        "-system_image_dir %s -instance_dir %s "
-                        "-undefok=report_anonymous_usage_stats,enable_sandbox "
-                        "-report_anonymous_usage_stats=y "
-                        "-enable_sandbox=false")
+_CMD_LAUNCH_CVD_ARGS = (
+    " -daemon -config=%s -run_adb_connector=%s "
+    "-system_image_dir %s -instance_dir %s "
+    "-undefok=report_anonymous_usage_stats,enable_sandbox,config "
+    "-report_anonymous_usage_stats=y "
+    "-enable_sandbox=false")
 _CMD_LAUNCH_CVD_HW_ARGS = " -cpus %s -x_res %s -y_res %s -dpi %s -memory_mb %s"
-_CMD_LAUNCH_CVD_GPU_ARG = " -gpu_mode=auto"
 _CMD_LAUNCH_CVD_DISK_ARGS = (" -blank_data_image_mb %s "
                              "-data_policy always_create")
 _CMD_LAUNCH_CVD_WEBRTC_ARGS = (" -guest_enforce_security=false "
@@ -90,6 +97,7 @@ _CMD_LAUNCH_CVD_WEBRTC_ARGS = (" -guest_enforce_security=false "
                                "-webrtc_public_ip=%s" % constants.LOCALHOST)
 _CMD_LAUNCH_CVD_VNC_ARG = " -start_vnc_server=true"
 _CMD_LAUNCH_CVD_SUPER_IMAGE_ARG = " -super_image=%s"
+_CMD_LAUNCH_CVD_BOOT_IMAGE_ARG = " -boot_image=%s"
 
 # In accordance with the number of network interfaces in
 # /etc/init.d/cuttlefish-common
@@ -107,7 +115,8 @@ _CONFIRM_RELAUNCH = ("\nCuttlefish AVD[id:%d] is already running. \n"
 # are optional. They are set when the AVD spec requires to mix images.
 ArtifactPaths = collections.namedtuple(
     "ArtifactPaths",
-    ["image_dir", "host_bins", "misc_info", "ota_tools_dir", "system_image"])
+    ["image_dir", "host_bins", "misc_info", "ota_tools_dir", "system_image",
+     "boot_image"])
 
 
 class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
@@ -200,8 +209,9 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         Returns:
             A Report instance.
         """
+        webrtc_port = self.GetWebrtcSigServerPort(local_instance_id)
         if avd_spec.connect_webrtc:
-            utils.ReleasePort(constants.WEBRTC_LOCAL_PORT)
+            utils.ReleasePort(webrtc_port)
 
         cvd_home_dir = instance.GetLocalInstanceHomeDir(local_instance_id)
         create_common.PrepareLocalInstanceDir(cvd_home_dir, avd_spec)
@@ -224,9 +234,9 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                                        runtime_dir,
                                        avd_spec.connect_webrtc,
                                        avd_spec.connect_vnc,
-                                       avd_spec.gpu,
                                        super_image_path,
-                                       avd_spec.cfg.launch_args,
+                                       artifact_paths.boot_image,
+                                       avd_spec.launch_args,
                                        avd_spec.flavor)
 
         result_report = report.Report(command="create")
@@ -248,7 +258,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         if active_ins:
             result_report.SetStatus(report.Status.SUCCESS)
             result_report.AddDevice(instance_name, constants.LOCALHOST,
-                                    active_ins.adb_port, active_ins.vnc_port)
+                                    active_ins.adb_port, active_ins.vnc_port,
+                                    webrtc_port)
             # Launch vnc client if we're auto-connecting.
             if avd_spec.connect_vnc:
                 utils.LaunchVNCFromReport(result_report, avd_spec, no_prompts)
@@ -263,6 +274,18 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             result_report.AddDeviceBootFailure(
                 instance_name, constants.LOCALHOST, None, None, error=err_msg)
         return result_report
+
+    @staticmethod
+    def GetWebrtcSigServerPort(instance_id):
+        """Get the port of the signaling server.
+
+        Args:
+            instance_id: Integer of instance id.
+
+        Returns:
+            Integer of signaling server port.
+        """
+        return constants.WEBRTC_LOCAL_PORT + instance_id - 1
 
     @staticmethod
     def _FindCvdHostBinaries(search_paths):
@@ -354,23 +377,29 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         image_dir = os.path.abspath(avd_spec.local_image_dir)
         host_bins_path = self._FindCvdHostBinaries(avd_spec.local_tool_dirs)
 
-        if not avd_spec.local_system_image_dir:
-            return ArtifactPaths(image_dir, host_bins_path, None, None, None)
+        if avd_spec.local_system_image:
+            misc_info_path = self._FindMiscInfo(image_dir)
+            image_dir = self._FindImageDir(image_dir)
+            ota_tools_dir = os.path.abspath(
+                ota_tools.FindOtaToolsDir(avd_spec.local_tool_dirs))
+            system_image_path = create_common.FindLocalImage(
+                avd_spec.local_system_image, _SYSTEM_IMAGE_NAME_PATTERN)
+        else:
+            misc_info_path = None
+            ota_tools_dir = None
+            system_image_path = None
 
-        misc_info_path = self._FindMiscInfo(image_dir)
-        image_dir = self._FindImageDir(image_dir)
-        ota_tools_dir = os.path.abspath(
-            ota_tools.FindOtaTools(avd_spec.local_tool_dirs))
-        system_image_path = os.path.abspath(
-            os.path.join(avd_spec.local_system_image_dir, _SYSTEM_IMAGE_NAME))
-        if not os.path.isfile(system_image_path):
-            raise errors.GetLocalImageError(
-                "Cannot find %s." % system_image_path)
+        if avd_spec.local_kernel_image:
+            boot_image_path = create_common.FindLocalImage(
+                avd_spec.local_kernel_image, _BOOT_IMAGE_NAME_PATTERN)
+        else:
+            boot_image_path = None
 
         return ArtifactPaths(image_dir, host_bins_path,
                              misc_info=misc_info_path,
                              ota_tools_dir=ota_tools_dir,
-                             system_image=system_image_path)
+                             system_image=system_image_path,
+                             boot_image=boot_image_path)
 
     @staticmethod
     def _MixSuperImage(output_dir, artifact_paths):
@@ -395,7 +424,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
     @staticmethod
     def PrepareLaunchCVDCmd(launch_cvd_path, hw_property, connect_adb,
                             image_dir, runtime_dir, connect_webrtc,
-                            connect_vnc, gpu, super_image_path,
+                            connect_vnc, super_image_path, boot_image_path,
                             launch_args, flavor):
         """Prepare launch_cvd command.
 
@@ -410,9 +439,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             runtime_dir: String of runtime directory path.
             connect_webrtc: Boolean of connect_webrtc.
             connect_vnc: Boolean of connect_vnc.
-            gpu: String of gpu name, the gpu name of local instance should be
-                 "default" if gpu is enabled.
             super_image_path: String of non-default super image path.
+            boot_image_path: String of non-default boot image path.
             launch_args: String of launch args.
             flavor: String of flavor name.
 
@@ -434,13 +462,15 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         if connect_vnc:
             launch_cvd_w_args = launch_cvd_w_args + _CMD_LAUNCH_CVD_VNC_ARG
 
-        if gpu:
-            launch_cvd_w_args = launch_cvd_w_args + _CMD_LAUNCH_CVD_GPU_ARG
-
         if super_image_path:
             launch_cvd_w_args = (launch_cvd_w_args +
                                  _CMD_LAUNCH_CVD_SUPER_IMAGE_ARG %
                                  super_image_path)
+
+        if boot_image_path:
+            launch_cvd_w_args = (launch_cvd_w_args +
+                                 _CMD_LAUNCH_CVD_BOOT_IMAGE_ARG %
+                                 boot_image_path)
 
         if launch_args:
             launch_cvd_w_args = launch_cvd_w_args + " " + launch_args
@@ -495,7 +525,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
     @staticmethod
     @utils.TimeExecute(function_description="Waiting for AVD(s) to boot up")
     def _LaunchCvd(cmd, local_instance_id, host_bins_path, cvd_home_dir,
-                   timeout=None):
+                   timeout):
         """Execute Launch CVD.
 
         Kick off the launch_cvd command and log the output.
@@ -518,15 +548,12 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         cvd_env[constants.ENV_CUTTLEFISH_INSTANCE] = str(local_instance_id)
         # Check the result of launch_cvd command.
         # An exit code of 0 is equivalent to VIRTUAL_DEVICE_BOOT_COMPLETED
-        process = subprocess.Popen(cmd, shell=True, stderr=subprocess.STDOUT,
-                                   env=cvd_env)
-        if timeout:
-            timer = threading.Timer(timeout, process.kill)
-            timer.start()
-        process.wait()
-        if timeout:
-            timer.cancel()
-        if process.returncode == 0:
-            return
-        raise errors.LaunchCVDFail("launch_cvd returned %s" %
-                                   process.returncode)
+        try:
+            subprocess.check_call(cmd, shell=True, stderr=subprocess.STDOUT,
+                                  env=cvd_env, timeout=timeout)
+        except subprocess.TimeoutExpired as e:
+            raise errors.LaunchCVDFail("Device did not boot within %d secs." %
+                                       timeout) from e
+        except subprocess.CalledProcessError as e:
+            raise errors.LaunchCVDFail("launch_cvd returned %s." %
+                                       e.returncode) from e

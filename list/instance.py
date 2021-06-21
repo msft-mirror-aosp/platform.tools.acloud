@@ -38,11 +38,13 @@ import tempfile
 import dateutil.parser
 import dateutil.tz
 
+from acloud.create import local_image_local_instance
 from acloud.internal import constants
 from acloud.internal.lib import cvd_runtime_config
 from acloud.internal.lib import utils
 from acloud.internal.lib.adb_tools import AdbTools
 from acloud.internal.lib.local_instance_lock import LocalInstanceLock
+from acloud.internal.lib.gcompute_client import GetInstanceIP
 
 
 logger = logging.getLogger(__name__)
@@ -232,7 +234,8 @@ class Instance(object):
     def __init__(self, name, fullname, display, ip, status=None, adb_port=None,
                  vnc_port=None, ssh_tunnel_is_connected=None, createtime=None,
                  elapsed_time=None, avd_type=None, avd_flavor=None,
-                 is_local=False, device_information=None, zone=None):
+                 is_local=False, device_information=None, zone=None,
+                 webrtc_port=None):
         self._name = name
         self._fullname = fullname
         self._status = status
@@ -240,6 +243,7 @@ class Instance(object):
         self._ip = ip
         self._adb_port = adb_port  # adb port which is forwarding to remote
         self._vnc_port = vnc_port  # vnc port which is forwarding to remote
+        self._webrtc_port = webrtc_port
         # True if ssh tunnel is still connected
         self._ssh_tunnel_is_connected = ssh_tunnel_is_connected
         self._createtime = createtime
@@ -266,6 +270,7 @@ class Instance(object):
         representation.append("%s display: %s" % (_INDENT, self._display))
         representation.append("%s vnc: 127.0.0.1:%s" % (_INDENT, self._vnc_port))
         representation.append("%s zone: %s" % (_INDENT, self._zone))
+        representation.append("%s webrtc port: %s" % (_INDENT, self._webrtc_port))
 
         if self._adb_port and self._device_information:
             representation.append("%s adb serial: 127.0.0.1:%s" %
@@ -354,6 +359,11 @@ class Instance(object):
         return self._vnc_port
 
     @property
+    def webrtc_port(self):
+        """Return webrtc_port."""
+        return self._webrtc_port
+
+    @property
     def zone(self):
         """Return zone."""
         return self._zone
@@ -383,6 +393,8 @@ class LocalInstance(Instance):
                      "instance_name": name,
                      "elapsed_time": None})
         adb_device = AdbTools(self._cf_runtime_cfg.adb_port)
+        webrtc_port = local_image_local_instance.LocalImageLocalInstance.GetWebrtcSigServerPort(
+            self._local_instance_id)
         device_information = None
         if adb_device.IsAdbConnected():
             device_information = adb_device.device_information
@@ -394,7 +406,7 @@ class LocalInstance(Instance):
             vnc_port=self._cf_runtime_cfg.vnc_port,
             createtime=None, elapsed_time=None, avd_type=constants.TYPE_CF,
             is_local=True, device_information=device_information,
-            zone=_LOCAL_ZONE)
+            zone=_LOCAL_ZONE, webrtc_port=webrtc_port)
 
     def Summary(self):
         """Return the string that this class is holding."""
@@ -430,7 +442,7 @@ class LocalInstance(Instance):
                     if os.environ.get(env_host_out, _NO_ANDROID_ENV) in cvd_status_cmd:
                         logger.warning(
                             "Can't find the cvd_status tool (Try lunching a "
-                            "cuttlefish target like aosp_cf_x86_phone-userdebug "
+                            "cuttlefish target like aosp_cf_x86_64_phone-userdebug "
                             "and running 'make hosttar' before list/delete local "
                             "instances)")
                 return False
@@ -683,10 +695,8 @@ class RemoteInstance(Instance):
         status = gce_instance.get(constants.INS_KEY_STATUS)
         zone = self._GetZoneName(gce_instance.get(constants.INS_KEY_ZONE))
 
-        ip = None
-        for network_interface in gce_instance.get("networkInterfaces"):
-            for access_config in network_interface.get("accessConfigs"):
-                ip = access_config.get("natIP")
+        instance_ip = GetInstanceIP(gce_instance)
+        ip = instance_ip.external or instance_ip.internal
 
         # Get metadata
         display = None
@@ -742,7 +752,8 @@ class RemoteInstance(Instance):
             createtime=create_time, elapsed_time=elapsed_time, avd_type=avd_type,
             avd_flavor=avd_flavor, is_local=False,
             device_information=device_information,
-            zone=zone)
+            zone=zone,
+            webrtc_port=constants.WEBRTC_LOCAL_PORT)
 
     @staticmethod
     def _GetZoneName(zone_info):

@@ -37,6 +37,7 @@ Android build, and start Android within the host instance.
 
 import logging
 import os
+import re
 import subprocess
 import tempfile
 import time
@@ -53,13 +54,13 @@ from acloud.pull import pull
 
 logger = logging.getLogger(__name__)
 
+_CONFIG_ARG = "-config"
 _DECOMPRESS_KERNEL_ARG = "-decompress_kernel=true"
-_GPU_ARG = "-gpu_mode=auto"
-_AGREEMENT_PROMPT_ARGS = ["-undefok=report_anonymous_usage_stats",
-                          "-report_anonymous_usage_stats=y"]
+_AGREEMENT_PROMPT_ARG = "-report_anonymous_usage_stats=y"
+_UNDEFOK_ARG = "-undefok=report_anonymous_usage_stats,config"
 _NUM_AVDS_ARG = "-num_instances=%(num_AVD)s"
 _DEFAULT_BRANCH = "aosp-master"
-_FETCHER_BUILD_TARGET = "aosp_cf_x86_phone-userdebug"
+_FETCHER_BUILD_TARGET = "aosp_cf_x86_64_phone-userdebug"
 _FETCHER_NAME = "fetch_cvd"
 # Time info to write in report.
 _FETCH_ARTIFACT = "fetch_artifact_time"
@@ -75,6 +76,7 @@ _VNC_ARGS = ["--start_vnc_server=true"]
 _NO_RETRY = 0
 # Launch cvd command for acloud report
 _LAUNCH_CVD_COMMAND = "launch_cvd_command"
+_CONFIG_RE = re.compile(r"^config=(?P<config>.+)")
 
 
 class CvdComputeClient(android_compute_client.AndroidComputeClient):
@@ -135,6 +137,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                 remote host, e.g. "external:140.110.20.1, internal:10.0.0.1"
             user: String of user log in to the instance.
         """
+        self.SetStage(constants.STAGE_SSH_CONNECT)
         self._ssh = ssh
         self._ip = ip
         self._user = user
@@ -164,7 +167,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             image_name: A string, the name of the GCE image.
             image_project: A string, name of the project where the image lives.
                            Assume the default project if None.
-            build_target: Target name, e.g. "aosp_cf_x86_phone-userdebug"
+            build_target: Target name, e.g. "aosp_cf_x86_64_phone-userdebug"
             branch: Branch name, e.g. "aosp-master"
             build_id: Build id, a string, e.g. "2263051", "P2804227"
             kernel_branch: Kernel branch name, e.g. "kernel-common-android-4.14"
@@ -209,6 +212,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                         extra_args_ssh_tunnel=self._extra_args_ssh_tunnel,
                         report_internal_ip=self._report_internal_ip)
         try:
+            self.SetStage(constants.STAGE_SSH_CONNECT)
             self._ssh.WaitForSsh(timeout=self._ins_timeout_secs)
             if avd_spec:
                 if avd_spec.instance_name_to_reuse:
@@ -223,12 +227,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                             system_branch, system_build_target, kernel_build_id,
                             kernel_branch, kernel_build_target, bootloader_build_id,
                             bootloader_branch, bootloader_build_target)
-            kernel_build = self._build_api.GetKernelBuild(kernel_build_id,
-                                                          kernel_branch,
-                                                          kernel_build_target)
             self.LaunchCvd(instance,
                            blank_data_disk_size_gb=blank_data_disk_size_gb,
-                           kernel_build=kernel_build,
                            boot_timeout_secs=self._boot_timeout_secs)
 
             return instance
@@ -272,16 +272,30 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             self._metadata.update({"kernel_build_id": kernel_build_id})
             self._metadata.update({"kernel_build_target": kernel_build_target})
 
+    def _GetConfigFromAndroidInfo(self):
+        """Get config value from android-info.txt.
+
+        The config in android-info.txt would like "config=phone".
+
+        Returns:
+            Strings of config value.
+        """
+        android_info = self._ssh.GetCmdOutput(
+            "cat %s" % constants.ANDROID_INFO_FILE)
+        logger.debug("Android info: %s", android_info)
+        config_match = _CONFIG_RE.match(android_info)
+        if config_match:
+            return config_match.group("config")
+        return None
+
     # pylint: disable=too-many-branches
     def _GetLaunchCvdArgs(self, avd_spec=None, blank_data_disk_size_gb=None,
-                          kernel_build=None, decompress_kernel=None,
-                          instance=None):
+                          decompress_kernel=None, instance=None):
         """Get launch_cvd args.
 
         Args:
             avd_spec: An AVDSpec instance.
             blank_data_disk_size_gb: Size of the blank data disk in GB.
-            kernel_build: String, kernel build info.
             decompress_kernel: Boolean, if true decompress the kernel.
             instance: String, instance name.
 
@@ -297,8 +311,10 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             launch_cvd_args.append(
                 "-blank_data_image_mb=%d" % (blank_data_disk_size_gb * 1024))
         if avd_spec:
-            launch_cvd_args.append("-config=%s" % avd_spec.flavor)
-            if avd_spec.hw_customize:
+            config = self._GetConfigFromAndroidInfo()
+            if config:
+                launch_cvd_args.append("-config=%s" % config)
+            if avd_spec.hw_customize or not config:
                 launch_cvd_args.append(
                     "-x_res=" + avd_spec.hw_property[constants.HW_X_RES])
                 launch_cvd_args.append(
@@ -325,25 +341,22 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             if avd_spec.num_avds_per_instance > 1:
                 launch_cvd_args.append(
                     _NUM_AVDS_ARG % {"num_AVD": avd_spec.num_avds_per_instance})
+            if avd_spec.launch_args:
+                launch_cvd_args.append(avd_spec.launch_args)
         else:
             resolution = self._resolution.split("x")
             launch_cvd_args.append("-x_res=" + resolution[0])
             launch_cvd_args.append("-y_res=" + resolution[1])
             launch_cvd_args.append("-dpi=" + resolution[3])
 
-        if kernel_build:
-            launch_cvd_args.append("-kernel_path=kernel")
-
-        if self._launch_args:
+        if not avd_spec and self._launch_args:
             launch_cvd_args.append(self._launch_args)
 
         if decompress_kernel:
             launch_cvd_args.append(_DECOMPRESS_KERNEL_ARG)
 
-        if self._gpu:
-            launch_cvd_args.append(_GPU_ARG)
-
-        launch_cvd_args.extend(_AGREEMENT_PROMPT_ARGS)
+        launch_cvd_args.append(_UNDEFOK_ARG)
+        launch_cvd_args.append(_AGREEMENT_PROMPT_ARG)
         return launch_cvd_args
 
     def StopCvd(self):
@@ -375,7 +388,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
     @utils.TimeExecute(function_description="Launching AVD(s) and waiting for boot up",
                        result_evaluator=utils.BootEvaluator)
     def LaunchCvd(self, instance, avd_spec=None,
-                  blank_data_disk_size_gb=None, kernel_build=None,
+                  blank_data_disk_size_gb=None,
                   decompress_kernel=None,
                   boot_timeout_secs=None):
         """Launch CVD.
@@ -387,7 +400,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             instance: String, instance name.
             avd_spec: An AVDSpec instance.
             blank_data_disk_size_gb: Size of the blank data disk in GB.
-            kernel_build: String, kernel build info.
             decompress_kernel: Boolean, if true decompress the kernel.
             boot_timeout_secs: Integer, the maximum time to wait for the
                                command to respond.
@@ -401,7 +413,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         error_msg = ""
         launch_cvd_args = self._GetLaunchCvdArgs(avd_spec,
                                                  blank_data_disk_size_gb,
-                                                 kernel_build,
                                                  decompress_kernel,
                                                  instance)
         boot_timeout_secs = boot_timeout_secs or constants.DEFAULT_CF_BOOT_TIMEOUT
@@ -488,6 +499,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
 
         disk_args = self._GetDiskArgs(
             instance, image_name, image_project, boot_disk_size_gb)
+        disable_external_ip = avd_spec.disable_external_ip if avd_spec else False
         gcompute_client.ComputeClient.CreateInstance(
             self,
             instance=instance,
@@ -501,7 +513,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             gpu=self._gpu,
             extra_scopes=extra_scopes,
             tags=["appstreaming"] if (
-                avd_spec and avd_spec.connect_webrtc) else None)
+                avd_spec and avd_spec.connect_webrtc) else None,
+            disable_external_ip=disable_external_ip)
         ip = gcompute_client.ComputeClient.GetInstanceIP(
             self, instance=instance, zone=self._zone)
         logger.debug("'instance_ip': %s", ip.internal
@@ -537,7 +550,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             build_id: String of build id, e.g. "2263051", "P2804227"
             branch: String of branch name, e.g. "aosp-master"
             build_target: String of target name.
-                          e.g. "aosp_cf_x86_phone-userdebug"
+                          e.g. "aosp_cf_x86_64_phone-userdebug"
             system_build_id: String of the system image build id.
             system_branch: String of the system image branch name.
             system_build_target: String of the system image target name,

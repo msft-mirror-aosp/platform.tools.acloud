@@ -17,7 +17,8 @@ import os
 import shutil
 import tempfile
 import unittest
-import mock
+
+from unittest import mock
 
 from acloud import errors
 from acloud.internal.lib import ota_tools
@@ -120,28 +121,32 @@ class OtaToolsTest(unittest.TestCase):
         popen.poll.return_value = None
         return popen
 
+    # pylint: disable=protected-access
     def testFindOtaTools(self):
-        """Test FindOtaTools."""
+        """Test FindOtaToolsDir and FindOtaTools."""
         # CVD host package contains lpmake but not all tools.
         self._CreateBinary("lpmake")
         with mock.patch.dict("acloud.internal.lib.ota_tools.os.environ",
                              {"ANDROID_HOST_OUT": self._temp_dir,
-                              "ANDROID_SOONG_HOST_OUT": self._temp_dir}, clear=True):
+                              "ANDROID_SOONG_HOST_OUT": self._temp_dir},
+                             clear=True):
             with self.assertRaises(errors.CheckPathError):
-                ota_tools.FindOtaTools([self._temp_dir])
+                ota_tools.FindOtaToolsDir([self._temp_dir])
 
         # The function identifies OTA tool directory by build_super_image.
         self._CreateBinary("build_super_image")
         with mock.patch.dict("acloud.internal.lib.ota_tools.os.environ",
                              dict(), clear=True):
-            self.assertEqual(ota_tools.FindOtaTools([self._temp_dir]),
+            self.assertEqual(ota_tools.FindOtaToolsDir([self._temp_dir]),
                              self._temp_dir)
 
         # ANDROID_HOST_OUT contains OTA tools in build environment.
         with mock.patch.dict("acloud.internal.lib.ota_tools.os.environ",
                              {"ANDROID_HOST_OUT": self._temp_dir,
-                              "ANDROID_SOONG_HOST_OUT": self._temp_dir}, clear=True):
-            self.assertEqual(ota_tools.FindOtaTools([]), self._temp_dir)
+                              "ANDROID_SOONG_HOST_OUT": self._temp_dir},
+                             clear=True):
+            self.assertEqual(ota_tools.FindOtaTools([])._ota_tools_dir,
+                             self._temp_dir)
 
     def testGetImageForPartition(self):
         """Test GetImageForPartition."""

@@ -96,7 +96,7 @@ _DEFAULT_DISPLAY_SCALE = 1.0
 _DIST_DIR = "DIST_DIR"
 
 # For webrtc
-_WEBRTC_URL = "https://%(webrtc_ip)s:%(webrtc_port)d/?use_tcp=true"
+_WEBRTC_URL = "https://%(webrtc_ip)s:%(webrtc_port)d"
 
 _CONFIRM_CONTINUE = ("In order to display the screen to the AVD, we'll need to "
                      "install a vnc client (ssvnc). \nWould you like acloud to "
@@ -987,7 +987,8 @@ def LaunchBrowserFromReport(report):
     for device in report.data.get("devices", []):
         if device.get("ip"):
             LaunchBrowser(constants.WEBRTC_LOCAL_HOST,
-                          constants.WEBRTC_LOCAL_PORT)
+                          device.get(constants.WEBRTC_PORT,
+                                     constants.WEBRTC_LOCAL_PORT))
 
 
 def LaunchBrowser(ip_addr, port):
@@ -1081,7 +1082,9 @@ def PrintDeviceSummary(report):
             instance_name, instance_ip)
         PrintColorString(" - device serial: %s %s" % (adb_serial,
                                                       instance_details))
-        PrintColorString("   export ANDROID_SERIAL=%s" % adb_serial)
+        PrintColorString("\n")
+        PrintColorString("Note: To ensure Tradefed use this AVD, please run:")
+        PrintColorString("\texport ANDROID_SERIAL=%s" % adb_serial)
 
     # TODO(b/117245508): Help user to delete instance if it got created.
     if report.errors:

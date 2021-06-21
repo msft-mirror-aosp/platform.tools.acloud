@@ -55,7 +55,7 @@ def _GetIdFromInstanceDirStr(instance_dir):
     return None
 
 
-class CvdRuntimeConfig(object):
+class CvdRuntimeConfig():
     """The class that hold the information from cuttlefish_config.json.
 
     The example of cuttlefish_config.json
@@ -104,6 +104,8 @@ class CvdRuntimeConfig(object):
     """
 
     def __init__(self, config_path=None, raw_data=None):
+        if not config_path and not raw_data:
+            raise errors.ConfigError("No cuttlefish config found!")
         self._config_path = config_path
         self._instance_id = "1" if raw_data else _GetIdFromInstanceDirStr(
             config_path)

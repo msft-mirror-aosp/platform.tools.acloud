@@ -17,6 +17,7 @@ Defines the create arg parser that holds create specific args.
 """
 
 import argparse
+import logging
 import os
 
 from acloud import errors
@@ -24,7 +25,7 @@ from acloud.create import create_common
 from acloud.internal import constants
 from acloud.internal.lib import utils
 
-
+logger = logging.getLogger(__name__)
 _DEFAULT_GPU = "default"
 CMD_CREATE = "create"
 
@@ -90,6 +91,12 @@ def AddCommonCreateArgs(parser):
              "ip. Using the internal ip is used when connecting from another "
              "GCE instance.")
     parser.add_argument(
+        "--disable-external-ip",
+        action="store_true",
+        dest="disable_external_ip",
+        required=False,
+        help="Disable the external ip of the created instance.")
+    parser.add_argument(
         "--network",
         type=str,
         dest="network",
@@ -118,7 +125,7 @@ def AddCommonCreateArgs(parser):
         "--build-target",
         type=str,
         dest="build_target",
-        help="Android build target, e.g. aosp_cf_x86_phone-userdebug, "
+        help="Android build target, e.g. aosp_cf_x86_64_phone-userdebug, "
              "or short names: phone, tablet, or tablet_mobile.")
     parser.add_argument(
         "--branch",
@@ -196,6 +203,19 @@ def AddCommonCreateArgs(parser):
         help="'cuttlefish only' System image build target, specify if different "
         "from --build-target",
         required=False)
+    parser.add_argument(
+        "--launch-args",
+        type=str,
+        dest="launch_args",
+        help="'cuttlefish only' Add extra args to launch_cvd command.",
+        required=False)
+    parser.add_argument(
+        "--gce-metadata",
+        type=str,
+        dest="gce_metadata",
+        default=None,
+        help="'GCE instance only' Record data into GCE instance metadata with "
+        "key-value pair format. e.g. id:12,name:unknown.")
     # TODO(146314062): Remove --multi-stage-launch after infra don't use this
     # args.
     parser.add_argument(
@@ -244,6 +264,12 @@ def AddCommonCreateArgs(parser):
         dest="num_avds_per_instance",
         required=False,
         default=1,
+        help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--oxygen",
+        action="store_true",
+        dest="oxygen",
+        required=False,
         help=argparse.SUPPRESS)
     parser.add_argument(
         "--zone",
@@ -369,10 +395,11 @@ def GetCreateArgParser(subparser):
                  constants.TYPE_FVP],
         help="Android Virtual Device type (default %s)." % constants.TYPE_CF)
     create_parser.add_argument(
-        "--flavor",
+        "--config", "--flavor",
         type=str,
         dest="flavor",
-        help="The device flavor of the AVD (default %s)." % constants.FLAVOR_PHONE)
+        help="The device flavor of the AVD (default %s). e.g. phone, tv, foldable."
+        % constants.FLAVOR_PHONE)
     create_parser.add_argument(
         "--local-image",
         const=constants.FIND_IN_BUILD_ENV,
@@ -385,6 +412,18 @@ def GetCreateArgParser(subparser):
         "e.g --local-image or --local-image /path/to/dir or --local-image "
         "/path/to/file")
     create_parser.add_argument(
+        "--local-kernel-image", "--local-boot-image",
+        const=constants.FIND_IN_BUILD_ENV,
+        type=str,
+        dest="local_kernel_image",
+        nargs="?",
+        required=False,
+        help="Use the locally built kernel image for the AVD. Look for "
+        "boot.img or boot-*.img if the argument is a directory. Look for the "
+        "image in $ANDROID_PRODUCT_OUT if no argument is provided. e.g., "
+        "--local-kernel-image, --local-kernel-image /path/to/dir, or "
+        "--local-kernel-image /path/to/img")
+    create_parser.add_argument(
         "--local-system-image",
         const=constants.FIND_IN_BUILD_ENV,
         type=str,
@@ -393,7 +432,8 @@ def GetCreateArgParser(subparser):
         required=False,
         help="Use the locally built system images for the AVD. Look for the "
         "images in $ANDROID_PRODUCT_OUT if no args value is provided. "
-        "e.g., --local-system-image or --local-system-image /path/to/dir")
+        "e.g., --local-system-image, --local-system-image /path/to/dir, or "
+        "--local-system-image /path/to/img")
     create_parser.add_argument(
         "--local-tool",
         type=str,
@@ -428,13 +468,6 @@ def GetCreateArgParser(subparser):
         "Reusing specific gce instance if --reuse-gce [instance_name] is "
         "provided. Select one gce instance to reuse if --reuse-gce is "
         "provided.")
-    create_parser.add_argument(
-        "--gce-metadata",
-        type=str,
-        dest="gce_metadata",
-        default=None,
-        help="'GCE instance only' Record data into GCE instance metadata with "
-        "key-value pair format. e.g. id:12,name:unknown.")
     create_parser.add_argument(
         "--host",
         type=str,
@@ -618,7 +651,6 @@ def VerifyArgs(args):
         args: Namespace object from argparse.parse_args.
 
     Raises:
-        errors.UnsupportedFlavor: Flavor doesn't support.
         errors.UnsupportedMultiAdbPort: multi adb port doesn't support.
         errors.UnsupportedCreateArgs: When a create arg is specified but
                                       unsupported for a particular avd type.
@@ -628,9 +660,9 @@ def VerifyArgs(args):
     # We don't use argparse's builtin validation because we need to be able to
     # tell when a user doesn't specify a flavor.
     if args.flavor and args.flavor not in constants.ALL_FLAVORS:
-        raise errors.UnsupportedFlavor(
-            "Flavor[%s] isn't in support list: %s" % (args.flavor,
-                                                      constants.ALL_FLAVORS))
+        logger.debug("Flavor[%s] isn't in default support list: %s",
+                     args.flavor, constants.ALL_FLAVORS)
+
     if args.avd_type != constants.TYPE_CF:
         if args.system_branch or args.system_build_id or args.system_build_target:
             raise errors.UnsupportedCreateArgs(
