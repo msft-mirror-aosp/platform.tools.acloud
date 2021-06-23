@@ -53,6 +53,7 @@ import collections
 import glob
 import logging
 import os
+import re
 import subprocess
 import sys
 
@@ -98,6 +99,7 @@ _CMD_LAUNCH_CVD_WEBRTC_ARGS = (" -guest_enforce_security=false "
 _CMD_LAUNCH_CVD_VNC_ARG = " -start_vnc_server=true"
 _CMD_LAUNCH_CVD_SUPER_IMAGE_ARG = " -super_image=%s"
 _CMD_LAUNCH_CVD_BOOT_IMAGE_ARG = " -boot_image=%s"
+_CONFIG_RE = re.compile(r"^config=(?P<config>.+)")
 
 # In accordance with the number of network interfaces in
 # /etc/init.d/cuttlefish-common
@@ -227,6 +229,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         hw_property = None
         if avd_spec.hw_customize:
             hw_property = avd_spec.hw_property
+        config = self._GetConfigFromAndroidInfo(
+            os.path.join(artifact_paths.image_dir, constants.ANDROID_INFO_FILE))
         cmd = self.PrepareLaunchCVDCmd(launch_cvd_path,
                                        hw_property,
                                        avd_spec.connect_adb,
@@ -237,7 +241,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                                        super_image_path,
                                        artifact_paths.boot_image,
                                        avd_spec.launch_args,
-                                       avd_spec.flavor)
+                                       config or avd_spec.flavor)
 
         result_report = report.Report(command="create")
         instance_name = instance.GetLocalInstanceName(local_instance_id)
@@ -422,10 +426,31 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         return super_image_path
 
     @staticmethod
+    def _GetConfigFromAndroidInfo(android_info_path):
+        """Get config value from android-info.txt.
+
+        The config in android-info.txt would like "config=phone".
+
+        Args:
+            android_info_path: String of android-info.txt pah.
+
+        Returns:
+            Strings of config value.
+        """
+        if os.path.exists(android_info_path):
+            with open(android_info_path, "r") as android_info_file:
+                android_info = android_info_file.read()
+                logger.debug("Android info: %s", android_info)
+                config_match = _CONFIG_RE.match(android_info)
+                if config_match:
+                    return config_match.group("config")
+        return None
+
+    @staticmethod
     def PrepareLaunchCVDCmd(launch_cvd_path, hw_property, connect_adb,
                             image_dir, runtime_dir, connect_webrtc,
                             connect_vnc, super_image_path, boot_image_path,
-                            launch_args, flavor):
+                            launch_args, config):
         """Prepare launch_cvd command.
 
         Create the launch_cvd commands with all the required args and add
@@ -442,13 +467,13 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             super_image_path: String of non-default super image path.
             boot_image_path: String of non-default boot image path.
             launch_args: String of launch args.
-            flavor: String of flavor name.
+            config: String of config name.
 
         Returns:
             String, launch_cvd cmd.
         """
         launch_cvd_w_args = launch_cvd_path + _CMD_LAUNCH_CVD_ARGS % (
-            flavor, ("true" if connect_adb else "false"), image_dir, runtime_dir)
+            config, ("true" if connect_adb else "false"), image_dir, runtime_dir)
         if hw_property:
             launch_cvd_w_args = launch_cvd_w_args + _CMD_LAUNCH_CVD_HW_ARGS % (
                 hw_property["cpu"], hw_property["x_res"], hw_property["y_res"],
