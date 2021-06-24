@@ -41,7 +41,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
     NETWORK = "fake-network"
     ZONE = "fake-zone"
     BRANCH = "fake-branch"
-    TARGET = "aosp_cf_x86_phone-userdebug"
+    TARGET = "aosp_cf_x86_64_phone-userdebug"
     BUILD_ID = "2263051"
     KERNEL_BRANCH = "fake-kernel-branch"
     KERNEL_BUILD_ID = "1234567"
@@ -155,6 +155,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         args.flavor = "phone"
         args.adb_port = None
         args.remote_host = False
+        args.launch_args = None
         fake_avd_spec = avd_spec.AVDSpec(args)
         fake_avd_spec.hw_property[constants.HW_X_RES] = str(self.X_RES)
         fake_avd_spec.hw_property[constants.HW_Y_RES] = str(self.Y_RES)

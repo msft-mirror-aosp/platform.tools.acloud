@@ -55,5 +55,11 @@ def GetRestartArgParser(subparser):
         required=False,
         default=1,
         help="The instance id of the remote instance that need to be restart.")
+    restart_parser.add_argument(
+        "--powerwash",
+        dest="powerwash",
+        action="store_true",
+        required=False,
+        help="Erase all userdata in the AVD.")
 
     return restart_parser

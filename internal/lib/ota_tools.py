@@ -34,18 +34,20 @@ _AVBTOOL = "avbtool"
 _SGDISK = "sgdisk"
 _SIMG2IMG = "simg2img"
 _MK_COMBINED_IMG = "mk_combined_img"
+_UNPACK_BOOTIMG = "unpack_bootimg"
 
 _BUILD_SUPER_IMAGE_TIMEOUT_SECS = 30
 _AVBTOOL_TIMEOUT_SECS = 30
 _MK_COMBINED_IMG_TIMEOUT_SECS = 180
+_UNPACK_BOOTIMG_TIMEOUT_SECS = 30
 
 _MISSING_OTA_TOOLS_MSG = ("%(tool_name)s is not found. Run `make otatools` "
                           "in build environment, or set --local-tool to an "
                           "extracted otatools.zip.")
 
 
-def FindOtaTools(search_paths):
-    """Find OTA tools in the search paths and in build environment.
+def FindOtaToolsDir(search_paths):
+    """Find OTA tools directory in the search paths and in build environment.
 
     Args:
         search_paths: List of paths, the directories to search for OTA tools.
@@ -70,6 +72,21 @@ def FindOtaTools(search_paths):
 
     raise errors.CheckPathError(_MISSING_OTA_TOOLS_MSG %
                                 {"tool_name": "OTA tool directory"})
+
+
+def FindOtaTools(search_paths):
+    """Find OTA tools in the search paths and in build environment.
+
+    Args:
+        search_paths: List of paths, the directories to search for OTA tools.
+
+    Returns:
+        An OtaTools object.
+
+    Raises:
+        errors.CheckPathError if OTA tools are not found.
+    """
+    return OtaTools(FindOtaToolsDir(search_paths))
 
 
 def GetImageForPartition(partition_name, image_dir, **image_paths):
@@ -322,3 +339,17 @@ class OtaTools:
         finally:
             if new_config_path:
                 os.remove(new_config_path)
+
+    @utils.TimeExecute(function_description="Unpack boot image")
+    @utils.TimeoutException(_UNPACK_BOOTIMG_TIMEOUT_SECS)
+    def UnpackBootImg(self, out_dir, boot_img):
+        """Use unpack_bootimg to unpack a boot image to a direcotry.
+
+        Args:
+            out_dir: The output directory.
+            boot_img: The path to the boot image.
+        """
+        unpack_bootimg = self._GetBinary(_UNPACK_BOOTIMG)
+        self._ExecuteCommand(unpack_bootimg,
+                             "--out", out_dir,
+                             "--boot_img", boot_img)

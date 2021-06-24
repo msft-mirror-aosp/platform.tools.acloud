@@ -187,6 +187,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
           build to local and unzip it then upload to remote host, because there
           is no permission to fetch build rom on the remote host.
         """
+        self._compute_client.SetStage(constants.STAGE_ARTIFACT)
         if self._avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
             self._UploadLocalImageArtifacts(
                 self._local_image_artifact, self._cvd_host_package_artifact,
@@ -277,6 +278,8 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
                     artifact_files.extend(
                         os.path.basename(image) for image in glob.glob(
                             os.path.join(images_dir, file_name)))
+            # Upload android-info.txt to parse config value.
+            artifact_files.append(constants.ANDROID_INFO_FILE)
             cmd = ("tar -cf - --lzop -S -C {images_dir} {artifact_files} | "
                    "{ssh_cmd} -- tar -xf - --lzop -S".format(
                        images_dir=images_dir,

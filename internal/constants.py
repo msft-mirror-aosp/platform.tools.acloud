@@ -18,7 +18,7 @@ BRANCH_PREFIX = "git_"
 BUILD_TARGET_MAPPING = {
     # TODO: Add aosp goldfish targets and internal cf targets to vendor code
     # base.
-    "aosp_phone": "aosp_cf_x86_phone-userdebug",
+    "aosp_phone": "aosp_cf_x86_64_phone-userdebug",
     "aosp_tablet": "aosp_cf_x86_tablet-userdebug",
 }
 SPEC_NAMES = {
@@ -113,6 +113,7 @@ INSTANCE_NAME = "instance_name"
 GCE_USER = "vsoc-01"
 VNC_PORT = "vnc_port"
 ADB_PORT = "adb_port"
+WEBRTC_PORT = "webrtc_port"
 DEVICE_SERIAL = "device_serial"
 # For cuttlefish remote instances
 CF_ADB_PORT = 6520
@@ -176,6 +177,7 @@ INS_STATUS_RUNNING = "RUNNING"
 ENV_CUTTLEFISH_CONFIG_FILE = "CUTTLEFISH_CONFIG_FILE"
 ENV_CUTTLEFISH_INSTANCE = "CUTTLEFISH_INSTANCE"
 ENV_CVD_HOME = "HOME"
+ANDROID_INFO_FILE = "android-info.txt"
 CUTTLEFISH_CONFIG_FILE = "cuttlefish_config.json"
 
 TEMP_ARTIFACTS_FOLDER = "acloud_image_artifacts"
@@ -209,8 +211,9 @@ ERROR_LOG_FOLDER = "error_log_folder"
 # Stages for create progress
 STAGE_INIT = 0
 STAGE_GCE = 1
-STAGE_ARTIFACT = 2
-STAGE_BOOT_UP = 3
+STAGE_SSH_CONNECT = 2
+STAGE_ARTIFACT = 3
+STAGE_BOOT_UP = 4
 
 # The name of download image tool.
 FETCH_CVD = "fetch_cvd"
