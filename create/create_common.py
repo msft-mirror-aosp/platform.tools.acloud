@@ -26,6 +26,11 @@ from acloud.internal.lib import android_build_client
 from acloud.internal.lib import auth
 from acloud.internal.lib import utils
 
+# Use mkcert to generate a localhost certificates for webrtc
+_MKCERT_LOCAL_CERT_CMD = ("%(local_ca_dir)s/mkcert "
+                          "-key-file %(local_ca_dir)s/server.key "
+                          "-cert-file %(local_ca_dir)s/server.crt "
+                          "localhost 0.0.0.0 ::1")
 
 logger = logging.getLogger(__name__)
 
@@ -178,3 +183,19 @@ def PrepareLocalInstanceDir(instance_dir, avd_spec):
             return
     if not os.path.exists(instance_dir):
         os.makedirs(instance_dir)
+
+
+def AllocateLocalHostCert(local_ca_dir):
+    """Allocate certificates of localhost by mkcert.
+
+    This will generate certificates by mkcert to trust webrtc frontend
+    if one of the required certificates do not exist.
+
+    Args:
+        local_ca_dir: String, a fixed path to store the certificates.
+    """
+    cmd_mkcert = _MKCERT_LOCAL_CERT_CMD % {"local_ca_dir": local_ca_dir}
+    for cert_file_name in constants.WEBRTC_CERTS_FILES:
+        if not os.path.exists(os.path.join(local_ca_dir, cert_file_name)):
+            utils.CheckOutput(cmd_mkcert, shell=True)
+            break
