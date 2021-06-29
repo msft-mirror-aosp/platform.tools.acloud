@@ -36,7 +36,7 @@ class CvdRuntimeconfigTest(driver_test_lib.BaseDriverTest):
  "instances": {
    "2":{
        "adb_ip_and_port": "127.0.0.1:6520",
-       "host_port": 6520,
+       "adb_host_port": 6520,
        "instance_dir": "/path-to-instance-dir",
        "vnc_server_port": 6444
    }
@@ -52,7 +52,7 @@ class CvdRuntimeconfigTest(driver_test_lib.BaseDriverTest):
  "instances" : {
    "1":{
        "adb_ip_and_port": "127.0.0.1:6520",
-       "host_port": 6520,
+       "adb_host_port": 6520,
        "instance_dir": "/path-to-instance-dir",
        "vnc_server_port": 6444,
        "virtual_disk_paths": ["/path-to-image"]
@@ -83,7 +83,7 @@ class CvdRuntimeconfigTest(driver_test_lib.BaseDriverTest):
                          u'instances':
                              {u'2':
                                   {u'adb_ip_and_port': u'127.0.0.1:6520',
-                                   u'host_port': 6520,
+                                   u'adb_host_port': 6520,
                                    u'instance_dir': u'/path-to-instance-dir',
                                    u'vnc_server_port': 6444}
                              },
