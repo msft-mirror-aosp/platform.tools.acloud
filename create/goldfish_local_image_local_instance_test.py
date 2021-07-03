@@ -428,6 +428,50 @@ class GoldfishLocalImageLocalInstance(unittest.TestCase):
     @mock.patch("acloud.create.goldfish_local_image_local_instance."
                 "subprocess.Popen")
     @mock.patch("acloud.create.goldfish_local_image_local_instance.ota_tools")
+    def testCreateAVDWithKernelImages(self, mock_ota_tools, mock_popen,
+                                      mock_utils, mock_instance):
+        """Test _CreateAVD with kernel images and SDK repository files."""
+        self._SetUpMocks(mock_popen, mock_utils, mock_instance)
+
+        kernel_dir = os.path.join(self._temp_dir, "kernel_images")
+        kernel_image_path = os.path.join(kernel_dir, "x86", "kernel-ranchu")
+        ramdisk_image_path = os.path.join(kernel_dir, "x86", "ramdisk.img")
+        self._CreateEmptyFile(kernel_image_path)
+        self._CreateEmptyFile(ramdisk_image_path)
+        self._CreateEmptyFile(os.path.join(self._image_dir, "x86",
+                                           "system.img"))
+        self._CreateEmptyFile(os.path.join(self._image_dir, "x86",
+                                           "build.prop"))
+
+        mock_avd_spec = self._CreateMockAvdSpec(
+            local_instance_id=3,
+            local_kernel_image=kernel_dir,
+            local_tool_dirs=[self._tool_dir])
+
+        with mock.patch.dict("acloud.create."
+                             "goldfish_local_image_local_instance.os.environ",
+                             dict(), clear=True):
+            report = self._goldfish._CreateAVD(mock_avd_spec, no_prompts=True)
+
+        self.assertEqual(report.data.get("devices"),
+                         self._EXPECTED_DEVICES_IN_REPORT)
+
+        mock_ota_tools.FindOtaTools.assert_not_called()
+
+        mock_popen.assert_called_once()
+        self.assertEqual(
+            mock_popen.call_args[0][0],
+            self._GetExpectedEmulatorArgs(
+                "-kernel", kernel_image_path,
+                "-ramdisk", ramdisk_image_path))
+
+    # pylint: disable=protected-access
+    @mock.patch("acloud.create.goldfish_local_image_local_instance.instance."
+                "LocalGoldfishInstance")
+    @mock.patch("acloud.create.goldfish_local_image_local_instance.utils")
+    @mock.patch("acloud.create.goldfish_local_image_local_instance."
+                "subprocess.Popen")
+    @mock.patch("acloud.create.goldfish_local_image_local_instance.ota_tools")
     def testCreateAVDWithMixedImageDirs(self, mock_ota_tools, mock_popen,
                                         mock_utils, mock_instance):
         """Test _CreateAVD with mixed images in build environment."""
