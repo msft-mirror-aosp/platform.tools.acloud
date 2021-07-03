@@ -19,21 +19,21 @@ local images.
 The emulator binary supports two types of environments, Android build system
 and SDK. This class runs the emulator in build environment.
 - This class uses the prebuilt emulator in ANDROID_EMULATOR_PREBUILTS.
-- If the instance requires mixed images, this class uses the OTA tools in
-  ANDROID_HOST_OUT.
+- If the instance requires mixing system or boot image, this class uses the
+  OTA tools in ANDROID_HOST_OUT.
 
 To run this program outside of a build environment, the following setup is
 required.
 - One of the local tool directories is an unzipped SDK emulator repository,
   i.e., sdk-repo-<os>-emulator-<build>.zip.
-- If the instance doesn't require mixed images, the local image directory
-  should be an unzipped SDK image repository, i.e.,
+- If the instance doesn't require mixing system image, the local image
+  directory should be an unzipped SDK image repository, i.e.,
   sdk-repo-<os>-system-images-<build>.zip.
-- If the instance requires mixed images, the local image directory should
-  be an unzipped extra image package, i.e.,
+- If the instance requires mixing system image, the local image directory
+  should be an unzipped extra image package, i.e.,
   emu-extra-<os>-system-images-<build>.zip.
-- If the instance requires mixed images, one of the local tool directories
-  should be an unzipped OTA tools package, i.e., otatools.zip.
+- If the instance requires mixing system or boot image, one of the local tool
+  directories should be an unzipped OTA tools package, i.e., otatools.zip.
 """
 
 import logging
@@ -71,6 +71,7 @@ _UNPACKED_RAMDISK_IMAGE_NAME = "ramdisk"
 # File names in a build environment or an SDK repository. They follow the
 # search order of emulator.
 _DISK_IMAGE_NAMES = (_SYSTEM_QEMU_IMAGE_NAME, _SYSTEM_IMAGE_NAME)
+_KERNEL_IMAGE_NAMES = ("kernel-ranchu", "kernel-ranchu-64", "kernel")
 _RAMDISK_IMAGE_NAMES = ("ramdisk-qemu.img", "ramdisk.img")
 _NON_MIXED_BACKUP_IMAGE_EXT = ".bak-non-mixed"
 _BUILD_PROP_FILE_NAME = "build.prop"
@@ -189,6 +190,8 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         emulator_path = self._FindEmulatorBinary(avd_spec.local_tool_dirs)
 
         image_dir = self._FindImageDir(avd_spec.local_image_dir)
+        # Validate the input dir.
+        self._FindFileByNames(image_dir, _DISK_IMAGE_NAMES)
 
         # TODO(b/141898893): In Android build environment, emulator gets build
         # information from $ANDROID_PRODUCT_OUT/system/build.prop.
@@ -397,26 +400,20 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         named after the CPU architecture.
 
         Args:
-            image_dir: The path given by the environment variable or the user.
+            image_dir: The output directory in build environment or an
+                       extracted SDK repository.
 
         Returns:
-            The directory containing the emulator images.
-
-        Raises:
-            errors.GetLocalImageError if the images are not found.
+            The subdirectory if image_dir contains only one subdirectory;
+            image_dir otherwise.
         """
         image_dir = os.path.abspath(image_dir)
         entries = os.listdir(image_dir)
         if len(entries) == 1:
             first_entry = os.path.join(image_dir, entries[0])
             if os.path.isdir(first_entry):
-                image_dir = first_entry
-
-        if any(os.path.isfile(os.path.join(image_dir, name)) for name in
-               _DISK_IMAGE_NAMES):
-            return image_dir
-
-        raise errors.GetLocalImageError("No device image in %s." % image_dir)
+                return first_entry
+        return image_dir
 
     @staticmethod
     def _IsEmulatorRunning(adb):
@@ -511,6 +508,51 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                         system_qemu_img, new_image)
             shutil.copyfile(new_image, system_qemu_img)
 
+    def _FindAndMixKernelImages(self, kernel_search_path, image_dir, tool_dirs,
+                                instance_dir):
+        """Find kernel images and mix them with emulator images.
+
+        Args:
+            kernel_search_path: The path to the boot image or the directory
+                                containing kernel and ramdisk.
+            image_dir: The directory containing the emulator images.
+            tool_dirs: A list of directories to look for OTA tools.
+            instance_dir: The instance directory for mixed images.
+
+        Returns:
+            A pair of strings, the paths to kernel image and ramdisk image.
+        """
+        # Find generic boot image.
+        try:
+            boot_image_path = create_common.FindLocalImage(
+                kernel_search_path, _BOOT_IMAGE_NAME_PATTERN)
+            logger.info("Found boot image: %s", boot_image_path)
+        except errors.GetLocalImageError:
+            boot_image_path = None
+
+        if boot_image_path:
+            kernel_path, boot_ramdisk_path = self._FindKernelImagesInBootImage(
+                boot_image_path, instance_dir,
+                ota_tools.FindOtaTools(tool_dirs))
+            # The ramdisk unpacked from the boot image does not include
+            # emulator's kernel modules. The ramdisk in the original image
+            # directory contains the modules. This method mixes the two
+            # ramdisks.
+            mixed_ramdisk_path = os.path.join(instance_dir, "mixed_ramdisk")
+            original_ramdisk_path = self._FindFileByNames(
+                self._FindImageDir(image_dir), _RAMDISK_IMAGE_NAMES)
+            self._MixRamdiskImages(mixed_ramdisk_path, original_ramdisk_path,
+                                   boot_ramdisk_path)
+            return kernel_path, mixed_ramdisk_path
+
+        # Find kernel and ramdisk images built for emulator.
+        kernel_dir = self._FindImageDir(kernel_search_path)
+        kernel_path = self._FindFileByNames(kernel_dir, _KERNEL_IMAGE_NAMES)
+        ramdisk_path = self._FindFileByNames(kernel_dir, _RAMDISK_IMAGE_NAMES)
+        logger.info("Found kernel and ramdisk: %s %s",
+                    kernel_path, ramdisk_path)
+        return kernel_path, ramdisk_path
+
     def _ConvertAvdSpecToArgs(self, avd_spec, instance_dir):
         """Convert AVD spec to emulator arguments.
 
@@ -555,25 +597,10 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                          "androidboot.verifiedbootstate=orange"))
 
         if avd_spec.local_kernel_image:
-            # Unpack kernel and ramdisk from boot image.
-            boot_image_path = create_common.FindLocalImage(
-                avd_spec.local_kernel_image, _BOOT_IMAGE_NAME_PATTERN)
-            if not ota:
-                ota = ota_tools.FindOtaTools(avd_spec.local_tool_dirs)
-            kernel_path, ramdisk_path = self._FindKernelImagesInBootImage(
-                boot_image_path, instance_dir, ota)
-            # Find emulator ramdisk.
-            if not image_dir:
-                image_dir = self._FindImageDir(avd_spec.local_image_dir)
-            mixed_ramdisk_path = os.path.join(instance_dir, "mixed_ramdisk")
-            original_ramdisk_path = self._FindFileByNames(image_dir,
-                                                          _RAMDISK_IMAGE_NAMES)
-
-            self._MixRamdiskImages(mixed_ramdisk_path, original_ramdisk_path,
-                                   ramdisk_path)
-
-            args.extend(("-kernel", kernel_path,
-                         "-ramdisk", mixed_ramdisk_path))
+            kernel_path, ramdisk_path = self._FindAndMixKernelImages(
+                avd_spec.local_kernel_image, avd_spec.local_image_dir,
+                avd_spec.local_tool_dirs, instance_dir)
+            args.extend(("-kernel", kernel_path, "-ramdisk", ramdisk_path))
 
         return args
 
