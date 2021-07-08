@@ -137,7 +137,7 @@ class AndroidComputeClient(gcompute_client.ComputeClient):
         Returns:
           name: A string that complies with RFC1035.
         """
-        name = name.replace("_", "-").lower()
+        name = name.replace("_", "-").replace(".", "-").lower()
         name = name[:cls.NAME_LENGTH_LIMIT]
         if name[-1] == "-":
             name = name[:-1] + cls.REPLACER
