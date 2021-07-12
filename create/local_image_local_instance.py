@@ -254,6 +254,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                        "For more detail: %s/launcher.log" %
                        (launch_error, runtime_dir))
             result_report.SetStatus(report.Status.BOOT_FAIL)
+            result_report.SetErrorType(constants.ACLOUD_BOOT_UP_ERROR)
             result_report.AddDeviceBootFailure(
                 instance_name, constants.LOCALHOST, None, None, error=err_msg)
             return result_report
@@ -275,6 +276,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             err_msg = "cvd_status return non-zero after launch_cvd"
             logger.error(err_msg)
             result_report.SetStatus(report.Status.BOOT_FAIL)
+            result_report.SetErrorType(constants.ACLOUD_BOOT_UP_ERROR)
             result_report.AddDeviceBootFailure(
                 instance_name, constants.LOCALHOST, None, None, error=err_msg)
         return result_report
