@@ -32,19 +32,14 @@ from acloud.internal.lib.adb_tools import AdbTools
 
 
 logger = logging.getLogger(__name__)
-_ACLOUD_BOOT_UP_ERROR = "ACLOUD_BOOT_UP_ERROR"
-_ACLOUD_DOWNLOAD_ARTIFACT_ERROR = "ACLOUD_DOWNLOAD_ARTIFACT_ERROR"
-_ACLOUD_UNKNOWN_ERROR = "ACLOUD_UNKNOWN_ERROR"
-_ACLOUD_SSH_CONNECT_ERROR = "ACLOUD_SSH_CONNECT_ERROR"
-# Error type of GCE quota error.
-_GCE_QUOTA_ERROR = "GCE_QUOTA_ERROR"
+# Error message of GCE quota error.
 _GCE_QUOTA_ERROR_MSG = "Quota exceeded for quota"
 _DICT_ERROR_TYPE = {
-    constants.STAGE_INIT: "ACLOUD_INIT_ERROR",
-    constants.STAGE_GCE: "ACLOUD_CREATE_GCE_ERROR",
-    constants.STAGE_SSH_CONNECT: _ACLOUD_SSH_CONNECT_ERROR,
-    constants.STAGE_ARTIFACT: _ACLOUD_DOWNLOAD_ARTIFACT_ERROR,
-    constants.STAGE_BOOT_UP: _ACLOUD_BOOT_UP_ERROR,
+    constants.STAGE_INIT: constants.ACLOUD_INIT_ERROR,
+    constants.STAGE_GCE: constants.ACLOUD_CREATE_GCE_ERROR,
+    constants.STAGE_SSH_CONNECT: constants.ACLOUD_SSH_CONNECT_ERROR,
+    constants.STAGE_ARTIFACT: constants.ACLOUD_DOWNLOAD_ARTIFACT_ERROR,
+    constants.STAGE_BOOT_UP: constants.ACLOUD_BOOT_UP_ERROR,
 }
 
 
@@ -198,14 +193,14 @@ def _GetErrorType(error):
         String of error type. e.g. "ACLOUD_BOOT_UP_ERROR".
     """
     if isinstance(error, errors.CheckGCEZonesQuotaError):
-        return _GCE_QUOTA_ERROR
+        return constants.GCE_QUOTA_ERROR
     if isinstance(error, errors.DownloadArtifactError):
-        return _ACLOUD_DOWNLOAD_ARTIFACT_ERROR
+        return constants.ACLOUD_DOWNLOAD_ARTIFACT_ERROR
     if isinstance(error, errors.DeviceConnectionError):
-        return _ACLOUD_SSH_CONNECT_ERROR
+        return constants.ACLOUD_SSH_CONNECT_ERROR
     if _GCE_QUOTA_ERROR_MSG in str(error):
-        return _GCE_QUOTA_ERROR
-    return _ACLOUD_UNKNOWN_ERROR
+        return constants.GCE_QUOTA_ERROR
+    return constants.ACLOUD_UNKNOWN_ERROR
 
 # pylint: disable=too-many-locals,unused-argument,too-many-branches
 def CreateDevices(command, cfg, device_factory, num, avd_type,
@@ -299,7 +294,7 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
                     ssh_user=constants.GCE_USER,
                     extra_args_ssh_tunnel=cfg.extra_args_ssh_tunnel)
             if device.instance_name in failures:
-                reporter.SetErrorType(_ACLOUD_BOOT_UP_ERROR)
+                reporter.SetErrorType(constants.ACLOUD_BOOT_UP_ERROR)
                 if device.stage:
                     reporter.SetErrorType(_DICT_ERROR_TYPE[device.stage])
                 reporter.AddData(key="devices_failing_boot", value=device_dict)
