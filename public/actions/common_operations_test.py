@@ -24,6 +24,7 @@ import unittest
 from unittest import mock
 
 from acloud import errors
+from acloud.internal import constants
 from acloud.internal.lib import android_build_client
 from acloud.internal.lib import android_compute_client
 from acloud.internal.lib import auth
@@ -168,27 +169,27 @@ class CommonOperationsTest(driver_test_lib.BaseDriverTest):
         """Test GetErrorType."""
         # Test with CheckGCEZonesQuotaError()
         error = errors.CheckGCEZonesQuotaError()
-        expected_result = common_operations._GCE_QUOTA_ERROR
+        expected_result = constants.GCE_QUOTA_ERROR
         self.assertEqual(common_operations._GetErrorType(error), expected_result)
 
         # Test with DownloadArtifactError()
         error = errors.DownloadArtifactError()
-        expected_result = common_operations._ACLOUD_DOWNLOAD_ARTIFACT_ERROR
+        expected_result = constants.ACLOUD_DOWNLOAD_ARTIFACT_ERROR
         self.assertEqual(common_operations._GetErrorType(error), expected_result)
 
         # Test with DeviceConnectionError()
         error = errors.DeviceConnectionError()
-        expected_result = common_operations._ACLOUD_SSH_CONNECT_ERROR
+        expected_result = constants.ACLOUD_SSH_CONNECT_ERROR
         self.assertEqual(common_operations._GetErrorType(error), expected_result)
 
         # Test with ACLOUD_UNKNOWN_ERROR
         error = errors.DriverError()
-        expected_result = common_operations._ACLOUD_UNKNOWN_ERROR
+        expected_result = constants.ACLOUD_UNKNOWN_ERROR
         self.assertEqual(common_operations._GetErrorType(error), expected_result)
 
         # Test with error message about GCE quota issue
         error = errors.DriverError("Quota exceeded for quota read group.")
-        expected_result = common_operations._GCE_QUOTA_ERROR
+        expected_result = constants.GCE_QUOTA_ERROR
         self.assertEqual(common_operations._GetErrorType(error), expected_result)
 
 
