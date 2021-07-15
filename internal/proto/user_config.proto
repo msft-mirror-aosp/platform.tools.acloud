@@ -118,4 +118,7 @@ message UserConfig {
 
   // [Oxygen only] The API service url.
   optional string api_url = 33;
+
+  // [Oxygen only] The client to call oxygen api.
+  optional string oxygen_client = 34;
 }
