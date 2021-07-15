@@ -188,6 +188,11 @@ def _CheckForSetup(args):
         if host_pkg_setup.ShouldRun():
             args.host = True
 
+    if args.autoconnect == constants.INS_KEY_WEBRTC:
+        mkcert_pkg_setup = host_setup_runner.MkcertPkgInstaller()
+        if mkcert_pkg_setup.ShouldRun():
+            args.host = True
+
     # Install base packages if we haven't already.
     host_base_setup = host_setup_runner.HostBasePkgInstaller()
     if host_base_setup.ShouldRun():
