@@ -159,6 +159,8 @@ EOF"""
         mock_lock.Lock.assert_called_once()
         mock_lock.LockIfNotInUse.assert_not_called()
 
+    @mock.patch.object(local_image_local_instance.LocalImageLocalInstance,
+                       "_TrustCertificatesForWebRTC")
     @mock.patch("acloud.create.local_image_local_instance.utils")
     @mock.patch("acloud.create.local_image_local_instance.ota_tools")
     @mock.patch("acloud.create.local_image_local_instance.create_common")
@@ -170,7 +172,8 @@ EOF"""
     @mock.patch.object(instance, "GetLocalInstanceHomeDir")
     def testCreateInstance(self, mock_home_dir, _mock_runtime_dir,
                            _mock_prepare_cmd, mock_launch_cvd,
-                           _mock_create_common, mock_ota_tools, _mock_utils):
+                           _mock_create_common, mock_ota_tools, _mock_utils,
+                           _mock_trust_certs):
         """Test the report returned by _CreateInstance."""
         self.Patch(instance, "GetLocalInstanceName",
                    return_value="local-instance-1")
@@ -180,7 +183,7 @@ EOF"""
             "/ota/tools/dir", "/system/image/path", "/boot/image/path")
         mock_ota_tools_object = mock.Mock()
         mock_ota_tools.OtaTools.return_value = mock_ota_tools_object
-        mock_avd_spec = mock.Mock(unlock_screen=False)
+        mock_avd_spec = mock.Mock(unlock_screen=False, connect_webrtc=True)
         local_ins = mock.Mock(
             adb_port=6520,
             vnc_port=6444
@@ -201,6 +204,17 @@ EOF"""
         mock_ota_tools.OtaTools.assert_called_with("/ota/tools/dir")
         mock_ota_tools_object.BuildSuperImage.assert_called_with(
             "/local-instance-1/mixed_super.img", "/misc/info/path", mock.ANY)
+
+        # should call _TrustCertificatesForWebRTC
+        _mock_trust_certs.assert_called_once()
+        _mock_trust_certs.reset_mock()
+
+        # should not call _TrustCertificatesForWebRTC
+        mock_avd_spec.connect_webrtc = False
+        self.local_image_local_instance._CreateInstance(
+            1, artifact_paths, mock_avd_spec, no_prompts=True)
+        self.assertEqual(_mock_create_common.call_count, 0)
+
 
         # Failure
         mock_launch_cvd.side_effect = errors.LaunchCVDFail("unit test")
