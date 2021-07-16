@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Tests for host_setup_runner."""
+import os
 import platform
 import shutil
 import tempfile
@@ -25,6 +26,7 @@ from acloud.setup import setup_common
 from acloud.setup.host_setup_runner import AvdPkgInstaller
 from acloud.setup.host_setup_runner import CuttlefishCommonPkgInstaller
 from acloud.setup.host_setup_runner import CuttlefishHostSetup
+from acloud.setup.host_setup_runner import MkcertPkgInstaller
 
 
 class CuttlefishHostSetupTest(driver_test_lib.BaseDriverTest):
@@ -119,6 +121,29 @@ class CuttlefishCommonPkgInstallerTest(driver_test_lib.BaseDriverTest):
         self.CuttlefishCommonPkgInstaller.Run()
         self.assertEqual(mock_cmd.call_count, 1)
         mock_rmtree.assert_called_once_with(fake_tmp_folder)
+
+class MkcertPkgInstallerTest(driver_test_lib.BaseDriverTest):
+    """Test MkcertPkgInstallerTest."""
+
+    # pylint: disable=invalid-name
+    def setUp(self):
+        """Set up the test."""
+        super(MkcertPkgInstallerTest, self).setUp()
+        self.MkcertPkgInstaller = MkcertPkgInstaller()
+
+    def testShouldRun(self):
+        """Test ShouldRun."""
+        self.Patch(platform, "system", return_value="Linux")
+        self.Patch(os.path, "exists", return_value=False)
+        self.assertTrue(self.MkcertPkgInstaller.ShouldRun())
+
+    @mock.patch.object(setup_common, "CheckCmdOutput")
+    def testRun(self, mock_cmd):
+        """Test Run."""
+        self.Patch(utils, "GetUserAnswerYes", return_value="y")
+        self.Patch(MkcertPkgInstaller, "ShouldRun", return_value=True)
+        self.MkcertPkgInstaller.Run()
+        self.assertEqual(mock_cmd.call_count, 1)
 
 
 if __name__ == "__main__":
