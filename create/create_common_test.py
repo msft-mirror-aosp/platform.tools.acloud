@@ -96,6 +96,15 @@ class CreateCommonTest(driver_test_lib.BaseDriverTest):
                 create_common.GetCvdHostPackage(),
                 "/fake_dir2/cvd-host_package.tar.gz")
 
+        # Find cvd host in specified path.
+        package_path = "/tool_dir/cvd-host_package.tar.gz"
+        self.Patch(utils, "GetDistDir", return_value=None)
+        with mock.patch("os.path.exists") as exists:
+            exists.return_value = True
+            self.assertEqual(
+                create_common.GetCvdHostPackage(package_path),
+                "/tool_dir/cvd-host_package.tar.gz")
+
     @mock.patch("acloud.create.create_common.os.path.isfile",
                 side_effect=lambda path: path == "/dir/name")
     @mock.patch("acloud.create.create_common.os.path.isdir",

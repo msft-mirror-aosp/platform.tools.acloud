@@ -70,11 +70,14 @@ def ParseKeyValuePairArgs(dict_str, item_separator=",", key_value_separator=":")
     return args_dict
 
 
-def GetCvdHostPackage():
+def GetCvdHostPackage(package_path=None):
     """Get cvd host package path.
 
-    Look for the host package in $ANDROID_HOST_OUT and dist dir then verify
-    existence and get cvd host package path.
+    Look for the host package in specified path or $ANDROID_HOST_OUT and dist
+    dir then verify existence and get cvd host package path.
+
+    Args:
+        package_path: String of cvd host package path.
 
     Return:
         A string, the path to the host package.
@@ -82,6 +85,11 @@ def GetCvdHostPackage():
     Raises:
         errors.GetCvdLocalHostPackageError: Can't find cvd host package.
     """
+    if package_path:
+        if os.path.exists(package_path):
+            return package_path
+        raise errors.GetCvdLocalHostPackageError(
+            "The cvd host package path (%s) doesn't exist." % package_path)
     dirs_to_check = list(
         filter(None, [
             os.environ.get(constants.ENV_ANDROID_SOONG_HOST_OUT),

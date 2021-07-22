@@ -46,7 +46,7 @@ class LocalImageRemoteInstance(base_avd_create.BaseAVDCreate):
             device_factory = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
                 avd_spec,
                 avd_spec.local_image_artifact,
-                create_common.GetCvdHostPackage())
+                create_common.GetCvdHostPackage(avd_spec.cvd_host_package))
             command = "create_cf"
         elif avd_spec.avd_type == constants.TYPE_FVP:
             device_factory = remote_instance_fvp_device_factory.RemoteInstanceDeviceFactory(
