@@ -442,8 +442,15 @@ def GetCreateArgParser(subparser):
         default=[],
         required=False,
         help="Use the tools in the specified directory to create local "
-        "instances. The directory structure follows $ANDROID_HOST_OUT or "
-        "$ANDROID_EMULATOR_PREBUILTS.")
+        "instances. The directory structure follows $ANDROID_SOONG_HOST_OUT "
+        "or $ANDROID_EMULATOR_PREBUILTS.")
+    create_parser.add_argument(
+        "--cvd-host-package",
+        type=str,
+        dest="cvd_host_package",
+        required=False,
+        help="Use the specified path of the cvd host package to create "
+        "instances. e.g. /path/cvd-host_package_v1.tar.gz")
     create_parser.add_argument(
         "--image-download-dir",
         type=str,

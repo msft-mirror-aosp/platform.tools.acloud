@@ -103,6 +103,7 @@ class AVDSpec():
         # args afterwards.
         self._client_adb_port = args.adb_port
         self._autoconnect = None
+        self._cvd_host_package = None
         self._instance_name_to_reuse = None
         self._unlock_screen = None
         self._report_internal_ip = None
@@ -320,6 +321,7 @@ class AVDSpec():
         self._local_instance_id = args.local_instance
         self._local_instance_dir = args.local_instance_dir
         self._local_tool_dirs = args.local_tool
+        self._cvd_host_package = args.cvd_host_package
         self._num_of_instances = args.num
         self._num_avds_per_instance = args.num_avds_per_instance
         self._no_pull_log = args.no_pull_log
@@ -957,3 +959,8 @@ class AVDSpec():
     def launch_args(self):
         """Return launch_args."""
         return self._launch_args
+
+    @property
+    def cvd_host_package(self):
+        """Return cvd_host_package."""
+        return self._cvd_host_package
