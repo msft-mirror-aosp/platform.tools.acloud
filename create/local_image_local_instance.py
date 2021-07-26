@@ -101,6 +101,7 @@ _CMD_LAUNCH_CVD_VNC_ARG = " -start_vnc_server=true"
 _CMD_LAUNCH_CVD_SUPER_IMAGE_ARG = " -super_image=%s"
 _CMD_LAUNCH_CVD_BOOT_IMAGE_ARG = " -boot_image=%s"
 _CONFIG_RE = re.compile(r"^config=(?P<config>.+)")
+_MAX_REPORTED_ERROR_LINES = 10
 
 # In accordance with the number of network interfaces in
 # /etc/init.d/cuttlefish-common
@@ -600,11 +601,23 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         # Check the result of launch_cvd command.
         # An exit code of 0 is equivalent to VIRTUAL_DEVICE_BOOT_COMPLETED
         try:
-            subprocess.check_call(cmd, shell=True, stderr=subprocess.STDOUT,
-                                  env=cvd_env, timeout=timeout)
-        except subprocess.TimeoutExpired as e:
-            raise errors.LaunchCVDFail("Device did not boot within %d secs." %
-                                       timeout) from e
-        except subprocess.CalledProcessError as e:
-            raise errors.LaunchCVDFail("launch_cvd returned %s." %
-                                       e.returncode) from e
+            proc = subprocess.Popen(cmd, shell=True, env=cvd_env,
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE,
+                                    text=True)
+            stdout, stderr = proc.communicate(timeout=timeout)
+            if proc.returncode == 0:
+                logger.info("launch_cvd stdout:\n%s", stdout)
+                logger.info("launch_cvd stderr:\n%s", stderr)
+                return
+            error_msg = "launch_cvd returned %d." % proc.returncode
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            stdout, stderr = proc.communicate(timeout=5)
+            error_msg = "Device did not boot within %d secs." % timeout
+
+        logger.error("launch_cvd stdout:\n%s", stdout)
+        logger.error("launch_cvd stderr:\n%s", stderr)
+        split_stderr = stderr.splitlines()[-_MAX_REPORTED_ERROR_LINES:]
+        raise errors.LaunchCVDFail("%s Stderr:\n%s" %
+                                   (error_msg, "\n".join(split_stderr)))
