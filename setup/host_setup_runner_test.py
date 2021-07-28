@@ -142,6 +142,9 @@ class MkcertPkgInstallerTest(driver_test_lib.BaseDriverTest):
         """Test Run."""
         self.Patch(utils, "GetUserAnswerYes", return_value="y")
         self.Patch(MkcertPkgInstaller, "ShouldRun", return_value=True)
+        self.Patch(os, "mkdir")
+        self.Patch(utils, "SetExecutable")
+        self.Patch(utils, "CheckOutput")
         self.MkcertPkgInstaller.Run()
         self.assertEqual(mock_cmd.call_count, 1)
 
