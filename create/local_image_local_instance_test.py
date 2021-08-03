@@ -418,11 +418,10 @@ EOF"""
         self.assertTrue(answer)
 
     # pylint: disable=protected-access
-    @mock.patch("acloud.create.local_image_local_instance.subprocess."
-                "check_call")
+    @mock.patch("acloud.create.local_image_local_instance.subprocess.Popen")
     @mock.patch.dict("os.environ", clear=True)
-    def testLaunchCVD(self, mock_check_call):
-        """test _LaunchCvd should call subprocess.check_call with the env."""
+    def testLaunchCVD(self, mock_popen):
+        """test _LaunchCvd should call subprocess.Popen with the env."""
         local_instance_id = 3
         launch_cvd_cmd = "launch_cvd"
         host_bins_path = "host_bins_path"
@@ -433,6 +432,9 @@ EOF"""
         cvd_env[constants.ENV_CUTTLEFISH_INSTANCE] = str(local_instance_id)
         cvd_env[constants.ENV_ANDROID_SOONG_HOST_OUT] = host_bins_path
         cvd_env[constants.ENV_ANDROID_HOST_OUT] = host_bins_path
+        mock_proc = mock.Mock(returncode=0)
+        mock_popen.return_value = mock_proc
+        mock_proc.communicate.return_value = ("stdout", "stderr")
 
         self.local_image_local_instance._LaunchCvd(launch_cvd_cmd,
                                                    local_instance_id,
@@ -440,33 +442,44 @@ EOF"""
                                                    cvd_home_dir,
                                                    timeout)
 
-        mock_check_call.assert_called_once_with(launch_cvd_cmd,
-                                                shell=True,
-                                                stderr=subprocess.STDOUT,
-                                                env=cvd_env,
-                                                timeout=timeout)
+        mock_popen.assert_called_once_with(launch_cvd_cmd,
+                                           shell=True,
+                                           env=cvd_env,
+                                           stdout=subprocess.PIPE,
+                                           stderr=subprocess.PIPE,
+                                           text=True)
+        mock_proc.communicate.assert_called_once_with(timeout=timeout)
 
-    @mock.patch("acloud.create.local_image_local_instance.subprocess."
-                "check_call")
-    def testLaunchCVDTimeout(self, mock_check_call):
+    @mock.patch("acloud.create.local_image_local_instance.subprocess.Popen")
+    def testLaunchCVDFailure(self, mock_popen):
         """test _LaunchCvd with subprocess errors."""
-        mock_check_call.side_effect = subprocess.TimeoutExpired(
-            cmd="launch_cvd", timeout=100)
-        with self.assertRaises(errors.LaunchCVDFail):
+        mock_proc = mock.Mock(returncode=255)
+        mock_popen.return_value = mock_proc
+        mock_proc.communicate.side_effect = [
+            subprocess.TimeoutExpired(cmd="launch_cvd", timeout=100),
+            ("stdout", "stderr")
+        ]
+        with self.assertRaises(errors.LaunchCVDFail) as launch_cvd_failure:
             self.local_image_local_instance._LaunchCvd("launch_cvd",
                                                        3,
                                                        "host_bins_path",
                                                        "cvd_home_dir",
                                                        100)
+        self.assertIn("100 secs", str(launch_cvd_failure.exception))
 
-        mock_check_call.side_effect = subprocess.CalledProcessError(
-            cmd="launch_cvd", returncode=1)
-        with self.assertRaises(errors.LaunchCVDFail):
+        mock_proc.returncode=9
+        mock_proc.communicate.side_effect = [
+            ("stdout", "first line" + ("\n" * 10) + "last line\n")
+        ]
+        with self.assertRaises(errors.LaunchCVDFail) as launch_cvd_failure:
             self.local_image_local_instance._LaunchCvd("launch_cvd",
                                                        3,
                                                        "host_bins_path",
                                                        "cvd_home_dir",
                                                        100)
+        self.assertIn("returned 9", str(launch_cvd_failure.exception))
+        self.assertNotIn("first line", str(launch_cvd_failure.exception))
+        self.assertIn("last line", str(launch_cvd_failure.exception))
 
     def testGetWebrtcSigServerPort(self):
         """test GetWebrtcSigServerPort."""
