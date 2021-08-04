@@ -35,7 +35,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class AndroidVirtualDevice(object):
+class AndroidVirtualDevice():
     """Represent an Android device."""
 
     def __init__(self, instance_name, ip=None, time_info=None, stage=None):
