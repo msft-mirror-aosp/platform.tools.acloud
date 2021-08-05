@@ -20,11 +20,12 @@ remote image.
 """
 
 import logging
+import re
 import time
 
 from acloud.create import base_avd_create
 from acloud.internal import constants
-from acloud.internal.lib import engprod_client
+from acloud.internal.lib import oxygen_client
 from acloud.internal.lib import utils
 from acloud.public.actions import common_operations
 from acloud.public.actions import remote_instance_cf_device_factory
@@ -36,6 +37,8 @@ _DEVICE = "device"
 _DEVICES = "devices"
 _DEVICE_KEY_MAPPING = {"serverUrl": "ip", "sessionId": "instance_name"}
 _LAUNCH_CVD_TIME = "launch_cvd_time"
+_RE_SESSION_ID = re.compile(r".*session_id:\"(?P<session_id>[^\"]+)")
+_RE_SERVER_URL = re.compile(r".*server_url:\"(?P<server_url>[^\"]+)")
 
 
 class RemoteImageRemoteInstance(base_avd_create.BaseAVDCreate):
@@ -85,25 +88,52 @@ class RemoteImageRemoteInstance(base_avd_create.BaseAVDCreate):
             A Report instance.
         """
         timestart = time.time()
-        response = engprod_client.EngProdClient.LeaseDevice(
+        response = oxygen_client.OxygenClient.LeaseDevice(
             avd_spec.remote_image[constants.BUILD_TARGET],
             avd_spec.remote_image[constants.BUILD_ID],
-            avd_spec.cfg.api_key,
-            avd_spec.cfg.api_url)
+            avd_spec.cfg.oxygen_client)
+        session_id, server_url = self._GetDeviceInfoFromResponse(response)
         execution_time = round(time.time() - timestart, 2)
         reporter = report.Report(command="create_cf")
-        if _DEVICE in response:
+        if session_id and server_url:
             reporter.SetStatus(report.Status.SUCCESS)
-            device_data = response[_DEVICE]
+            device_data = {"instance_name": session_id,
+                           "ip": server_url}
             device_data[_LAUNCH_CVD_TIME] = execution_time
-            self._ReplaceDeviceDataKeys(device_data)
             dict_devices = {_DEVICES: [device_data]}
             reporter.UpdateData(dict_devices)
         else:
             reporter.SetStatus(report.Status.FAIL)
-            reporter.AddError(response.get("errorMessage"))
+            reporter.AddError(response)
 
         return reporter
+
+    @staticmethod
+    def _GetDeviceInfoFromResponse(response):
+        """Get session id and server url from response.
+
+        Args:
+            response: String of the response from oxygen proxy client.
+                      e.g. "2021/08/02 11:28:52 session_id: "74b6b835"
+                      server_url: "0.0.0.34" port:{type:WATERFALL ..."
+
+        Returns:
+            The session id and the server url of leased device.
+        """
+        session_id = ""
+        for line in response.splitlines():
+            session_id_match = _RE_SESSION_ID.match(line)
+            if session_id_match:
+                session_id = session_id_match.group("session_id")
+                break
+
+        server_url = ""
+        for line in response.splitlines():
+            server_url_match = _RE_SERVER_URL.match(line)
+            if server_url_match:
+                server_url = server_url_match.group("server_url")
+                break
+        return session_id, server_url
 
     @staticmethod
     def _ReplaceDeviceDataKeys(device_data):
