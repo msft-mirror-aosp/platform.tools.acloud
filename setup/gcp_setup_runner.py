@@ -140,7 +140,7 @@ def _InputIsEmpty(input_string):
     return False
 
 
-class GoogleSDKBins(object):
+class GoogleSDKBins():
     """Class to run tools in the Google SDK."""
 
     def __init__(self, google_sdk_folder):
@@ -184,7 +184,7 @@ class GoogleSDKBins(object):
                                  env=self._env, **kwargs)
 
 
-class GoogleAPIService(object):
+class GoogleAPIService():
     """Class to enable api service in the gcp project."""
 
     def __init__(self, service_name, error_msg, required=False):
@@ -360,7 +360,7 @@ class GcpTaskRunner(base_task_runner.BaseTaskRunner):
         if project_changed:
             logger.info("Your project changed. Start to run setup process.")
             return True
-        elif not self.client_id or not self.client_secret:
+        if not self.client_id or not self.client_secret:
             logger.info("Client ID or client secret is empty. Start to run setup process.")
             return True
         logger.info("Project was unchanged and client ID didn't need to changed.")
