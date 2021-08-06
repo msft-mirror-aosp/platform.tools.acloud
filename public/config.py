@@ -250,6 +250,7 @@ class AcloudConfig():
         self.launch_args = usr_cfg.launch_args
         self.api_key = usr_cfg.api_key
         self.api_url = usr_cfg.api_url
+        self.oxygen_client = usr_cfg.oxygen_client
         self.instance_name_pattern = (
             usr_cfg.instance_name_pattern or
             internal_cfg.default_usr_cfg.instance_name_pattern)
