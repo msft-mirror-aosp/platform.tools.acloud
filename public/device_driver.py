@@ -52,7 +52,7 @@ _SSH_USER = "root"
 
 
 # pylint: disable=invalid-name
-class AndroidVirtualDevicePool(object):
+class AndroidVirtualDevicePool():
     """A class that manages a pool of devices."""
 
     def __init__(self, cfg, devices=None):
