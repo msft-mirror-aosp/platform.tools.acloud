@@ -43,7 +43,7 @@ lrw                    16384  1 aesni_intel"""
     # pylint: disable=invalid-name
     def setUp(self):
         """Set up the test."""
-        super(CuttlefishHostSetupTest, self).setUp()
+        super().setUp()
         self.CuttlefishHostSetup = CuttlefishHostSetup()
 
     def testShouldRunFalse(self):
@@ -86,7 +86,7 @@ class AvdPkgInstallerTest(driver_test_lib.BaseDriverTest):
     # pylint: disable=invalid-name
     def setUp(self):
         """Set up the test."""
-        super(AvdPkgInstallerTest, self).setUp()
+        super().setUp()
         self.AvdPkgInstaller = AvdPkgInstaller()
 
     def testShouldNotRun(self):
@@ -101,7 +101,7 @@ class CuttlefishCommonPkgInstallerTest(driver_test_lib.BaseDriverTest):
     # pylint: disable=invalid-name
     def setUp(self):
         """Set up the test."""
-        super(CuttlefishCommonPkgInstallerTest, self).setUp()
+        super().setUp()
         self.CuttlefishCommonPkgInstaller = CuttlefishCommonPkgInstaller()
 
     def testShouldRun(self):
@@ -128,7 +128,7 @@ class MkcertPkgInstallerTest(driver_test_lib.BaseDriverTest):
     # pylint: disable=invalid-name
     def setUp(self):
         """Set up the test."""
-        super(MkcertPkgInstallerTest, self).setUp()
+        super().setUp()
         self.MkcertPkgInstaller = MkcertPkgInstaller()
 
     def testShouldRun(self):
