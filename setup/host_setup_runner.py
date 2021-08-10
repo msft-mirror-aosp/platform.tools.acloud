@@ -198,7 +198,8 @@ class MkcertPkgInstaller(base_task_runner.BaseTaskRunner):
                                       "enter to exit: " % cmd):
             sys.exit(constants.EXIT_BY_USER)
 
-        os.mkdir(_MKCERT_INSTALL_PATH)
+        if not os.path.isdir(_MKCERT_INSTALL_PATH):
+            os.mkdir(_MKCERT_INSTALL_PATH)
         setup_common.CheckCmdOutput(cmd, shell=True)
         utils.SetExecutable(os.path.join(_MKCERT_INSTALL_PATH, "mkcert"))
         utils.CheckOutput(_MKCERT_CAROOT_CMD, shell=True)
