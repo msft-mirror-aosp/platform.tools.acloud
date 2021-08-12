@@ -26,8 +26,8 @@ from acloud.public.actions import common_operations
 from acloud.public.actions import remote_instance_cf_device_factory
 
 
-ONE_LINE_LEASE_RESPONSE = ("2021/08/02 11:28:52 session_id:\"fake_device\" "
-                           "server_url:\"10.1.1.1\" ports:{type:WATERFALL value:0}")
+ONE_LINE_LEASE_RESPONSE = (b'2021/08/02 11:28:52 session_id:\"fake_device\" '
+                           'server_url:\"10.1.1.1\" ports:{type:WATERFALL value:0}')
 MULTIPLE_LINES_LEASE_RESPONSE = """
 2021/08/02 11:28:52
 session_id:"fake_device"
