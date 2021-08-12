@@ -22,7 +22,7 @@ from acloud.internal import constants
 from acloud.internal.lib import utils
 
 
-class BaseAVDCreate(object):
+class BaseAVDCreate():
     """Base class for all AVD intance creation classes."""
 
     def _CreateAVD(self, avd_spec, no_prompts):

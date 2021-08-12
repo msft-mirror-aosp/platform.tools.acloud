@@ -18,8 +18,10 @@ import unittest
 
 from unittest import mock
 
+from acloud import errors
 from acloud.delete import delete
 from acloud.internal.lib import driver_test_lib
+from acloud.internal.lib import oxygen_client
 from acloud.list import list as list_instances
 from acloud.public import report
 
@@ -173,6 +175,21 @@ class DeleteTest(driver_test_lib.BaseDriverTest):
                      "ins-id2-cf-x86-phone-userdebug"]
         delete.DeleteInstanceByNames(cfg, instances)
         mock_delete_remote_ins.assert_called()
+
+    @mock.patch.object(oxygen_client.OxygenClient, "ReleaseDevice")
+    def testReleaseOxygenDevice(self, mock_release):
+        """test ReleaseOxygenDevice"""
+        cfg = mock.Mock()
+        cfg.oxygen_client = "oxygen_client"
+        ip = "0.0.0.0"
+        # Raise exception for multiple instances
+        instances = ["local-instance-1", "local-instance-2"]
+        self.assertRaises(errors.CommandArgError, delete._ReleaseOxygenDevice, cfg, instances, ip)
+
+        # Test release device with oxygen client
+        instances = ["local-instance-1"]
+        delete._ReleaseOxygenDevice(cfg, instances, ip)
+        mock_release.assert_called_once()
 
 
 if __name__ == "__main__":

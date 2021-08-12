@@ -27,8 +27,9 @@ from acloud import errors
 from acloud.internal import constants
 from acloud.internal.lib import auth
 from acloud.internal.lib import cvd_compute_client_multi_stage
-from acloud.internal.lib import utils
+from acloud.internal.lib import oxygen_client
 from acloud.internal.lib import ssh as ssh_object
+from acloud.internal.lib import utils
 from acloud.list import list as list_instances
 from acloud.public import config
 from acloud.public import device_driver
@@ -287,6 +288,37 @@ def DeleteInstanceByNames(cfg, instances):
     return delete_report
 
 
+def _ReleaseOxygenDevice(cfg, instances, ip):
+    """ Release one Oxygen device.
+
+    Args:
+        cfg: AcloudConfig object.
+        instances: List of instance name.
+        ip: String of device ip.
+
+    Returns:
+        A Report instance.
+    """
+    if len(instances) != 1:
+        raise errors.CommandArgError(
+            "The release device function doesn't support multiple instances. "
+            "Please check the specified instance names: %s" % instances)
+    instance_name = instances[0]
+    delete_report = report.Report(command="delete")
+    try:
+        oxygen_client.OxygenClient.ReleaseDevice(instance_name, ip,
+                                                 cfg.oxygen_client)
+        delete_report.SetStatus(report.Status.SUCCESS)
+        device_driver.AddDeletionResultToReport(
+            delete_report, [instance_name], failed=[],
+            error_msgs=[],
+            resource_name="instance")
+    except subprocess.CalledProcessError as e:
+        delete_report.AddError(str(e))
+        delete_report.SetStatus(report.Status.FAIL)
+    return delete_report
+
+
 def Run(args):
     """Run delete.
 
@@ -302,6 +334,8 @@ def Run(args):
     # Prioritize delete instances by names without query all instance info from
     # GCP project.
     cfg = config.GetAcloudConfig(args)
+    if args.oxygen:
+        return _ReleaseOxygenDevice(cfg, args.instance_names, args.ip)
     if args.instance_names:
         return DeleteInstanceByNames(cfg,
                                      args.instance_names)
