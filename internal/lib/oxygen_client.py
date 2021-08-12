@@ -39,9 +39,9 @@ class OxygenClient():
         response = subprocess.check_output([
             oxygen_client, "-lease", "-build_id", build_id, "-build_target",
             build_target
-        ])
+        ], stderr=subprocess.STDOUT)
         logger.debug("The response from oxygen client: %s", response)
-        return response
+        return response.decode("utf-8")
 
     @staticmethod
     def ReleaseDevice(session_id, server_url, oxygen_client):
