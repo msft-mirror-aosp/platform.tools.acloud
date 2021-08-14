@@ -134,13 +134,14 @@ class AVDSpec():
         self._gce_metadata = None
         self._host_user = None
         self._host_ssh_private_key_path = None
+        self._gpu = None
         # Create config instance for android_build_client to query build api.
         self._cfg = config.GetAcloudConfig(args)
         # Reporting args.
         self._serial_log_file = None
-        # gpu and emulator_build_id is only used for goldfish avd_type.
-        self._gpu = None
+        # emulator_* are only used for goldfish avd_type.
         self._emulator_build_id = None
+        self._emulator_build_target = None
 
         # Fields only used for cheeps type.
         self._stable_cheeps_host_image_name = None
@@ -328,6 +329,7 @@ class AVDSpec():
         self._oxygen = args.oxygen
         self._serial_log_file = args.serial_log_file
         self._emulator_build_id = args.emulator_build_id
+        self._emulator_build_target = args.emulator_build_target
         self._gpu = args.gpu
         self._gce_metadata = create_common.ParseKeyValuePairArgs(args.gce_metadata)
 
@@ -873,6 +875,11 @@ class AVDSpec():
     def emulator_build_id(self):
         """Return emulator_build_id."""
         return self._emulator_build_id
+
+    @property
+    def emulator_build_target(self):
+        """Return emulator_build_target."""
+        return self._emulator_build_target
 
     @property
     def client_adb_port(self):
