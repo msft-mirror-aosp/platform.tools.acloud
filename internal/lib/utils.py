@@ -65,10 +65,11 @@ _SSH_TUNNEL_ARGS = (
 PORT_MAPPING = "-L %(local_port)d:127.0.0.1:%(target_port)d "
 _RELEASE_PORT_CMD = "kill $(lsof -t -i :%d)"
 _WEBRTC_TARGET_PORT = 8443
-WEBRTC_PORTS_MAPPING = [{"local": constants.WEBRTC_LOCAL_PORT,
-                         "target": _WEBRTC_TARGET_PORT},
-                        {"local": 15550, "target": 15550},
-                        {"local": 15551, "target": 15551}]
+PortMapping = collections.namedtuple("PortMapping", ["local", "target"])
+WEBRTC_PORTS_MAPPING = [PortMapping(constants.WEBRTC_LOCAL_PORT,
+                                    _WEBRTC_TARGET_PORT),
+                        PortMapping(15550, 15550),
+                        PortMapping(15551, 15551)]
 _ADB_CONNECT_ARGS = "connect 127.0.0.1:%(adb_port)d"
 # Store the ports that vnc/adb are forwarded to, both are integers.
 ForwardedPorts = collections.namedtuple("ForwardedPorts", [constants.VNC_PORT,
@@ -822,6 +823,37 @@ def ReleasePort(port):
         logger.debug("The port %d is available.", constants.WEBRTC_LOCAL_PORT)
 
 
+def EstablishSshTunnel(ip_addr, rsa_key_file, ssh_user,
+                       port_mapping, extra_args_ssh_tunnel=None):
+    """Create an ssh tunnel.
+
+    Args:
+        ip_addr: String, use to build the adb & vnc tunnel between local
+                 and remote instance.
+        rsa_key_file: String, Private key file path to use when creating
+                      the ssh tunnels.
+        ssh_user: String of user login into the instance.
+        port_mapping: List of tuples, each tuple is a pair of integers
+                      representing a local port and a remote port.
+        extra_args_ssh_tunnel: String, extra args for ssh tunnel connection.
+
+    Raises:
+        subprocess.CalledProcessError if the ssh command fails.
+    """
+    port_mapping = [PORT_MAPPING % {
+        "local_port": ports[0],
+        "target_port": ports[1]} for ports in port_mapping]
+    ssh_tunnel_args = _SSH_TUNNEL_ARGS % {
+        "rsa_key_file": rsa_key_file,
+        "ssh_user": ssh_user,
+        "ip_addr": ip_addr,
+        "port_mapping": " ".join(port_mapping)}
+    ssh_tunnel_args_list = shlex.split(ssh_tunnel_args)
+    if extra_args_ssh_tunnel:
+        ssh_tunnel_args_list.extend(shlex.split(extra_args_ssh_tunnel))
+    _ExecuteCommand(constants.SSH_BIN, ssh_tunnel_args_list)
+
+
 def EstablishWebRTCSshTunnel(ip_addr, rsa_key_file, ssh_user,
                              extra_args_ssh_tunnel=None):
     """Create ssh tunnels for webrtc.
@@ -840,18 +872,8 @@ def EstablishWebRTCSshTunnel(ip_addr, rsa_key_file, ssh_user,
     """
     ReleasePort(constants.WEBRTC_LOCAL_PORT)
     try:
-        port_mapping = [PORT_MAPPING % {
-            "local_port":port["local"],
-            "target_port":port["target"]} for port in WEBRTC_PORTS_MAPPING]
-        ssh_tunnel_args = _SSH_TUNNEL_ARGS % {
-            "rsa_key_file": rsa_key_file,
-            "ssh_user": ssh_user,
-            "ip_addr": ip_addr,
-            "port_mapping":" ".join(port_mapping)}
-        ssh_tunnel_args_list = shlex.split(ssh_tunnel_args)
-        if extra_args_ssh_tunnel is not None:
-            ssh_tunnel_args_list.extend(shlex.split(extra_args_ssh_tunnel))
-        _ExecuteCommand(constants.SSH_BIN, ssh_tunnel_args_list)
+        EstablishSshTunnel(ip_addr, rsa_key_file, ssh_user,
+                           WEBRTC_PORTS_MAPPING, extra_args_ssh_tunnel)
     except subprocess.CalledProcessError as e:
         PrintColorString("\n%s\nFailed to create ssh tunnels, retry with '#acloud "
                          "reconnect'." % e, TextColors.FAIL)
@@ -879,25 +901,14 @@ def AutoConnect(ip_addr, rsa_key_file, target_vnc_port, target_adb_port,
         integers.
     """
     local_adb_port = client_adb_port or PickFreePort()
-    port_mapping = [PORT_MAPPING % {
-        "local_port":local_adb_port,
-        "target_port":target_adb_port}]
+    port_mapping = [(local_adb_port, target_adb_port)]
     local_free_vnc_port = None
     if target_vnc_port:
         local_free_vnc_port = PickFreePort()
-        port_mapping += [PORT_MAPPING % {
-            "local_port":local_free_vnc_port,
-            "target_port":target_vnc_port}]
+        port_mapping.append((local_free_vnc_port, target_vnc_port))
     try:
-        ssh_tunnel_args = _SSH_TUNNEL_ARGS % {
-            "rsa_key_file": rsa_key_file,
-            "port_mapping": " ".join(port_mapping),
-            "ssh_user": ssh_user,
-            "ip_addr": ip_addr}
-        ssh_tunnel_args_list = shlex.split(ssh_tunnel_args)
-        if extra_args_ssh_tunnel is not None:
-            ssh_tunnel_args_list.extend(shlex.split(extra_args_ssh_tunnel))
-        _ExecuteCommand(constants.SSH_BIN, ssh_tunnel_args_list)
+        EstablishSshTunnel(ip_addr, rsa_key_file, ssh_user,
+                           port_mapping, extra_args_ssh_tunnel)
     except subprocess.CalledProcessError as e:
         PrintColorString("\n%s\nFailed to create ssh tunnels, retry with '#acloud "
                          "reconnect'." % e, TextColors.FAIL)
