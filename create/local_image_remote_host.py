@@ -54,7 +54,9 @@ class LocalImageRemoteHost(base_avd_create.BaseAVDCreate):
             boot_timeout_secs=avd_spec.boot_timeout_secs,
             unlock_screen=avd_spec.unlock_screen,
             wait_for_boot=False,
-            connect_webrtc=avd_spec.connect_webrtc)
+            connect_webrtc=avd_spec.connect_webrtc,
+            ssh_private_key_path=avd_spec.host_ssh_private_key_path,
+            ssh_user=avd_spec.host_user)
         # Launch vnc client if we're auto-connecting.
         if avd_spec.connect_vnc:
             utils.LaunchVNCFromReport(report, avd_spec, no_prompts)

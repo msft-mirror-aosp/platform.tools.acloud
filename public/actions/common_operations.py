@@ -207,7 +207,9 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
                   report_internal_ip=False, autoconnect=False,
                   serial_log_file=None, client_adb_port=None,
                   boot_timeout_secs=None, unlock_screen=False,
-                  wait_for_boot=True, connect_webrtc=False):
+                  wait_for_boot=True, connect_webrtc=False,
+                  ssh_private_key_path=None,
+                  ssh_user=constants.GCE_USER):
     """Create a set of devices using the given factory.
 
     Main jobs in create devices.
@@ -230,6 +232,8 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
         wait_for_boot: Boolean, True to check serial log include boot up
                        message.
         connect_webrtc: Boolean, whether to auto connect webrtc to device.
+        ssh_private_key_path: String, the private key for SSH tunneling.
+        ssh_user: String, the user name for SSH tunneling.
 
     Raises:
         errors: Create instance fail.
@@ -274,10 +278,11 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
             if autoconnect:
                 forwarded_ports = utils.AutoConnect(
                     ip_addr=ip,
-                    rsa_key_file=cfg.ssh_private_key_path,
+                    rsa_key_file=(ssh_private_key_path or
+                                  cfg.ssh_private_key_path),
                     target_vnc_port=utils.AVD_PORT_DICT[avd_type].vnc_port,
                     target_adb_port=utils.AVD_PORT_DICT[avd_type].adb_port,
-                    ssh_user=constants.GCE_USER,
+                    ssh_user=ssh_user,
                     client_adb_port=client_adb_port,
                     extra_args_ssh_tunnel=cfg.extra_args_ssh_tunnel)
                 device_dict[constants.VNC_PORT] = forwarded_ports.vnc_port
@@ -290,8 +295,9 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
             if connect_webrtc:
                 utils.EstablishWebRTCSshTunnel(
                     ip_addr=ip,
-                    rsa_key_file=cfg.ssh_private_key_path,
-                    ssh_user=constants.GCE_USER,
+                    rsa_key_file=(ssh_private_key_path or
+                                  cfg.ssh_private_key_path),
+                    ssh_user=ssh_user,
                     extra_args_ssh_tunnel=cfg.extra_args_ssh_tunnel)
             if device.instance_name in failures:
                 reporter.SetErrorType(constants.ACLOUD_BOOT_UP_ERROR)
