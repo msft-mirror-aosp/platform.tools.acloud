@@ -50,6 +50,20 @@ _INSTALL_CUTTLEFISH_COMMOM_CMD = [
     "yes | sudo mk-build-deps -i -r -B",
     "dpkg-buildpackage -uc -us",
     "sudo apt-get install -y -f ../cuttlefish-common_*_amd64.deb"]
+_MKCERT_URL = "https://github.com/FiloSottile/mkcert"
+_MKCERT_VERSION = "v1.4.3"
+_MKCERT_INSTALL_PATH = os.path.join(os.path.expanduser("~"), ".config",
+                                    constants.TOOL_NAME, "mkcert")
+_MKCERT_CAROOT_CMD = "%s/mkcert -install" % _MKCERT_INSTALL_PATH
+_MKCERT_DOWNLOAD_CMD = ("wget -O %(mkcert_install_path)s/mkcert "
+                        "%(mkcert_url)s/releases/download/"
+                        "%(mkcert_ver)s/mkcert-%(mkcert_ver)s-linux-amd64" %
+                        {"mkcert_install_path": _MKCERT_INSTALL_PATH,
+                         "mkcert_url": _MKCERT_URL,
+                         "mkcert_ver": _MKCERT_VERSION})
+_INSTALL_MKCERT_CMD = [
+    "sudo apt-get install wget libnss3-tools",
+    _MKCERT_DOWNLOAD_CMD]
 
 
 class BasePkgInstaller(base_task_runner.BaseTaskRunner):
@@ -153,6 +167,44 @@ class CuttlefishCommonPkgInstaller(base_task_runner.BaseTaskRunner):
             shutil.rmtree(os.path.dirname(cf_common_path))
         logger.info("Cuttlefish-common package installed now.")
 
+class MkcertPkgInstaller(base_task_runner.BaseTaskRunner):
+    """Subtask base runner class for installing mkcert."""
+
+    WELCOME_MESSAGE_TITLE = "Install mkcert package on the host"
+    WELCOME_MESSAGE = ("This step will walk you through the mkcert "
+                       "package installation to your host for "
+                       "assuring a secure localhost url connection "
+                       "when launching an AVD over webrtc")
+
+    def ShouldRun(self):
+        """Check if mkcert package is installed.
+
+        Returns:
+            Boolean, True if mkcert is not installed.
+        """
+        if not utils.IsSupportedPlatform():
+            return False
+
+        if not os.path.exists(os.path.join(_MKCERT_INSTALL_PATH, "mkcert")):
+            return True
+        return False
+
+    def _Run(self):
+        """Install mkcert packages."""
+        cmd = "\n".join(_INSTALL_MKCERT_CMD)
+
+        if not utils.GetUserAnswerYes("\nStart to install mkcert :\n%s"
+                                      "\nEnter 'y' to continue, otherwise N or "
+                                      "enter to exit: " % cmd):
+            sys.exit(constants.EXIT_BY_USER)
+
+        if not os.path.isdir(_MKCERT_INSTALL_PATH):
+            os.mkdir(_MKCERT_INSTALL_PATH)
+        setup_common.CheckCmdOutput(cmd, shell=True)
+        utils.SetExecutable(os.path.join(_MKCERT_INSTALL_PATH, "mkcert"))
+        utils.CheckOutput(_MKCERT_CAROOT_CMD, shell=True)
+        logger.info("Mkcert package is installed at \"%s\" now.",
+                    _MKCERT_INSTALL_PATH)
 
 class CuttlefishHostSetup(base_task_runner.BaseTaskRunner):
     """Subtask class that setup host for cuttlefish."""
