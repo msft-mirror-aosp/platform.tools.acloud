@@ -21,6 +21,7 @@ remote image.
 
 import logging
 import re
+import subprocess
 import time
 
 from acloud.create import base_avd_create
@@ -39,6 +40,8 @@ _DEVICE_KEY_MAPPING = {"serverUrl": "ip", "sessionId": "instance_name"}
 _LAUNCH_CVD_TIME = "launch_cvd_time"
 _RE_SESSION_ID = re.compile(r".*session_id:\"(?P<session_id>[^\"]+)")
 _RE_SERVER_URL = re.compile(r".*server_url:\"(?P<server_url>[^\"]+)")
+_RE_OXYGEN_LEASE_ERROR = re.compile(
+    r".*Error received while trying to lease device: (?P<error>.*)$", re.DOTALL)
 
 
 class RemoteImageRemoteInstance(base_avd_create.BaseAVDCreate):
@@ -88,12 +91,20 @@ class RemoteImageRemoteInstance(base_avd_create.BaseAVDCreate):
             A Report instance.
         """
         timestart = time.time()
-        response = oxygen_client.OxygenClient.LeaseDevice(
-            avd_spec.remote_image[constants.BUILD_TARGET],
-            avd_spec.remote_image[constants.BUILD_ID],
-            avd_spec.cfg.oxygen_client)
-        session_id, server_url = self._GetDeviceInfoFromResponse(response)
-        execution_time = round(time.time() - timestart, 2)
+        session_id = None
+        server_url = None
+        try:
+            response = oxygen_client.OxygenClient.LeaseDevice(
+                avd_spec.remote_image[constants.BUILD_TARGET],
+                avd_spec.remote_image[constants.BUILD_ID],
+                avd_spec.cfg.oxygen_client)
+            session_id, server_url = self._GetDeviceInfoFromResponse(response)
+            execution_time = round(time.time() - timestart, 2)
+        except subprocess.CalledProcessError as e:
+            logger.error("Failed to lease device from Oxygen, error: %s",
+                e.output)
+            response = e.output
+
         reporter = report.Report(command="create_cf")
         if session_id and server_url:
             reporter.SetStatus(report.Status.SUCCESS)
@@ -103,7 +114,13 @@ class RemoteImageRemoteInstance(base_avd_create.BaseAVDCreate):
             dict_devices = {_DEVICES: [device_data]}
             reporter.UpdateData(dict_devices)
         else:
+            # Try to parse client error
+            match = _RE_OXYGEN_LEASE_ERROR.match(response)
+            if match:
+                response = match.group("error").strip()
+
             reporter.SetStatus(report.Status.FAIL)
+            reporter.SetErrorType(constants.ACLOUD_OXYGEN_LEASE_ERROR)
             reporter.AddError(response)
 
         return reporter
