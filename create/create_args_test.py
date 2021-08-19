@@ -45,6 +45,8 @@ def _CreateArgs():
         remote_host=None,
         host_user=constants.GCE_USER,
         host_ssh_private_key_path=None,
+        emulator_build_id=None,
+        emulator_build_target=None,
         avd_type=constants.TYPE_CF,
         autoconnect=constants.INS_KEY_VNC)
     return mock_args
@@ -59,6 +61,34 @@ class CreateArgsTest(driver_test_lib.BaseDriverTest):
         mock_args = _CreateArgs()
         # Test args default setting shouldn't raise error.
         self.assertEqual(None, create_args.VerifyArgs(mock_args))
+
+    def testVerifyArgs_Goldfish(self):
+        """test goldfish arguments."""
+        # emulator_build_id with wrong avd_type.
+        mock_args = _CreateArgs()
+        mock_args.emulator_build_id = 123456
+        self.assertRaises(errors.UnsupportedCreateArgs,
+                          create_args.VerifyArgs, mock_args)
+        # Valid emulator_build_id.
+        mock_args.avd_type = constants.TYPE_GF
+        create_args.VerifyArgs(mock_args)
+        # emulator_build_target with wrong avd_type.
+        mock_args.avd_type = constants.TYPE_CF
+        mock_args.emulator_build_id = None
+        mock_args.emulator_build_target = "sdk_tools_linux"
+        mock_args.remote_host = "192.0.2.2"
+        self.assertRaises(errors.UnsupportedCreateArgs,
+                          create_args.VerifyArgs, mock_args)
+        # emulator_build_target without remote_host.
+        mock_args.avd_type = constants.TYPE_GF
+        mock_args.emulator_build_target = "sdk_tools_linux"
+        mock_args.remote_host = None
+        self.assertRaises(errors.UnsupportedCreateArgs,
+                          create_args.VerifyArgs, mock_args)
+        # Valid emulator_build_target.
+        mock_args.remote_host = "192.0.2.2"
+        mock_args.emulator_build_target = "sdk_tools_linux"
+        create_args.VerifyArgs(mock_args)
 
     def testVerifyArgs_ConnectWebRTC(self):
         """test VerifyArgs args.autconnect webrtc.

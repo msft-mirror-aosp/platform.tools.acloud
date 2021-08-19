@@ -36,12 +36,16 @@ class OxygenClient():
         Returns:
             The response of calling oxygen proxy client.
         """
-        response = subprocess.check_output([
-            oxygen_client, "-lease", "-build_id", build_id, "-build_target",
-            build_target
-        ])
-        logger.debug("The response from oxygen client: %s", response)
-        return response
+        try:
+            response = subprocess.check_output([
+                oxygen_client, "-lease", "-build_id", build_id, "-build_target",
+                build_target], stderr=subprocess.STDOUT, encoding='utf-8')
+            logger.debug("The response from oxygen client: %s", response)
+            return response
+        except subprocess.CalledProcessError as e:
+            logger.error("Failed to lease device from Oxygen, error: %s",
+                         e.output)
+            raise e
 
     @staticmethod
     def ReleaseDevice(session_id, server_url, oxygen_client):
@@ -52,8 +56,13 @@ class OxygenClient():
             server_url: String of server url.
             oxygen_client: String of oxygen client path.
         """
-        response = subprocess.check_output([
-            oxygen_client, "-release", "-session_id", session_id, "-server_url",
-            server_url
-        ])
-        logger.debug("The response from oxygen client: %s", response)
+        try:
+            response = subprocess.check_output([
+                oxygen_client, "-release", "-session_id", session_id,
+                "-server_url", server_url
+            ], stderr=subprocess.STDOUT, encoding='utf-8')
+            logger.debug("The response from oxygen client: %s", response)
+        except subprocess.CalledProcessError as e:
+            logger.error("Failed to release device from Oxygen, error: %s",
+                         e.output)
+            raise e
