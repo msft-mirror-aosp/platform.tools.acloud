@@ -28,7 +28,7 @@ class EngProdClient():
         """Lease one cuttlefish device.
 
         Args:
-            build_target: Target name, e.g. "aosp_cf_x86_phone-userdebug"
+            build_target: Target name, e.g. "aosp_cf_x86_64_phone-userdebug"
             build_id: Build ID, a string, e.g. "2263051", "P2804227"
             api_key: String of api key.
             api_url: String of api url.

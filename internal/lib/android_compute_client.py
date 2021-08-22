@@ -137,7 +137,7 @@ class AndroidComputeClient(gcompute_client.ComputeClient):
         Returns:
           name: A string that complies with RFC1035.
         """
-        name = name.replace("_", "-").lower()
+        name = name.replace("_", "-").replace(".", "-").lower()
         name = name[:cls.NAME_LENGTH_LIMIT]
         if name[-1] == "-":
             name = name[:-1] + cls.REPLACER
@@ -164,7 +164,7 @@ class AndroidComputeClient(gcompute_client.ComputeClient):
         """Generate an image name given build_target, build_id.
 
         Args:
-            build_target: Target name, e.g. "aosp_cf_x86_phone-userdebug"
+            build_target: Target name, e.g. "aosp_cf_x86_64_phone-userdebug"
             build_id: Build id, a string, e.g. "2263051", "P2804227"
 
         Returns:
@@ -197,7 +197,7 @@ class AndroidComputeClient(gcompute_client.ComputeClient):
         Target is not used as instance name has a length limit.
 
         Args:
-            build_target: Target name, e.g. "aosp_cf_x86_phone-userdebug"
+            build_target: Target name, e.g. "aosp_cf_x86_64_phone-userdebug"
             build_id: Build id, a string, e.g. "2263051", "P2804227"
 
         Returns:

@@ -159,6 +159,8 @@ EOF"""
         mock_lock.Lock.assert_called_once()
         mock_lock.LockIfNotInUse.assert_not_called()
 
+    @mock.patch.object(local_image_local_instance.LocalImageLocalInstance,
+                       "_TrustCertificatesForWebRTC")
     @mock.patch("acloud.create.local_image_local_instance.utils")
     @mock.patch("acloud.create.local_image_local_instance.ota_tools")
     @mock.patch("acloud.create.local_image_local_instance.create_common")
@@ -170,7 +172,8 @@ EOF"""
     @mock.patch.object(instance, "GetLocalInstanceHomeDir")
     def testCreateInstance(self, mock_home_dir, _mock_runtime_dir,
                            _mock_prepare_cmd, mock_launch_cvd,
-                           _mock_create_common, mock_ota_tools, _mock_utils):
+                           _mock_create_common, mock_ota_tools, _mock_utils,
+                           _mock_trust_certs):
         """Test the report returned by _CreateInstance."""
         self.Patch(instance, "GetLocalInstanceName",
                    return_value="local-instance-1")
@@ -180,7 +183,7 @@ EOF"""
             "/ota/tools/dir", "/system/image/path", "/boot/image/path")
         mock_ota_tools_object = mock.Mock()
         mock_ota_tools.OtaTools.return_value = mock_ota_tools_object
-        mock_avd_spec = mock.Mock(unlock_screen=False)
+        mock_avd_spec = mock.Mock(unlock_screen=False, connect_webrtc=True)
         local_ins = mock.Mock(
             adb_port=6520,
             vnc_port=6444
@@ -201,6 +204,17 @@ EOF"""
         mock_ota_tools.OtaTools.assert_called_with("/ota/tools/dir")
         mock_ota_tools_object.BuildSuperImage.assert_called_with(
             "/local-instance-1/mixed_super.img", "/misc/info/path", mock.ANY)
+
+        # should call _TrustCertificatesForWebRTC
+        _mock_trust_certs.assert_called_once()
+        _mock_trust_certs.reset_mock()
+
+        # should not call _TrustCertificatesForWebRTC
+        mock_avd_spec.connect_webrtc = False
+        self.local_image_local_instance._CreateInstance(
+            1, artifact_paths, mock_avd_spec, no_prompts=True)
+        self.assertEqual(_mock_create_common.call_count, 0)
+
 
         # Failure
         mock_launch_cvd.side_effect = errors.LaunchCVDFail("unit test")
@@ -264,7 +278,7 @@ EOF"""
             paths = self.local_image_local_instance.GetImageArtifactsPath(
                 mock_avd_spec)
 
-        mock_ota_tools.FindOtaTools.assert_not_called()
+        mock_ota_tools.FindOtaToolsDir.assert_not_called()
         self.assertEqual(paths, (image_dir, cvd_dir, None, None, None, None))
 
     @mock.patch("acloud.create.local_image_local_instance.ota_tools")
@@ -273,7 +287,7 @@ EOF"""
         with tempfile.TemporaryDirectory() as temp_dir:
             image_dir = os.path.join(temp_dir, "image")
             cvd_dir = os.path.join(temp_dir, "cvd-host_package")
-            mock_ota_tools.FindOtaTools.return_value = cvd_dir
+            mock_ota_tools.FindOtaToolsDir.return_value = cvd_dir
             extra_image_dir = os.path.join(temp_dir, "extra_image")
             system_image_path = os.path.join(extra_image_dir, "system.img")
             boot_image_path = os.path.join(extra_image_dir, "boot.img")
@@ -299,7 +313,7 @@ EOF"""
                 paths = self.local_image_local_instance.GetImageArtifactsPath(
                     mock_avd_spec)
 
-        mock_ota_tools.FindOtaTools.assert_called_once()
+        mock_ota_tools.FindOtaToolsDir.assert_called_once()
         self.assertEqual(paths,
                          (image_dir, cvd_dir, misc_info_path, cvd_dir,
                           system_image_path, boot_image_path))
@@ -308,7 +322,7 @@ EOF"""
     def testGetImageFromTargetFiles(self, mock_ota_tools):
         """Test GetImageArtifactsPath with extracted target files."""
         ota_tools_dir = "/mock_ota_tools"
-        mock_ota_tools.FindOtaTools.return_value = ota_tools_dir
+        mock_ota_tools.FindOtaToolsDir.return_value = ota_tools_dir
 
         with tempfile.TemporaryDirectory() as temp_dir:
             image_dir = os.path.join(temp_dir, "image")
@@ -332,7 +346,7 @@ EOF"""
             paths = self.local_image_local_instance.GetImageArtifactsPath(
                 mock_avd_spec)
 
-        mock_ota_tools.FindOtaTools.assert_called_once()
+        mock_ota_tools.FindOtaToolsDir.assert_called_once()
         self.assertEqual(paths,
                          (os.path.join(image_dir, "IMAGES"), cvd_dir,
                           misc_info_path, ota_tools_dir, system_image_path,
@@ -404,11 +418,10 @@ EOF"""
         self.assertTrue(answer)
 
     # pylint: disable=protected-access
-    @mock.patch("acloud.create.local_image_local_instance.subprocess."
-                "check_call")
+    @mock.patch("acloud.create.local_image_local_instance.subprocess.Popen")
     @mock.patch.dict("os.environ", clear=True)
-    def testLaunchCVD(self, mock_check_call):
-        """test _LaunchCvd should call subprocess.check_call with the env."""
+    def testLaunchCVD(self, mock_popen):
+        """test _LaunchCvd should call subprocess.Popen with the env."""
         local_instance_id = 3
         launch_cvd_cmd = "launch_cvd"
         host_bins_path = "host_bins_path"
@@ -419,6 +432,9 @@ EOF"""
         cvd_env[constants.ENV_CUTTLEFISH_INSTANCE] = str(local_instance_id)
         cvd_env[constants.ENV_ANDROID_SOONG_HOST_OUT] = host_bins_path
         cvd_env[constants.ENV_ANDROID_HOST_OUT] = host_bins_path
+        mock_proc = mock.Mock(returncode=0)
+        mock_popen.return_value = mock_proc
+        mock_proc.communicate.return_value = ("stdout", "stderr")
 
         self.local_image_local_instance._LaunchCvd(launch_cvd_cmd,
                                                    local_instance_id,
@@ -426,33 +442,44 @@ EOF"""
                                                    cvd_home_dir,
                                                    timeout)
 
-        mock_check_call.assert_called_once_with(launch_cvd_cmd,
-                                                shell=True,
-                                                stderr=subprocess.STDOUT,
-                                                env=cvd_env,
-                                                timeout=timeout)
+        mock_popen.assert_called_once_with(launch_cvd_cmd,
+                                           shell=True,
+                                           env=cvd_env,
+                                           stdout=subprocess.PIPE,
+                                           stderr=subprocess.PIPE,
+                                           text=True)
+        mock_proc.communicate.assert_called_once_with(timeout=timeout)
 
-    @mock.patch("acloud.create.local_image_local_instance.subprocess."
-                "check_call")
-    def testLaunchCVDTimeout(self, mock_check_call):
+    @mock.patch("acloud.create.local_image_local_instance.subprocess.Popen")
+    def testLaunchCVDFailure(self, mock_popen):
         """test _LaunchCvd with subprocess errors."""
-        mock_check_call.side_effect = subprocess.TimeoutExpired(
-            cmd="launch_cvd", timeout=100)
-        with self.assertRaises(errors.LaunchCVDFail):
+        mock_proc = mock.Mock(returncode=255)
+        mock_popen.return_value = mock_proc
+        mock_proc.communicate.side_effect = [
+            subprocess.TimeoutExpired(cmd="launch_cvd", timeout=100),
+            ("stdout", "stderr")
+        ]
+        with self.assertRaises(errors.LaunchCVDFail) as launch_cvd_failure:
             self.local_image_local_instance._LaunchCvd("launch_cvd",
                                                        3,
                                                        "host_bins_path",
                                                        "cvd_home_dir",
                                                        100)
+        self.assertIn("100 secs", str(launch_cvd_failure.exception))
 
-        mock_check_call.side_effect = subprocess.CalledProcessError(
-            cmd="launch_cvd", returncode=1)
-        with self.assertRaises(errors.LaunchCVDFail):
+        mock_proc.returncode=9
+        mock_proc.communicate.side_effect = [
+            ("stdout", "first line" + ("\n" * 10) + "last line\n")
+        ]
+        with self.assertRaises(errors.LaunchCVDFail) as launch_cvd_failure:
             self.local_image_local_instance._LaunchCvd("launch_cvd",
                                                        3,
                                                        "host_bins_path",
                                                        "cvd_home_dir",
                                                        100)
+        self.assertIn("returned 9", str(launch_cvd_failure.exception))
+        self.assertNotIn("first line", str(launch_cvd_failure.exception))
+        self.assertIn("last line", str(launch_cvd_failure.exception))
 
     def testGetWebrtcSigServerPort(self):
         """test GetWebrtcSigServerPort."""
@@ -461,6 +488,16 @@ EOF"""
         self.assertEqual(
             self.local_image_local_instance.GetWebrtcSigServerPort(instance_id),
             expected_port)
+
+    def testGetConfigFromAndroidInfo(self):
+        """Test GetConfigFromAndroidInfo"""
+        self.Patch(os.path, "exists", return_value=True)
+        mock_open = mock.mock_open(read_data="config=phone")
+        expected = "phone"
+        with mock.patch("builtins.open", mock_open):
+            self.assertEqual(
+                self.local_image_local_instance._GetConfigFromAndroidInfo("file"),
+                expected)
 
 
 if __name__ == "__main__":

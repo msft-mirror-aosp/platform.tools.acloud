@@ -41,8 +41,8 @@ logger = logging.getLogger(__name__)
 _RE_DISPLAY = re.compile(r"([\d]+)x([\d]+)\s.*")
 _VNC_STARTED_PATTERN = "ssvnc vnc://127.0.0.1:%(vnc_port)d"
 _WEBRTC_PORTS_SEARCH = "".join(
-    [utils.PORT_MAPPING % {"local_port":port["local"],
-                           "target_port":port["target"]}
+    [utils.PORT_MAPPING % {"local_port": port.local,
+                           "target_port": port.target}
      for port in utils.WEBRTC_PORTS_MAPPING])
 
 

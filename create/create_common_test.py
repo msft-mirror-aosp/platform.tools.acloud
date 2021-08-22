@@ -96,6 +96,15 @@ class CreateCommonTest(driver_test_lib.BaseDriverTest):
                 create_common.GetCvdHostPackage(),
                 "/fake_dir2/cvd-host_package.tar.gz")
 
+        # Find cvd host in specified path.
+        package_path = "/tool_dir/cvd-host_package.tar.gz"
+        self.Patch(utils, "GetDistDir", return_value=None)
+        with mock.patch("os.path.exists") as exists:
+            exists.return_value = True
+            self.assertEqual(
+                create_common.GetCvdHostPackage(package_path),
+                "/tool_dir/cvd-host_package.tar.gz")
+
     @mock.patch("acloud.create.create_common.os.path.isfile",
                 side_effect=lambda path: path == "/dir/name")
     @mock.patch("acloud.create.create_common.os.path.isdir",
@@ -128,10 +137,10 @@ class CreateCommonTest(driver_test_lib.BaseDriverTest):
         self.Patch(auth, "CreateCredentials", return_value=mock.MagicMock())
         avd_spec = mock.MagicMock()
         avd_spec.cfg = mock.MagicMock()
-        avd_spec.remote_image = {"build_target" : "aosp_cf_x86_phone-userdebug",
+        avd_spec.remote_image = {"build_target" : "aosp_cf_x86_64_phone-userdebug",
                                  "build_id": "1234"}
         build_id = "1234"
-        build_target = "aosp_cf_x86_phone-userdebug"
+        build_target = "aosp_cf_x86_64_phone-userdebug"
         checkfile1 = "aosp_cf_x86_phone-img-1234.zip"
         checkfile2 = "cvd-host_package.tar.gz"
         extract_path = "/tmp/1234"

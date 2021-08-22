@@ -31,6 +31,7 @@ from acloud.internal.lib import driver_test_lib
 from acloud.internal.lib import gcompute_client
 from acloud.internal.lib import utils
 from acloud.internal.lib.ssh import Ssh
+from acloud.internal.lib.ssh import IP
 from acloud.list import list as list_instances
 
 
@@ -45,7 +46,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
     NETWORK = "fake-network"
     ZONE = "fake-zone"
     BRANCH = "fake-branch"
-    TARGET = "aosp_cf_x86_phone-userdebug"
+    TARGET = "aosp_cf_x86_64_phone-userdebug"
     BUILD_ID = "2263051"
     KERNEL_BRANCH = "fake-kernel-branch"
     KERNEL_BUILD_ID = "1234567"
@@ -59,6 +60,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
     LAUNCH_ARGS = "--setupwizard_mode=REQUIRED"
     EXTRA_SCOPES = ["scope1"]
     GPU = "fake-gpu"
+    FAKE_IP = IP(external="1.1.1.1", internal="10.1.1.1")
 
     def _GetFakeConfig(self):
         """Create a fake configuration object.
@@ -79,14 +81,12 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         fake_cfg.extra_scopes = self.EXTRA_SCOPES
         return fake_cfg
 
+    # pylint: disable=protected-access
     def setUp(self):
         """Set up the test."""
         super().setUp()
         self.Patch(cvd_compute_client_multi_stage.CvdComputeClient, "InitResourceHandle")
         self.Patch(cvd_compute_client_multi_stage.CvdComputeClient, "_VerifyZoneByQuota",
-                   return_value=True)
-        self.Patch(cvd_compute_client_multi_stage.CvdComputeClient,
-                   "_ArgSupportInLaunchCVD",
                    return_value=True)
         self.Patch(android_build_client.AndroidBuildClient, "InitResourceHandle")
         self.Patch(android_build_client.AndroidBuildClient, "DownloadArtifact")
@@ -97,6 +97,10 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.Patch(Ssh, "GetBaseCmd")
         self.cvd_compute_client_multi_stage = cvd_compute_client_multi_stage.CvdComputeClient(
             self._GetFakeConfig(), mock.MagicMock(), gpu=self.GPU)
+        self.cvd_compute_client_multi_stage._ssh = Ssh(
+            ip=self.FAKE_IP,
+            user=constants.GCE_USER,
+            ssh_private_key_path="/fake/acloud_rea")
         self.args = mock.MagicMock()
         self.args.local_image = constants.FIND_IN_BUILD_ENV
         self.args.local_system_image = None
@@ -108,6 +112,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.args.num_avds_per_instance = 2
         self.args.remote_host = False
         self.args.launch_args = self.LAUNCH_ARGS
+        self.args.disable_external_ip = False
 
     # pylint: disable=protected-access
     @mock.patch.object(utils, "GetBuildEnvironmentVariable", return_value="fake_env_cf_x86")
@@ -115,6 +120,8 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
     def testGetLaunchCvdArgs(self, _mock_check_img, _mock_env):
         """test GetLaunchCvdArgs."""
         # test GetLaunchCvdArgs with avd_spec
+        self.Patch(cvd_compute_client_multi_stage.CvdComputeClient,
+                   "_GetConfigFromAndroidInfo", return_value="phone")
         fake_avd_spec = avd_spec.AVDSpec(self.args)
         expeted_args = ["-config=phone", "-x_res=1080", "-y_res=1920", "-dpi=240",
                         "-data_policy=always_create", "-blank_data_image_mb=10240",
@@ -188,7 +195,8 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
             zone=self.ZONE,
             extra_scopes=self.EXTRA_SCOPES,
             gpu=self.GPU,
-            tags=None)
+            tags=None,
+            disable_external_ip=False)
 
         mock_check_img.return_value = True
         #test use local image in the remote instance.
@@ -222,7 +230,8 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
             zone=self.ZONE,
             extra_scopes=self.EXTRA_SCOPES,
             gpu=self.GPU,
-            tags=None)
+            tags=None,
+            disable_external_ip=False)
 
     def testRecordBuildInfo(self):
         """Test RecordBuildInfo"""
@@ -268,12 +277,13 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(self.cvd_compute_client_multi_stage.stage,
                          device_stage)
 
-    def testArgSupportInLaunchCVD(self):
-        """Test ArgSupportInLaunchCVD"""
-        self.Patch(Ssh, "GetCmdOutput", return_value="-config (Config)")
-        self.assertTrue(
-            self.cvd_compute_client_multi_stage._ArgSupportInLaunchCVD(
-                "-config"))
+    def testGetConfigFromAndroidInfo(self):
+        """Test GetConfigFromAndroidInfo"""
+        self.Patch(Ssh, "GetCmdOutput", return_value="config=phone")
+        expected = "phone"
+        self.assertEqual(
+            self.cvd_compute_client_multi_stage._GetConfigFromAndroidInfo(),
+            expected)
 
 
 if __name__ == "__main__":

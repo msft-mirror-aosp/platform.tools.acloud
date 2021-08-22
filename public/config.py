@@ -96,6 +96,22 @@ def GetDefaultConfigFile():
     return os.path.join(config_path, _DEFAULT_CONFIG_FILE)
 
 
+def GetUserConfigPath(config_path):
+    """Get Acloud user config file path.
+
+    If there is no config provided, Acloud would use default config path.
+
+    Args:
+        config_path: String, path of Acloud config file.
+
+    Returns:
+        Path (string) of the Acloud config.
+    """
+    if config_path:
+        return config_path
+    return GetDefaultConfigFile()
+
+
 def GetAcloudConfig(args):
     """Helper function to initialize Config object.
 
@@ -146,38 +162,26 @@ class AcloudConfig():
         self.ssh_private_key_path = usr_cfg.ssh_private_key_path
         self.ssh_public_key_path = usr_cfg.ssh_public_key_path
         self.storage_bucket_name = usr_cfg.storage_bucket_name
-        self.metadata_variable = {
-            key: val for key, val in
-            six.iteritems(internal_cfg.default_usr_cfg.metadata_variable)
-        }
+        self.metadata_variable = dict(
+            six.iteritems(internal_cfg.default_usr_cfg.metadata_variable))
         self.metadata_variable.update(usr_cfg.metadata_variable)
 
-        self.device_resolution_map = {
-            device: resolution for device, resolution in
-            six.iteritems(internal_cfg.device_resolution_map)
-        }
-        self.device_default_orientation_map = {
-            device: orientation for device, orientation in
-            six.iteritems(internal_cfg.device_default_orientation_map)
-        }
-        self.no_project_access_msg_map = {
-            project: msg for project, msg in
-            six.iteritems(internal_cfg.no_project_access_msg_map)
-        }
+        self.device_resolution_map = dict(
+            six.iteritems(internal_cfg.device_resolution_map))
+        self.device_default_orientation_map = dict(
+            six.iteritems(internal_cfg.device_default_orientation_map))
+        self.no_project_access_msg_map = dict(
+            six.iteritems(internal_cfg.no_project_access_msg_map))
         self.min_machine_size = internal_cfg.min_machine_size
         self.disk_image_name = internal_cfg.disk_image_name
         self.disk_image_mime_type = internal_cfg.disk_image_mime_type
         self.disk_image_extension = internal_cfg.disk_image_extension
         self.disk_raw_image_name = internal_cfg.disk_raw_image_name
         self.disk_raw_image_extension = internal_cfg.disk_raw_image_extension
-        self.valid_branch_and_min_build_id = {
-            branch: min_build_id for branch, min_build_id in
-            six.iteritems(internal_cfg.valid_branch_and_min_build_id)
-        }
-        self.precreated_data_image_map = {
-            size_gb: image_name for size_gb, image_name in
-            six.iteritems(internal_cfg.precreated_data_image)
-        }
+        self.valid_branch_and_min_build_id = dict(
+            six.iteritems(internal_cfg.valid_branch_and_min_build_id))
+        self.precreated_data_image_map = dict(
+            six.iteritems(internal_cfg.precreated_data_image))
         self.extra_data_disk_size_gb = (
             usr_cfg.extra_data_disk_size_gb or
             internal_cfg.default_usr_cfg.extra_data_disk_size_gb)
@@ -234,6 +238,7 @@ class AcloudConfig():
         self.launch_args = usr_cfg.launch_args
         self.api_key = usr_cfg.api_key
         self.api_url = usr_cfg.api_url
+        self.oxygen_client = usr_cfg.oxygen_client
         self.instance_name_pattern = (
             usr_cfg.instance_name_pattern or
             internal_cfg.default_usr_cfg.instance_name_pattern)

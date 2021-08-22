@@ -103,9 +103,11 @@ class AVDSpec():
         # args afterwards.
         self._client_adb_port = args.adb_port
         self._autoconnect = None
+        self._cvd_host_package = None
         self._instance_name_to_reuse = None
         self._unlock_screen = None
         self._report_internal_ip = None
+        self._disable_external_ip = None
         self._avd_type = None
         self._flavor = None
         self._image_source = None
@@ -132,13 +134,14 @@ class AVDSpec():
         self._gce_metadata = None
         self._host_user = None
         self._host_ssh_private_key_path = None
+        self._gpu = None
         # Create config instance for android_build_client to query build api.
         self._cfg = config.GetAcloudConfig(args)
         # Reporting args.
         self._serial_log_file = None
-        # gpu and emulator_build_id is only used for goldfish avd_type.
-        self._gpu = None
+        # emulator_* are only used for goldfish avd_type.
         self._emulator_build_id = None
+        self._emulator_build_target = None
 
         # Fields only used for cheeps type.
         self._stable_cheeps_host_image_name = None
@@ -304,6 +307,7 @@ class AVDSpec():
         self._autoconnect = args.autoconnect
         self._unlock_screen = args.unlock_screen
         self._report_internal_ip = args.report_internal_ip
+        self._disable_external_ip = args.disable_external_ip
         self._avd_type = args.avd_type
         self._flavor = args.flavor or constants.FLAVOR_PHONE
         if args.remote_host:
@@ -318,12 +322,14 @@ class AVDSpec():
         self._local_instance_id = args.local_instance
         self._local_instance_dir = args.local_instance_dir
         self._local_tool_dirs = args.local_tool
+        self._cvd_host_package = args.cvd_host_package
         self._num_of_instances = args.num
         self._num_avds_per_instance = args.num_avds_per_instance
         self._no_pull_log = args.no_pull_log
         self._oxygen = args.oxygen
         self._serial_log_file = args.serial_log_file
         self._emulator_build_id = args.emulator_build_id
+        self._emulator_build_target = args.emulator_build_target
         self._gpu = args.gpu
         self._gce_metadata = create_common.ParseKeyValuePairArgs(args.gce_metadata)
 
@@ -821,6 +827,11 @@ class AVDSpec():
         return self._report_internal_ip
 
     @property
+    def disable_external_ip(self):
+        """Return disable_external_ip."""
+        return self._disable_external_ip
+
+    @property
     def kernel_build_info(self):
         """Return kernel build info."""
         return self._kernel_build_info
@@ -864,6 +875,11 @@ class AVDSpec():
     def emulator_build_id(self):
         """Return emulator_build_id."""
         return self._emulator_build_id
+
+    @property
+    def emulator_build_target(self):
+        """Return emulator_build_target."""
+        return self._emulator_build_target
 
     @property
     def client_adb_port(self):
@@ -950,3 +966,8 @@ class AVDSpec():
     def launch_args(self):
         """Return launch_args."""
         return self._launch_args
+
+    @property
+    def cvd_host_package(self):
+        """Return cvd_host_package."""
+        return self._cvd_host_package

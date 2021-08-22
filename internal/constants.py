@@ -18,7 +18,7 @@ BRANCH_PREFIX = "git_"
 BUILD_TARGET_MAPPING = {
     # TODO: Add aosp goldfish targets and internal cf targets to vendor code
     # base.
-    "aosp_phone": "aosp_cf_x86_phone-userdebug",
+    "aosp_phone": "aosp_cf_x86_64_phone-userdebug",
     "aosp_tablet": "aosp_cf_x86_tablet-userdebug",
 }
 SPEC_NAMES = {
@@ -177,6 +177,7 @@ INS_STATUS_RUNNING = "RUNNING"
 ENV_CUTTLEFISH_CONFIG_FILE = "CUTTLEFISH_CONFIG_FILE"
 ENV_CUTTLEFISH_INSTANCE = "CUTTLEFISH_INSTANCE"
 ENV_CVD_HOME = "HOME"
+ANDROID_INFO_FILE = "android-info.txt"
 CUTTLEFISH_CONFIG_FILE = "cuttlefish_config.json"
 
 TEMP_ARTIFACTS_FOLDER = "acloud_image_artifacts"
@@ -197,6 +198,8 @@ SELECT_ONE_GCE_INSTANCE = "select_one_gce_instance"
 # Webrtc
 WEBRTC_LOCAL_PORT = 8443
 WEBRTC_LOCAL_HOST = "localhost"
+WEBRTC_CERTS_PATH = "usr/share/webrtc/certs"
+WEBRTC_CERTS_FILES = ["server.crt", "server.key"]
 
 # Remote Log
 REMOTE_LOG_FOLDER = "/home/%s/cuttlefish_runtime" % GCE_USER
@@ -213,6 +216,19 @@ STAGE_GCE = 1
 STAGE_SSH_CONNECT = 2
 STAGE_ARTIFACT = 3
 STAGE_BOOT_UP = 4
+
+# Acloud error types
+# Also update InfraErrorIdentifier.java in TradeFed for the errors to be
+# properly reported.
+ACLOUD_BOOT_UP_ERROR = "ACLOUD_BOOT_UP_ERROR"
+ACLOUD_CREATE_GCE_ERROR = "ACLOUD_CREATE_GCE_ERROR"
+ACLOUD_DOWNLOAD_ARTIFACT_ERROR = "ACLOUD_DOWNLOAD_ARTIFACT_ERROR"
+ACLOUD_INIT_ERROR = "ACLOUD_INIT_ERROR"
+ACLOUD_UNKNOWN_ERROR = "ACLOUD_UNKNOWN_ERROR"
+ACLOUD_SSH_CONNECT_ERROR = "ACLOUD_SSH_CONNECT_ERROR"
+GCE_QUOTA_ERROR = "GCE_QUOTA_ERROR"
+ACLOUD_OXYGEN_LEASE_ERROR = "ACLOUD_OXYGEN_LEASE_ERROR"
+ACLOUD_OXYGEN_RELEASE_ERROR = "ACLOUD_OXYGEN_RELEASE_ERROR"
 
 # The name of download image tool.
 FETCH_CVD = "fetch_cvd"

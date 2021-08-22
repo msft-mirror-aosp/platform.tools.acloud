@@ -44,6 +44,7 @@ from acloud.internal.lib import cvd_runtime_config
 from acloud.internal.lib import utils
 from acloud.internal.lib.adb_tools import AdbTools
 from acloud.internal.lib.local_instance_lock import LocalInstanceLock
+from acloud.internal.lib.gcompute_client import GetInstanceIP
 
 
 logger = logging.getLogger(__name__)
@@ -425,6 +426,8 @@ class LocalInstance(Instance):
                          self._cf_runtime_cfg.config_path)
             return False
         cvd_env = os.environ.copy()
+        cvd_env[constants.ENV_ANDROID_SOONG_HOST_OUT] = os.path.dirname(
+            self._cf_runtime_cfg.cvd_tools_path)
         cvd_env[constants.ENV_CUTTLEFISH_CONFIG_FILE] = self._cf_runtime_cfg.config_path
         cvd_env[constants.ENV_CVD_HOME] = GetLocalInstanceHomeDir(self._local_instance_id)
         cvd_env[constants.ENV_CUTTLEFISH_INSTANCE] = str(self._local_instance_id)
@@ -441,7 +444,7 @@ class LocalInstance(Instance):
                     if os.environ.get(env_host_out, _NO_ANDROID_ENV) in cvd_status_cmd:
                         logger.warning(
                             "Can't find the cvd_status tool (Try lunching a "
-                            "cuttlefish target like aosp_cf_x86_phone-userdebug "
+                            "cuttlefish target like aosp_cf_x86_64_phone-userdebug "
                             "and running 'make hosttar' before list/delete local "
                             "instances)")
                 return False
@@ -694,10 +697,8 @@ class RemoteInstance(Instance):
         status = gce_instance.get(constants.INS_KEY_STATUS)
         zone = self._GetZoneName(gce_instance.get(constants.INS_KEY_ZONE))
 
-        ip = None
-        for network_interface in gce_instance.get("networkInterfaces"):
-            for access_config in network_interface.get("accessConfigs"):
-                ip = access_config.get("natIP")
+        instance_ip = GetInstanceIP(gce_instance)
+        ip = instance_ip.external or instance_ip.internal
 
         # Get metadata
         display = None

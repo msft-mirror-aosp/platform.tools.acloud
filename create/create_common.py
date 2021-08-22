@@ -26,6 +26,11 @@ from acloud.internal.lib import android_build_client
 from acloud.internal.lib import auth
 from acloud.internal.lib import utils
 
+# Use mkcert to generate a localhost certificates for webrtc
+_MKCERT_LOCAL_CERT_CMD = ("%(local_ca_dir)s/mkcert "
+                          "-key-file %(local_ca_dir)s/server.key "
+                          "-cert-file %(local_ca_dir)s/server.crt "
+                          "localhost 0.0.0.0 ::1")
 
 logger = logging.getLogger(__name__)
 
@@ -65,11 +70,14 @@ def ParseKeyValuePairArgs(dict_str, item_separator=",", key_value_separator=":")
     return args_dict
 
 
-def GetCvdHostPackage():
+def GetCvdHostPackage(package_path=None):
     """Get cvd host package path.
 
-    Look for the host package in $ANDROID_HOST_OUT and dist dir then verify
-    existence and get cvd host package path.
+    Look for the host package in specified path or $ANDROID_HOST_OUT and dist
+    dir then verify existence and get cvd host package path.
+
+    Args:
+        package_path: String of cvd host package path.
 
     Return:
         A string, the path to the host package.
@@ -77,6 +85,11 @@ def GetCvdHostPackage():
     Raises:
         errors.GetCvdLocalHostPackageError: Can't find cvd host package.
     """
+    if package_path:
+        if os.path.exists(package_path):
+            return package_path
+        raise errors.GetCvdLocalHostPackageError(
+            "The cvd host package path (%s) doesn't exist." % package_path)
     dirs_to_check = list(
         filter(None, [
             os.environ.get(constants.ENV_ANDROID_SOONG_HOST_OUT),
@@ -93,7 +106,7 @@ def GetCvdHostPackage():
             return cvd_host_package
     raise errors.GetCvdLocalHostPackageError(
         "Can't find the cvd host package (Try lunching a cuttlefish target"
-        " like aosp_cf_x86_phone-userdebug and running 'm'): \n%s" %
+        " like aosp_cf_x86_64_phone-userdebug and running 'm'): \n%s" %
         '\n'.join(dirs_to_check))
 
 
@@ -178,3 +191,19 @@ def PrepareLocalInstanceDir(instance_dir, avd_spec):
             return
     if not os.path.exists(instance_dir):
         os.makedirs(instance_dir)
+
+
+def AllocateLocalHostCert(local_ca_dir):
+    """Allocate certificates of localhost by mkcert.
+
+    This will generate certificates by mkcert to trust webrtc frontend
+    if one of the required certificates do not exist.
+
+    Args:
+        local_ca_dir: String, a fixed path to store the certificates.
+    """
+    cmd_mkcert = _MKCERT_LOCAL_CERT_CMD % {"local_ca_dir": local_ca_dir}
+    for cert_file_name in constants.WEBRTC_CERTS_FILES:
+        if not os.path.exists(os.path.join(local_ca_dir, cert_file_name)):
+            utils.CheckOutput(cmd_mkcert, shell=True)
+            break

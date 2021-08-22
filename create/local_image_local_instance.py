@@ -53,6 +53,8 @@ import collections
 import glob
 import logging
 import os
+import re
+import shutil
 import subprocess
 import sys
 
@@ -98,6 +100,8 @@ _CMD_LAUNCH_CVD_WEBRTC_ARGS = (" -guest_enforce_security=false "
 _CMD_LAUNCH_CVD_VNC_ARG = " -start_vnc_server=true"
 _CMD_LAUNCH_CVD_SUPER_IMAGE_ARG = " -super_image=%s"
 _CMD_LAUNCH_CVD_BOOT_IMAGE_ARG = " -boot_image=%s"
+_CONFIG_RE = re.compile(r"^config=(?P<config>.+)")
+_MAX_REPORTED_ERROR_LINES = 10
 
 # In accordance with the number of network interfaces in
 # /etc/init.d/cuttlefish-common
@@ -224,9 +228,14 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         self.PrepareLocalCvdToolsLink(cvd_home_dir, artifact_paths.host_bins)
         launch_cvd_path = os.path.join(artifact_paths.host_bins, "bin",
                                        constants.CMD_LAUNCH_CVD)
+        if avd_spec.connect_webrtc:
+            self._TrustCertificatesForWebRTC(artifact_paths.host_bins)
+
         hw_property = None
         if avd_spec.hw_customize:
             hw_property = avd_spec.hw_property
+        config = self._GetConfigFromAndroidInfo(
+            os.path.join(artifact_paths.image_dir, constants.ANDROID_INFO_FILE))
         cmd = self.PrepareLaunchCVDCmd(launch_cvd_path,
                                        hw_property,
                                        avd_spec.connect_adb,
@@ -237,7 +246,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                                        super_image_path,
                                        artifact_paths.boot_image,
                                        avd_spec.launch_args,
-                                       avd_spec.flavor)
+                                       config or avd_spec.flavor)
 
         result_report = report.Report(command="create")
         instance_name = instance.GetLocalInstanceName(local_instance_id)
@@ -250,6 +259,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                        "For more detail: %s/launcher.log" %
                        (launch_error, runtime_dir))
             result_report.SetStatus(report.Status.BOOT_FAIL)
+            result_report.SetErrorType(constants.ACLOUD_BOOT_UP_ERROR)
             result_report.AddDeviceBootFailure(
                 instance_name, constants.LOCALHOST, None, None, error=err_msg)
             return result_report
@@ -271,6 +281,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             err_msg = "cvd_status return non-zero after launch_cvd"
             logger.error(err_msg)
             result_report.SetStatus(report.Status.BOOT_FAIL)
+            result_report.SetErrorType(constants.ACLOUD_BOOT_UP_ERROR)
             result_report.AddDeviceBootFailure(
                 instance_name, constants.LOCALHOST, None, None, error=err_msg)
         return result_report
@@ -381,7 +392,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             misc_info_path = self._FindMiscInfo(image_dir)
             image_dir = self._FindImageDir(image_dir)
             ota_tools_dir = os.path.abspath(
-                ota_tools.FindOtaTools(avd_spec.local_tool_dirs))
+                ota_tools.FindOtaToolsDir(avd_spec.local_tool_dirs))
             system_image_path = create_common.FindLocalImage(
                 avd_spec.local_system_image, _SYSTEM_IMAGE_NAME_PATTERN)
         else:
@@ -422,10 +433,31 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         return super_image_path
 
     @staticmethod
+    def _GetConfigFromAndroidInfo(android_info_path):
+        """Get config value from android-info.txt.
+
+        The config in android-info.txt would like "config=phone".
+
+        Args:
+            android_info_path: String of android-info.txt pah.
+
+        Returns:
+            Strings of config value.
+        """
+        if os.path.exists(android_info_path):
+            with open(android_info_path, "r") as android_info_file:
+                android_info = android_info_file.read()
+                logger.debug("Android info: %s", android_info)
+                config_match = _CONFIG_RE.match(android_info)
+                if config_match:
+                    return config_match.group("config")
+        return None
+
+    @staticmethod
     def PrepareLaunchCVDCmd(launch_cvd_path, hw_property, connect_adb,
                             image_dir, runtime_dir, connect_webrtc,
                             connect_vnc, super_image_path, boot_image_path,
-                            launch_args, flavor):
+                            launch_args, config):
         """Prepare launch_cvd command.
 
         Create the launch_cvd commands with all the required args and add
@@ -442,13 +474,13 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             super_image_path: String of non-default super image path.
             boot_image_path: String of non-default boot image path.
             launch_args: String of launch args.
-            flavor: String of flavor name.
+            config: String of config name.
 
         Returns:
             String, launch_cvd cmd.
         """
         launch_cvd_w_args = launch_cvd_path + _CMD_LAUNCH_CVD_ARGS % (
-            flavor, ("true" if connect_adb else "false"), image_dir, runtime_dir)
+            config, ("true" if connect_adb else "false"), image_dir, runtime_dir)
         if hw_property:
             launch_cvd_w_args = launch_cvd_w_args + _CMD_LAUNCH_CVD_HW_ARGS % (
                 hw_property["cpu"], hw_property["x_res"], hw_property["y_res"],
@@ -502,6 +534,26 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         return cvd_tools_link_path
 
     @staticmethod
+    def _TrustCertificatesForWebRTC(host_bins_path):
+        """Copy the trusted certificates generated by mkcert to the webrtc
+        frontend certificate directory.
+
+        Args:
+            host_bins_path: String of host package directory.
+        """
+        webrtc_certs_dir = os.path.join(host_bins_path,
+                                        constants.WEBRTC_CERTS_PATH)
+        local_ca_dir = os.path.join(os.path.expanduser("~"), ".config",
+                                    constants.TOOL_NAME, "mkcert")
+        if os.path.exists(os.path.join(local_ca_dir, "mkcert")):
+            create_common.AllocateLocalHostCert(local_ca_dir)
+            for cert_file_name in constants.WEBRTC_CERTS_FILES:
+                shutil.copyfile(os.path.join(local_ca_dir, cert_file_name),
+                                os.path.join(webrtc_certs_dir, cert_file_name))
+        else:
+            logger.debug("mkcert tool did not exist in the %s", local_ca_dir)
+
+    @staticmethod
     def _CheckRunningCvd(local_instance_id, no_prompts=False):
         """Check if launch_cvd with the same instance id is running.
 
@@ -549,11 +601,23 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         # Check the result of launch_cvd command.
         # An exit code of 0 is equivalent to VIRTUAL_DEVICE_BOOT_COMPLETED
         try:
-            subprocess.check_call(cmd, shell=True, stderr=subprocess.STDOUT,
-                                  env=cvd_env, timeout=timeout)
-        except subprocess.TimeoutExpired as e:
-            raise errors.LaunchCVDFail("Device did not boot within %d secs." %
-                                       timeout) from e
-        except subprocess.CalledProcessError as e:
-            raise errors.LaunchCVDFail("launch_cvd returned %s." %
-                                       e.returncode) from e
+            proc = subprocess.Popen(cmd, shell=True, env=cvd_env,
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE,
+                                    text=True)
+            stdout, stderr = proc.communicate(timeout=timeout)
+            if proc.returncode == 0:
+                logger.info("launch_cvd stdout:\n%s", stdout)
+                logger.info("launch_cvd stderr:\n%s", stderr)
+                return
+            error_msg = "launch_cvd returned %d." % proc.returncode
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            stdout, stderr = proc.communicate(timeout=5)
+            error_msg = "Device did not boot within %d secs." % timeout
+
+        logger.error("launch_cvd stdout:\n%s", stdout)
+        logger.error("launch_cvd stderr:\n%s", stderr)
+        split_stderr = stderr.splitlines()[-_MAX_REPORTED_ERROR_LINES:]
+        raise errors.LaunchCVDFail("%s Stderr:\n%s" %
+                                   (error_msg, "\n".join(split_stderr)))

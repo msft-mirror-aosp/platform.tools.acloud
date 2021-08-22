@@ -27,8 +27,9 @@ from acloud import errors
 from acloud.internal import constants
 from acloud.internal.lib import auth
 from acloud.internal.lib import cvd_compute_client_multi_stage
-from acloud.internal.lib import utils
+from acloud.internal.lib import oxygen_client
 from acloud.internal.lib import ssh as ssh_object
+from acloud.internal.lib import utils
 from acloud.list import list as list_instances
 from acloud.public import config
 from acloud.public import device_driver
@@ -41,6 +42,8 @@ _COMMAND_GET_PROCESS_ID = ["pgrep", "run_cvd"]
 _COMMAND_GET_PROCESS_COMMAND = ["ps", "-o", "command", "-p"]
 _RE_RUN_CVD = re.compile(r"^(?P<run_cvd>.+run_cvd)")
 _LOCAL_INSTANCE_PREFIX = "local-"
+_RE_OXYGEN_RELEASE_ERROR = re.compile(
+    r".*Error received while trying to release device: (?P<error>.*)$", re.DOTALL)
 
 
 def DeleteInstances(cfg, instances_to_delete):
@@ -287,6 +290,44 @@ def DeleteInstanceByNames(cfg, instances):
     return delete_report
 
 
+def _ReleaseOxygenDevice(cfg, instances, ip):
+    """ Release one Oxygen device.
+
+    Args:
+        cfg: AcloudConfig object.
+        instances: List of instance name.
+        ip: String of device ip.
+
+    Returns:
+        A Report instance.
+    """
+    if len(instances) != 1:
+        raise errors.CommandArgError(
+            "The release device function doesn't support multiple instances. "
+            "Please check the specified instance names: %s" % instances)
+    instance_name = instances[0]
+    delete_report = report.Report(command="delete")
+    try:
+        oxygen_client.OxygenClient.ReleaseDevice(instance_name, ip,
+                                                 cfg.oxygen_client)
+        delete_report.SetStatus(report.Status.SUCCESS)
+        device_driver.AddDeletionResultToReport(
+            delete_report, [instance_name], failed=[],
+            error_msgs=[],
+            resource_name="instance")
+    except subprocess.CalledProcessError as e:
+        logger.error("Failed to release device from Oxygen, error: %s",
+            e.output)
+        error = str(e)
+        match = _RE_OXYGEN_RELEASE_ERROR.match(e.output)
+        if match:
+            error = match.group("error").strip()
+        delete_report.AddError(error)
+        delete_report.SetErrorType(constants.ACLOUD_OXYGEN_RELEASE_ERROR)
+        delete_report.SetStatus(report.Status.FAIL)
+    return delete_report
+
+
 def Run(args):
     """Run delete.
 
@@ -302,6 +343,8 @@ def Run(args):
     # Prioritize delete instances by names without query all instance info from
     # GCP project.
     cfg = config.GetAcloudConfig(args)
+    if args.oxygen:
+        return _ReleaseOxygenDevice(cfg, args.instance_names, args.ip)
     if args.instance_names:
         return DeleteInstanceByNames(cfg,
                                      args.instance_names)
