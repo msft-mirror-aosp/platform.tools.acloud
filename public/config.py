@@ -371,6 +371,12 @@ class AcloudConfigManager():
         2. User didn't specify user config, use default config:
             a.Default config exist: Load config.
             b.Default config didn't exist: provide empty usr_cfg.
+
+        Raises:
+            errors.ConfigError: If config file doesn't exist.
+
+        Returns:
+            An instance of AcloudConfig.
         """
         internal_cfg = None
         usr_cfg = None
@@ -381,22 +387,18 @@ class AcloudConfigManager():
         except OSError as e:
             raise errors.ConfigError("Could not load config files: %s" % str(e))
         # Load user config file
-        if self.user_config_path:
-            if os.path.exists(self.user_config_path):
-                with open(self.user_config_path, "r") as config_file:
-                    usr_cfg = self.LoadConfigFromProtocolBuffer(
-                        config_file, user_config_pb2.UserConfig)
-            else:
-                raise errors.ConfigError("The file doesn't exist: %s" %
-                                         (self.user_config_path))
+        self.user_config_path = GetUserConfigPath(self.user_config_path)
+        if os.path.exists(self.user_config_path):
+            with open(self.user_config_path, "r") as config_file:
+                usr_cfg = self.LoadConfigFromProtocolBuffer(
+                    config_file, user_config_pb2.UserConfig)
         else:
-            self.user_config_path = GetDefaultConfigFile()
-            if os.path.exists(self.user_config_path):
-                with open(self.user_config_path, "r") as config_file:
-                    usr_cfg = self.LoadConfigFromProtocolBuffer(
-                        config_file, user_config_pb2.UserConfig)
-            else:
-                usr_cfg = user_config_pb2.UserConfig()
+            if self.user_config_path != GetDefaultConfigFile():
+                raise errors.ConfigError(
+                    "The config file doesn't exist: %s. For reset config "
+                    "information: go/acloud-googler-setup#reset-configuration" %
+                    (self.user_config_path))
+            usr_cfg = user_config_pb2.UserConfig()
         return AcloudConfig(usr_cfg, internal_cfg)
 
     @staticmethod
