@@ -33,6 +33,10 @@ MULTIPLE_LINES_LEASE_RESPONSE = """
 session_id:"fake_device"
 server_url:"10.1.1.1"
 """
+LEASE_FAILURE_RESPONSE = """
+2021/08/16 18:07:36 message 1
+2021/08/16 18:11:36 Error received while trying to lease device: rpc error: details
+"""
 
 
 class RemoteImageRemoteInstanceTest(driver_test_lib.BaseDriverTest):
@@ -80,6 +84,21 @@ class RemoteImageRemoteInstanceTest(driver_test_lib.BaseDriverTest):
         reporter = self.remote_image_remote_instance._LeaseOxygenAVD(avd_spec)
         self.assertEqual(reporter.status, expected_status)
 
+    def testOxygenLeaseFailure(self):
+        """test LeaseOxygenAVD when the lease call failed."""
+        avd_spec = mock.Mock()
+        avd_spec.oxygen = True
+        avd_spec.remote_image = {constants.BUILD_TARGET: "fake_target",
+                                 constants.BUILD_ID: "fake_id"}
+        response_fail = "Lease device fail."
+        self.Patch(oxygen_client.OxygenClient, "LeaseDevice",
+                   side_effect=[LEASE_FAILURE_RESPONSE, response_fail])
+        expected_status = report.Status.FAIL
+        reporter = self.remote_image_remote_instance._LeaseOxygenAVD(avd_spec)
+        self.assertEqual(reporter.status, expected_status)
+        self.assertEqual(reporter.error_type, constants.ACLOUD_OXYGEN_LEASE_ERROR)
+        self.assertEqual(reporter.errors, ["rpc error: details"])
+
     def testGetDeviceInfoFromResponse(self):
         """test GetDeviceInfoFromResponse."""
         expect_session_id = "fake_device"
@@ -93,7 +112,6 @@ class RemoteImageRemoteInstanceTest(driver_test_lib.BaseDriverTest):
             self.remote_image_remote_instance._GetDeviceInfoFromResponse(
                 MULTIPLE_LINES_LEASE_RESPONSE),
             (expect_session_id, expect_server_url))
-
 
     def testReplaceDeviceDataKeys(self):
         """test ReplaceDeviceDataKeys."""

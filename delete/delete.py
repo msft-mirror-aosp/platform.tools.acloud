@@ -42,6 +42,8 @@ _COMMAND_GET_PROCESS_ID = ["pgrep", "run_cvd"]
 _COMMAND_GET_PROCESS_COMMAND = ["ps", "-o", "command", "-p"]
 _RE_RUN_CVD = re.compile(r"^(?P<run_cvd>.+run_cvd)")
 _LOCAL_INSTANCE_PREFIX = "local-"
+_RE_OXYGEN_RELEASE_ERROR = re.compile(
+    r".*Error received while trying to release device: (?P<error>.*)$", re.DOTALL)
 
 
 def DeleteInstances(cfg, instances_to_delete):
@@ -314,7 +316,14 @@ def _ReleaseOxygenDevice(cfg, instances, ip):
             error_msgs=[],
             resource_name="instance")
     except subprocess.CalledProcessError as e:
-        delete_report.AddError(str(e))
+        logger.error("Failed to release device from Oxygen, error: %s",
+            e.output)
+        error = str(e)
+        match = _RE_OXYGEN_RELEASE_ERROR.match(e.output)
+        if match:
+            error = match.group("error").strip()
+        delete_report.AddError(error)
+        delete_report.SetErrorType(constants.ACLOUD_OXYGEN_RELEASE_ERROR)
         delete_report.SetStatus(report.Status.FAIL)
     return delete_report
 
