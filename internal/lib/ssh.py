@@ -127,7 +127,7 @@ def _SshLogOutput(cmd, timeout=None, show_output=False):
     if process.returncode == 255:
         raise errors.DeviceConnectionError(
             "Failed to send command to instance (%s)" % cmd)
-    elif process.returncode != 0:
+    if process.returncode != 0:
         raise subprocess.CalledProcessError(process.returncode, cmd)
 
 
@@ -161,7 +161,7 @@ def ShellCmdWithRetry(cmd, timeout=None, show_output=False,
         show_output=show_output)
 
 
-class IP(object):
+class IP():
     """ A class that control the IP address."""
     def __init__(self, external=None, internal=None, ip=None):
         """Init for IP.
@@ -175,7 +175,7 @@ class IP(object):
         self.internal = internal or ip
 
 
-class Ssh(object):
+class Ssh():
     """A class that control the remote instance via the IP address.
 
     Attributes:
