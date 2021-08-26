@@ -315,6 +315,18 @@ class Ssh(object):
         scp_command.append("%s@%s:%s" %(self._user, self._ip, dst_file))
         ShellCmdWithRetry(" ".join(scp_command))
 
+    def ScpPushFiles(self, src_files, dst_dir):
+        """Push files to one specific folder of remote instance via scp command.
+
+        Args:
+            src_files: The source file path list to be pushed.
+            dst_dir: The destination directory the files to be pushed to.
+        """
+        scp_command = [self.GetBaseCmd(constants.SCP_BIN)]
+        scp_command.extend(src_files)
+        scp_command.append("%s@%s:%s" % (self._user, self._ip, dst_dir))
+        ShellCmdWithRetry(" ".join(scp_command))
+
     def ScpPullFile(self, src_file, dst_file):
         """Scp pull file from remote.
 
