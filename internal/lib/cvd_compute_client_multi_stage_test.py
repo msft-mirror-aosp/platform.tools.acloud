@@ -285,6 +285,34 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
             self.cvd_compute_client_multi_stage._GetConfigFromAndroidInfo(),
             expected)
 
+    @mock.patch.object(Ssh, "Run")
+    @mock.patch.object(Ssh, "ScpPushFiles")
+    @mock.patch.object(utils, "AllocateLocalHostCert")
+    def testUpdateCertificate(self, mock_allocateca, mock_upload,
+                              mock_trustremote):
+        """Test UpdateCertificate"""
+        self.Patch(os, "makedirs")
+        self.Patch(utils, "CheckOutput", return_value="rootca_path")
+        # mkcert is not exist
+        self.Patch(os.path, "exists", return_value=False)
+        self.cvd_compute_client_multi_stage.UpdateCertificate()
+        self.assertEqual(mock_allocateca.call_count, 0)
+        self.assertEqual(mock_upload.call_count, 0)
+        self.assertEqual(mock_trustremote.call_count, 0)
+
+        # mkcert is exist
+        self.Patch(os.path, "exists", return_value=True)
+        mkcert_install_dir = os.path.join(os.path.expanduser("~"),
+                                          constants.MKCERT_INSTALL_DIR)
+        self.cvd_compute_client_multi_stage.UpdateCertificate()
+        mock_allocateca.assert_called_once()
+        mock_upload.assert_called_once_with(
+            ["rootca_path/rootCA.pem",
+             "%s/server.crt" % mkcert_install_dir,
+             "%s/server.key" % mkcert_install_dir,
+             "%s/mkcert" % mkcert_install_dir], constants.WEBRTC_CERTS_PATH)
+        mock_trustremote.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()

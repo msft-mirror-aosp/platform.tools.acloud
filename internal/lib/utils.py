@@ -70,6 +70,11 @@ WEBRTC_PORTS_MAPPING = [PortMapping(constants.WEBRTC_LOCAL_PORT,
                                     _WEBRTC_TARGET_PORT),
                         PortMapping(15550, 15550),
                         PortMapping(15551, 15551)]
+# Use mkcert to generate a localhost certificates for webrtc
+_MKCERT_LOCAL_CERT_CMD = ("%(local_ca_dir)s/mkcert "
+                          "-key-file %(local_ca_dir)s/server.key "
+                          "-cert-file %(local_ca_dir)s/server.crt "
+                          "localhost 0.0.0.0 ::1")
 _ADB_CONNECT_ARGS = "connect 127.0.0.1:%(adb_port)d"
 # Store the ports that vnc/adb are forwarded to, both are integers.
 ForwardedPorts = collections.namedtuple("ForwardedPorts", [constants.VNC_PORT,
@@ -878,6 +883,23 @@ def EstablishWebRTCSshTunnel(ip_addr, rsa_key_file, ssh_user,
         PrintColorString("\n%s\nFailed to create ssh tunnels, retry with '#acloud "
                          "reconnect'." % e, TextColors.FAIL)
 
+def AllocateLocalHostCert(local_ca_dir):
+    """Allocate certificates of localhost by mkcert.
+
+    This will generate certificates by mkcert to trust webrtc frontend
+    if one of the required certificates do not exist.
+
+    Args:
+        local_ca_dir: String, a fixed path to store the certificates.
+    """
+    if not os.path.isdir(local_ca_dir):
+        os.makedirs(local_ca_dir)
+    cmd_mkcert = _MKCERT_LOCAL_CERT_CMD % {"local_ca_dir": local_ca_dir}
+    for cert_file_name in constants.WEBRTC_CERTS_FILES:
+        if not os.path.exists(os.path.join(local_ca_dir, cert_file_name)):
+            CheckOutput(cmd_mkcert, shell=True)
+            break
+
 
 # TODO(147337696): create ssh tunnels tear down as adb and vnc.
 # pylint: disable=too-many-locals
@@ -990,10 +1012,11 @@ def LaunchBrowserFromReport(report):
     Args:
         report: Report object, that stores and generates report.
     """
-    PrintColorString("(This is an experimental project for webrtc, and since "
-                     "the certificate is self-signed, Chrome will mark it as "
-                     "an insecure website. keep going.)",
-                     TextColors.WARNING)
+    if not os.path.exists(os.path.join(os.path.expanduser("~"),
+                                       constants.MKCERT_INSTALL_DIR, "mkcert")):
+        PrintColorString("(Since the certificate is self-signed, Chrome will "
+                         "mark it as an insecure website. keep going.)",
+                         TextColors.WARNING)
 
     for device in report.data.get("devices", []):
         if device.get("ip"):

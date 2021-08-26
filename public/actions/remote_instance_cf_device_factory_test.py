@@ -53,11 +53,13 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.Patch(glob, "glob", return_vale=["fake.img"])
 
     # pylint: disable=protected-access
+    @mock.patch.object(cvd_compute_client_multi_stage.CvdComputeClient,
+                       "UpdateCertificate")
     @mock.patch.object(remote_instance_cf_device_factory.RemoteInstanceDeviceFactory,
                        "_FetchBuild")
     @mock.patch.object(remote_instance_cf_device_factory.RemoteInstanceDeviceFactory,
                        "_UploadLocalImageArtifacts")
-    def testProcessArtifacts(self, mock_upload, mock_download):
+    def testProcessArtifacts(self, mock_upload, mock_download, mock_uploadca):
         """test ProcessArtifacts."""
         # Test image source type is local.
         args = mock.MagicMock()
@@ -76,6 +78,19 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             fake_host_package_name)
         factory_local_img._ProcessArtifacts(constants.IMAGE_SRC_LOCAL)
         self.assertEqual(mock_upload.call_count, 1)
+        # should not upload certificates
+        self.assertEqual(mock_uploadca.call_count, 0)
+        mock_uploadca.reset_mock()
+
+        # should upload certificates
+        args.autoconnect = constants.INS_KEY_WEBRTC
+        avd_spec_local_img = avd_spec.AVDSpec(args)
+        factory_local_img = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
+            avd_spec_local_img,
+            fake_image_name,
+            fake_host_package_name)
+        factory_local_img._ProcessArtifacts(constants.IMAGE_SRC_LOCAL)
+        self.assertEqual(mock_uploadca.call_count, 1)
 
         # Test image source type is remote.
         args.local_image = None
