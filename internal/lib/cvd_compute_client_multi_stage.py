@@ -362,6 +362,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         launch_cvd_args.append(_AGREEMENT_PROMPT_ARG)
         return launch_cvd_args
 
+    # pylint: disable=broad-except
     def StopCvd(self):
         """Stop CVD.
 
@@ -371,7 +372,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         ssh_command = "./bin/stop_cvd"
         try:
             self._ssh.Run(ssh_command)
-        except subprocess.CalledProcessError as e:
+        except Exception as e:
             logger.debug("Failed to stop_cvd (possibly no running device): %s", e)
 
     def CleanUp(self):
