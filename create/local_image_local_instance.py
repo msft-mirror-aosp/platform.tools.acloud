@@ -544,15 +544,14 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         """
         webrtc_certs_dir = os.path.join(host_bins_path,
                                         constants.WEBRTC_CERTS_PATH)
-        local_ca_dir = os.path.join(os.path.expanduser("~"), ".config",
-                                    constants.TOOL_NAME, "mkcert")
-        if os.path.exists(os.path.join(local_ca_dir, "mkcert")):
-            create_common.AllocateLocalHostCert(local_ca_dir)
+        mkcert_install_dir = os.path.join(os.path.expanduser("~"),
+                                    constants.MKCERT_INSTALL_DIR)
+        if os.path.exists(os.path.join(mkcert_install_dir, "mkcert")):
+            utils.AllocateLocalHostCert(mkcert_install_dir)
             for cert_file_name in constants.WEBRTC_CERTS_FILES:
-                shutil.copyfile(os.path.join(local_ca_dir, cert_file_name),
-                                os.path.join(webrtc_certs_dir, cert_file_name))
-        else:
-            logger.debug("mkcert tool did not exist in the %s", local_ca_dir)
+                shutil.copyfile(
+                    os.path.join(mkcert_install_dir, cert_file_name),
+                    os.path.join(webrtc_certs_dir, cert_file_name))
 
     @staticmethod
     def _CheckRunningCvd(local_instance_id, no_prompts=False):
