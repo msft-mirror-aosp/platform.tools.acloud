@@ -15,6 +15,7 @@
 """A client that talks to Oxygen proxy APIs."""
 
 import logging
+import shlex
 import subprocess
 
 
@@ -25,20 +26,25 @@ class OxygenClient():
     """Client that manages Oxygen proxy api."""
 
     @staticmethod
-    def LeaseDevice(build_target, build_id, oxygen_client):
+    def LeaseDevice(build_target, build_id, oxygen_client, cmd_args):
         """Lease one cuttlefish device.
 
         Args:
             build_target: Target name, e.g. "aosp_cf_x86_64_phone-userdebug"
             build_id: Build ID, a string, e.g. "2263051", "P2804227"
             oxygen_client: String of oxygen client path.
+            cmd_args: String of lease command args. e.g. "-user user_mail"
 
         Returns:
             The response of calling oxygen proxy client.
         """
-        response = subprocess.check_output([
-            oxygen_client, "-lease", "-build_id", build_id, "-build_target",
-            build_target], stderr=subprocess.STDOUT, encoding='utf-8')
+        cmd = [oxygen_client, "-lease", "-build_id", build_id, "-build_target",
+               build_target]
+        if cmd_args:
+            cmd.extend(shlex.split(cmd_args))
+
+        response = subprocess.check_output(
+            cmd, stderr=subprocess.STDOUT, encoding='utf-8')
         logger.debug("The response from oxygen client: %s", response)
         return response
 
