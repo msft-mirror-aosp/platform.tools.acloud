@@ -121,4 +121,7 @@ message UserConfig {
 
   // [Oxygen only] The client to call oxygen api.
   optional string oxygen_client = 34;
+
+  // [Oxygen only] The args append to lease command.
+  optional string oxygen_lease_args = 35;
 }
