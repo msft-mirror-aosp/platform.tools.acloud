@@ -221,6 +221,9 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             self._compute_client.UpdateFetchCvd()
             self._FetchBuild(self._avd_spec)
 
+        if self._avd_spec.connect_webrtc:
+            self._compute_client.UpdateCertificate()
+
     def _FetchBuild(self, avd_spec):
         """Download CF artifacts from android build.
 

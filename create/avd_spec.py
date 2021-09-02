@@ -210,12 +210,6 @@ class AVDSpec():
         # If user didn't specify --local-image, infer remote image args
         if args.local_image is None:
             self._image_source = constants.IMAGE_SRC_REMOTE
-            if (self._avd_type == constants.TYPE_GF and
-                    self._instance_type != constants.INSTANCE_TYPE_REMOTE):
-                raise errors.UnsupportedInstanceImageType(
-                    "unsupported creation of avd type: %s, "
-                    "instance type: %s, image source: %s" %
-                    (self._avd_type, self._instance_type, self._image_source))
             self._ProcessRemoteBuildArgs(args)
         else:
             self._image_source = constants.IMAGE_SRC_LOCAL
