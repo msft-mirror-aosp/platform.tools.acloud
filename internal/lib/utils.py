@@ -1117,7 +1117,7 @@ def PrintDeviceSummary(report):
         PrintColorString(" - device serial: %s %s" % (adb_serial,
                                                       instance_details))
         PrintColorString("\n")
-        PrintColorString("Note: To ensure Tradefed use this AVD, please run:")
+        PrintColorString("Note: To ensure Tradefed uses this AVD, please run:")
         PrintColorString("\texport ANDROID_SERIAL=%s" % adb_serial)
 
     # TODO(b/117245508): Help user to delete instance if it got created.
