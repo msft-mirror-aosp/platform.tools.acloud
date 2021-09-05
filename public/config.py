@@ -239,6 +239,7 @@ class AcloudConfig():
         self.api_key = usr_cfg.api_key
         self.api_url = usr_cfg.api_url
         self.oxygen_client = usr_cfg.oxygen_client
+        self.oxygen_lease_args = usr_cfg.oxygen_lease_args
         self.instance_name_pattern = (
             usr_cfg.instance_name_pattern or
             internal_cfg.default_usr_cfg.instance_name_pattern)
