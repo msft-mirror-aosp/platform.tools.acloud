@@ -789,9 +789,9 @@ def CheckPortFree(port):
     tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         tcp_socket.bind(("", port))
-    except socket.error:
+    except socket.error as port_error:
         raise errors.PortOccupied("Port (%d) is taken, please choose another "
-                                  "port." % port)
+                                  "port." % port) from port_error
     tcp_socket.close()
 
 
@@ -1354,12 +1354,12 @@ def GetBuildEnvironmentVariable(variable_name):
     """
     try:
         return os.environ[variable_name]
-    except KeyError:
+    except KeyError as no_env_error:
         raise errors.GetAndroidBuildEnvVarError(
             "Could not get environment var: %s\n"
             "Try to run 'source build/envsetup.sh && lunch <target>'"
             % variable_name
-        )
+        ) from no_env_error
 
 
 # pylint: disable=no-member,import-outside-toplevel
