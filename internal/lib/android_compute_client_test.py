@@ -73,7 +73,7 @@ class AndroidComputeClientTest(driver_test_lib.BaseDriverTest):
 
     def setUp(self):
         """Set up the test."""
-        super(AndroidComputeClientTest, self).setUp()
+        super().setUp()
         self.Patch(android_compute_client.AndroidComputeClient,
                    "InitResourceHandle")
         self.android_compute_client = android_compute_client.AndroidComputeClient(
@@ -158,7 +158,7 @@ class AndroidComputeClientTest(driver_test_lib.BaseDriverTest):
             gcompute_client.ComputeClient,
             "CompareMachineSize",
             return_value=-1)
-        self.assertRaisesRegexp(
+        self.assertRaisesRegex(
             errors.DriverError,
             ".*does not meet the minimum required machine size.*",
             # pylint: disable=protected-access
