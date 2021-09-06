@@ -39,7 +39,7 @@ class AdbToolsTest(driver_test_lib.BaseDriverTest):
 
     def setUp(self):
         """Patch the path to adb."""
-        super(AdbToolsTest, self).setUp()
+        super().setUp()
         self.Patch(adb_tools.AdbTools, "_adb_command", "path/adb")
 
     # pylint: disable=no-member

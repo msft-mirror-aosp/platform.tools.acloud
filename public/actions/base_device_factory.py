@@ -21,7 +21,7 @@ BaseDeviceFactory provides basic interface to create a device factory.
 """
 
 
-class BaseDeviceFactory(object):
+class BaseDeviceFactory():
     """A class that provides basic interface to create a device factory."""
 
     LATEST = "latest"

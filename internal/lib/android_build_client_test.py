@@ -44,7 +44,7 @@ class AndroidBuildClientTest(driver_test_lib.BaseDriverTest):
 
     def setUp(self):
         """Set up test."""
-        super(AndroidBuildClientTest, self).setUp()
+        super().setUp()
         self.Patch(android_build_client.AndroidBuildClient,
                    "InitResourceHandle")
         self.client = android_build_client.AndroidBuildClient(mock.MagicMock())
