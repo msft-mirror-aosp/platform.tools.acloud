@@ -53,7 +53,7 @@ class CreateGoldfishActionTest(driver_test_lib.BaseDriverTest):
 
     def setUp(self):
         """Sets up the test."""
-        super(CreateGoldfishActionTest, self).setUp()
+        super().setUp()
         self.build_client = mock.MagicMock()
         self.Patch(
             android_build_client,
