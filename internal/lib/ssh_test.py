@@ -40,7 +40,7 @@ class SshTest(driver_test_lib.BaseDriverTest):
 
     def setUp(self):
         """Set up the test."""
-        super(SshTest, self).setUp()
+        super().setUp()
         self.created_subprocess = mock.MagicMock()
         self.created_subprocess.stdout = mock.MagicMock()
         self.created_subprocess.stdout.readline = mock.MagicMock(return_value=b"")
