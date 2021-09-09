@@ -72,14 +72,14 @@ BASE_DISK_ARGS = {
 }
 
 
-class OperationScope(object):
+class OperationScope():
     """Represents operation scope enum."""
     ZONE = "zone"
     REGION = "region"
     GLOBAL = "global"
 
 
-class PersistentDiskType(object):
+class PersistentDiskType():
     """Represents different persistent disk types.
 
     pd-standard for regular hard disk.
@@ -89,7 +89,7 @@ class PersistentDiskType(object):
     SSD = "pd-ssd"
 
 
-class ImageStatus(object):
+class ImageStatus():
     """Represents the status of an image."""
     PENDING = "PENDING"
     READY = "READY"
@@ -137,7 +137,7 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
             acloud_config: An AcloudConfig object.
             oauth2_credentials: An oauth2client.OAuth2Credentials instance.
         """
-        super(ComputeClient, self).__init__(oauth2_credentials)
+        super().__init__(oauth2_credentials)
         self._project = acloud_config.project
 
     def _GetOperationStatus(self, operation, operation_scope, scope_name=None):
@@ -451,7 +451,7 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
                 "Creating image %s requires either source_uri %s or "
                 "source_disk %s but not both" % (image_name, source_uri,
                                                  source_disk))
-        elif source_uri:
+        if source_uri:
             logger.info("Creating image %s, source_uri %s", image_name,
                         source_uri)
             body = {

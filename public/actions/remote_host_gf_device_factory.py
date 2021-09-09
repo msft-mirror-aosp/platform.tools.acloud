@@ -28,6 +28,7 @@ from acloud.internal import constants
 from acloud.internal.lib import android_build_client
 from acloud.internal.lib import auth
 from acloud.internal.lib import goldfish_remote_host_client
+from acloud.internal.lib import emulator_console
 from acloud.internal.lib import utils
 from acloud.internal.lib import ssh
 from acloud.public.actions import base_device_factory
@@ -50,6 +51,7 @@ _REMOTE_EMULATOR_DIR = remote_path.join(_REMOTE_WORKING_DIR, "emulator")
 _REMOTE_INSTANCE_DIR = remote_path.join(_REMOTE_WORKING_DIR, "instance")
 # Runtime parameters
 _EMULATOR_DEFAULT_CONSOLE_PORT = 5554
+_DEFAULT_BOOT_TIMEOUT_SECS = 150
 
 
 class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
@@ -111,9 +113,17 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         """Remove existing instance and working directory."""
         # Disable authentication for emulator console.
         self._ssh.Run("""'echo -n "" > .emulator_console_auth_token'""")
-        # TODO(b/185094559): Send kill command to emulator console.
-        self._ssh.Run("'pkill -ef %s || true'" %
-                      remote_path.join("~", _REMOTE_EMULATOR_DIR, '".*"'))
+        try:
+            with emulator_console.RemoteEmulatorConsole(
+                    self._avd_spec.remote_host,
+                    _EMULATOR_DEFAULT_CONSOLE_PORT,
+                    self._ssh_user,
+                    self._ssh_private_key_path,
+                    self._ssh_extra_args) as console:
+                console.Kill()
+            logger.info("Killed existing emulator.")
+        except errors.DeviceConnectionError as e:
+            logger.info("Did not kill existing emulator: %s", str(e))
         # Delete instance files.
         self._ssh.Run("rm -rf %s" % _REMOTE_WORKING_DIR)
 
@@ -367,7 +377,33 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
 
     @utils.TimeExecute(function_description="Wait for emulator")
     def _WaitForEmulator(self):
-        """TODO(b/185094559): Wait for remote emulator console."""
+        """Wait for remote emulator console to be active.
+
+        Raises:
+            errors.DeviceBootError if connection fails.
+            errors.DeviceBootTimeoutError if boot times out.
+        """
+        ip_addr = self._avd_spec.remote_host
+        console_port = _EMULATOR_DEFAULT_CONSOLE_PORT
+        poll_timeout_secs = (self._avd_spec.boot_timeout_secs or
+                             _DEFAULT_BOOT_TIMEOUT_SECS)
+        try:
+            with emulator_console.RemoteEmulatorConsole(
+                    ip_addr,
+                    console_port,
+                    self._ssh_user,
+                    self._ssh_private_key_path,
+                    self._ssh_extra_args) as console:
+                utils.PollAndWait(
+                    func=lambda: (True if console.Ping() else
+                                  console.Reconnect()),
+                    expected_return=True,
+                    timeout_exception=errors.DeviceBootTimeoutError,
+                    timeout_secs=poll_timeout_secs,
+                    sleep_interval_secs=5)
+        except errors.DeviceConnectionError as e:
+            raise errors.DeviceBootError("Fail to connect to %s:%d." %
+                                         (ip_addr, console_port)) from e
 
     def GetBuildInfoDict(self):
         """Get build info dictionary.

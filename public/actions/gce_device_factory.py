@@ -47,7 +47,7 @@ class GCEDeviceFactory(base_device_factory.BaseDeviceFactory):
             ins_timeout_secs=avd_spec.ins_timeout_secs,
             report_internal_ip=avd_spec.report_internal_ip,
             gpu=avd_spec.gpu)
-        super(GCEDeviceFactory, self).__init__(compute_client)
+        super().__init__(compute_client)
         self._ssh = None
 
     def _CreateGceInstance(self):
