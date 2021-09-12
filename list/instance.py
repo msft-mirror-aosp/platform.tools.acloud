@@ -810,8 +810,8 @@ class RemoteInstance(Instance):
                 vnc_port = int(match.group(_RE_GROUP_VNC))
                 break
 
-        logger.debug(("grathering detail for ssh tunnel. "
-                      "IP:%s, forwarding (adb:%d, vnc:%d)"), ip, adb_port,
+        logger.debug(("gathering detail for ssh tunnel. "
+                      "IP:%s, forwarding (adb:%s, vnc:%s)"), ip, adb_port,
                      vnc_port)
 
         return utils.ForwardedPorts(vnc_port=vnc_port, adb_port=adb_port)

@@ -23,6 +23,7 @@ import zipfile
 
 from unittest import mock
 
+from acloud import errors
 from acloud.internal import constants
 from acloud.internal.lib import driver_test_lib
 from acloud.public.actions import remote_host_gf_device_factory as gf_factory
@@ -79,6 +80,18 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.Patch(gf_factory.goldfish_remote_host_client,
                    "GoldfishRemoteHostClient")
         self.Patch(gf_factory.auth, "CreateCredentials")
+        # Emulator console
+        self._mock_console = mock.MagicMock()
+        self._mock_console.__enter__.return_value = self._mock_console
+        self._mock_console.Kill.side_effect = errors.DeviceConnectionError
+        ping_results = [False, True]
+        self._mock_poll_and_wait = self.Patch(
+            gf_factory.utils,
+            "PollAndWait",
+            side_effect=lambda func, **kwargs: [func() for _ in ping_results])
+        self._mock_console.Ping.side_effect = ping_results
+        self.Patch(gf_factory.emulator_console, "RemoteEmulatorConsole",
+                   return_value=self._mock_console)
         # Android build client.
         self._mock_android_build_client = mock.Mock()
         self._mock_android_build_client.DownloadArtifact.side_effect = (
@@ -133,6 +146,10 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             3, self._mock_android_build_client.DownloadArtifact.call_count)
         # Commands.
         self._mock_ssh.Run.assert_called_with(self._SSH_COMMAND)
+        self._mock_console.Kill.assert_called_once()
+        self.assertEqual(self._mock_console.Ping.call_count,
+                         self._mock_console.Reconnect.call_count + 1)
+        self._mock_console.Reconnect.assert_called()
 
     def testCreateInstanceWithAvdSpec(self):
         """Test RemoteHostGoldfishDeviceFactory with command options."""
@@ -165,6 +182,38 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(self._ARM64_INSTANCE_NAME, instance_name)
         self.assertEqual(self._ARM64_BUILD_INFO, factory.GetBuildInfoDict())
         self.assertEqual({}, factory.GetFailures())
+
+    def testCreateInstanceError(self):
+        """Test RemoteHostGoldfishDeviceFactory with boot error."""
+        self._mock_console.Reconnect.side_effect = (
+            errors.DeviceConnectionError)
+
+        factory = gf_factory.RemoteHostGoldfishDeviceFactory(
+            self._mock_avd_spec)
+        factory.CreateInstance()
+
+        failures = factory.GetFailures()
+        self.assertIsInstance(failures.get(self._X86_64_INSTANCE_NAME),
+                              errors.DeviceBootError)
+
+    def testCreateInstanceTimeout(self):
+        """Test RemoteHostGoldfishDeviceFactory with timeout."""
+        self._mock_avd_spec.boot_timeout_secs = 1
+        self._mock_poll_and_wait.side_effect = errors.DeviceBootTimeoutError()
+
+        factory = gf_factory.RemoteHostGoldfishDeviceFactory(
+            self._mock_avd_spec)
+        factory.CreateInstance()
+
+        self._mock_poll_and_wait.assert_called_once_with(
+            func=mock.ANY,
+            expected_return=True,
+            timeout_exception=errors.DeviceBootTimeoutError,
+            timeout_secs=1,
+            sleep_interval_secs=mock.ANY)
+        failures = factory.GetFailures()
+        self.assertIsInstance(failures.get(self._X86_64_INSTANCE_NAME),
+                              errors.DeviceBootTimeoutError)
 
 
 if __name__ == "__main__":
