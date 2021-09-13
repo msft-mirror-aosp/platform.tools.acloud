@@ -720,12 +720,14 @@ class RemoteInstance(Instance):
         # Find ssl tunnel info.
         adb_port = None
         vnc_port = None
+        webrtc_port = constants.WEBRTC_LOCAL_PORT
         device_information = None
         if ip:
             forwarded_ports = self.GetAdbVncPortFromSSHTunnel(ip, avd_type)
             adb_port = forwarded_ports.adb_port
             vnc_port = forwarded_ports.vnc_port
             ssh_tunnel_is_connected = adb_port is not None
+            webrtc_port = utils.GetWebrtcPortFromSSHTunnel(ip)
 
             adb_device = AdbTools(adb_port)
             if adb_device.IsAdbConnected():
@@ -754,8 +756,7 @@ class RemoteInstance(Instance):
             createtime=create_time, elapsed_time=elapsed_time, avd_type=avd_type,
             avd_flavor=avd_flavor, is_local=False,
             device_information=device_information,
-            zone=zone,
-            webrtc_port=constants.WEBRTC_LOCAL_PORT)
+            zone=zone, webrtc_port=webrtc_port)
 
     @staticmethod
     def _GetZoneName(zone_info):
