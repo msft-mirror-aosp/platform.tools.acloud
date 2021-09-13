@@ -436,33 +436,46 @@ class UtilsTest(driver_test_lib.BaseDriverTest):
         fake_ip_addr = "1.1.1.1"
         fake_rsa_key_file = "/tmp/rsa_file"
         ssh_user = "fake_user"
-        self.Patch(utils, "ReleasePort")
+        fake_webrtc_local_port = 12345
         mock_establish_ssh_tunnel = self.Patch(utils, "EstablishSshTunnel")
-        port_mapping = [utils.PortMapping(8443, 8443),
-                        utils.PortMapping(15550, 15550),
-                        utils.PortMapping(15551, 15551)]
+        fake_port_mapping = [utils.PortMapping(15550, 15550),
+                             utils.PortMapping(15551, 15551),
+                             utils.PortMapping(12345, 8443)]
 
         utils.EstablishWebRTCSshTunnel(
             ip_addr=fake_ip_addr, rsa_key_file=fake_rsa_key_file,
-            ssh_user=ssh_user)
+            ssh_user=ssh_user, webrtc_local_port=fake_webrtc_local_port)
         mock_establish_ssh_tunnel.assert_called_with(
             fake_ip_addr,
             fake_rsa_key_file,
             ssh_user,
-            port_mapping,
+            fake_port_mapping,
             None)
 
         mock_establish_ssh_tunnel.reset_mock()
         extra_args_ssh_tunnel = "-o command='shell %s %h'"
         utils.EstablishWebRTCSshTunnel(
             ip_addr=fake_ip_addr, rsa_key_file=fake_rsa_key_file,
-            ssh_user=ssh_user, extra_args_ssh_tunnel=extra_args_ssh_tunnel)
+            ssh_user=ssh_user, extra_args_ssh_tunnel=extra_args_ssh_tunnel,
+            webrtc_local_port=fake_webrtc_local_port)
         mock_establish_ssh_tunnel.assert_called_with(
             fake_ip_addr,
             fake_rsa_key_file,
             ssh_user,
-            port_mapping,
+            fake_port_mapping,
             extra_args_ssh_tunnel)
+
+    def testGetWebrtcPortFromSSHTunnel(self):
+        """"Test Get forwarding webrtc port from ssh tunnel."""
+        fake_ps_output = ("/fake_ps_1 --fake arg \n"
+                          "/fake_ps_2 --fake arg \n"
+                          "/usr/bin/ssh -i ~/.ssh/acloud_rsa "
+                          "-o UserKnownHostsFile=/dev/null "
+                          "-o StrictHostKeyChecking=no -L 15551:127.0.0.1:15551 "
+                          "-L 12345:127.0.0.1:8443 -N -f -l user 1.1.1.1").encode()
+        self.Patch(subprocess, "check_output", return_value=fake_ps_output)
+        webrtc_ports = utils.GetWebrtcPortFromSSHTunnel("1.1.1.1")
+        self.assertEqual(12345, webrtc_ports)
 
     # pylint: disable=protected-access, no-member
     def testCleanupSSVncviwer(self):
