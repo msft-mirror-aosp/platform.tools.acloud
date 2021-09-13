@@ -177,6 +177,7 @@ class CommonOperationsTest(driver_test_lib.BaseDriverTest):
         mock_auto_connect = self.Patch(utils, "AutoConnect",
                                        return_value=forwarded_ports)
         mock_establish_webrtc = self.Patch(utils, "EstablishWebRTCSshTunnel")
+        self.Patch(utils, "PickFreePort", return_value=12345)
         cfg = self._CreateCfg()
         _report = common_operations.CreateDevices(
             self.CMD, cfg, self.device_factory, 1, constants.TYPE_CF,
@@ -189,7 +190,8 @@ class CommonOperationsTest(driver_test_lib.BaseDriverTest):
             client_adb_port=None, extra_args_ssh_tunnel="extra args")
         mock_establish_webrtc.assert_called_with(
             ip_addr="127.0.0.1", rsa_key_file="private/key",
-            ssh_user="user",extra_args_ssh_tunnel="extra args")
+            ssh_user="user", extra_args_ssh_tunnel="extra args",
+            webrtc_local_port=12345)
         self.assertEqual(_report.status, report.Status.SUCCESS)
 
     def testGetErrorType(self):
