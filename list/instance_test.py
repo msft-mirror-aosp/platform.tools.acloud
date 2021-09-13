@@ -269,6 +269,7 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
             instance.RemoteInstance,
             "GetAdbVncPortFromSSHTunnel",
             return_value=forwarded_ports(vnc_port=fake_vnc, adb_port=fake_adb))
+        self.Patch(utils, "GetWebrtcPortFromSSHTunnel", return_value=8443)
         self.Patch(instance, "_GetElapsedTime", return_value="fake_time")
         self.Patch(AdbTools, "IsAdbConnected", return_value=True)
         remote_instance = instance.RemoteInstance(self.GCE_INSTANCE)

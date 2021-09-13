@@ -293,8 +293,11 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
                 if unlock_screen:
                     AdbTools(forwarded_ports.adb_port).AutoUnlockScreen()
             if connect_webrtc:
+                webrtc_local_port = utils.PickFreePort()
+                device_dict[constants.WEBRTC_PORT] = webrtc_local_port
                 utils.EstablishWebRTCSshTunnel(
                     ip_addr=ip,
+                    webrtc_local_port=webrtc_local_port,
                     rsa_key_file=(ssh_private_key_path or
                                   cfg.ssh_private_key_path),
                     ssh_user=ssh_user,
