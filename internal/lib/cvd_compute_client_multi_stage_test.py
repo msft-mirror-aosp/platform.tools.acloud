@@ -313,6 +313,16 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
              "%s/mkcert" % mkcert_install_dir], constants.WEBRTC_CERTS_PATH)
         mock_trustremote.assert_called_once()
 
+    def testGetBootTimeout(self):
+        """Test GetBootTimeout"""
+        self.cvd_compute_client_multi_stage._execution_time = {
+            "fetch_artifact_time": 100}
+        self.assertEqual(
+            400, self.cvd_compute_client_multi_stage._GetBootTimeout(500))
+
+        self.assertEqual(
+            0, self.cvd_compute_client_multi_stage._GetBootTimeout(50))
+
 
 if __name__ == "__main__":
     unittest.main()
