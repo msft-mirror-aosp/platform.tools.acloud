@@ -24,7 +24,8 @@ from acloud.public import config
 
 _INSTANCE_NAME_FORMAT = ("host-%(ip_addr)s-goldfish-%(console_port)s-"
                          "%(build_id)s-%(build_target)s")
-_INSTANCE_NAME_PATTERN = re.compile(r"host-(?P<ip_addr>[\d.]+)-goldfish-.+")
+_INSTANCE_NAME_PATTERN = re.compile(
+    r"host-(?P<ip_addr>[\d.]+)-goldfish-(?P<console_port>\d+)-.+")
 # Report keys
 _VERSION = "version"
 
@@ -47,16 +48,31 @@ def FormatInstanceName(ip_addr, console_port, build_info):
         "build_target": build_info.get(constants.BUILD_TARGET)}
 
 
+def ParseEmulatorConsoleAddress(instance_name):
+    """Parse emulator console address from an instance name.
+
+    Args:
+        instance_name: A string, the instance name.
+
+    Returns:
+        The IP address as a string and the console port as an integer.
+        None if the name does not represent a goldfish instance on remote host.
+    """
+    match = _INSTANCE_NAME_PATTERN.fullmatch(instance_name)
+    return ((match.group("ip_addr"), int(match.group("console_port")))
+            if match else None)
+
+
 class GoldfishRemoteHostClient:
     """A client that manages goldfish instance on a remote host."""
 
     @staticmethod
     def GetInstanceIP(instance_name):
         """Parse the IP address from an instance name."""
-        match = _INSTANCE_NAME_PATTERN.fullmatch(instance_name)
-        if not match:
+        ip_and_port = ParseEmulatorConsoleAddress(instance_name)
+        if not ip_and_port:
             raise ValueError("Cannot parse instance name: %s" % instance_name)
-        return ssh.IP(ip=match.group("ip_addr"))
+        return ssh.IP(ip=ip_and_port[0])
 
     @staticmethod
     def WaitForBoot(_instance_name, _boot_timeout_secs):

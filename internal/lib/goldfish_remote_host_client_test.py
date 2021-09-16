@@ -25,24 +25,36 @@ from acloud.internal.lib import goldfish_remote_host_client
 class GoldfishRemoteHostClientTest(driver_test_lib.BaseDriverTest):
     """Unit tests for GoldfishRemoteHostClient."""
 
+    _IP_ADDRESS = "192.0.2.1"
+    _CONSOLE_PORT = 5554
+    _BUILD_INFO = {"build_id": "123456",
+                   "build_target": "sdk_phone_x86_64-userdebug"}
+    _INSTANCE_NAME = ("host-192.0.2.1-goldfish-5554-"
+                      "123456-sdk_phone_x86_64-userdebug")
+    _INVALID_NAME = "host-192.0.2.1-123456-aosp_cf_x86_phone-userdebug"
+
+    def testParseEmulatorConsoleAddress(self):
+        """Test ParseEmulatorConsoleAddress."""
+        console_addr = goldfish_remote_host_client.ParseEmulatorConsoleAddress(
+            self._INSTANCE_NAME)
+        self.assertEqual((self._IP_ADDRESS, self._CONSOLE_PORT), console_addr)
+
+        console_addr = goldfish_remote_host_client.ParseEmulatorConsoleAddress(
+            self._INVALID_NAME)
+        self.assertIsNone(console_addr)
+
     def testFormatInstanceName(self):
         """Test FormatInstanceName."""
-        build_info = {"build_id": "123456",
-                      "build_target": "sdk_phone_x86_64-userdebug"}
         instance_name = goldfish_remote_host_client.FormatInstanceName(
-            "192.0.2.1", 5444, build_info)
-        self.assertEqual(
-            "host-192.0.2.1-goldfish-5444-123456-sdk_phone_x86_64-userdebug",
-            instance_name)
+            self._IP_ADDRESS, self._CONSOLE_PORT, self._BUILD_INFO)
+        self.assertEqual(self._INSTANCE_NAME, instance_name)
 
     def testGetInstanceIP(self):
         """Test GetInstanceIP."""
         client = goldfish_remote_host_client.GoldfishRemoteHostClient()
-        ip_addr = client.GetInstanceIP(
-            "host-192.0.2.1-goldfish-5444-123456-sdk_phone_x86_64-userdebug")
-        self.assertEqual(ip_addr.external, "192.0.2.1")
-        self.assertEqual(ip_addr.internal, "192.0.2.1")
-
+        ip_addr = client.GetInstanceIP(self._INSTANCE_NAME)
+        self.assertEqual(ip_addr.external, self._IP_ADDRESS)
+        self.assertEqual(ip_addr.internal, self._IP_ADDRESS)
 
 if __name__ == "__main__":
     unittest.main()

@@ -24,6 +24,7 @@ import grp
 import logging
 import os
 import platform
+import re
 import shlex
 import shutil
 import signal
@@ -66,15 +67,16 @@ PORT_MAPPING = "-L %(local_port)d:127.0.0.1:%(target_port)d "
 _RELEASE_PORT_CMD = "kill $(lsof -t -i :%d)"
 _WEBRTC_TARGET_PORT = 8443
 PortMapping = collections.namedtuple("PortMapping", ["local", "target"])
-WEBRTC_PORTS_MAPPING = [PortMapping(constants.WEBRTC_LOCAL_PORT,
-                                    _WEBRTC_TARGET_PORT),
-                        PortMapping(15550, 15550),
+WEBRTC_PORTS_MAPPING = [PortMapping(15550, 15550),
                         PortMapping(15551, 15551)]
 # Use mkcert to generate a localhost certificates for webrtc
 _MKCERT_LOCAL_CERT_CMD = ("%(local_ca_dir)s/mkcert "
                           "-key-file %(local_ca_dir)s/server.key "
                           "-cert-file %(local_ca_dir)s/server.crt "
                           "localhost 0.0.0.0 ::1")
+_RE_GROUP_WEBRTC = "local_webrtc_port"
+_RE_WEBRTC_SSH_TUNNEL_PATTERN = (
+    r"((.*-L\s)(?P<local_webrtc_port>\d+):127.0.0.1:%s)(.+%s)")
 _ADB_CONNECT_ARGS = "connect 127.0.0.1:%(adb_port)d"
 # Store the ports that vnc/adb are forwarded to, both are integers.
 ForwardedPorts = collections.namedtuple("ForwardedPorts", [constants.VNC_PORT,
@@ -859,26 +861,27 @@ def EstablishSshTunnel(ip_addr, rsa_key_file, ssh_user,
     _ExecuteCommand(constants.SSH_BIN, ssh_tunnel_args_list)
 
 
-def EstablishWebRTCSshTunnel(ip_addr, rsa_key_file, ssh_user,
+def EstablishWebRTCSshTunnel(ip_addr, webrtc_local_port, rsa_key_file, ssh_user,
                              extra_args_ssh_tunnel=None):
     """Create ssh tunnels for webrtc.
 
-    # TODO(151418177): Before fully supporting webrtc feature, we establish one
-    # WebRTC tunnel at a time. so always delete the previous connection before
-    # establishing new one.
+    Pick up an available local port to establish one WebRTC tunnel and forward to
+    the port of the webrtc operator of the remote instance.
 
     Args:
         ip_addr: String, use to build the adb & vnc tunnel between local
                  and remote instance.
+        webrtc_local_port: Integer, pick a free port as webrtc local port.
         rsa_key_file: String, Private key file path to use when creating
                       the ssh tunnels.
         ssh_user: String of user login into the instance.
         extra_args_ssh_tunnel: String, extra args for ssh tunnel connection.
     """
-    ReleasePort(constants.WEBRTC_LOCAL_PORT)
+    port_mapping = (WEBRTC_PORTS_MAPPING +
+                    [PortMapping(webrtc_local_port, _WEBRTC_TARGET_PORT)])
     try:
         EstablishSshTunnel(ip_addr, rsa_key_file, ssh_user,
-                           WEBRTC_PORTS_MAPPING, extra_args_ssh_tunnel)
+                           port_mapping, extra_args_ssh_tunnel)
     except subprocess.CalledProcessError as e:
         PrintColorString("\n%s\nFailed to create ssh tunnels, retry with '#acloud "
                          "reconnect'." % e, TextColors.FAIL)
@@ -899,6 +902,28 @@ def AllocateLocalHostCert(local_ca_dir):
         if not os.path.exists(os.path.join(local_ca_dir, cert_file_name)):
             CheckOutput(cmd_mkcert, shell=True)
             break
+
+
+def GetWebrtcPortFromSSHTunnel(ip):
+    """Get forwarding webrtc port from ssh tunnel.
+
+    Args:
+        ip: String, ip address.
+
+    Returns:
+        webrtc local port.
+    """
+    re_pattern = re.compile(_RE_WEBRTC_SSH_TUNNEL_PATTERN %
+                            (constants.WEBRTC_LOCAL_PORT, ip))
+    process_output = CheckOutput(constants.COMMAND_PS)
+    for line in process_output.splitlines():
+        match = re_pattern.match(line)
+        if match:
+            webrtc_port = int(match.group(_RE_GROUP_WEBRTC))
+            return webrtc_port
+
+    logger.debug("Can't get webrtc local port from ip %s.", ip)
+    return None
 
 
 # TODO(147337696): create ssh tunnels tear down as adb and vnc.
