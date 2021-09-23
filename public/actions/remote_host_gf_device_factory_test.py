@@ -38,13 +38,13 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         constants.BUILD_TARGET: "sdk_x86_64-sdk",
     }
     _X86_64_INSTANCE_NAME = (
-        "host-192.0.2.1-goldfish-5554-123456-sdk_x86_64-sdk")
+        "host-goldfish-192.0.2.1-5554-123456-sdk_x86_64-sdk")
     _ARM64_BUILD_INFO = {
         constants.BUILD_ID: "123456",
         constants.BUILD_TARGET: "sdk_arm64-sdk",
     }
     _ARM64_INSTANCE_NAME = (
-        "host-192.0.2.1-goldfish-5554-123456-sdk_arm64-sdk")
+        "host-goldfish-192.0.2.1-5554-123456-sdk_arm64-sdk")
     _CFG_ATTRS = {
         "ssh_private_key_path": "cfg_key_path",
         "extra_args_ssh_tunnel": "extra args",
