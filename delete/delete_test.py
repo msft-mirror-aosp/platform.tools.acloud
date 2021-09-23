@@ -163,7 +163,7 @@ class DeleteTest(driver_test_lib.BaseDriverTest):
         cfg_attrs = {"ssh_private_key_path": "cfg_key_path",
                      "extra_args_ssh_tunnel": "extra args"}
         mock_cfg = mock.Mock(spec_set=list(cfg_attrs.keys()), **cfg_attrs)
-        instance_name = "host-192.0.2.1-goldfish-5554-123456-sdk_x86_64-sdk"
+        instance_name = "host-goldfish-192.0.2.1-5554-123456-sdk_x86_64-sdk"
         delete_report = report.Report(command="delete")
 
         delete.DeleteHostGoldfishInstance(mock_cfg, instance_name,
@@ -212,7 +212,7 @@ class DeleteTest(driver_test_lib.BaseDriverTest):
         mock_reset_lock.assert_called_with("local-instance-2", mock.ANY)
 
         # Test delete remote host instances.
-        instances = ["host-192.0.2.1-goldfish-5554-123456-sdk_x86_64-sdk"]
+        instances = ["host-goldfish-192.0.2.1-5554-123456-sdk_x86_64-sdk"]
         delete.DeleteInstanceByNames(cfg, instances, "user", "key")
         mock_delete_remote_host_gf.assert_called_with(
             cfg, instances[0], "user", "key", mock.ANY)
