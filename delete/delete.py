@@ -306,7 +306,7 @@ def DeleteInstanceByNames(cfg, instances, host_user,
     This method can identify the following types of instance names:
     local cuttlefish instance: local-instance-<id>
     local goldfish instance: local-goldfish-instance-<id>
-    remote host goldfish instance: host-<ip_addr>-goldfish-<port>-<build_info>
+    remote host goldfish instance: host-goldfish-<ip_addr>-<port>-<build_info>
     remote instance: ins-<uuid>-<build_info>
 
     Args:
