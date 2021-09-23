@@ -22,10 +22,10 @@ from acloud.internal.lib import ssh
 from acloud.public import config
 
 
-_INSTANCE_NAME_FORMAT = ("host-%(ip_addr)s-goldfish-%(console_port)s-"
+_INSTANCE_NAME_FORMAT = ("host-goldfish-%(ip_addr)s-%(console_port)s-"
                          "%(build_id)s-%(build_target)s")
 _INSTANCE_NAME_PATTERN = re.compile(
-    r"host-(?P<ip_addr>[\d.]+)-goldfish-(?P<console_port>\d+)-.+")
+    r"host-goldfish-(?P<ip_addr>[\d.]+)-(?P<console_port>\d+)-.+")
 # Report keys
 _VERSION = "version"
 
