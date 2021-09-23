@@ -61,9 +61,6 @@ _MKCERT_DOWNLOAD_CMD = ("wget -O %(mkcert_install_path)s/mkcert "
                         {"mkcert_install_path": _MKCERT_INSTALL_PATH,
                          "mkcert_url": _MKCERT_URL,
                          "mkcert_ver": _MKCERT_VERSION})
-_INSTALL_MKCERT_CMD = [
-    "sudo apt-get install wget libnss3-tools",
-    _MKCERT_DOWNLOAD_CMD]
 
 
 class BasePkgInstaller(base_task_runner.BaseTaskRunner):
@@ -191,16 +188,14 @@ class MkcertPkgInstaller(base_task_runner.BaseTaskRunner):
 
     def _Run(self):
         """Install mkcert packages."""
-        cmd = "\n".join(_INSTALL_MKCERT_CMD)
-
         if not utils.GetUserAnswerYes("\nStart to install mkcert :\n%s"
                                       "\nEnter 'y' to continue, otherwise N or "
-                                      "enter to exit: " % cmd):
+                                      "enter to exit: " % _MKCERT_DOWNLOAD_CMD):
             sys.exit(constants.EXIT_BY_USER)
 
         if not os.path.isdir(_MKCERT_INSTALL_PATH):
             os.mkdir(_MKCERT_INSTALL_PATH)
-        setup_common.CheckCmdOutput(cmd, shell=True)
+        setup_common.CheckCmdOutput(_MKCERT_DOWNLOAD_CMD, shell=True)
         utils.SetExecutable(os.path.join(_MKCERT_INSTALL_PATH, "mkcert"))
         utils.CheckOutput(_MKCERT_CAROOT_CMD, shell=True)
         logger.info("Mkcert package is installed at \"%s\" now.",
