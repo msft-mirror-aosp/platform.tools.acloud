@@ -59,7 +59,7 @@ class CreateCuttlefishActionTest(driver_test_lib.BaseDriverTest):
 
     def setUp(self):
         """Set up the test."""
-        super(CreateCuttlefishActionTest, self).setUp()
+        super().setUp()
         self.build_client = mock.MagicMock()
         self.Patch(
             android_build_client,

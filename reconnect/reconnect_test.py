@@ -159,12 +159,13 @@ class ReconnectTest(driver_test_lib.BaseDriverTest):
         instance_object.islocal = False
         instance_object.adb_port = "8686"
         instance_object.avd_type = "cuttlefish"
-        instance_object.webrtc_port = 8443
         self.Patch(subprocess, "check_call", return_value=True)
         self.Patch(utils, "LaunchVncClient")
         self.Patch(utils, "AutoConnect")
         self.Patch(utils, "LaunchBrowser")
+        self.Patch(utils, "GetWebrtcPortFromSSHTunnel", return_value=None)
         self.Patch(utils, "EstablishWebRTCSshTunnel")
+        self.Patch(utils, "PickFreePort", return_value=12345)
         self.Patch(AdbTools, "IsAdbConnected", return_value=False)
         self.Patch(AdbTools, "IsAdbConnectionAlive", return_value=False)
         self.Patch(utils, "IsCommandRunning", return_value=False)
@@ -178,10 +179,11 @@ class ReconnectTest(driver_test_lib.BaseDriverTest):
         utils.AutoConnect.assert_not_called()
         utils.LaunchVncClient.assert_not_called()
         utils.EstablishWebRTCSshTunnel.assert_called_with(extra_args_ssh_tunnel=None,
+                                                          webrtc_local_port=12345,
                                                           ip_addr='1.1.1.1',
                                                           rsa_key_file='/fake/acloud_rsa',
                                                           ssh_user='vsoc-01')
-        utils.LaunchBrowser.assert_called_with('localhost', 8443)
+        utils.LaunchBrowser.assert_called_with('localhost', 12345)
 
     def testReconnectInstanceAvdtype(self):
         """Test Reconnect Instances of avd_type."""

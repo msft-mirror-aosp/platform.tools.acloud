@@ -153,11 +153,52 @@ class DeleteTest(driver_test_lib.BaseDriverTest):
         self.assertTrue(len(delete_report.errors) > 0)
         self.assertEqual(delete_report.status, "FAIL")
 
+    @mock.patch("acloud.delete.delete.emulator_console.RemoteEmulatorConsole")
+    def testDeleteHostGoldfishInstance(self, mock_console):
+        """test DeleteHostGoldfishInstance."""
+        mock_console_obj = mock.MagicMock()
+        mock_console.return_value = mock_console_obj
+        mock_console_obj.__enter__.return_value = mock_console_obj
+
+        cfg_attrs = {"ssh_private_key_path": "cfg_key_path",
+                     "extra_args_ssh_tunnel": "extra args"}
+        mock_cfg = mock.Mock(spec_set=list(cfg_attrs.keys()), **cfg_attrs)
+        instance_name = "host-goldfish-192.0.2.1-5554-123456-sdk_x86_64-sdk"
+        delete_report = report.Report(command="delete")
+
+        delete.DeleteHostGoldfishInstance(mock_cfg, instance_name,
+                                          None, None, delete_report)
+        mock_console.assert_called_with("192.0.2.1", 5554, "vsoc-01",
+                                        "cfg_key_path", "extra args")
+        mock_console_obj.Kill.assert_called()
+        self.assertEqual(delete_report.status, "SUCCESS")
+        self.assertEqual(delete_report.data, {
+            "deleted": [
+                {
+                    "type": "instance",
+                    "name": instance_name,
+                },
+            ],
+        })
+
+        mock_console_obj.reset_mock()
+        mock_console_obj.Kill.side_effect = errors.DeviceConnectionError
+        delete_report = report.Report(command="delete")
+
+        delete.DeleteHostGoldfishInstance(mock_cfg, instance_name,
+                                          "user", "key_path", delete_report)
+        mock_console.assert_called_with("192.0.2.1", 5554, "user",
+                                        "key_path", "extra args")
+        self.assertEqual(delete_report.status, "FAIL")
+        self.assertEqual(len(delete_report.errors), 1)
+
     @mock.patch.object(delete, "DeleteInstances", return_value="")
     @mock.patch.object(delete, "ResetLocalInstanceLockByName")
+    @mock.patch.object(delete, "DeleteHostGoldfishInstance")
     @mock.patch.object(delete, "DeleteRemoteInstances", return_value="")
     def testDeleteInstanceByNames(self, mock_delete_remote_ins,
-                                  mock_reset_lock, mock_delete_local_ins):
+                                  mock_delete_remote_host_gf, mock_reset_lock,
+                                  mock_delete_local_ins):
         """test DeleteInstanceByNames."""
         cfg = mock.Mock()
         # Test delete local instances.
@@ -166,14 +207,20 @@ class DeleteTest(driver_test_lib.BaseDriverTest):
         mock_local_ins.name = "local-instance-1"
         self.Patch(list_instances, "GetLocalInstancesByNames",
                    return_value=[mock_local_ins])
-        delete.DeleteInstanceByNames(cfg, instances)
+        delete.DeleteInstanceByNames(cfg, instances, None, None)
         mock_delete_local_ins.assert_called_with(cfg, [mock_local_ins])
         mock_reset_lock.assert_called_with("local-instance-2", mock.ANY)
+
+        # Test delete remote host instances.
+        instances = ["host-goldfish-192.0.2.1-5554-123456-sdk_x86_64-sdk"]
+        delete.DeleteInstanceByNames(cfg, instances, "user", "key")
+        mock_delete_remote_host_gf.assert_called_with(
+            cfg, instances[0], "user", "key", mock.ANY)
 
         # Test delete remote instances.
         instances = ["ins-id1-cf-x86-phone-userdebug",
                      "ins-id2-cf-x86-phone-userdebug"]
-        delete.DeleteInstanceByNames(cfg, instances)
+        delete.DeleteInstanceByNames(cfg, instances, None, None)
         mock_delete_remote_ins.assert_called()
 
     @mock.patch.object(oxygen_client.OxygenClient, "ReleaseDevice")

@@ -77,7 +77,10 @@ _NO_RETRY = 0
 # Launch cvd command for acloud report
 _LAUNCH_CVD_COMMAND = "launch_cvd_command"
 _CONFIG_RE = re.compile(r"^config=(?P<config>.+)")
-
+# Trust local certificates command for webrtc
+_TRUST_REMOTE_INSTANCE_COMMAND = (
+    "\"export CAROOT=%(webrtc_certs_path)s; "
+    "./%(webrtc_certs_path)s/mkcert -install;\"")
 
 class CvdComputeClient(android_compute_client.AndroidComputeClient):
     """Client that manages Android Virtual Device."""
@@ -359,6 +362,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         launch_cvd_args.append(_AGREEMENT_PROMPT_ARG)
         return launch_cvd_args
 
+    # pylint: disable=broad-except
     def StopCvd(self):
         """Stop CVD.
 
@@ -368,7 +372,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         ssh_command = "./bin/stop_cvd"
         try:
             self._ssh.Run(ssh_command)
-        except subprocess.CalledProcessError as e:
+        except Exception as e:
             logger.debug("Failed to stop_cvd (possibly no running device): %s", e)
 
     def CleanUp(self):
@@ -577,6 +581,32 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         self._ssh.Run("./fetch_cvd " + " ".join(fetch_cvd_args),
                       timeout=constants.DEFAULT_SSH_TIMEOUT)
         self._execution_time[_FETCH_ARTIFACT] = round(time.time() - timestart, 2)
+
+    @utils.TimeExecute(function_description="Update instance's certificates")
+    def UpdateCertificate(self):
+        """Update webrtc default certificates of the remote instance.
+
+        For trusting both the localhost and remote instance, the process will
+        upload certificates(rootCA.pem, server.crt, server.key) and the mkcert
+        tool from the client workstation to remote instance where running the
+        mkcert with the uploaded rootCA file and replace the webrtc frontend
+        default certificates for connecting to a remote webrtc AVD without the
+        insecure warning.
+        """
+        mkcert_install_dir = os.path.join(os.path.expanduser("~"),
+                                          constants.MKCERT_INSTALL_DIR)
+        if os.path.exists(os.path.join(mkcert_install_dir, "mkcert")):
+            utils.AllocateLocalHostCert(mkcert_install_dir)
+            mkcert_rootca_dir = utils.CheckOutput(
+                "%s/mkcert -CAROOT" % mkcert_install_dir,
+                shell=True).rstrip("\n")
+            upload_files = [os.path.join(mkcert_rootca_dir, "rootCA.pem")]
+            for cert_file in constants.WEBRTC_CERTS_FILES + ["mkcert"]:
+                upload_files.append(os.path.join(mkcert_install_dir,
+                                                 cert_file))
+            self._ssh.ScpPushFiles(upload_files, constants.WEBRTC_CERTS_PATH)
+            self._ssh.Run(_TRUST_REMOTE_INSTANCE_COMMAND % {
+                "webrtc_certs_path": constants.WEBRTC_CERTS_PATH})
 
     def GetInstanceIP(self, instance=None):
         """Override method from parent class.
