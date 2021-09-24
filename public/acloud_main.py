@@ -136,6 +136,8 @@ from acloud.restart import restart
 from acloud.restart import restart_args
 from acloud.setup import setup
 from acloud.setup import setup_args
+from acloud.hostcleanup import hostcleanup
+from acloud.hostcleanup import hostcleanup_args
 
 
 LOGGING_FMT = "%(asctime)s |%(levelname)s| %(module)s:%(lineno)s| %(message)s"
@@ -177,6 +179,7 @@ def _ParseArgs(args):
         reconnect_args.CMD_RECONNECT,
         pull_args.CMD_PULL,
         restart_args.CMD_RESTART,
+        hostcleanup_args.CMD_HOSTCLEANUP,
     ])
     parser = argparse.ArgumentParser(
         description=__doc__,
@@ -259,6 +262,9 @@ def _ParseArgs(args):
 
     # Command "pull"
     subparser_list.append(pull_args.GetPullArgParser(subparsers))
+
+    # Command "hostcleanup"
+    subparser_list.append(hostcleanup_args.GetHostcleanupArgParser(subparsers))
 
     # Add common arguments.
     for subparser in subparser_list:
@@ -476,6 +482,8 @@ def main(argv=None):
         reporter = pull.Run(args)
     elif args.which == setup_args.CMD_SETUP:
         setup.Run(args)
+    elif args.which == hostcleanup_args.CMD_HOSTCLEANUP:
+        hostcleanup.Run(args)
     else:
         error_msg = "Invalid command %s" % args.which
         sys.stderr.write(error_msg)
