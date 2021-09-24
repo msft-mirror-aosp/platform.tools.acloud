@@ -32,8 +32,10 @@ from acloud.internal.lib.adb_tools import AdbTools
 
 
 logger = logging.getLogger(__name__)
-# Error message of GCE quota error.
-_GCE_QUOTA_ERROR_MSG = "Quota exceeded for quota"
+_GCE_QUOTA_ERROR_KEYWORDS = [
+    "Quota exceeded for quota",
+    "ZONE_RESOURCE_POOL_EXHAUSTED",
+    "ZONE_RESOURCE_POOL_EXHAUSTED_WITH_DETAILS"]
 _DICT_ERROR_TYPE = {
     constants.STAGE_INIT: constants.ACLOUD_INIT_ERROR,
     constants.STAGE_GCE: constants.ACLOUD_CREATE_GCE_ERROR,
@@ -198,8 +200,9 @@ def _GetErrorType(error):
         return constants.ACLOUD_DOWNLOAD_ARTIFACT_ERROR
     if isinstance(error, errors.DeviceConnectionError):
         return constants.ACLOUD_SSH_CONNECT_ERROR
-    if _GCE_QUOTA_ERROR_MSG in str(error):
-        return constants.GCE_QUOTA_ERROR
+    for keyword in _GCE_QUOTA_ERROR_KEYWORDS:
+        if keyword in str(error):
+            return constants.GCE_QUOTA_ERROR
     return constants.ACLOUD_UNKNOWN_ERROR
 
 # pylint: disable=too-many-locals,unused-argument,too-many-branches
