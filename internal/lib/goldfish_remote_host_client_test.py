@@ -29,7 +29,7 @@ class GoldfishRemoteHostClientTest(driver_test_lib.BaseDriverTest):
     _CONSOLE_PORT = 5554
     _BUILD_INFO = {"build_id": "123456",
                    "build_target": "sdk_phone_x86_64-userdebug"}
-    _INSTANCE_NAME = ("host-192.0.2.1-goldfish-5554-"
+    _INSTANCE_NAME = ("host-goldfish-192.0.2.1-5554-"
                       "123456-sdk_phone_x86_64-userdebug")
     _INVALID_NAME = "host-192.0.2.1-123456-aosp_cf_x86_phone-userdebug"
 
