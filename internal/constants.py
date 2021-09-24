@@ -233,3 +233,10 @@ ACLOUD_OXYGEN_RELEASE_ERROR = "ACLOUD_OXYGEN_RELEASE_ERROR"
 
 # The name of download image tool.
 FETCH_CVD = "fetch_cvd"
+
+# For setup and cleanup
+# Packages "devscripts" and "equivs" are required for "mk-build-deps".
+AVD_REQUIRED_PKGS = [
+    "devscripts", "equivs", "libvirt-clients", "libvirt-daemon-system"]
+BASE_REQUIRED_PKGS = ["ssvnc", "lzop", "python3-tk"]
+CUTTLEFISH_COMMOM_PKG = "cuttlefish-common"

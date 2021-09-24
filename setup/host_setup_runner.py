@@ -36,11 +36,6 @@ from acloud.setup import setup_common
 
 logger = logging.getLogger(__name__)
 
-# Packages "devscripts" and "equivs" are required for "mk-build-deps".
-_AVD_REQUIRED_PKGS = [
-    "devscripts", "equivs", "libvirt-clients", "libvirt-daemon-system"]
-_BASE_REQUIRED_PKGS = ["ssvnc", "lzop", "python3-tk"]
-_CUTTLEFISH_COMMOM_PKG = "cuttlefish-common"
 _CF_COMMOM_FOLDER = "cf-common"
 _LIST_OF_MODULES = ["kvm_intel", "kvm"]
 _UPDATE_APT_GET_CMD = "sudo apt-get update"
@@ -113,7 +108,7 @@ class AvdPkgInstaller(BasePkgInstaller):
     WELCOME_MESSAGE = ("This step will walk you through the required packages "
                        "installation for running Android cuttlefish devices "
                        "on your host.")
-    PACKAGES = _AVD_REQUIRED_PKGS
+    PACKAGES = constants.AVD_REQUIRED_PKGS
 
 
 class HostBasePkgInstaller(BasePkgInstaller):
@@ -122,7 +117,7 @@ class HostBasePkgInstaller(BasePkgInstaller):
     WELCOME_MESSAGE_TITLE = "Install base packages on the host"
     WELCOME_MESSAGE = ("This step will walk you through the base packages "
                        "installation for your host.")
-    PACKAGES = _BASE_REQUIRED_PKGS
+    PACKAGES = constants.BASE_REQUIRED_PKGS
 
 
 class CuttlefishCommonPkgInstaller(base_task_runner.BaseTaskRunner):
@@ -143,7 +138,7 @@ class CuttlefishCommonPkgInstaller(base_task_runner.BaseTaskRunner):
 
         # Any required package is not installed or not up-to-date will need to
         # run installation task.
-        if not setup_common.PackageInstalled(_CUTTLEFISH_COMMOM_PKG):
+        if not setup_common.PackageInstalled(constants.CUTTLEFISH_COMMOM_PKG):
             return True
         return False
 
