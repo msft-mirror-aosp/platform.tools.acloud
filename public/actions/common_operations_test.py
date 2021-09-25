@@ -221,6 +221,10 @@ class CommonOperationsTest(driver_test_lib.BaseDriverTest):
         expected_result = constants.GCE_QUOTA_ERROR
         self.assertEqual(common_operations._GetErrorType(error), expected_result)
 
+        error = errors.DriverError("ZONE_RESOURCE_POOL_EXHAUSTED_WITH_DETAILS")
+        expected_result = constants.GCE_QUOTA_ERROR
+        self.assertEqual(common_operations._GetErrorType(error), expected_result)
+
 
 if __name__ == "__main__":
     unittest.main()
