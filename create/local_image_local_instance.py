@@ -604,7 +604,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             proc = subprocess.Popen(cmd, shell=True, env=cvd_env,
                                     stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE,
-                                    text=True)
+                                    text=True, cwd=host_bins_path)
             stdout, stderr = proc.communicate(timeout=timeout)
             if proc.returncode == 0:
                 logger.info("launch_cvd stdout:\n%s", stdout)
