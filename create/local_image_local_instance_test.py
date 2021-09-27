@@ -447,7 +447,8 @@ EOF"""
                                            env=cvd_env,
                                            stdout=subprocess.PIPE,
                                            stderr=subprocess.PIPE,
-                                           text=True)
+                                           text=True,
+                                           cwd=host_bins_path)
         mock_proc.communicate.assert_called_once_with(timeout=timeout)
 
     @mock.patch("acloud.create.local_image_local_instance.subprocess.Popen")
