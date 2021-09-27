@@ -152,6 +152,26 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(self.AvdSpec.local_image_dir, expected_image_dir)
         self.assertEqual(self.AvdSpec.local_system_image, expected_image_dir)
 
+    def testProcessAutoconnect(self):
+        """Test process autoconnect."""
+        self.AvdSpec._autoconnect = False
+        self.AvdSpec._ProcessAutoconnect()
+        self.assertEqual(self.AvdSpec._autoconnect, False)
+
+        self.AvdSpec._avd_type = constants.TYPE_CF
+        self.AvdSpec._autoconnect = "webrtc"
+        self.AvdSpec._ProcessAutoconnect()
+        self.assertEqual(self.AvdSpec._autoconnect, "webrtc")
+
+        self.AvdSpec._autoconnect = "vnc"
+        self.AvdSpec._ProcessAutoconnect()
+        self.assertEqual(self.AvdSpec._autoconnect, "vnc")
+
+        self.AvdSpec._avd_type = constants.TYPE_GF
+        self.AvdSpec._autoconnect = "webrtc"
+        self.AvdSpec._ProcessAutoconnect()
+        self.assertEqual(self.AvdSpec._autoconnect, "vnc")
+
     def testProcessImageArgs(self):
         """Test process image source."""
         self.Patch(glob, "glob", return_value=["fake.img"])
