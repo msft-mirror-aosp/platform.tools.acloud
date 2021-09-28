@@ -81,6 +81,12 @@ _CONFIG_RE = re.compile(r"^config=(?P<config>.+)")
 _TRUST_REMOTE_INSTANCE_COMMAND = (
     "\"export CAROOT=%(webrtc_certs_path)s; "
     "./%(webrtc_certs_path)s/mkcert -install;\"")
+# Remote host instance name
+_HOST_INSTANCE_NAME_FORMAT = (constants.INSTANCE_TYPE_HOST +
+                              "-%(ip_addr)s-%(build_id)s-%(build_target)s")
+_HOST_INSTANCE_NAME_PATTERN = re.compile(constants.INSTANCE_TYPE_HOST +
+                                         r"-(?P<ip_addr>[\d.]+)-.+")
+
 
 class CvdComputeClient(android_compute_client.AndroidComputeClient):
     """Client that manages Android Virtual Device."""
@@ -127,6 +133,37 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         self._user = constants.GCE_USER
         self._stage = constants.STAGE_INIT
         self._execution_time = {_FETCH_ARTIFACT: 0, _GCE_CREATE: 0, _LAUNCH_CVD: 0}
+
+    @staticmethod
+    def FormatRemoteHostInstanceName(ip_addr, build_id, build_target):
+        """Convert an IP address and build info to an instance name.
+
+        Args:
+            ip_addr: String, the IP address of the remote host.
+            build_id: String, the build id.
+            build_target: String, the build target, e.g., aosp_cf_x86_64_phone.
+
+        Return:
+            String, the instance name.
+        """
+        return _HOST_INSTANCE_NAME_FORMAT % {
+            "ip_addr": ip_addr,
+            "build_id": build_id,
+            "build_target": build_target}
+
+    @staticmethod
+    def ParseRemoteHostAddress(instance_name):
+        """Parse IP address from a remote host instance name.
+
+        Args:
+            instance_name: String, the instance name.
+
+        Returns:
+            The IP address as a string.
+            None if the name does not represent a remote host instance.
+        """
+        match = _HOST_INSTANCE_NAME_PATTERN.fullmatch(instance_name)
+        return match.group("ip_addr") if match else None
 
     def InitRemoteHost(self, ssh, ip, user):
         """Init remote host.
