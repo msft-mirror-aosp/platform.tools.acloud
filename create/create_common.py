@@ -65,6 +65,18 @@ def ParseKeyValuePairArgs(dict_str, item_separator=",", key_value_separator=":")
     return args_dict
 
 
+def GetNonEmptyEnvVars(*variable_names):
+    """Get non-empty environment variables.
+
+    Args:
+        variable_names: Strings, the variable names.
+
+    Returns:
+        List of strings, the variable values that are defined and not empty.
+    """
+    return list(filter(None, (os.environ.get(v) for v in variable_names)))
+
+
 def GetCvdHostPackage(package_path=None):
     """Get cvd host package path.
 
@@ -85,11 +97,8 @@ def GetCvdHostPackage(package_path=None):
             return package_path
         raise errors.GetCvdLocalHostPackageError(
             "The cvd host package path (%s) doesn't exist." % package_path)
-    dirs_to_check = list(
-        filter(None, [
-            os.environ.get(constants.ENV_ANDROID_SOONG_HOST_OUT),
-            os.environ.get(constants.ENV_ANDROID_HOST_OUT)
-        ]))
+    dirs_to_check = GetNonEmptyEnvVars(constants.ENV_ANDROID_SOONG_HOST_OUT,
+                                       constants.ENV_ANDROID_HOST_OUT)
     dist_dir = utils.GetDistDir()
     if dist_dir:
         dirs_to_check.append(dist_dir)
