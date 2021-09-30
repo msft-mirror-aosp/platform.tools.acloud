@@ -15,6 +15,7 @@
 import os
 import platform
 import shutil
+import subprocess
 import tempfile
 import unittest
 
@@ -48,12 +49,14 @@ lrw                    16384  1 aesni_intel"""
 
     def testShouldRunFalse(self):
         """Test ShouldRun returns False."""
+        self.Patch(CuttlefishHostSetup, "_IsSupportedKvm", return_value=True)
         self.Patch(utils, "CheckUserInGroups", return_value=True)
         self.Patch(CuttlefishHostSetup, "_CheckLoadedModules", return_value=True)
         self.assertFalse(self.CuttlefishHostSetup.ShouldRun())
 
     def testShouldRunTrue(self):
         """Test ShouldRun returns True."""
+        self.Patch(CuttlefishHostSetup, "_IsSupportedKvm", return_value=True)
         # 1. Checking groups fails.
         self.Patch(
             utils, "CheckUserInGroups", return_value=False)
@@ -65,6 +68,28 @@ lrw                    16384  1 aesni_intel"""
         self.Patch(
             CuttlefishHostSetup, "_CheckLoadedModules", return_value=False)
         self.assertTrue(self.CuttlefishHostSetup.ShouldRun())
+
+    # pylint: disable=protected-access
+    def testIsSupportedKvm(self):
+        """Test _IsSupportedKvm."""
+        fake_success_message = (
+            "  QEMU: Checking for hardware virtualization                                 : PASS\n"
+            "  QEMU: Checking if device /dev/kvm exists                                   : PASS\n"
+            "  QEMU: Checking if device /dev/kvm is accessible                            : PASS\n")
+        fake_fail_message = (
+            "  QEMU: Checking for hardware virtualization                                 : FAIL"
+            "(Only emulated CPUs are available, performance will be significantly limited)\n"
+            "  QEMU: Checking if device /dev/vhost-net exists                             : PASS\n"
+            "  QEMU: Checking if device /dev/net/tun exists                               : PASS\n")
+        popen = mock.Mock(returncode=None)
+        popen.poll.return_value = None
+        popen.communicate.return_value = (fake_success_message, "stderr")
+        self.Patch(subprocess, "Popen", return_value=popen)
+        self.assertTrue(self.CuttlefishHostSetup._IsSupportedKvm())
+
+        popen.communicate.return_value = (fake_fail_message, "stderr")
+        self.Patch(subprocess, "Popen", return_value=popen)
+        self.assertFalse(self.CuttlefishHostSetup._IsSupportedKvm())
 
     # pylint: disable=protected-access
     def testCheckLoadedModules(self):
