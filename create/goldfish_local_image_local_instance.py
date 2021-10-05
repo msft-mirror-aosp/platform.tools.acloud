@@ -571,8 +571,12 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         if not avd_spec.autoconnect:
             args.append("-no-window")
 
-        image_dir = None
-        ota = None
+        if avd_spec.local_kernel_image:
+            kernel_path, ramdisk_path = self._FindAndMixKernelImages(
+                avd_spec.local_kernel_image, avd_spec.local_image_dir,
+                avd_spec.local_tool_dirs, instance_dir)
+            args.extend(("-kernel", kernel_path, "-ramdisk", ramdisk_path))
+
         if avd_spec.local_system_image:
             mixed_image_dir = os.path.join(instance_dir, "mixed_images")
             if os.path.exists(mixed_image_dir):
@@ -593,14 +597,9 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             self._ReplaceSystemQemuImg(mixed_image, image_dir)
 
             # Unlock the device so that the disabled vbmeta takes effect.
+            # These arguments must be at the end of the command line.
             args.extend(("-qemu", "-append",
                          "androidboot.verifiedbootstate=orange"))
-
-        if avd_spec.local_kernel_image:
-            kernel_path, ramdisk_path = self._FindAndMixKernelImages(
-                avd_spec.local_kernel_image, avd_spec.local_image_dir,
-                avd_spec.local_tool_dirs, instance_dir)
-            args.extend(("-kernel", kernel_path, "-ramdisk", ramdisk_path))
 
         return args
 
