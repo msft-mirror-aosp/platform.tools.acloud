@@ -16,6 +16,7 @@
 
 """Tests for acloud.internal.lib.cvd_compute_client_multi_stage."""
 
+import collections
 import glob
 import os
 import subprocess
@@ -23,6 +24,7 @@ import unittest
 
 from unittest import mock
 
+from acloud import errors
 from acloud.create import avd_spec
 from acloud.internal import constants
 from acloud.internal.lib import android_build_client
@@ -33,6 +35,9 @@ from acloud.internal.lib import utils
 from acloud.internal.lib.ssh import Ssh
 from acloud.internal.lib.ssh import IP
 from acloud.list import list as list_instances
+
+
+ExtraFile = collections.namedtuple("ExtraFile", ["source", "target"])
 
 
 class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
@@ -339,6 +344,19 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
 
         self.assertEqual(
             0, self.cvd_compute_client_multi_stage._GetBootTimeout(50))
+
+    @mock.patch.object(Ssh, "ScpPushFile")
+    def testUploadExtraFiles(self, mock_upload):
+        """Test UploadExtraFiles."""
+        self.Patch(os.path, "exists", return_value=True)
+        extra_files = [ExtraFile(source="local_path", target="gce_path")]
+        self.cvd_compute_client_multi_stage.UploadExtraFiles(extra_files)
+        mock_upload.assert_called_once_with("local_path", "gce_path")
+
+        # Test the local file doesn't exist.
+        self.Patch(os.path, "exists", return_value=False)
+        with self.assertRaises(errors.CheckPathError):
+            self.cvd_compute_client_multi_stage.UploadExtraFiles(extra_files)
 
 
 if __name__ == "__main__":
