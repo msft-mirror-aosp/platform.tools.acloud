@@ -456,7 +456,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                                                  blank_data_disk_size_gb,
                                                  decompress_kernel,
                                                  instance)
-        boot_timeout_secs = boot_timeout_secs or constants.DEFAULT_CF_BOOT_TIMEOUT
+        boot_timeout_secs = self._GetBootTimeout(
+            boot_timeout_secs or constants.DEFAULT_CF_BOOT_TIMEOUT)
         ssh_command = "./bin/launch_cvd -daemon " + " ".join(launch_cvd_args)
         try:
             self.ExtendReportData(_LAUNCH_CVD_COMMAND, ssh_command)
@@ -473,6 +474,24 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
 
         self._execution_time[_LAUNCH_CVD] = round(time.time() - timestart, 2)
         return {instance: error_msg} if error_msg else {}
+
+
+    def _GetBootTimeout(self, timeout_secs):
+        """Get boot timeout.
+
+        Timeout settings includes download artifacts and boot up.
+
+        Args:
+            timeout_secs: integer of timeout value.
+
+        Returns:
+            The timeout values for device boots up.
+        """
+        boot_timeout_secs = timeout_secs - self._execution_time[_FETCH_ARTIFACT]
+        logger.debug("Timeout for boot: %s secs", boot_timeout_secs)
+        if boot_timeout_secs < 0:
+            return 0
+        return boot_timeout_secs
 
     def _PullAllLogFiles(self, instance):
         """Pull all log files from instance.
