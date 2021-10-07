@@ -102,11 +102,6 @@ class CreateArgsTest(driver_test_lib.BaseDriverTest):
         # Test args.autoconnect webrtc shouldn't raise error.
         self.assertEqual(None, create_args.VerifyArgs(mock_args))
 
-        # Test pass in none-cuttlefish avd_type should raise error.
-        mock_args.avd_type = constants.TYPE_GF
-        self.assertRaises(errors.UnsupportedCreateArgs,
-                          create_args.VerifyArgs, mock_args)
-
 
 if __name__ == "__main__":
     unittest.main()
