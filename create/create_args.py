@@ -113,7 +113,8 @@ def AddCommonCreateArgs(parser):
         dest="boot_timeout_secs",
         type=int,
         required=False,
-        help="The maximum time in seconds used to wait for the AVD to boot.")
+        help="The maximum time in seconds used to wait for the AVD to download "
+             "artifacts and boot.")
     parser.add_argument(
         "--wait-for-ins-stable",
         dest="ins_timeout_secs",
