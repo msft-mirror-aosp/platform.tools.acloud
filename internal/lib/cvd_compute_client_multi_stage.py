@@ -572,8 +572,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             zone=self._zone,
             gpu=self._gpu,
             extra_scopes=extra_scopes,
-            tags=["appstreaming"] if (
-                avd_spec and avd_spec.connect_webrtc) else None,
             disable_external_ip=disable_external_ip)
         ip = gcompute_client.ComputeClient.GetInstanceIP(
             self, instance=instance, zone=self._zone)
