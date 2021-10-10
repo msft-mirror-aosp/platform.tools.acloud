@@ -200,6 +200,17 @@ class AVDSpec():
         self._ProcessMiscArgs(args)
         self._ProcessImageArgs(args)
         self._ProcessHWPropertyArgs(args)
+        self._ProcessAutoconnect()
+
+    def _ProcessAutoconnect(self):
+        """Process autoconnect.
+
+        Only Cuttlefish AVD support 'webrtc' and need to default use 'webrtc'.
+        Other AVD types(goldfish, cheeps..etc.) still keep using ‘vnc’.
+        """
+        if self._autoconnect == constants.INS_KEY_WEBRTC:
+            if self.avd_type != constants.TYPE_CF:
+                self._autoconnect = constants.INS_KEY_VNC
 
     def _ProcessImageArgs(self, args):
         """ Process Image Args.

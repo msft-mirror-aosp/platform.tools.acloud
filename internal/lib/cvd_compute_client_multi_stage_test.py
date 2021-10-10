@@ -115,6 +115,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.args.remote_host = False
         self.args.launch_args = self.LAUNCH_ARGS
         self.args.disable_external_ip = False
+        self.args.autoconnect = False
 
     # pylint: disable=protected-access
     @mock.patch.object(utils, "GetBuildEnvironmentVariable", return_value="fake_env_cf_x86")
@@ -197,7 +198,6 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
             zone=self.ZONE,
             extra_scopes=self.EXTRA_SCOPES,
             gpu=self.GPU,
-            tags=None,
             disable_external_ip=False)
 
         mock_check_img.return_value = True
@@ -232,7 +232,6 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
             zone=self.ZONE,
             extra_scopes=self.EXTRA_SCOPES,
             gpu=self.GPU,
-            tags=None,
             disable_external_ip=False)
 
     def testFormatRemoteHostInstanceName(self):
@@ -330,6 +329,16 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
              "%s/server.key" % mkcert_install_dir,
              "%s/mkcert" % mkcert_install_dir], constants.WEBRTC_CERTS_PATH)
         mock_trustremote.assert_called_once()
+
+    def testGetBootTimeout(self):
+        """Test GetBootTimeout"""
+        self.cvd_compute_client_multi_stage._execution_time = {
+            "fetch_artifact_time": 100}
+        self.assertEqual(
+            400, self.cvd_compute_client_multi_stage._GetBootTimeout(500))
+
+        self.assertEqual(
+            0, self.cvd_compute_client_multi_stage._GetBootTimeout(50))
 
 
 if __name__ == "__main__":

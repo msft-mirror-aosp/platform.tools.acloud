@@ -55,7 +55,7 @@ def AddCommonCreateArgs(parser):
         "--autoconnect",
         type=str,
         nargs="?",
-        const=constants.INS_KEY_VNC,
+        const=constants.INS_KEY_WEBRTC,
         dest="autoconnect",
         required=False,
         choices=[constants.INS_KEY_VNC, constants.INS_KEY_ADB,
@@ -74,7 +74,7 @@ def AddCommonCreateArgs(parser):
         required=False,
         help="Will not automatically create ssh tunnels forwarding adb & vnc "
              "when instance created.")
-    parser.set_defaults(autoconnect=constants.INS_KEY_VNC)
+    parser.set_defaults(autoconnect=constants.INS_KEY_WEBRTC)
     parser.add_argument(
         "--unlock",
         action="store_true",
@@ -113,7 +113,8 @@ def AddCommonCreateArgs(parser):
         dest="boot_timeout_secs",
         type=int,
         required=False,
-        help="The maximum time in seconds used to wait for the AVD to boot.")
+        help="The maximum time in seconds used to wait for the AVD to download "
+             "artifacts and boot.")
     parser.add_argument(
         "--wait-for-ins-stable",
         dest="ins_timeout_secs",
@@ -621,11 +622,6 @@ def _VerifyLocalArgs(args):
         if not os.path.exists(tool_dir):
             raise errors.CheckPathError(
                 "Specified path doesn't exist: %s" % tool_dir)
-
-    if args.autoconnect == constants.INS_KEY_WEBRTC:
-        if args.avd_type != constants.TYPE_CF:
-            raise errors.UnsupportedCreateArgs(
-                "'--autoconnect webrtc' only support cuttlefish.")
 
 
 def _VerifyHostArgs(args):
