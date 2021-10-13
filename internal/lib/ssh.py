@@ -49,14 +49,12 @@ def _SshCallWait(cmd, timeout=None):
     """
     logger.info("Running command \"%s\"", cmd)
     process = subprocess.Popen(cmd, shell=True, stdin=None,
-                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                               universal_newlines=True)
+                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     if timeout:
         # TODO: if process is killed, out error message to log.
         timer = threading.Timer(timeout, process.kill)
         timer.start()
     process.wait()
-    logger.debug(process.stdout.read())
     if timeout:
         timer.cancel()
     return process.returncode
