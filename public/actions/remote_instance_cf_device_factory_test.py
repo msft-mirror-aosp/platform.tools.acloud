@@ -69,6 +69,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.local_image = constants.FIND_IN_BUILD_ENV
         args.local_system_image = None
         args.launch_args = None
+        args.autoconnect = constants.INS_KEY_WEBRTC
         avd_spec_local_img = avd_spec.AVDSpec(args)
         fake_image_name = "/fake/aosp_cf_x86_phone-img-eng.username.zip"
         fake_host_package_name = "/fake/host_package.tar.gz"
@@ -78,19 +79,19 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             fake_host_package_name)
         factory_local_img._ProcessArtifacts(constants.IMAGE_SRC_LOCAL)
         self.assertEqual(mock_upload.call_count, 1)
-        # should not upload certificates
-        self.assertEqual(mock_uploadca.call_count, 0)
+        # cf default autoconnect webrtc and should upload certificates
+        self.assertEqual(mock_uploadca.call_count, 1)
         mock_uploadca.reset_mock()
 
-        # should upload certificates
-        args.autoconnect = constants.INS_KEY_WEBRTC
+        # given autoconnect to vnc should not upload certificates
+        args.autoconnect = constants.INS_KEY_VNC
         avd_spec_local_img = avd_spec.AVDSpec(args)
         factory_local_img = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
             avd_spec_local_img,
             fake_image_name,
             fake_host_package_name)
         factory_local_img._ProcessArtifacts(constants.IMAGE_SRC_LOCAL)
-        self.assertEqual(mock_uploadca.call_count, 1)
+        self.assertEqual(mock_uploadca.call_count, 0)
 
         # Test image source type is remote.
         args.local_image = None
