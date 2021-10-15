@@ -67,6 +67,14 @@ class CreateCommonTest(driver_test_lib.BaseDriverTest):
         result_dict = create_common.ParseKeyValuePairArgs(args_str)
         self.assertTrue(expected_dict == result_dict)
 
+    def testGetNonEmptyEnvVars(self):
+        """Test GetNonEmptyEnvVars."""
+        with mock.patch.dict("acloud.internal.lib.utils.os.environ",
+                             {"A": "", "B": "b"},
+                             clear=True):
+            self.assertEqual(
+                ["b"], create_common.GetNonEmptyEnvVars("A", "B", "C"))
+
     def testGetCvdHostPackage(self):
         """test GetCvdHostPackage."""
         # Can't find the cvd host package
