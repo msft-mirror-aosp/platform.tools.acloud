@@ -22,7 +22,6 @@ from six import b
 
 
 from acloud import errors
-from acloud.internal import constants
 from acloud.internal.lib import utils
 
 logger = logging.getLogger(__name__)
@@ -47,7 +46,7 @@ _MISSING_OTA_TOOLS_MSG = ("%(tool_name)s is not found. Run `make otatools` "
 
 
 def FindOtaToolsDir(search_paths):
-    """Find OTA tools directory in the search paths and in build environment.
+    """Find OTA tools directory in the search paths.
 
     Args:
         search_paths: List of paths, the directories to search for OTA tools.
@@ -62,20 +61,12 @@ def FindOtaToolsDir(search_paths):
         if os.path.isfile(os.path.join(search_path, _BIN_DIR_NAME,
                                        _BUILD_SUPER_IMAGE)):
             return search_path
-    for env_host_out in [constants.ENV_ANDROID_SOONG_HOST_OUT,
-                         constants.ENV_ANDROID_HOST_OUT]:
-        host_out_dir = os.environ.get(env_host_out)
-        if (host_out_dir and
-                os.path.isfile(os.path.join(host_out_dir, _BIN_DIR_NAME,
-                                            _BUILD_SUPER_IMAGE))):
-            return host_out_dir
-
     raise errors.CheckPathError(_MISSING_OTA_TOOLS_MSG %
                                 {"tool_name": "OTA tool directory"})
 
 
 def FindOtaTools(search_paths):
-    """Find OTA tools in the search paths and in build environment.
+    """Find OTA tools in the search paths.
 
     Args:
         search_paths: List of paths, the directories to search for OTA tools.
