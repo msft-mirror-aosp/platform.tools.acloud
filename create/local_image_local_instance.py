@@ -303,14 +303,6 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                                            constants.CMD_LAUNCH_CVD)):
                 return search_path
 
-        for env_host_out in [constants.ENV_ANDROID_SOONG_HOST_OUT,
-                             constants.ENV_ANDROID_HOST_OUT]:
-            host_out_dir = os.environ.get(env_host_out)
-            if (host_out_dir and
-                    os.path.isfile(os.path.join(host_out_dir, "bin",
-                                                constants.CMD_LAUNCH_CVD))):
-                return host_out_dir
-
         raise errors.GetCvdLocalHostPackageError(
             "CVD host binaries are not found. Please run `make hosttar`, or "
             "set --local-tool to an extracted CVD host package.")
@@ -383,13 +375,17 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             errors.CheckPathError if any artifact is not found.
         """
         image_dir = os.path.abspath(avd_spec.local_image_dir)
-        host_bins_path = self._FindCvdHostBinaries(avd_spec.local_tool_dirs)
+        tool_dirs = (avd_spec.local_tool_dirs +
+                     create_common.GetNonEmptyEnvVars(
+                         constants.ENV_ANDROID_SOONG_HOST_OUT,
+                         constants.ENV_ANDROID_HOST_OUT))
+        host_bins_path = self._FindCvdHostBinaries(tool_dirs)
 
         if avd_spec.local_system_image:
             misc_info_path = self._FindMiscInfo(image_dir)
             image_dir = self._FindImageDir(image_dir)
             ota_tools_dir = os.path.abspath(
-                ota_tools.FindOtaToolsDir(avd_spec.local_tool_dirs))
+                ota_tools.FindOtaToolsDir(tool_dirs))
             system_image_path = create_common.FindLocalImage(
                 avd_spec.local_system_image, _SYSTEM_IMAGE_NAME_PATTERN)
         else:
