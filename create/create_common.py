@@ -15,6 +15,7 @@
 # limitations under the License.
 """Common code used by acloud create methods/classes."""
 
+import collections
 import logging
 import os
 import re
@@ -28,6 +29,37 @@ from acloud.internal.lib import utils
 
 
 logger = logging.getLogger(__name__)
+
+# Store the file path to upload to the remote instance.
+ExtraFile = collections.namedtuple("ExtraFile", ["source", "target"])
+
+
+def ParseExtraFilesArgs(files_info, path_separator=","):
+    """Parse extra-files argument.
+
+    e.g.
+    ["local_path,gce_path"]
+    -> ExtraFile(source='local_path', target='gce_path')
+
+    Args:
+        files_info: List of strings to be converted to namedtuple ExtraFile.
+        item_separator: String character to separate file info.
+
+    Returns:
+        A list of namedtuple ExtraFile.
+
+    Raises:
+        error.MalformedDictStringError: If files_info is malformed.
+    """
+    extra_files = []
+    if files_info:
+        for file_info in files_info:
+            if path_separator not in file_info:
+                raise errors.MalformedDictStringError(
+                    "Expecting '%s' in '%s'." % (path_separator, file_info))
+            source, target = file_info.split(path_separator)
+            extra_files.append(ExtraFile(source, target))
+    return extra_files
 
 
 def ParseKeyValuePairArgs(dict_str, item_separator=",", key_value_separator=":"):

@@ -662,6 +662,23 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             self._ssh.Run(_TRUST_REMOTE_INSTANCE_COMMAND % {
                 "webrtc_certs_path": constants.WEBRTC_CERTS_PATH})
 
+    @utils.TimeExecute(function_description="Upload extra files to instance")
+    def UploadExtraFiles(self, extra_files):
+        """Upload extra files into GCE instance.
+
+        Args:
+            extra_files: List of namedtuple ExtraFile.
+
+        Raises:
+            errors.CheckPathError: The provided path doesn't exist.
+        """
+        for extra_file in extra_files:
+            if not os.path.exists(extra_file.source):
+                raise errors.CheckPathError(
+                    "The path doesn't exist: %s" % extra_file.source)
+            self._ssh.ScpPushFile(extra_file.source, extra_file.target)
+
+
     def GetInstanceIP(self, instance=None):
         """Override method from parent class.
 
