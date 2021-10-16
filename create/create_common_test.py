@@ -13,6 +13,7 @@
 # limitations under the License.
 """Tests for create_common."""
 
+import collections
 import os
 import shutil
 import tempfile
@@ -26,6 +27,9 @@ from acloud.internal.lib import android_build_client
 from acloud.internal.lib import auth
 from acloud.internal.lib import driver_test_lib
 from acloud.internal.lib import utils
+
+
+ExtraFile = collections.namedtuple("ExtraFile", ["source", "target"])
 
 
 class FakeZipFile:
@@ -66,6 +70,34 @@ class CreateCommonTest(driver_test_lib.BaseDriverTest):
         args_str = "cpu:2,resolution:1080x1920,dpi:240,memory:4g,disk:4g"
         result_dict = create_common.ParseKeyValuePairArgs(args_str)
         self.assertTrue(expected_dict == result_dict)
+
+    def testGetNonEmptyEnvVars(self):
+        """Test GetNonEmptyEnvVars."""
+        with mock.patch.dict("acloud.internal.lib.utils.os.environ",
+                             {"A": "", "B": "b"},
+                             clear=True):
+            self.assertEqual(
+                ["b"], create_common.GetNonEmptyEnvVars("A", "B", "C"))
+
+    def testParseExtraFilesArgs(self):
+        """Test ParseExtraFilesArgs."""
+        expected_result = [ExtraFile(source="local_path", target="gce_path")]
+        files_info = ["local_path,gce_path"]
+        self.assertEqual(expected_result,
+                         create_common.ParseExtraFilesArgs(files_info))
+
+        # Test multiple files
+        expected_result = [ExtraFile(source="local_path1", target="gce_path1"),
+                           ExtraFile(source="local_path2", target="gce_path2")]
+        files_info = ["local_path1,gce_path1",
+                      "local_path2,gce_path2"]
+        self.assertEqual(expected_result,
+                         create_common.ParseExtraFilesArgs(files_info))
+
+        # Test wrong file info format.
+        files_info = ["local_path"]
+        with self.assertRaises(errors.MalformedDictStringError):
+            create_common.ParseExtraFilesArgs(files_info)
 
     def testGetCvdHostPackage(self):
         """test GetCvdHostPackage."""

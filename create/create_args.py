@@ -97,6 +97,14 @@ def AddCommonCreateArgs(parser):
         required=False,
         help="Disable the external ip of the created instance.")
     parser.add_argument(
+        "--extra-files",
+        nargs='+',
+        type=str,
+        dest="extra_files",
+        required=False,
+        help="Upload the extra files into GCE instance. e.g. "
+             "/path/to/file_in_local,/path/to/file_in_gce")
+    parser.add_argument(
         "--network",
         type=str,
         dest="network",
