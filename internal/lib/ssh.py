@@ -25,8 +25,8 @@ from acloud.internal.lib import utils
 
 logger = logging.getLogger(__name__)
 
-_SSH_CMD = ("-i %(rsa_key_file)s "
-            "-q -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no")
+_SSH_CMD = ("-i %(rsa_key_file)s -o LogLevel=ERROR "
+            "-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no")
 _SSH_IDENTITY = "-l %(login_user)s %(ip_addr)s"
 _SSH_CMD_MAX_RETRY = 5
 _SSH_CMD_RETRY_SLEEP = 3
@@ -295,13 +295,20 @@ class Ssh():
         ssh_timeout = timeout or constants.DEFAULT_SSH_TIMEOUT
         sleep_multiplier = ssh_timeout / sum(range(max_retry + 1))
         logger.debug("Retry with interval time: %s secs", str(sleep_multiplier))
-        utils.RetryExceptionType(
-            exception_types=errors.DeviceConnectionError,
-            max_retries=max_retry,
-            functor=self.CheckSshConnection,
-            sleep_multiplier=sleep_multiplier,
-            retry_backoff_factor=utils.DEFAULT_RETRY_BACKOFF_FACTOR,
-            timeout=_CONNECTION_TIMEOUT)
+        try:
+            utils.RetryExceptionType(
+                exception_types=errors.DeviceConnectionError,
+                max_retries=max_retry,
+                functor=self.CheckSshConnection,
+                sleep_multiplier=sleep_multiplier,
+                retry_backoff_factor=utils.DEFAULT_RETRY_BACKOFF_FACTOR,
+                timeout=_CONNECTION_TIMEOUT)
+        except errors.DeviceConnectionError as ssh_timeout:
+            ssh_cmd = "%s uptime" % self.GetBaseCmd(constants.SSH_BIN)
+            _SshLogOutput(ssh_cmd, timeout=_CONNECTION_TIMEOUT)
+            raise errors.DeviceConnectionError(
+                "Ssh connect timeout.\nYou can try the ssh connect command to "
+                "get detail information: '%s'" % ssh_cmd) from ssh_timeout
 
     def ScpPushFile(self, src_file, dst_file):
         """Scp push file to remote.
