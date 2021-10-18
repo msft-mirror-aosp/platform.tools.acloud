@@ -342,9 +342,6 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(
             400, self.cvd_compute_client_multi_stage._GetBootTimeout(500))
 
-        self.assertEqual(
-            0, self.cvd_compute_client_multi_stage._GetBootTimeout(50))
-
     @mock.patch.object(Ssh, "ScpPushFile")
     def testUploadExtraFiles(self, mock_upload):
         """Test UploadExtraFiles."""

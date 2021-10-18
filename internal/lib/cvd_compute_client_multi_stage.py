@@ -489,8 +489,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         """
         boot_timeout_secs = timeout_secs - self._execution_time[_FETCH_ARTIFACT]
         logger.debug("Timeout for boot: %s secs", boot_timeout_secs)
-        if boot_timeout_secs < 0:
-            return 0
         return boot_timeout_secs
 
     def _PullAllLogFiles(self, instance):
