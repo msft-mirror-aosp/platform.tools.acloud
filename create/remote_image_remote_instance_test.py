@@ -72,7 +72,8 @@ class RemoteImageRemoteInstanceTest(driver_test_lib.BaseDriverTest):
         avd_spec = mock.Mock()
         avd_spec.oxygen = True
         avd_spec.remote_image = {constants.BUILD_TARGET: "fake_target",
-                                 constants.BUILD_ID: "fake_id"}
+                                 constants.BUILD_ID: "fake_id",
+                                 constants.BUILD_BRANCH: "fake_branch"}
         response_fail = "Lease device fail."
         self.Patch(oxygen_client.OxygenClient, "LeaseDevice",
                    side_effect=[ONE_LINE_LEASE_RESPONSE, response_fail])
@@ -89,7 +90,8 @@ class RemoteImageRemoteInstanceTest(driver_test_lib.BaseDriverTest):
         avd_spec = mock.Mock()
         avd_spec.oxygen = True
         avd_spec.remote_image = {constants.BUILD_TARGET: "fake_target",
-                                 constants.BUILD_ID: "fake_id"}
+                                 constants.BUILD_ID: "fake_id",
+                                 constants.BUILD_BRANCH: "fake_branch"}
         response_fail = "Lease device fail."
         self.Patch(oxygen_client.OxygenClient, "LeaseDevice",
                    side_effect=[LEASE_FAILURE_RESPONSE, response_fail])
