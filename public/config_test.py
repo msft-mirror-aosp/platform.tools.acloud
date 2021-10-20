@@ -152,7 +152,7 @@ common_hw_property_map {
         self.assertEqual(cfg.client_secret, "fake_client_secret")
         self.assertEqual(cfg.extra_args_ssh_tunnel, "fake_extra_args_ssh_tunnel")
         self.assertEqual(
-            {key: val for key, val in six.iteritems(cfg.metadata_variable)},
+            dict(six.iteritems(cfg.metadata_variable)),
             {"metadata_1": "metadata_value_1"})
         self.assertEqual(cfg.hw_property,
                          "cpu:3,resolution:1080x1920,dpi:480,memory:4g,"
@@ -223,26 +223,19 @@ common_hw_property_map {
         self.assertEqual(cfg.user_agent, "fake_user_agent")
         self.assertEqual(cfg.default_usr_cfg.machine_type, "n1-standard-1")
         self.assertEqual(cfg.default_usr_cfg.network, "default")
-        self.assertEqual({
-            key: val
-            for key, val in six.iteritems(cfg.default_usr_cfg.metadata_variable)
-        }, {
-            "metadata_1": "metadata_value_1",
-            "metadata_2": "metadata_value_2"
-        })
         self.assertEqual(
-            {key: val for key, val in six.iteritems(cfg.device_resolution_map)},
+            dict(six.iteritems(cfg.default_usr_cfg.metadata_variable)),
+            {"metadata_1": "metadata_value_1",
+            "metadata_2": "metadata_value_2"})
+        self.assertEqual(
+            dict(six.iteritems(cfg.device_resolution_map)),
             {"nexus5": "1080x1920x32x480"})
-        device_resolution = {
-            key: val
-            for key, val in six.iteritems(cfg.device_default_orientation_map)
-        }
-        self.assertEqual(device_resolution, {"nexus5": "portrait"})
-        valid_branch_and_min_build_id = {
-            key: val
-            for key, val in six.iteritems(cfg.valid_branch_and_min_build_id)
-        }
-        self.assertEqual(valid_branch_and_min_build_id, {"aosp-master": 0})
+        self.assertEqual(
+            dict(six.iteritems(cfg.device_default_orientation_map)),
+            {"nexus5": "portrait"})
+        self.assertEqual(
+            dict(six.iteritems(cfg.valid_branch_and_min_build_id)),
+            {"aosp-master": 0})
         self.assertEqual(cfg.default_usr_cfg.stable_host_image_name,
                          "fake_stable_host_image_name")
         self.assertEqual(cfg.default_usr_cfg.stable_host_image_project,
@@ -266,7 +259,7 @@ common_hw_property_map {
 
         # hw property
         self.assertEqual(
-            {key: val for key, val in six.iteritems(cfg.common_hw_property_map)},
+            dict(six.iteritems(cfg.common_hw_property_map)),
             {"phone": "cpu:2,resolution:1080x1920,dpi:420,memory:4g,disk:8g",
              "auto": "cpu:4,resolution:1280x800,dpi:160,memory:4g"})
 
