@@ -35,11 +35,14 @@ class OxygenClentTest(driver_test_lib.BaseDriverTest):
         build_target = "fake_target"
         build_id = "fake_id"
         oxygen_client_path = "oxygen_client_path"
+        build_branch = "master-branch"
         lease_args = ""
         expected_cmd = [oxygen_client_path, "-lease", "-build_id", build_id,
-                        "-build_target", build_target]
+                        "-build_target", build_target, "-build_branch",
+                        build_branch]
         oxygen_client.OxygenClient.LeaseDevice(
-            build_target, build_id, oxygen_client_path, lease_args)
+            build_target, build_id, build_branch, oxygen_client_path,
+            lease_args)
         mock_subprocess.assert_called_with(expected_cmd,
                                            stderr=subprocess.STDOUT,
                                            encoding='utf-8')
@@ -47,9 +50,11 @@ class OxygenClentTest(driver_test_lib.BaseDriverTest):
         # Test with lease command args.
         lease_args = "-user user@gmail.com"
         expected_cmd = [oxygen_client_path, "-lease", "-build_id", build_id,
-                        "-build_target", build_target, "-user", "user@gmail.com"]
+                        "-build_target", build_target, "-build_branch",
+                        build_branch, "-user", "user@gmail.com"]
         oxygen_client.OxygenClient.LeaseDevice(
-            build_target, build_id, oxygen_client_path, lease_args)
+            build_target, build_id, build_branch, oxygen_client_path,
+            lease_args)
         mock_subprocess.assert_called_with(expected_cmd,
                                            stderr=subprocess.STDOUT,
                                            encoding='utf-8')

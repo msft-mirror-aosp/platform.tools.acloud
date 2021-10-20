@@ -151,9 +151,8 @@ class GoogleSDKBins():
         """
         self.gcloud_command_path = os.path.join(google_sdk_folder, "gcloud")
         self.gsutil_command_path = os.path.join(google_sdk_folder, "gsutil")
-        # TODO(137195528): Remove python2 environment after acloud support python3.
         self._env = os.environ.copy()
-        self._env[_ENV_CLOUDSDK_PYTHON] = "python2"
+        self._env[_ENV_CLOUDSDK_PYTHON] = "python"
 
     def RunGcloud(self, cmd, **kwargs):
         """Run gcloud command.
