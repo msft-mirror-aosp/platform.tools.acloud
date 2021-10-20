@@ -97,6 +97,7 @@ class RemoteImageRemoteInstance(base_avd_create.BaseAVDCreate):
             response = oxygen_client.OxygenClient.LeaseDevice(
                 avd_spec.remote_image[constants.BUILD_TARGET],
                 avd_spec.remote_image[constants.BUILD_ID],
+                avd_spec.remote_image[constants.BUILD_BRANCH],
                 avd_spec.cfg.oxygen_client,
                 avd_spec.cfg.oxygen_lease_args)
             session_id, server_url = self._GetDeviceInfoFromResponse(response)
