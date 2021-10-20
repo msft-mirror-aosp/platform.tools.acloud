@@ -278,7 +278,7 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
                 device_dict.update(device.build_info)
             if device.time_info:
                 device_dict.update(device.time_info)
-            if autoconnect:
+            if autoconnect and reporter.status == report.Status.SUCCESS:
                 forwarded_ports = utils.AutoConnect(
                     ip_addr=ip,
                     rsa_key_file=(ssh_private_key_path or
@@ -295,7 +295,7 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
                     forwarded_ports.adb_port)
                 if unlock_screen:
                     AdbTools(forwarded_ports.adb_port).AutoUnlockScreen()
-            if connect_webrtc:
+            if connect_webrtc and reporter.status == report.Status.SUCCESS:
                 webrtc_local_port = utils.PickFreePort()
                 device_dict[constants.WEBRTC_PORT] = webrtc_local_port
                 utils.EstablishWebRTCSshTunnel(
