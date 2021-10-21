@@ -522,6 +522,15 @@ def GetCreateArgParser(subparser):
         choices=constants.SPEC_NAMES,
         help="The name of a pre-configured device spec that we are "
         "going to use.")
+    create_parser.add_argument(
+        "--disk-type",
+        type=str,
+        dest="disk_type",
+        required=False,
+        help="This is used to customize the GCE instance disk type, the "
+        "default disk type is from the stable host image. Use pd-ssd or "
+        "pd-standard to specify instance disk type.")
+
     # Arguments for goldfish type.
     create_parser.add_argument(
         "--emulator-build-id",

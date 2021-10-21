@@ -136,6 +136,7 @@ class AVDSpec():
         self._host_user = None
         self._host_ssh_private_key_path = None
         self._gpu = None
+        self._disk_type = None
         # Create config instance for android_build_client to query build api.
         self._cfg = config.GetAcloudConfig(args)
         # Reporting args.
@@ -338,6 +339,7 @@ class AVDSpec():
         self._emulator_build_id = args.emulator_build_id
         self._emulator_build_target = args.emulator_build_target
         self._gpu = args.gpu
+        self._disk_type = (args.disk_type or self._cfg.disk_type)
         self._gce_metadata = create_common.ParseKeyValuePairArgs(args.gce_metadata)
 
         self._stable_cheeps_host_image_name = args.stable_cheeps_host_image_name
@@ -872,6 +874,11 @@ class AVDSpec():
     def serial_log_file(self):
         """Return serial log file path."""
         return self._serial_log_file
+
+    @property
+    def disk_type(self):
+        """Return disk type."""
+        return self._disk_type
 
     @property
     def gpu(self):
