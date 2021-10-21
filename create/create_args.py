@@ -191,6 +191,13 @@ def AddCommonCreateArgs(parser):
         default="kernel",
         help="Kernel build target, specify if different from 'kernel'")
     parser.add_argument(
+        "--kernel-artifact",
+        type=str,
+        dest="kernel_artifact",
+        required=False,
+        help="Goldfish remote host only. The name of the boot image to be "
+        "retrieved from Android build, e.g., boot-5.10.img.")
+    parser.add_argument(
         "--system-branch",
         type=str,
         dest="system_branch",
@@ -678,26 +685,47 @@ def _VerifyGoldfishArgs(args):
         errors.UnsupportedCreateArgs: When a create arg is specified but
                                       unsupported for goldfish.
     """
-    goldfish_only_flags = [args.emulator_build_id, args.emulator_build_target]
+    goldfish_only_flags = [
+        args.emulator_build_id,
+        args.emulator_build_target,
+        args.kernel_artifact
+    ]
     if args.avd_type != constants.TYPE_GF and any(goldfish_only_flags):
         raise errors.UnsupportedCreateArgs(
-            "--emulator-* are only valid with avd_type == %s" %
-            constants.TYPE_GF)
+            "--emulator-* and --kernel-artifact are only valid with "
+            "avd_type == %s" % constants.TYPE_GF)
 
     # Exclude kernel_build_target because the default value isn't empty.
-    remote_host_only_flags = [
-        args.emulator_build_target,
+    remote_kernel_flags = [
+        args.kernel_build_id,
+        args.kernel_branch,
+        args.kernel_artifact,
+    ]
+    if (args.avd_type == constants.TYPE_GF and any(remote_kernel_flags) and
+            not all(remote_kernel_flags)):
+        raise errors.UnsupportedCreateArgs(
+            "Either none or all of --kernel-branch, --kernel-build-target, "
+            "--kernel-build-id, and --kernel-artifact must be specified for "
+            "goldfish.")
+
+    remote_system_flags = [
         args.system_build_target,
         args.system_build_id,
         args.system_branch,
-        args.kernel_build_id,
-        args.kernel_branch,
     ]
+    if (args.avd_type == constants.TYPE_GF and any(remote_system_flags) and
+            not all(remote_system_flags)):
+        raise errors.UnsupportedCreateArgs(
+            "Either none or all of --system-branch, --system-build-target, "
+            "and --system-build-id must be specified for goldfish.")
+
+    remote_host_only_flags = ([args.emulator_build_target] +
+                              remote_kernel_flags + remote_system_flags)
     if args.avd_type == constants.TYPE_GF and args.remote_host is None and any(
             remote_host_only_flags):
         raise errors.UnsupportedCreateArgs(
             "--kernel-*, --system-*, and --emulator-build-target for goldfish "
-            "are only supported for remote host")
+            "are only supported for remote host.")
 
 
 def VerifyArgs(args):

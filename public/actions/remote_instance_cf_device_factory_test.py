@@ -252,6 +252,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.kernel_build_id = "345"
         args.kernel_branch = "kernel_branch"
         args.kernel_build_target = "kernel_target"
+        args.kernel_artifact = None
         args.bootloader_build_id = "456"
         args.bootloader_branch = "bootloader_branch"
         args.bootloader_build_target = "bootloader_target"

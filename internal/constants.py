@@ -32,6 +32,7 @@ LOGCAT_SERIAL_PORT = 2
 BUILD_TARGET = "build_target"
 BUILD_BRANCH = "branch"
 BUILD_ID = "build_id"
+BUILD_ARTIFACT = "artifact"
 
 # Special value of local image parameters
 FIND_IN_BUILD_ENV = ""
