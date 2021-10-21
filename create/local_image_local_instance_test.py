@@ -233,27 +233,16 @@ EOF"""
         cvd_host_dir = "/unit/test"
         mock_isfile.return_value = None
 
-        with mock.patch.dict("acloud.internal.lib.ota_tools.os.environ",
-                             {"ANDROID_HOST_OUT": cvd_host_dir,
-                              "ANDROID_SOONG_HOST_OUT": cvd_host_dir}, clear=True):
-            with self.assertRaises(errors.GetCvdLocalHostPackageError):
-                self.local_image_local_instance._FindCvdHostBinaries(
-                    [cvd_host_dir])
+        with self.assertRaises(errors.GetCvdLocalHostPackageError):
+            self.local_image_local_instance._FindCvdHostBinaries(
+                [cvd_host_dir])
 
         mock_isfile.side_effect = (
             lambda path: path == "/unit/test/bin/launch_cvd")
 
-        with mock.patch.dict("acloud.internal.lib.ota_tools.os.environ",
-                             {"ANDROID_HOST_OUT": cvd_host_dir,
-                              "ANDROID_SOONG_HOST_OUT": cvd_host_dir}, clear=True):
-            path = self.local_image_local_instance._FindCvdHostBinaries([])
-            self.assertEqual(path, cvd_host_dir)
-
-        with mock.patch.dict("acloud.internal.lib.ota_tools.os.environ",
-                             dict(), clear=True):
-            path = self.local_image_local_instance._FindCvdHostBinaries(
-                [cvd_host_dir])
-            self.assertEqual(path, cvd_host_dir)
+        path = self.local_image_local_instance._FindCvdHostBinaries(
+            [cvd_host_dir])
+        self.assertEqual(path, cvd_host_dir)
 
     @staticmethod
     def _CreateEmptyFile(path):
@@ -308,12 +297,13 @@ EOF"""
 
             with mock.patch.dict("acloud.create.local_image_local_instance."
                                  "os.environ",
-                                 {"ANDROID_SOONG_HOST_OUT": cvd_dir},
+                                 {"ANDROID_SOONG_HOST_OUT": cvd_dir,
+                                  "ANDROID_HOST_OUT": "/cvd"},
                                  clear=True):
                 paths = self.local_image_local_instance.GetImageArtifactsPath(
                     mock_avd_spec)
 
-        mock_ota_tools.FindOtaToolsDir.assert_called_once()
+        mock_ota_tools.FindOtaToolsDir.assert_called_with([cvd_dir, "/cvd"])
         self.assertEqual(paths,
                          (image_dir, cvd_dir, misc_info_path, cvd_dir,
                           system_image_path, boot_image_path))
@@ -343,10 +333,14 @@ EOF"""
                 local_system_image=system_image_path,
                 local_tool_dirs=[ota_tools_dir, cvd_dir])
 
-            paths = self.local_image_local_instance.GetImageArtifactsPath(
-                mock_avd_spec)
+            with mock.patch.dict("acloud.create.local_image_local_instance."
+                                 "os.environ",
+                                 clear=True):
+                paths = self.local_image_local_instance.GetImageArtifactsPath(
+                    mock_avd_spec)
 
-        mock_ota_tools.FindOtaToolsDir.assert_called_once()
+        mock_ota_tools.FindOtaToolsDir.assert_called_with(
+            [ota_tools_dir, cvd_dir])
         self.assertEqual(paths,
                          (os.path.join(image_dir, "IMAGES"), cvd_dir,
                           misc_info_path, ota_tools_dir, system_image_path,

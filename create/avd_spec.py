@@ -108,6 +108,7 @@ class AVDSpec():
         self._unlock_screen = None
         self._report_internal_ip = None
         self._disable_external_ip = None
+        self._extra_files = None
         self._avd_type = None
         self._flavor = None
         self._image_source = None
@@ -314,6 +315,7 @@ class AVDSpec():
         self._report_internal_ip = args.report_internal_ip
         self._disable_external_ip = args.disable_external_ip
         self._avd_type = args.avd_type
+        self._extra_files = create_common.ParseExtraFilesArgs(args.extra_files)
         self._flavor = args.flavor or constants.FLAVOR_PHONE
         if args.remote_host:
             self._instance_type = constants.INSTANCE_TYPE_HOST
@@ -976,3 +978,8 @@ class AVDSpec():
     def cvd_host_package(self):
         """Return cvd_host_package."""
         return self._cvd_host_package
+
+    @property
+    def extra_files(self):
+        """Return extra_files."""
+        return self._extra_files
