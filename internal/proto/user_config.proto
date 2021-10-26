@@ -124,4 +124,7 @@ message UserConfig {
 
   // [Oxygen only] The args append to lease command.
   optional string oxygen_lease_args = 35;
+
+  // Storage options of created GCP instance, e.g. pd-standard, pd-ssd.
+  optional string disk_type = 36;
 }
