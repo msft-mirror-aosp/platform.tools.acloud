@@ -1232,6 +1232,7 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
                        disk_args=None,
                        image_project=None,
                        gpu=None,
+                       disk_type=None,
                        extra_disk_name=None,
                        extra_scopes=None,
                        tags=None,
@@ -1254,6 +1255,7 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
             gpu: String, type of gpu to attach. e.g. "nvidia-tesla-k80", if
                  None no gpus will be attached. For more details see:
                  https://cloud.google.com/compute/docs/gpus/add-gpus
+            disk_type: String, type of GCE instance disk type.
             extra_disk_name: String,the name of the extra disk to attach.
             extra_scopes: A list of extra scopes to be provided to the instance.
             tags: A list of tags to associate with the instance. e.g.
@@ -1265,6 +1267,14 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
                      or self._GetDiskArgs(instance, image_name, image_project))
         if extra_disk_name:
             disk_args.extend(self._GetExtraDiskArgs(extra_disk_name, zone))
+
+        if disk_type:
+            for disk_arg in disk_args:
+                if "initializeParams" not in disk_arg:
+                    disk_arg["initializeParams"] = {}
+                disk_arg["initializeParams"][
+                    "diskType"] = "projects/%s/zones/%s/diskTypes/%s" % (
+                        self._project, zone, disk_type)
 
         scopes = []
         scopes.extend(self.DEFAULT_INSTANCE_SCOPE)
