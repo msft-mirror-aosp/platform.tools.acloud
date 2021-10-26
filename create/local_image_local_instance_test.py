@@ -448,21 +448,8 @@ EOF"""
     @mock.patch("acloud.create.local_image_local_instance.subprocess.Popen")
     def testLaunchCVDFailure(self, mock_popen):
         """test _LaunchCvd with subprocess errors."""
-        mock_proc = mock.Mock(returncode=255)
+        mock_proc = mock.Mock(returncode=9)
         mock_popen.return_value = mock_proc
-        mock_proc.communicate.side_effect = [
-            subprocess.TimeoutExpired(cmd="launch_cvd", timeout=100),
-            ("stdout", "stderr")
-        ]
-        with self.assertRaises(errors.LaunchCVDFail) as launch_cvd_failure:
-            self.local_image_local_instance._LaunchCvd("launch_cvd",
-                                                       3,
-                                                       "host_bins_path",
-                                                       "cvd_home_dir",
-                                                       100)
-        self.assertIn("100 secs", str(launch_cvd_failure.exception))
-
-        mock_proc.returncode=9
         mock_proc.communicate.side_effect = [
             ("stdout", "first line" + ("\n" * 10) + "last line\n")
         ]
@@ -475,6 +462,31 @@ EOF"""
         self.assertIn("returned 9", str(launch_cvd_failure.exception))
         self.assertNotIn("first line", str(launch_cvd_failure.exception))
         self.assertIn("last line", str(launch_cvd_failure.exception))
+
+    @mock.patch("acloud.create.local_image_local_instance.list_instance")
+    @mock.patch("acloud.create.local_image_local_instance.subprocess.Popen")
+    def testLaunchCVDTimeout(self, mock_popen, mock_list_instance):
+        """test _LaunchCvd with subprocess timeout."""
+        mock_proc = mock.Mock(returncode=255)
+        mock_popen.return_value = mock_proc
+        mock_proc.communicate.side_effect = [
+            subprocess.TimeoutExpired(cmd="launch_cvd", timeout=100),
+            ("stdout", "stderr")
+        ]
+        mock_instance = mock.Mock()
+        mock_list_instance.GetActiveCVD.return_value = mock_instance
+        mock_instance.Delete.side_effect = subprocess.CalledProcessError(
+            cmd="stop_cvd", returncode=255)
+        with self.assertRaises(errors.LaunchCVDFail) as launch_cvd_failure:
+            self.local_image_local_instance._LaunchCvd("launch_cvd",
+                                                       3,
+                                                       "host_bins_path",
+                                                       "cvd_home_dir",
+                                                       100)
+        self.assertIn("100 secs", str(launch_cvd_failure.exception))
+        mock_list_instance.GetActiveCVD.assert_called_with(3)
+        mock_instance.Delete.assert_called()
+        mock_proc.terminate.assert_called()
 
     def testGetWebrtcSigServerPort(self):
         """test GetWebrtcSigServerPort."""
