@@ -571,8 +571,28 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         return True
 
     @staticmethod
+    def _StopCvd(local_instance_id, proc):
+        """Call stop_cvd or kill a launch_cvd process.
+
+        Args:
+            local_instance_id: Integer of instance id.
+            proc: subprocess.Popen object, the launch_cvd process.
+        """
+        existing_ins = list_instance.GetActiveCVD(local_instance_id)
+        if existing_ins:
+            try:
+                existing_ins.Delete()
+                return
+            except subprocess.CalledProcessError as e:
+                logger.error("Cannot stop instance %d: %s",
+                             local_instance_id, str(e))
+        else:
+            logger.error("Instance %d is not active.", local_instance_id)
+        logger.info("Terminate launch_cvd process.")
+        proc.terminate()
+
     @utils.TimeExecute(function_description="Waiting for AVD(s) to boot up")
-    def _LaunchCvd(cmd, local_instance_id, host_bins_path, cvd_home_dir,
+    def _LaunchCvd(self, cmd, local_instance_id, host_bins_path, cvd_home_dir,
                    timeout):
         """Execute Launch CVD.
 
@@ -608,7 +628,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                 return
             error_msg = "launch_cvd returned %d." % proc.returncode
         except subprocess.TimeoutExpired:
-            proc.kill()
+            self._StopCvd(local_instance_id, proc)
             stdout, stderr = proc.communicate(timeout=5)
             error_msg = "Device did not boot within %d secs." % timeout
 
