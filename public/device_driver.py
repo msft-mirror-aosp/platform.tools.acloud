@@ -222,7 +222,8 @@ class AndroidVirtualDevicePool():
                         instance)
                     self._compute_client.CreateDisk(extra_disk_name,
                                                     precreated_data_image,
-                                                    extra_data_disk_size_gb)
+                                                    extra_data_disk_size_gb,
+                                                    disk_type=avd_spec.disk_type)
                 self._compute_client.CreateInstance(
                     instance=instance,
                     image_name=image_name,

@@ -252,6 +252,7 @@ class AcloudConfig():
             self.enable_multi_stage = internal_cfg.default_usr_cfg.enable_multi_stage
         else:
             self.enable_multi_stage = False
+        self.disk_type = usr_cfg.disk_type
 
         # Verify validity of configurations.
         self.Verify()

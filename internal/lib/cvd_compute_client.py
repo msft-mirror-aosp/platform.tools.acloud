@@ -178,6 +178,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             machine_type=self._machine_type,
             network=self._network,
             zone=self._zone,
+            disk_type=avd_spec.disk_type if avd_spec else None,
             extra_scopes=extra_scopes)
 
     def _GetLaunchCvdArgs(self, avd_spec):
