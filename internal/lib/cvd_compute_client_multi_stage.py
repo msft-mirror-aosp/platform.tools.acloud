@@ -569,6 +569,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             network=self._network,
             zone=self._zone,
             gpu=self._gpu,
+            disk_type=avd_spec.disk_type if avd_spec else None,
             extra_scopes=extra_scopes,
             disable_external_ip=disable_external_ip)
         ip = gcompute_client.ComputeClient.GetInstanceIP(

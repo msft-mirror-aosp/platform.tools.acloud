@@ -65,6 +65,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
     LAUNCH_ARGS = "--setupwizard_mode=REQUIRED"
     EXTRA_SCOPES = ["scope1"]
     GPU = "fake-gpu"
+    DISK_TYPE = "fake-disk-type"
     FAKE_IP = IP(external="1.1.1.1", internal="10.1.1.1")
     REMOTE_HOST_IP = "192.0.2.1"
     REMOTE_HOST_INSTANCE_NAME = "host-192.0.2.1-2263051-aosp_cf_x86_64_phone"
@@ -121,6 +122,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.args.launch_args = self.LAUNCH_ARGS
         self.args.disable_external_ip = False
         self.args.autoconnect = False
+        self.args.disk_type = self.DISK_TYPE
 
     # pylint: disable=protected-access
     @mock.patch.object(utils, "GetBuildEnvironmentVariable", return_value="fake_env_cf_x86")
@@ -203,6 +205,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
             zone=self.ZONE,
             extra_scopes=self.EXTRA_SCOPES,
             gpu=self.GPU,
+            disk_type=None,
             disable_external_ip=False)
 
         mock_check_img.return_value = True
@@ -237,6 +240,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
             zone=self.ZONE,
             extra_scopes=self.EXTRA_SCOPES,
             gpu=self.GPU,
+            disk_type=self.DISK_TYPE,
             disable_external_ip=False)
 
     def testFormatRemoteHostInstanceName(self):
