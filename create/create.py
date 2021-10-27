@@ -37,6 +37,7 @@ from acloud.create import goldfish_remote_image_remote_instance
 from acloud.create import local_image_local_instance
 from acloud.create import local_image_remote_instance
 from acloud.create import local_image_remote_host
+from acloud.create import openwrt_remote_image_remote_instance
 from acloud.create import remote_image_remote_instance
 from acloud.create import remote_image_local_instance
 from acloud.create import remote_image_remote_host
@@ -83,6 +84,9 @@ _CREATOR_CLASS_DICT = {
     # FVP types
     (constants.TYPE_FVP, constants.IMAGE_SRC_LOCAL, constants.INSTANCE_TYPE_REMOTE):
         local_image_remote_instance.LocalImageRemoteInstance,
+    # OpenWrt types
+    (constants.TYPE_OPENWRT, constants.IMAGE_SRC_REMOTE, constants.INSTANCE_TYPE_REMOTE):
+        openwrt_remote_image_remote_instance.OpenWrtRemoteImageRemoteInstance,
 }
 
 
