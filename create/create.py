@@ -191,17 +191,19 @@ def _CheckForSetup(args):
         if host_pkg_setup.ShouldRun():
             args.host = True
 
+    setup_mkcert = False
     if args.autoconnect == constants.INS_KEY_WEBRTC:
         mkcert_pkg_setup = host_setup_runner.MkcertPkgInstaller()
         if mkcert_pkg_setup.ShouldRun():
-            args.host = True
+            setup_mkcert = True
 
     # Install base packages if we haven't already.
     host_base_setup = host_setup_runner.HostBasePkgInstaller()
     if host_base_setup.ShouldRun():
         args.host_base = True
 
-    run_setup = args.force or args.gcp_init or args.host or args.host_base
+    run_setup = (args.force or args.gcp_init or args.host or args.host_base
+                 or setup_mkcert)
 
     if run_setup:
         answer = utils.InteractWithQuestion("Missing necessary acloud setup, "
