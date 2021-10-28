@@ -401,7 +401,7 @@ def GetCreateArgParser(subparser):
         dest="avd_type",
         default=constants.TYPE_CF,
         choices=[constants.TYPE_GCE, constants.TYPE_CF, constants.TYPE_GF, constants.TYPE_CHEEPS,
-                 constants.TYPE_FVP],
+                 constants.TYPE_FVP, constants.TYPE_OPENWRT],
         help="Android Virtual Device type (default %s)." % constants.TYPE_CF)
     create_parser.add_argument(
         "--config", "--flavor",
