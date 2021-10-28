@@ -15,6 +15,7 @@
 """RemoteInstanceDeviceFactory provides basic interface to create a goldfish
 device factory."""
 
+import collections
 import logging
 import os
 import posixpath as remote_path
@@ -27,8 +28,10 @@ from acloud import errors
 from acloud.internal import constants
 from acloud.internal.lib import android_build_client
 from acloud.internal.lib import auth
+from acloud.internal.lib import goldfish_image
 from acloud.internal.lib import goldfish_remote_host_client
 from acloud.internal.lib import emulator_console
+from acloud.internal.lib import ota_tools
 from acloud.internal.lib import utils
 from acloud.internal.lib import ssh
 from acloud.public.actions import base_device_factory
@@ -36,7 +39,15 @@ from acloud.public.actions import base_device_factory
 
 logger = logging.getLogger(__name__)
 # Artifacts
-_IMAGE_ZIP_NAME_FORMAT = "sdk-repo-linux-system-images-%(build_id)s.zip"
+_SDK_REPO_IMAGE_ZIP_NAME_FORMAT = ("sdk-repo-linux-system-images-"
+                                   "%(build_id)s.zip")
+_EXTRA_IMAGE_ZIP_NAME_FORMAT = "emu-extra-linux-system-images-%(build_id)s.zip"
+_IMAGE_ZIP_NAME_FORMAT = "%(build_target)s-img-%(build_id)s.zip"
+_OTA_TOOLS_ZIP_NAME = "otatools.zip"
+# TODO(b/185094559): Add a command line option.
+_BOOT_IMAGE_NAME = "boot-5.10.img"
+_SYSTEM_IMAGE_NAME = "system.img"
+
 _EMULATOR_INFO_NAME = "emulator-info.txt"
 _EMULATOR_VERSION_PATTERN = re.compile(r"require\s+version-emulator="
                                        r"(?P<build_id>\w+)")
@@ -47,11 +58,22 @@ _EMULATOR_BIN_NAME = "emulator"
 _REMOTE_WORKING_DIR = "acloud_gf"
 _REMOTE_ARTIFACT_DIR = remote_path.join(_REMOTE_WORKING_DIR, "artifact")
 _REMOTE_IMAGE_DIR = remote_path.join(_REMOTE_WORKING_DIR, "image")
+_REMOTE_KERNEL_PATH = remote_path.join(_REMOTE_WORKING_DIR, "kernel")
+_REMOTE_RAMDISK_PATH = remote_path.join(_REMOTE_WORKING_DIR, "mixed_ramdisk")
 _REMOTE_EMULATOR_DIR = remote_path.join(_REMOTE_WORKING_DIR, "emulator")
 _REMOTE_INSTANCE_DIR = remote_path.join(_REMOTE_WORKING_DIR, "instance")
 # Runtime parameters
 _EMULATOR_DEFAULT_CONSOLE_PORT = 5554
 _DEFAULT_BOOT_TIMEOUT_SECS = 150
+
+ArtifactPaths = collections.namedtuple(
+    "ArtifactPaths",
+    ["image_zip", "emulator_zip", "ota_tools_zip",
+     "system_image_zip", "boot_image"])
+
+RemotePaths = collections.namedtuple(
+    "RemotePaths",
+    ["image_dir", "emulator_dir", "kernel", "ramdisk"])
 
 
 class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
@@ -96,14 +118,14 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
             The instance name.
         """
         self._InitRemoteHost()
-        remote_emulator_dir, remote_image_dir = self._PrepareArtifacts()
+        remote_paths = self._PrepareArtifacts()
 
         instance_name = goldfish_remote_host_client.FormatInstanceName(
             self._avd_spec.remote_host,
             _EMULATOR_DEFAULT_CONSOLE_PORT,
             self._avd_spec.remote_image)
         try:
-            self._StartEmulator(remote_emulator_dir, remote_image_dir)
+            self._StartEmulator(remote_paths)
             self._WaitForEmulator()
         except errors.DeviceBootError as e:
             self._failures[instance_name] = e
@@ -132,6 +154,9 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
 
         This method retrieves artifacts from cache or Android Build API and
         uploads them to the remote host.
+
+        Returns:
+            An object of RemotePaths.
         """
         if self._avd_spec.image_download_dir:
             temp_download_dir = None
@@ -143,9 +168,8 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
                         "temporary download directory: %s", download_dir)
 
         try:
-            emulator_zip_path, image_zip_path = self._RetrieveArtifacts(
-                download_dir)
-            return self._UploadArtifacts(emulator_zip_path, image_zip_path)
+            artifact_paths = self._RetrieveArtifacts(download_dir)
+            return self._UploadArtifacts(artifact_paths)
         finally:
             if temp_download_dir:
                 shutil.rmtree(temp_download_dir, ignore_errors=True)
@@ -235,21 +259,24 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
             download_dir: The cache directory.
 
         Returns:
-            The paths to emulator zip and image zip.
+            An object of ArtifactPaths.
 
         Raises:
             errors.GetRemoteImageError: Fails to download rom images.
         """
         credentials = auth.CreateCredentials(self._avd_spec.cfg)
         build_api = android_build_client.AndroidBuildClient(credentials)
-
+        # Device images.
         build_id = self._avd_spec.remote_image.get(constants.BUILD_ID)
         build_target = self._avd_spec.remote_image.get(constants.BUILD_TARGET)
-        image_zip_name = _IMAGE_ZIP_NAME_FORMAT % {"build_id": build_id}
-        image_zip_path = self._RetrieveArtifact(download_dir, build_api,
-                                                build_target, build_id,
-                                                image_zip_name)
+        image_zip_name_format = (_EXTRA_IMAGE_ZIP_NAME_FORMAT if
+                                 self._ShouldMixDiskImage() else
+                                 _SDK_REPO_IMAGE_ZIP_NAME_FORMAT)
+        image_zip_path = self._RetrieveArtifact(
+            download_dir, build_api, build_target, build_id,
+            image_zip_name_format % {"build_id": build_id})
 
+        # Emulator tools.
         emu_build_id = self._avd_spec.emulator_build_id
         if not emu_build_id:
             emu_build_id = self._RetrieveEmulatorBuildID(
@@ -266,7 +293,84 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         emu_zip_path = self._RetrieveArtifact(download_dir, build_api,
                                               emu_build_target, emu_build_id,
                                               emu_zip_name)
-        return emu_zip_path, image_zip_path
+
+        system_image_zip_path = self._RetrieveSystemImageZip(
+            download_dir, build_api)
+        boot_image_path = self._RetrieveBootImage(download_dir, build_api)
+        ota_tools_zip_path = self._RetrieveOtaToolsZip(download_dir, build_api)
+
+        return ArtifactPaths(image_zip_path, emu_zip_path,
+                             ota_tools_zip_path, system_image_zip_path,
+                             boot_image_path)
+
+    def _RetrieveSystemImageZip(self, download_dir, build_api):
+        """Retrieve system image zip if system build info is not empty.
+
+        Args:
+            download_dir: The download cache directory.
+            build_api: An AndroidBuildClient object.
+
+        Returns:
+            The path to the system image zip in download_dir.
+            None if the system build info is empty.
+        """
+        build_id = self._avd_spec.system_build_info.get(constants.BUILD_ID)
+        build_target = self._avd_spec.system_build_info.get(
+            constants.BUILD_TARGET)
+        if build_id and build_target:
+            image_zip_name = _IMAGE_ZIP_NAME_FORMAT % {
+                "build_target": build_target.split("-", 1)[0],
+                "build_id": build_id}
+            return self._RetrieveArtifact(
+                download_dir, build_api, build_target, build_id,
+                image_zip_name)
+        return None
+
+    def _RetrieveBootImage(self, download_dir, build_api):
+        """Retrieve boot image if kernel build info is not empty.
+
+        Args:
+            download_dir: The download cache directory.
+            build_api: An AndroidBuildClient object.
+
+        Returns:
+            The path to the boot image in download_dir.
+            None if the kernel build info is empty.
+        """
+        build_id = self._avd_spec.kernel_build_info.get(constants.BUILD_ID)
+        build_target = self._avd_spec.kernel_build_info.get(
+            constants.BUILD_TARGET)
+        if build_id and build_target:
+            return self._RetrieveArtifact(
+                download_dir, build_api, build_target, build_id,
+                _BOOT_IMAGE_NAME)
+        return None
+
+    def _RetrieveOtaToolsZip(self, download_dir, build_api):
+        """Retrieve OTA tools zip if needed.
+
+        This class uses OTA tools to convert images into goldfish-specific
+        formats. We don't have a use case where the system and the kernel
+        require different sets of OTA tools. When both kernel and system builds
+        are specified, this method downloads OTA tools from one of them.
+
+        Args:
+            download_dir: The download cache directory.
+            build_api: An AndroidBuildClient object.
+
+        Returns:
+            The path to the OTA tools zip in download_dir.
+            None if the kernel and the system build infos are empty.
+        """
+        for build_info in (self._avd_spec.system_build_info,
+                           self._avd_spec.kernel_build_info):
+            build_id = build_info.get(constants.BUILD_ID)
+            build_target = build_info.get(constants.BUILD_TARGET)
+            if build_id and build_target:
+                return self._RetrieveArtifact(
+                    download_dir, build_api, build_target, build_id,
+                    _OTA_TOOLS_ZIP_NAME)
+        return None
 
     @staticmethod
     def _GetSubdirNameInZip(zip_path):
@@ -297,9 +401,68 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
                            zip_path, " ".join(entries))
             return ""
 
+    def _UploadArtifacts(self, artifacts_paths):
+        """Process and upload all images and tools to the remote host.
+
+        Args:
+            artifact_paths: An object of ArtifactPaths.
+
+        Returns:
+            An object of RemotePaths.
+        """
+        remote_emulator_dir, remote_image_dir = self._UploadDeviceImages(
+            artifacts_paths.emulator_zip, artifacts_paths.image_zip)
+
+        remote_kernel_path = None
+        remote_ramdisk_path = None
+
+        if artifacts_paths.boot_image or artifacts_paths.system_image_zip:
+            with tempfile.TemporaryDirectory("host_gf") as temp_dir:
+                ota_tools_dir = os.path.join(temp_dir, "ota_tools")
+                logger.debug("Unzip %s.", artifacts_paths.ota_tools_zip)
+                with zipfile.ZipFile(artifacts_paths.ota_tools_zip,
+                                     "r") as zip_file:
+                    zip_file.extractall(ota_tools_dir)
+                ota = ota_tools.OtaTools(ota_tools_dir)
+
+                image_dir = os.path.join(temp_dir, "images")
+                logger.debug("Unzip %s.", artifacts_paths.image_zip)
+                with zipfile.ZipFile(artifacts_paths.image_zip,
+                                     "r") as zip_file:
+                    zip_file.extractall(image_dir)
+                image_dir = os.path.join(
+                    image_dir,
+                    self._GetSubdirNameInZip(artifacts_paths.image_zip))
+
+                if artifacts_paths.system_image_zip:
+                    self._MixAndUploadDiskImage(
+                        remote_image_dir, image_dir,
+                        artifacts_paths.system_image_zip, ota)
+
+                if artifacts_paths.boot_image:
+                    remote_kernel_path, remote_ramdisk_path = (
+                        self._MixAndUploadKernelImages(
+                            image_dir, artifacts_paths.boot_image, ota))
+
+        return RemotePaths(remote_image_dir, remote_emulator_dir,
+                           remote_kernel_path, remote_ramdisk_path)
+
+    def _ShouldMixDiskImage(self):
+        """Determines whether a mixed disk image is required.
+
+        This method checks whether the user requires to replace an image that
+        is part of the disk image. Acloud supports replacing system and kernel
+        images. Only the system is installed on the disk.
+
+        Returns:
+            Boolean, whether a mixed disk image is required.
+        """
+        return (self._avd_spec.system_build_info.get(constants.BUILD_ID) and
+                self._avd_spec.system_build_info.get(constants.BUILD_TARGET))
+
     @utils.TimeExecute(
-        function_description="Processing and uploading local images")
-    def _UploadArtifacts(self, emulator_zip_path, image_zip_path):
+        function_description="Processing and uploading tools and images")
+    def _UploadDeviceImages(self, emulator_zip_path, image_zip_path):
         """Upload artifacts to remote host and extract them.
 
         Args:
@@ -335,22 +498,79 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         src_path = remote_path.join(remote_image_subdir, "build.prop")
         dst_path = remote_path.join(remote_image_subdir, "system",
                                     "build.prop")
-        self._ssh.Run("'mkdir -p %s ; cp %s %s'" %
-                      (remote_path.dirname(dst_path), src_path, dst_path))
+        self._ssh.Run("'test -f %(dst)s || "
+                      "{ mkdir -p %(dst_dir)s && cp %(src)s %(dst)s ; }'" %
+                      {"src": src_path,
+                       "dst": dst_path,
+                       "dst_dir": remote_path.dirname(dst_path)})
         return remote_emulator_subdir, remote_image_subdir
 
+    def _MixAndUploadDiskImage(self, remote_image_dir, image_dir,
+                               system_image_zip_path, ota):
+        """Mix emulator images with a system image and upload them.
+
+        Args:
+            remote_image_dir: The remote directory where the mixed disk image
+                              is uploaded.
+            image_dir: The directory containing emulator images.
+            system_image_zip_path: The path to the zip containing the system
+                                   image.
+            ota: An instance of ota_tools.OtaTools.
+
+        Returns:
+            The remote path to the mixed disk image.
+        """
+        with tempfile.TemporaryDirectory("host_gf_disk") as temp_dir:
+            logger.debug("Unzip %s.", system_image_zip_path)
+            with zipfile.ZipFile(system_image_zip_path, "r") as zip_file:
+                zip_file.extract(_SYSTEM_IMAGE_NAME, temp_dir)
+
+            mixed_image = goldfish_image.MixWithSystemImage(
+                os.path.join(temp_dir, "mix_disk"),
+                image_dir,
+                os.path.join(temp_dir, _SYSTEM_IMAGE_NAME),
+                ota)
+
+            # TODO(b/142228085): Use -system instead of overwriting the file.
+            remote_disk_image_path = os.path.join(
+                remote_image_dir, goldfish_image.SYSTEM_QEMU_IMAGE_NAME)
+            self._ssh.ScpPushFile(mixed_image, remote_disk_image_path)
+
+        return remote_disk_image_path
+
+    def _MixAndUploadKernelImages(self, image_dir, boot_image_path, ota):
+        """Mix emulator kernel images with a boot image and upload them.
+
+        Args:
+            image_dir: The directory containing emulator images.
+            boot_image_path: The path to the boot image.
+            ota: An instance of ota_tools.OtaTools.
+
+        Returns:
+            The remote paths to the kernel image and the ramdisk image.
+        """
+        with tempfile.TemporaryDirectory("host_gf_kernel") as temp_dir:
+            kernel_path, ramdisk_path = goldfish_image.MixWithBootImage(
+                temp_dir, image_dir, boot_image_path, ota)
+
+            self._ssh.ScpPushFile(kernel_path, _REMOTE_KERNEL_PATH)
+            self._ssh.ScpPushFile(ramdisk_path, _REMOTE_RAMDISK_PATH)
+
+        return _REMOTE_KERNEL_PATH, _REMOTE_RAMDISK_PATH
+
     @utils.TimeExecute(function_description="Start emulator")
-    def _StartEmulator(self, remote_emulator_dir, remote_image_dir):
+    def _StartEmulator(self, remote_paths):
         """Start emulator command as a remote background process.
 
         Args:
             remote_emulator_dir: The emulator tool directory on remote host.
             remote_image_dir: The image directory on remote host.
         """
-        remote_emulator_bin_path = remote_path.join(remote_emulator_dir,
-                                                    _EMULATOR_BIN_NAME)
-        remote_bin_paths = [remote_path.join(remote_emulator_dir, name) for
-                            name in _EMULATOR_BIN_DIR_NAMES]
+        remote_emulator_bin_path = remote_path.join(
+            remote_paths.emulator_dir, _EMULATOR_BIN_NAME)
+        remote_bin_paths = [
+            remote_path.join(remote_paths.emulator_dir, name) for
+            name in _EMULATOR_BIN_DIR_NAMES]
         remote_bin_paths.append(remote_emulator_bin_path)
         self._ssh.Run("chmod -R +x %s" % " ".join(remote_bin_paths))
 
@@ -358,7 +578,7 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         remote_stdout_path = os.path.join(_REMOTE_INSTANCE_DIR, "stdout.txt")
         remote_stderr_path = os.path.join(_REMOTE_INSTANCE_DIR, "stderr.txt")
 
-        env = {constants.ENV_ANDROID_PRODUCT_OUT: remote_image_dir,
+        env = {constants.ENV_ANDROID_PRODUCT_OUT: remote_paths.image_dir,
                constants.ENV_ANDROID_TMP: _REMOTE_INSTANCE_DIR,
                constants.ENV_ANDROID_BUILD_TOP: _REMOTE_INSTANCE_DIR}
         adb_port = _EMULATOR_DEFAULT_CONSOLE_PORT + 1
@@ -366,8 +586,22 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
                "-read-only", "-ports",
                str(_EMULATOR_DEFAULT_CONSOLE_PORT) + "," + str(adb_port),
                "-no-window", "-logcat-output", remote_logcat_path]
+
+        if remote_paths.kernel:
+            cmd.extend(("-kernel", remote_paths.kernel))
+
+        if remote_paths.ramdisk:
+            cmd.extend(("-ramdisk", remote_paths.ramdisk))
+
         if self._avd_spec.gpu:
             cmd.extend(("-gpu", self._avd_spec.gpu))
+
+        # Unlock the device so that the disabled vbmeta takes effect.
+        # These arguments must be at the end of the command line.
+        if self._ShouldMixDiskImage():
+            cmd.extend(("-qemu", "-append",
+                        "androidboot.verifiedbootstate=orange"))
+
         self._ssh.Run(
             "'export {env} ; {cmd} 1> {stdout} 2> {stderr} &'".format(
                 env=" ".join(k + "=~/" + v for k, v in env.items()),

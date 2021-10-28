@@ -38,6 +38,9 @@ def _CreateArgs():
         local_image=None,
         local_kernel_image=None,
         local_system_image=None,
+        kernel_branch=None,
+        kernel_build_id=None,
+        kernel_build_target=None,
         system_branch=None,
         system_build_id=None,
         system_build_target=None,
@@ -85,9 +88,17 @@ class CreateArgsTest(driver_test_lib.BaseDriverTest):
         mock_args.remote_host = None
         self.assertRaises(errors.UnsupportedCreateArgs,
                           create_args.VerifyArgs, mock_args)
-        # Valid emulator_build_target.
+        # system_build_target without remote_host.
+        mock_args.emulator_build_target = None
+        mock_args.system_build_target = "aosp_x86_64-userdebug"
+        mock_args.remote_host = None
+        self.assertRaises(errors.UnsupportedCreateArgs,
+                          create_args.VerifyArgs, mock_args)
+        # Valid build targets.
         mock_args.remote_host = "192.0.2.2"
         mock_args.emulator_build_target = "sdk_tools_linux"
+        mock_args.system_build_target = "aosp_x86_64-userdebug"
+        mock_args.kernel_build_target = "aosp_x86_64-userdebug"
         create_args.VerifyArgs(mock_args)
 
     def testVerifyArgs_ConnectWebRTC(self):
