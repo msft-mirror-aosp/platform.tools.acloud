@@ -59,6 +59,8 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         "host_ssh_private_key_path": None,
         "emulator_build_id": None,
         "emulator_build_target": None,
+        "system_build_info": {},
+        "kernel_build_info": {},
         "boot_timeout_secs": None,
         "gpu": "auto",
     }
@@ -106,16 +108,26 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self._mock_avd_spec.cfg = mock_cfg
 
     @staticmethod
-    def _CreateZip(path):
+    def _CreateSdkRepoZip(path):
         """Create a zip file that contains a subdirectory."""
         with zipfile.ZipFile(path, "w") as zip_file:
             zip_file.writestr("x86_64/build.prop", "")
             zip_file.writestr("x86_64/test", "")
 
+    @staticmethod
+    def _CreateImageZip(path):
+        """Create a zip file containing images."""
+        with zipfile.ZipFile(path, "w") as zip_file:
+            zip_file.writestr("system.img", "")
+
     def _MockDownloadArtifact(self, _build_target, _build_id, resource_id,
                               local_path, _attempt):
         if resource_id.endswith(".zip"):
-            self._CreateZip(local_path)
+            if (resource_id.startswith("sdk-repo-") or
+                    resource_id.startswith("emu-extra-")):
+                self._CreateSdkRepoZip(local_path)
+            else:
+                self._CreateImageZip(local_path)
         elif resource_id == "emulator-info.txt":
             with open(local_path, "w") as file:
                 file.write(self._EMULATOR_INFO)
@@ -173,7 +185,7 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             )
             for artifact_path in artifact_paths:
                 os.makedirs(os.path.dirname(artifact_path), exist_ok=True)
-                self._CreateZip(artifact_path)
+                self._CreateSdkRepoZip(artifact_path)
 
             factory = gf_factory.RemoteHostGoldfishDeviceFactory(
                 self._mock_avd_spec)
@@ -181,6 +193,76 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
 
         self.assertEqual(self._ARM64_INSTANCE_NAME, instance_name)
         self.assertEqual(self._ARM64_BUILD_INFO, factory.GetBuildInfoDict())
+        self.assertEqual({}, factory.GetFailures())
+
+    @mock.patch("acloud.public.actions.remote_host_gf_device_factory."
+                "goldfish_image")
+    def testCreateInstanceWithSystemBuild(self, mock_gf_image):
+        """Test RemoteHostGoldfishDeviceFactory with system build."""
+        self._mock_avd_spec.system_build_info = {
+            constants.BUILD_ID: "111111",
+            constants.BUILD_TARGET: "aosp_x86_64-userdebug"}
+        mock_gf_image.MixWithSystemImage.return_value = "/mixed/disk"
+        mock_gf_image.SYSTEM_QEMU_IMAGE_NAME = "system-qemu.img"
+
+        factory = gf_factory.RemoteHostGoldfishDeviceFactory(
+            self._mock_avd_spec)
+        instance_name = factory.CreateInstance()
+        # Artifacts.
+        self._mock_android_build_client.DownloadArtifact.assert_any_call(
+            "sdk_x86_64-sdk", "123456",
+            "emu-extra-linux-system-images-123456.zip", mock.ANY, mock.ANY)
+        self._mock_android_build_client.DownloadArtifact.assert_any_call(
+            "aosp_x86_64-userdebug", "111111",
+            "aosp_x86_64-img-111111.zip", mock.ANY, mock.ANY)
+        self._mock_android_build_client.DownloadArtifact.assert_any_call(
+            "aosp_x86_64-userdebug", "111111",
+            "otatools.zip", mock.ANY, mock.ANY)
+        self.assertEqual(
+            5, self._mock_android_build_client.DownloadArtifact.call_count)
+        # Images.
+        mock_gf_image.MixWithSystemImage.assert_called_once()
+        self._mock_ssh.ScpPushFile.assert_called_with(
+            "/mixed/disk", "acloud_gf/image/x86_64/system-qemu.img")
+
+        self.assertEqual(self._X86_64_INSTANCE_NAME, instance_name)
+        self.assertEqual(self._X86_64_BUILD_INFO, factory.GetBuildInfoDict())
+        self.assertEqual({}, factory.GetFailures())
+
+    @mock.patch("acloud.public.actions.remote_host_gf_device_factory."
+                "goldfish_image")
+    def testCreateInstanceWithKernelBuild(self, mock_gf_image):
+        """Test RemoteHostGoldfishDeviceFactory with kernel build."""
+        self._mock_avd_spec.kernel_build_info = {
+            constants.BUILD_ID: "111111",
+            constants.BUILD_TARGET: "aosp_x86_64-userdebug"}
+        mock_gf_image.MixWithBootImage.return_value = (
+            "/path/to/kernel", "/path/to/ramdisk")
+
+        factory = gf_factory.RemoteHostGoldfishDeviceFactory(
+            self._mock_avd_spec)
+        instance_name = factory.CreateInstance()
+        # Artifacts.
+        self._mock_android_build_client.DownloadArtifact.assert_any_call(
+            "sdk_x86_64-sdk", "123456",
+            "sdk-repo-linux-system-images-123456.zip", mock.ANY, mock.ANY)
+        self._mock_android_build_client.DownloadArtifact.assert_any_call(
+            "aosp_x86_64-userdebug", "111111",
+            "boot-5.10.img", mock.ANY, mock.ANY)
+        self._mock_android_build_client.DownloadArtifact.assert_any_call(
+            "aosp_x86_64-userdebug", "111111",
+            "otatools.zip", mock.ANY, mock.ANY)
+        self.assertEqual(
+            5, self._mock_android_build_client.DownloadArtifact.call_count)
+        # Images.
+        mock_gf_image.MixWithBootImage.assert_called_once()
+        self._mock_ssh.ScpPushFile.assert_any_call(
+            "/path/to/kernel", "acloud_gf/kernel")
+        self._mock_ssh.ScpPushFile.assert_any_call(
+            "/path/to/ramdisk", "acloud_gf/mixed_ramdisk")
+
+        self.assertEqual(self._X86_64_INSTANCE_NAME, instance_name)
+        self.assertEqual(self._X86_64_BUILD_INFO, factory.GetBuildInfoDict())
         self.assertEqual({}, factory.GetFailures())
 
     def testCreateInstanceError(self):
