@@ -684,9 +684,20 @@ def _VerifyGoldfishArgs(args):
             "--emulator-* are only valid with avd_type == %s" %
             constants.TYPE_GF)
 
-    if args.emulator_build_target and args.remote_host is None:
+    # Exclude kernel_build_target because the default value isn't empty.
+    remote_host_only_flags = [
+        args.emulator_build_target,
+        args.system_build_target,
+        args.system_build_id,
+        args.system_branch,
+        args.kernel_build_id,
+        args.kernel_branch,
+    ]
+    if args.avd_type == constants.TYPE_GF and args.remote_host is None and any(
+            remote_host_only_flags):
         raise errors.UnsupportedCreateArgs(
-            "--emulator-build-target is only supported for remote host.")
+            "--kernel-*, --system-*, and --emulator-build-target for goldfish "
+            "are only supported for remote host")
 
 
 def VerifyArgs(args):
@@ -708,7 +719,7 @@ def VerifyArgs(args):
         logger.debug("Flavor[%s] isn't in default support list: %s",
                      args.flavor, constants.ALL_FLAVORS)
 
-    if args.avd_type != constants.TYPE_CF:
+    if args.avd_type not in (constants.TYPE_CF, constants.TYPE_GF):
         if args.system_branch or args.system_build_id or args.system_build_target:
             raise errors.UnsupportedCreateArgs(
                 "--system-* args are not supported for AVD type: %s"
