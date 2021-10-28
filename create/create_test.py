@@ -84,12 +84,16 @@ class CreateTest(driver_test_lib.BaseDriverTest):
     def testCheckForSetup(self):
         """Test _CheckForSetup."""
         args = mock.MagicMock()
+        args.autoconnect = constants.INS_KEY_WEBRTC
         args.local_instance = None
         args.args.config_file = "fake_path"
         self.Patch(gcp_setup_runner.GcpTaskRunner,
                    "ShouldRun",
                    return_value=False)
         self.Patch(host_setup_runner.HostBasePkgInstaller,
+                   "ShouldRun",
+                   return_value=False)
+        self.Patch(host_setup_runner.MkcertPkgInstaller,
                    "ShouldRun",
                    return_value=False)
         self.Patch(config, "AcloudConfigManager")
@@ -102,6 +106,7 @@ class CreateTest(driver_test_lib.BaseDriverTest):
         create._CheckForSetup(args)
         gcp_setup_runner.GcpTaskRunner.ShouldRun.assert_called_once()
         host_setup_runner.HostBasePkgInstaller.ShouldRun.assert_called_once()
+        host_setup_runner.MkcertPkgInstaller.ShouldRun.assert_called_once()
         setup.Run.assert_not_called()
 
         # Checking Setup.Run should be called if runner's ShouldRun func return
