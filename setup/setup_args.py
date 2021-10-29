@@ -62,6 +62,13 @@ def GetSetupArgParser(subparser):
         help="Setup Google Cloud project name and enable required GCP APIs."
         "E.G. Google Cloud Storage/ Internal Android Build/ Compute Engine")
     setup_parser.add_argument(
+        "--mkcert",
+        action="store_true",
+        dest="host_mkcert",
+        required=False,
+        help="Install mkcert package on the host. It helps to create the "
+             "certification files for the WEB browser.")
+    setup_parser.add_argument(
         "--force",
         action="store_true",
         dest="force",
