@@ -211,7 +211,7 @@ class AVDSpec():
         Other AVD types(goldfish, cheeps..etc.) still keep using ‘vnc’.
         """
         if self._autoconnect == constants.INS_KEY_WEBRTC:
-            if self.avd_type != constants.TYPE_CF:
+            if self.avd_type not in [constants.TYPE_CF, constants.TYPE_OPENWRT]:
                 self._autoconnect = constants.INS_KEY_VNC
 
     def _ProcessImageArgs(self, args):
