@@ -178,6 +178,7 @@ def _CheckForSetup(args):
     args.host_base = False
     args.force = False
     args.update_config = None
+    args.host_mkcert = False
     # Remote image/instance requires the GCP config setup.
     if args.local_instance is None or args.local_image is None:
         gcp_setup = gcp_setup_runner.GcpTaskRunner(args.config_file)
@@ -195,11 +196,10 @@ def _CheckForSetup(args):
         if host_pkg_setup.ShouldRun():
             args.host = True
 
-    setup_mkcert = False
     if args.autoconnect == constants.INS_KEY_WEBRTC:
         mkcert_pkg_setup = host_setup_runner.MkcertPkgInstaller()
         if mkcert_pkg_setup.ShouldRun():
-            setup_mkcert = True
+            args.host_mkcert = True
 
     # Install base packages if we haven't already.
     host_base_setup = host_setup_runner.HostBasePkgInstaller()
@@ -207,7 +207,7 @@ def _CheckForSetup(args):
         args.host_base = True
 
     run_setup = (args.force or args.gcp_init or args.host or args.host_base
-                 or setup_mkcert)
+                 or args.host_mkcert)
 
     if run_setup:
         answer = utils.InteractWithQuestion("Missing necessary acloud setup, "
