@@ -145,7 +145,6 @@ ACLOUD_LOGGER = "acloud"
 _LOGGER = logging.getLogger(ACLOUD_LOGGER)
 NO_ERROR_MESSAGE = ""
 PROG = "acloud"
-_ACLOUD_CONFIG_ERROR = "ACLOUD_CONFIG_ERROR"
 
 # Commands
 CMD_CREATE_CUTTLEFISH = "create_cf"
@@ -169,7 +168,7 @@ def _ParseArgs(args):
         args: Argument list passed from main.
 
     Returns:
-        Parsed args.
+        Parsed args and a list of unknown argument strings.
     """
     usage = ",".join([
         setup_args.CMD_SETUP,
@@ -274,7 +273,7 @@ def _ParseArgs(args):
         parser.print_help()
         sys.exit(constants.EXIT_BY_WRONG_CMD)
 
-    return parser.parse_args(args)
+    return parser.parse_known_args(args)
 
 
 # pylint: disable=too-many-branches
@@ -411,7 +410,7 @@ def main(argv=None):
         Job status: Integer, 0 if success. None-zero if fails.
         Stack trace: String of errors.
     """
-    args = _ParseArgs(argv)
+    args, unknown_args = _ParseArgs(argv)
     _SetupLogging(args.log_file, args.verbose)
     _VerifyArgs(args)
     _LOGGER.info("Acloud version: %s", config.GetVersion())
@@ -425,7 +424,13 @@ def main(argv=None):
     reporter = None
     if parsing_config_error:
         reporter = report.Report(command=args.which)
-        reporter.UpdateFailure(parsing_config_error, _ACLOUD_CONFIG_ERROR)
+        reporter.UpdateFailure(parsing_config_error,
+                               constants.ACLOUD_CONFIG_ERROR)
+    elif unknown_args:
+        reporter = report.Report(command=args.which)
+        reporter.UpdateFailure(
+            "unrecognized arguments: %s" % ",".join(unknown_args),
+            constants.ACLOUD_UNKNOWN_ARGS_ERROR)
     elif args.which == create_args.CMD_CREATE:
         reporter = create.Run(args)
     elif args.which == CMD_CREATE_CUTTLEFISH:
