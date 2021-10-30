@@ -64,7 +64,7 @@ def Run(args):
         task_queue.append(host_avd_runner)
         task_queue.append(host_cf_common_runner)
         task_queue.append(host_env_runner)
-    if args.autoconnect == constants.INS_KEY_WEBRTC:
+    if args.host_mkcert:
         task_queue.append(host_mkcert_runner)
 
     # We should do these setup tasks if specified or if no args were used.
