@@ -42,6 +42,7 @@ TYPE_CF = "cuttlefish"
 TYPE_GCE = "gce"
 TYPE_GF = "goldfish"
 TYPE_FVP = "fvp"
+TYPE_OPENWRT = "openwrt"
 
 # Image types
 IMAGE_SRC_REMOTE = "remote_image"
@@ -54,6 +55,8 @@ AVD_TYPES_MAPPING = {
     TYPE_GF: "sdk",
     # Cheeps uses the cheets target.
     TYPE_CHEEPS: "cheets",
+    # OpenWrt use the cf target.
+    TYPE_OPENWRT: "cf",
 }
 
 # Instance types
@@ -221,6 +224,8 @@ STAGE_BOOT_UP = 4
 # Acloud error types
 # Also update InfraErrorIdentifier.java in TradeFed for the errors to be
 # properly reported.
+ACLOUD_CONFIG_ERROR = "ACLOUD_CONFIG_ERROR"
+ACLOUD_UNKNOWN_ARGS_ERROR = "ACLOUD_UNKNOWN_ARGS_ERROR"
 ACLOUD_BOOT_UP_ERROR = "ACLOUD_BOOT_UP_ERROR"
 ACLOUD_CREATE_GCE_ERROR = "ACLOUD_CREATE_GCE_ERROR"
 ACLOUD_DOWNLOAD_ARTIFACT_ERROR = "ACLOUD_DOWNLOAD_ARTIFACT_ERROR"

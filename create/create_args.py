@@ -401,7 +401,7 @@ def GetCreateArgParser(subparser):
         dest="avd_type",
         default=constants.TYPE_CF,
         choices=[constants.TYPE_GCE, constants.TYPE_CF, constants.TYPE_GF, constants.TYPE_CHEEPS,
-                 constants.TYPE_FVP],
+                 constants.TYPE_FVP, constants.TYPE_OPENWRT],
         help="Android Virtual Device type (default %s)." % constants.TYPE_CF)
     create_parser.add_argument(
         "--config", "--flavor",
@@ -522,6 +522,15 @@ def GetCreateArgParser(subparser):
         choices=constants.SPEC_NAMES,
         help="The name of a pre-configured device spec that we are "
         "going to use.")
+    create_parser.add_argument(
+        "--disk-type",
+        type=str,
+        dest="disk_type",
+        required=False,
+        help="This is used to customize the GCE instance disk type, the "
+        "default disk type is from the stable host image. Use pd-ssd or "
+        "pd-standard to specify instance disk type.")
+
     # Arguments for goldfish type.
     create_parser.add_argument(
         "--emulator-build-id",
@@ -675,9 +684,20 @@ def _VerifyGoldfishArgs(args):
             "--emulator-* are only valid with avd_type == %s" %
             constants.TYPE_GF)
 
-    if args.emulator_build_target and args.remote_host is None:
+    # Exclude kernel_build_target because the default value isn't empty.
+    remote_host_only_flags = [
+        args.emulator_build_target,
+        args.system_build_target,
+        args.system_build_id,
+        args.system_branch,
+        args.kernel_build_id,
+        args.kernel_branch,
+    ]
+    if args.avd_type == constants.TYPE_GF and args.remote_host is None and any(
+            remote_host_only_flags):
         raise errors.UnsupportedCreateArgs(
-            "--emulator-build-target is only supported for remote host.")
+            "--kernel-*, --system-*, and --emulator-build-target for goldfish "
+            "are only supported for remote host")
 
 
 def VerifyArgs(args):
@@ -699,7 +719,7 @@ def VerifyArgs(args):
         logger.debug("Flavor[%s] isn't in default support list: %s",
                      args.flavor, constants.ALL_FLAVORS)
 
-    if args.avd_type != constants.TYPE_CF:
+    if args.avd_type not in (constants.TYPE_CF, constants.TYPE_GF):
         if args.system_branch or args.system_build_id or args.system_build_target:
             raise errors.UnsupportedCreateArgs(
                 "--system-* args are not supported for AVD type: %s"

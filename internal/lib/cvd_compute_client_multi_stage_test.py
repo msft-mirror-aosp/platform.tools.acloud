@@ -65,6 +65,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
     LAUNCH_ARGS = "--setupwizard_mode=REQUIRED"
     EXTRA_SCOPES = ["scope1"]
     GPU = "fake-gpu"
+    DISK_TYPE = "fake-disk-type"
     FAKE_IP = IP(external="1.1.1.1", internal="10.1.1.1")
     REMOTE_HOST_IP = "192.0.2.1"
     REMOTE_HOST_INSTANCE_NAME = "host-192.0.2.1-2263051-aosp_cf_x86_64_phone"
@@ -121,6 +122,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.args.launch_args = self.LAUNCH_ARGS
         self.args.disable_external_ip = False
         self.args.autoconnect = False
+        self.args.disk_type = self.DISK_TYPE
 
     # pylint: disable=protected-access
     @mock.patch.object(utils, "GetBuildEnvironmentVariable", return_value="fake_env_cf_x86")
@@ -178,8 +180,6 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         created_subprocess.poll = mock.MagicMock(return_value=0)
         created_subprocess.returncode = 0
         created_subprocess.communicate = mock.MagicMock(return_value=('', ''))
-        self.Patch(cvd_compute_client_multi_stage.CvdComputeClient,
-                   "_RecordBuildInfo")
         self.Patch(subprocess, "Popen", return_value=created_subprocess)
         self.Patch(subprocess, "check_call")
         self.Patch(os, "chmod")
@@ -203,6 +203,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
             zone=self.ZONE,
             extra_scopes=self.EXTRA_SCOPES,
             gpu=self.GPU,
+            disk_type=None,
             disable_external_ip=False)
 
         mock_check_img.return_value = True
@@ -237,6 +238,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
             zone=self.ZONE,
             extra_scopes=self.EXTRA_SCOPES,
             gpu=self.GPU,
+            disk_type=self.DISK_TYPE,
             disable_external_ip=False)
 
     def testFormatRemoteHostInstanceName(self):
@@ -254,43 +256,6 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         ip_addr = self.cvd_compute_client_multi_stage.ParseRemoteHostAddress(
             "host-goldfish-192.0.2.1-5554-123456-sdk_x86_64-sdk")
         self.assertIsNone(ip_addr)
-
-    def testRecordBuildInfo(self):
-        """Test RecordBuildInfo"""
-        build_id = "build_id"
-        build_target = "build_target"
-        system_build_id = "system_id"
-        system_build_target = "system_target"
-        kernel_build_id = "kernel_id"
-        kernel_build_target = "kernel_target"
-        fake_avd_spec = mock.MagicMock()
-        fake_avd_spec.image_source = constants.IMAGE_SRC_REMOTE
-        fake_avd_spec.remote_image = {constants.BUILD_ID: build_id,
-                                      constants.BUILD_TARGET: build_target}
-        fake_avd_spec.system_build_info = {constants.BUILD_ID: system_build_id,
-                                           constants.BUILD_TARGET: system_build_target}
-        fake_avd_spec.kernel_build_info = {constants.BUILD_ID: kernel_build_id,
-                                           constants.BUILD_TARGET: kernel_build_target}
-        expected_metadata = dict()
-        expected_metadata.update(self.METADATA)
-        expected_metadata.update({"build_id": build_id})
-        expected_metadata.update({"build_target": build_target})
-        expected_metadata.update({"system_build_id": system_build_id})
-        expected_metadata.update({"system_build_target": system_build_target})
-        expected_metadata.update({"kernel_build_id": kernel_build_id})
-        expected_metadata.update({"kernel_build_target": kernel_build_target})
-
-        # Test record metadata with avd_spec for acloud create
-        self.cvd_compute_client_multi_stage._RecordBuildInfo(
-            fake_avd_spec, build_id=None, build_target=None, system_build_id=None,
-            system_build_target=None, kernel_build_id=None, kernel_build_target=None)
-        self.assertEqual(self.cvd_compute_client_multi_stage._metadata, expected_metadata)
-
-        # Test record metadata with build info for acloud create_cf
-        self.cvd_compute_client_multi_stage._RecordBuildInfo(
-            None, build_id, build_target, system_build_id, system_build_target,
-            kernel_build_id, kernel_build_target)
-        self.assertEqual(self.cvd_compute_client_multi_stage._metadata, expected_metadata)
 
     def testSetStage(self):
         """Test SetStage"""

@@ -63,8 +63,10 @@ def Run(args):
         task_queue.append(host_base_runner)
         task_queue.append(host_avd_runner)
         task_queue.append(host_cf_common_runner)
-        task_queue.append(host_mkcert_runner)
         task_queue.append(host_env_runner)
+    if args.host_mkcert:
+        task_queue.append(host_mkcert_runner)
+
     # We should do these setup tasks if specified or if no args were used.
     if args.host_base or (not args.host and not args.gcp_init):
         task_queue.append(host_base_runner)

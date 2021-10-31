@@ -167,6 +167,11 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.AvdSpec._ProcessAutoconnect()
         self.assertEqual(self.AvdSpec._autoconnect, "vnc")
 
+        self.AvdSpec._avd_type = constants.TYPE_OPENWRT
+        self.AvdSpec._autoconnect = "webrtc"
+        self.AvdSpec._ProcessAutoconnect()
+        self.assertEqual(self.AvdSpec._autoconnect, "webrtc")
+
         self.AvdSpec._avd_type = constants.TYPE_GF
         self.AvdSpec._autoconnect = "webrtc"
         self.AvdSpec._ProcessAutoconnect()
