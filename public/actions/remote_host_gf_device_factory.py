@@ -44,8 +44,6 @@ _SDK_REPO_IMAGE_ZIP_NAME_FORMAT = ("sdk-repo-linux-system-images-"
 _EXTRA_IMAGE_ZIP_NAME_FORMAT = "emu-extra-linux-system-images-%(build_id)s.zip"
 _IMAGE_ZIP_NAME_FORMAT = "%(build_target)s-img-%(build_id)s.zip"
 _OTA_TOOLS_ZIP_NAME = "otatools.zip"
-# TODO(b/185094559): Add a command line option.
-_BOOT_IMAGE_NAME = "boot-5.10.img"
 _SYSTEM_IMAGE_NAME = "system.img"
 
 _EMULATOR_INFO_NAME = "emulator-info.txt"
@@ -340,10 +338,11 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         build_id = self._avd_spec.kernel_build_info.get(constants.BUILD_ID)
         build_target = self._avd_spec.kernel_build_info.get(
             constants.BUILD_TARGET)
-        if build_id and build_target:
+        image_name = self._avd_spec.kernel_build_info.get(
+            constants.BUILD_ARTIFACT)
+        if build_id and build_target and image_name:
             return self._RetrieveArtifact(
-                download_dir, build_api, build_target, build_id,
-                _BOOT_IMAGE_NAME)
+                download_dir, build_api, build_target, build_id, image_name)
         return None
 
     def _RetrieveOtaToolsZip(self, download_dir, build_api):

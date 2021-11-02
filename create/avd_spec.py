@@ -597,7 +597,8 @@ class AVDSpec():
                                    constants.BUILD_TARGET: args.system_build_target}
         self._kernel_build_info = {constants.BUILD_ID: args.kernel_build_id,
                                    constants.BUILD_BRANCH: args.kernel_branch,
-                                   constants.BUILD_TARGET: args.kernel_build_target}
+                                   constants.BUILD_TARGET: args.kernel_build_target,
+                                   constants.BUILD_ARTIFACT: args.kernel_artifact}
         self._bootloader_build_info = {
             constants.BUILD_ID: args.bootloader_build_id,
             constants.BUILD_BRANCH: args.bootloader_branch,
