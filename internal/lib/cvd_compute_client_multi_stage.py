@@ -421,11 +421,14 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         try:
             self.ExtendReportData(_LAUNCH_CVD_COMMAND, ssh_command)
             self._ssh.Run(ssh_command, boot_timeout_secs, retry=_NO_RETRY)
-        except (subprocess.CalledProcessError, errors.DeviceConnectionError) as e:
-            # TODO(b/140475060): Distinguish the error is command return error
-            # or timeout error.
+        except (subprocess.CalledProcessError, errors.DeviceConnectionError,
+                errors.LaunchCVDFail) as e:
             error_msg = ("Device %s did not finish on boot within timeout (%s secs)"
                          % (instance, boot_timeout_secs))
+            if constants.ERROR_MSG_VNC_NOT_SUPPORT in str(e):
+                error_msg = (
+                    "VNC is not supported in current build. Please try WebRTC such "
+                    "as '$acloud create' or '$acloud create --autoconnect webrtc'")
             self._all_failures[instance] = error_msg
             utils.PrintColorString(str(e), utils.TextColors.FAIL)
             if avd_spec and not avd_spec.no_pull_log:
@@ -433,7 +436,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
 
         self._execution_time[_LAUNCH_CVD] = round(time.time() - timestart, 2)
         return {instance: error_msg} if error_msg else {}
-
 
     def _GetBootTimeout(self, timeout_secs):
         """Get boot timeout.
