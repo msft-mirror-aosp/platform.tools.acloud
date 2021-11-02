@@ -41,6 +41,7 @@ def _CreateArgs():
         kernel_branch=None,
         kernel_build_id=None,
         kernel_build_target=None,
+        kernel_artifact=None,
         system_branch=None,
         system_build_id=None,
         system_build_target=None,
@@ -88,17 +89,29 @@ class CreateArgsTest(driver_test_lib.BaseDriverTest):
         mock_args.remote_host = None
         self.assertRaises(errors.UnsupportedCreateArgs,
                           create_args.VerifyArgs, mock_args)
-        # system_build_target without remote_host.
+        # Incomplete system build info.
         mock_args.emulator_build_target = None
         mock_args.system_build_target = "aosp_x86_64-userdebug"
+        mock_args.remote_host = "192.0.2.2"
+        self.assertRaises(errors.UnsupportedCreateArgs,
+                          create_args.VerifyArgs, mock_args)
+        # System build info without remote_host.
+        mock_args.system_branch = "aosp-master"
+        mock_args.system_build_target = "aosp_x86_64-userdebug"
+        mock_args.system_build_id = "123456"
         mock_args.remote_host = None
         self.assertRaises(errors.UnsupportedCreateArgs,
                           create_args.VerifyArgs, mock_args)
-        # Valid build targets.
-        mock_args.remote_host = "192.0.2.2"
+        # Valid build info.
         mock_args.emulator_build_target = "sdk_tools_linux"
+        mock_args.system_branch = "aosp-master"
         mock_args.system_build_target = "aosp_x86_64-userdebug"
+        mock_args.system_build_id = "123456"
+        mock_args.kernel_branch = "aosp-master"
         mock_args.kernel_build_target = "aosp_x86_64-userdebug"
+        mock_args.kernel_build_id = "123456"
+        mock_args.kernel_artifact = "boot-5.10.img"
+        mock_args.remote_host = "192.0.2.2"
         create_args.VerifyArgs(mock_args)
 
     def testVerifyArgs_ConnectWebRTC(self):
