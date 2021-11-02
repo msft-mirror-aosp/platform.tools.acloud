@@ -102,7 +102,8 @@ def _SshLogOutput(cmd, timeout=None, show_output=False):
 
     Raises:
         errors.DeviceConnectionError: Failed to connect to the GCE instance.
-        subprocess.CalledProc: The process exited with an error on the instance.
+        subprocess.CalledProcessError: The process exited with an error on the instance.
+        errors.LaunchCVDFail: Happened on launch_cvd with specific pattern of error message.
     """
     # Use "exec" to let cmd to inherit the shell process, instead of having the
     # shell launch a child process which does not get killed.
@@ -128,6 +129,8 @@ def _SshLogOutput(cmd, timeout=None, show_output=False):
         raise errors.DeviceConnectionError(
             "Failed to send command to instance (%s)" % cmd)
     if process.returncode != 0:
+        if constants.ERROR_MSG_VNC_NOT_SUPPORT in stdout:
+            raise errors.LaunchCVDFail(constants.ERROR_MSG_VNC_NOT_SUPPORT)
         raise subprocess.CalledProcessError(process.returncode, cmd)
 
 
@@ -147,11 +150,14 @@ def ShellCmdWithRetry(cmd, timeout=None, show_output=False,
         retry: Integer, the retry times.
 
     Raises:
-        errors.DeviceConnectionError: For any non-zero return code of
-                                      remote_cmd.
+        errors.DeviceConnectionError: For any non-zero return code of remote_cmd.
+        errors.LaunchCVDFail: Happened on launch_cvd with specific pattern of error message.
+        subprocess.CalledProcessError: The process exited with an error on the instance.
     """
     utils.RetryExceptionType(
-        exception_types=(errors.DeviceConnectionError, subprocess.CalledProcessError),
+        exception_types=(errors.DeviceConnectionError,
+                         errors.LaunchCVDFail,
+                         subprocess.CalledProcessError),
         max_retries=retry,
         functor=_SshLogOutput,
         sleep_multiplier=_SSH_CMD_RETRY_SLEEP,
