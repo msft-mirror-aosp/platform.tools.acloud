@@ -16,10 +16,11 @@
 
 """Tests for acloud.internal.lib.ssh."""
 
+import io
 import subprocess
-import unittest
 import threading
 import time
+import unittest
 
 from unittest import mock
 
@@ -223,7 +224,7 @@ class SshTest(driver_test_lib.BaseDriverTest):
                              user=self.FAKE_SSH_USER,
                              ssh_private_key_path=self.FAKE_SSH_PRIVATE_KEY_PATH,
                              report_internal_ip=self.FAKE_REPORT_INTERNAL_IP)
-        self.Patch(ssh, "_SshCall", return_value=-1)
+        self.Patch(ssh, "_SshCallWait", return_value=-1)
         self.Patch(ssh, "_SshLogOutput")
         self.assertRaises(errors.DeviceConnectionError,
                           ssh_object.WaitForSsh,
@@ -271,6 +272,21 @@ class SshTest(driver_test_lib.BaseDriverTest):
         fake_cmd = "fake command"
         ssh._SshLogOutput(fake_cmd)
         threading.Timer.assert_not_called()
+
+        # Test with all kind of exceptions.
+        self.created_subprocess.returncode = 255
+        self.assertRaises(
+            errors.DeviceConnectionError, ssh._SshLogOutput, fake_cmd)
+
+        self.created_subprocess.returncode = -1
+        self.assertRaises(
+            subprocess.CalledProcessError, ssh._SshLogOutput, fake_cmd)
+
+        with mock.patch("sys.stderr", new = io.StringIO()):
+            self.created_subprocess.communicate = mock.MagicMock(
+                return_value=(constants.ERROR_MSG_VNC_NOT_SUPPORT, ''))
+            self.assertRaises(
+                errors.LaunchCVDFail, ssh._SshLogOutput, fake_cmd)
 
     def testSshLogOutputTimeout(self):
         """Test SshCallWait with timeout."""
