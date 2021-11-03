@@ -358,7 +358,7 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(self.AvdSpec._GetFlavorFromString(img_path),
                          None)
 
-    # pylint: disable=protected-access
+    # pylint: disable=protected-access,too-many-statements
     def testProcessRemoteBuildArgs(self):
         """Test _ProcessRemoteBuildArgs."""
         self.args.branch = "git_master"
@@ -399,6 +399,9 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.args.system_branch = "system_branch"
         self.args.system_build_target = "system_build_target"
         self.args.system_build_id = "system_build_id"
+        self.args.ota_branch = "ota_branch"
+        self.args.ota_build_target = "ota_build_target"
+        self.args.ota_build_id = "ota_build_id"
         self.args.kernel_branch = "kernel_branch"
         self.args.kernel_build_target = "kernel_build_target"
         self.args.kernel_build_id = "kernel_build_id"
@@ -415,6 +418,11 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
              constants.BUILD_ID: "kernel_build_id",
              constants.BUILD_ARTIFACT: "kernel_artifact"},
             self.AvdSpec.kernel_build_info)
+        self.assertEqual(
+            {constants.BUILD_BRANCH: "ota_branch",
+             constants.BUILD_TARGET: "ota_build_target",
+             constants.BUILD_ID: "ota_build_id"},
+            self.AvdSpec.ota_build_info)
 
         # Verify auto-assigned avd_type if no match, default as cuttlefish.
         self.args.build_target = "mini_emulator_arm64-userdebug"
