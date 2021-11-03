@@ -176,6 +176,9 @@ class AndroidBuildClientTest(driver_test_lib.BaseDriverTest):
         kernel_build_id = "3456"
         kernel_build_branch = "kernel_branch"
         kernel_build_target = "kernel_target"
+        ota_build_id = "4567"
+        ota_build_branch = "ota_branch"
+        ota_build_target = "ota_target"
 
         # Test base image.
         expected_args = ["-default_build=1234/base_target"]
@@ -183,7 +186,7 @@ class AndroidBuildClientTest(driver_test_lib.BaseDriverTest):
             expected_args,
             self.client.GetFetchBuildArgs(
                 build_id, build_branch, build_target, None, None, None, None,
-                None, None, None, None, None))
+                None, None, None, None, None, None, None, None))
 
         # Test base image with system image.
         expected_args = ["-default_build=1234/base_target",
@@ -193,7 +196,7 @@ class AndroidBuildClientTest(driver_test_lib.BaseDriverTest):
             self.client.GetFetchBuildArgs(
                 build_id, build_branch, build_target, system_build_id,
                 system_build_branch, system_build_target, None, None, None,
-                None, None, None))
+                None, None, None, None, None, None))
 
         # Test base image with kernel image.
         expected_args = ["-default_build=1234/base_target",
@@ -203,7 +206,17 @@ class AndroidBuildClientTest(driver_test_lib.BaseDriverTest):
             self.client.GetFetchBuildArgs(
                 build_id, build_branch, build_target, None, None, None,
                 kernel_build_id, kernel_build_branch, kernel_build_target,
-                None, None, None))
+                None, None, None, None, None, None))
+
+        # Test base image with otatools.
+        expected_args = ["-default_build=1234/base_target",
+                         "-otatools_build=4567/ota_target"]
+        self.assertEqual(
+            expected_args,
+            self.client.GetFetchBuildArgs(
+                build_id, build_branch, build_target, None, None, None,
+                None, None, None, None, None, None, ota_build_id,
+                ota_build_branch, ota_build_target))
 
     def testGetFetchCertArg(self):
         """Test GetFetchCertArg."""
