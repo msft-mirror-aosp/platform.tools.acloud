@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Tests for create."""
+import os
 
 import unittest
 
@@ -38,6 +39,7 @@ def _CreateArgs():
         local_image=None,
         local_kernel_image=None,
         local_system_image=None,
+        local_instance_dir=None,
         kernel_branch=None,
         kernel_build_id=None,
         kernel_build_target=None,
@@ -52,7 +54,7 @@ def _CreateArgs():
         emulator_build_id=None,
         emulator_build_target=None,
         avd_type=constants.TYPE_CF,
-        autoconnect=constants.INS_KEY_VNC)
+        autoconnect=constants.INS_KEY_WEBRTC)
     return mock_args
 
 
@@ -125,6 +127,51 @@ class CreateArgsTest(driver_test_lib.BaseDriverTest):
         # Test remote instance and avd_type cuttlefish(default)
         # Test args.autoconnect webrtc shouldn't raise error.
         self.assertEqual(None, create_args.VerifyArgs(mock_args))
+
+    def testVerifyLocalArgs(self):
+        """Test _VerifyLocalArgs."""
+        mock_args = _CreateArgs()
+        # verify local image case.
+        mock_args.local_image = "/tmp/local_image_dir"
+        self.Patch(os.path, "exists", return_value=False)
+        self.assertRaises(errors.CheckPathError,
+                          create_args._VerifyLocalArgs, mock_args)
+
+        # verify local instance
+        mock_args = _CreateArgs()
+        mock_args.local_instance_dir = "/tmp/local_instance_dir"
+        self.Patch(os.path, "exists", return_value=False)
+        self.assertRaises(errors.CheckPathError,
+                          create_args._VerifyLocalArgs, mock_args)
+
+        # verify local system image
+        mock_args = _CreateArgs()
+        mock_args.local_system_image = "/tmp/local_system_image_dir"
+        mock_args.avd_type = "cheeps"
+        self.assertRaises(errors.UnsupportedCreateArgs,
+                          create_args._VerifyLocalArgs, mock_args)
+        mock_args.avd_type = "cuttlefish"
+        self.Patch(os.path, "exists", return_value=False)
+        self.assertRaises(errors.CheckPathError,
+                          create_args._VerifyLocalArgs, mock_args)
+
+        # unsupport local-image with kernel build
+        mock_args = _CreateArgs()
+        mock_args.local_instance = None
+        mock_args.local_image = "/tmp/local_image_dir"
+        self.Patch(os.path, "exists", return_value=True)
+        mock_args.kernel_branch = "common-android12-5.4"
+        self.assertRaises(errors.UnsupportedCreateArgs,
+                          create_args._VerifyLocalArgs, mock_args)
+        mock_args.kernel_branch = None
+        mock_args.kernel_build_target = "fake_kernel_build_target"
+        self.assertRaises(errors.UnsupportedCreateArgs,
+                          create_args._VerifyLocalArgs, mock_args)
+        mock_args.kernel_branch = None
+        mock_args.kernel_build_target = None
+        mock_args.kernel_build_id = "fake_kernel_1234567"
+        self.assertRaises(errors.UnsupportedCreateArgs,
+                          create_args._VerifyLocalArgs, mock_args)
 
 
 if __name__ == "__main__":
