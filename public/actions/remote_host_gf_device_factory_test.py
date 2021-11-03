@@ -235,7 +235,8 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         """Test RemoteHostGoldfishDeviceFactory with kernel build."""
         self._mock_avd_spec.kernel_build_info = {
             constants.BUILD_ID: "111111",
-            constants.BUILD_TARGET: "aosp_x86_64-userdebug"}
+            constants.BUILD_TARGET: "aosp_x86_64-userdebug",
+            constants.BUILD_ARTIFACT: "boot-5.10.img"}
         mock_gf_image.MixWithBootImage.return_value = (
             "/path/to/kernel", "/path/to/ramdisk")
 

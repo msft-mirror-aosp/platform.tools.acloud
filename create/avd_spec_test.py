@@ -395,6 +395,27 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.AvdSpec._ProcessRemoteBuildArgs(self.args)
         self.assertTrue(self.AvdSpec.avd_type == "goldfish")
 
+        # Verify extra build info.
+        self.args.system_branch = "system_branch"
+        self.args.system_build_target = "system_build_target"
+        self.args.system_build_id = "system_build_id"
+        self.args.kernel_branch = "kernel_branch"
+        self.args.kernel_build_target = "kernel_build_target"
+        self.args.kernel_build_id = "kernel_build_id"
+        self.args.kernel_artifact = "kernel_artifact"
+        self.AvdSpec._ProcessRemoteBuildArgs(self.args)
+        self.assertEqual(
+            {constants.BUILD_BRANCH: "system_branch",
+             constants.BUILD_TARGET: "system_build_target",
+             constants.BUILD_ID: "system_build_id"},
+            self.AvdSpec.system_build_info)
+        self.assertEqual(
+            {constants.BUILD_BRANCH: "kernel_branch",
+             constants.BUILD_TARGET: "kernel_build_target",
+             constants.BUILD_ID: "kernel_build_id",
+             constants.BUILD_ARTIFACT: "kernel_artifact"},
+            self.AvdSpec.kernel_build_info)
+
         # Verify auto-assigned avd_type if no match, default as cuttlefish.
         self.args.build_target = "mini_emulator_arm64-userdebug"
         self.args.avd_type = "cuttlefish"
