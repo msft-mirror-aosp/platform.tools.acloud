@@ -31,6 +31,7 @@ CMD_CREATE = "create"
 
 
 # TODO: Add this into main create args once create_cf/gf is deprecated.
+# pylint: disable=too-many-statements
 def AddCommonCreateArgs(parser):
     """Adds arguments common to create parsers.
 
@@ -197,6 +198,25 @@ def AddCommonCreateArgs(parser):
         required=False,
         help="Goldfish remote host only. The name of the boot image to be "
         "retrieved from Android build, e.g., boot-5.10.img.")
+    parser.add_argument(
+        "--ota-branch",
+        type=str,
+        dest="ota_branch",
+        required=False,
+        help="'cuttlefish only' OTA tools branch name. e.g. aosp-master")
+    parser.add_argument(
+        "--ota-build-id",
+        type=str,
+        dest="ota_build_id",
+        required=False,
+        help="'cuttlefish only' OTA tools build id, e.g. 2145099, P2804227")
+    parser.add_argument(
+        "--ota-build-target",
+        type=str,
+        dest="ota_build_target",
+        required=False,
+        help="'cuttlefish only' OTA tools build target, e.g. "
+        "cf_x86_64_phone-userdebug.")
     parser.add_argument(
         "--system-branch",
         type=str,
