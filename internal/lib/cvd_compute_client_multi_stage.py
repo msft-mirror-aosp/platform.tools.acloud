@@ -194,7 +194,9 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                        avd_spec=None, extra_scopes=None,
                        system_build_target=None, system_branch=None,
                        system_build_id=None, bootloader_build_target=None,
-                       bootloader_branch=None, bootloader_build_id=None):
+                       bootloader_branch=None, bootloader_build_id=None,
+                       ota_build_target=None, ota_branch=None,
+                       ota_build_id=None):
 
         """Create/Reuse a single configured cuttlefish device.
         1. Prepare GCE instance.
@@ -223,6 +225,10 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             bootloader_build_target: String of the bootloader target name.
             bootloader_branch: String of the bootloader branch name.
             bootloader_build_id: String of the bootloader build id.
+            ota_build_target: String of the otatools target name.
+            ota_branch: String of the otatools branch name.
+            ota_build_id: String of the otatools build id.
+
 
         Returns:
             A string, representing instance name.
@@ -261,7 +267,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             self.FetchBuild(build_id, branch, build_target, system_build_id,
                             system_branch, system_build_target, kernel_build_id,
                             kernel_branch, kernel_build_target, bootloader_build_id,
-                            bootloader_branch, bootloader_build_target)
+                            bootloader_branch, bootloader_build_target,
+                            ota_build_id, ota_branch, ota_build_target)
             self.LaunchCvd(instance,
                            blank_data_disk_size_gb=blank_data_disk_size_gb,
                            boot_timeout_secs=self._boot_timeout_secs)
@@ -561,7 +568,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
     def FetchBuild(self, build_id, branch, build_target, system_build_id,
                    system_branch, system_build_target, kernel_build_id,
                    kernel_branch, kernel_build_target, bootloader_build_id,
-                   bootloader_branch, bootloader_build_target):
+                   bootloader_branch, bootloader_build_target, ota_build_id,
+                   ota_branch, ota_build_target):
         """Execute fetch_cvd on the remote instance to get Cuttlefish runtime files.
 
         Args:
@@ -579,6 +587,9 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             bootloader_build_id: String of the bootloader build id.
             bootloader_branch: String of the bootloader branch name.
             bootloader_build_target: String of the bootloader target name.
+            ota_build_id: String of the otatools build id.
+            ota_branch: String of the otatools branch name.
+            ota_build_target: String of the otatools target name.
 
         Returns:
             List of string args for fetch_cvd.
@@ -589,7 +600,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             build_id, branch, build_target, system_build_id, system_branch,
             system_build_target, kernel_build_id, kernel_branch,
             kernel_build_target, bootloader_build_id, bootloader_branch,
-            bootloader_build_target)
+            bootloader_build_target, ota_build_id, ota_branch, ota_build_target)
         fetch_cvd_args.extend(fetch_cvd_build_args)
 
         self._ssh.Run("./fetch_cvd " + " ".join(fetch_cvd_args),

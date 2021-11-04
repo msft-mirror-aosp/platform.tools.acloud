@@ -164,7 +164,10 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             self._avd_spec.kernel_build_info.get(constants.BUILD_TARGET),
             self._avd_spec.bootloader_build_info.get(constants.BUILD_ID),
             self._avd_spec.bootloader_build_info.get(constants.BUILD_BRANCH),
-            self._avd_spec.bootloader_build_info.get(constants.BUILD_TARGET))
+            self._avd_spec.bootloader_build_info.get(constants.BUILD_TARGET),
+            self._avd_spec.ota_build_info.get(constants.BUILD_ID),
+            self._avd_spec.ota_build_info.get(constants.BUILD_BRANCH),
+            self._avd_spec.ota_build_info.get(constants.BUILD_TARGET))
         creds_cache_file = os.path.join(_HOME_FOLDER, cfg.creds_cache_file)
         fetch_cvd_cert_arg = self._compute_client.build_api.GetFetchCertArg(
             creds_cache_file)
@@ -245,7 +248,10 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             avd_spec.kernel_build_info[constants.BUILD_TARGET],
             avd_spec.bootloader_build_info[constants.BUILD_ID],
             avd_spec.bootloader_build_info[constants.BUILD_BRANCH],
-            avd_spec.bootloader_build_info[constants.BUILD_TARGET])
+            avd_spec.bootloader_build_info[constants.BUILD_TARGET],
+            avd_spec.ota_build_info[constants.BUILD_ID],
+            avd_spec.ota_build_info[constants.BUILD_BRANCH],
+            avd_spec.ota_build_info[constants.BUILD_TARGET])
 
     @utils.TimeExecute(function_description="Processing and uploading local images")
     def _UploadLocalImageArtifacts(self,
