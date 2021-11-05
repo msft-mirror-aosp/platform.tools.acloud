@@ -156,7 +156,8 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
     def GetFetchBuildArgs(self, build_id, branch, build_target, system_build_id,
                           system_branch, system_build_target, kernel_build_id,
                           kernel_branch, kernel_build_target, bootloader_build_id,
-                          bootloader_branch, bootloader_build_target):
+                          bootloader_branch, bootloader_build_target,
+                          ota_build_id, ota_branch, ota_build_target):
         """Get args from build information for fetch_cvd.
 
         Args:
@@ -174,6 +175,9 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
             bootloader_build_id: String of the bootloader build id.
             bootloader_branch: String of the bootloader branch name.
             bootloader_build_target: String of the bootloader target name.
+            ota_build_id: String of the bootloader build id.
+            ota_branch: String of the bootloader branch name.
+            ota_build_target: String of the bootloader target name.
 
         Returns:
             List of string args for fetch_cvd.
@@ -182,11 +186,11 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
 
         default_build = self.ProcessBuild(build_id, branch, build_target)
         if default_build:
-            fetch_cvd_args.append("-default_build=" + default_build)
+            fetch_cvd_args.append("-default_build=%s" % default_build)
         system_build = self.ProcessBuild(
             system_build_id, system_branch, system_build_target)
         if system_build:
-            fetch_cvd_args.append("-system_build=" + system_build)
+            fetch_cvd_args.append("-system_build=%s" % system_build)
         bootloader_build = self.ProcessBuild(bootloader_build_id,
                                              bootloader_branch,
                                              bootloader_build_target)
@@ -196,7 +200,11 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
                                            kernel_branch,
                                            kernel_build_target)
         if kernel_build:
-            fetch_cvd_args.append("-kernel_build=" + kernel_build)
+            fetch_cvd_args.append("-kernel_build=%s" % kernel_build)
+        ota_build = self.ProcessBuild(
+            ota_build_id, ota_branch, ota_build_target)
+        if ota_build:
+            fetch_cvd_args.append("-otatools_build=%s" % ota_build)
 
         return fetch_cvd_args
 
