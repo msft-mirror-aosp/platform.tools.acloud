@@ -16,6 +16,7 @@ import os
 import platform
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -69,6 +70,30 @@ lrw                    16384  1 aesni_intel"""
             CuttlefishHostSetup, "_CheckLoadedModules", return_value=False)
         self.assertTrue(self.CuttlefishHostSetup.ShouldRun())
 
+        self.Patch(platform, "system", return_value="Mac")
+        self.assertFalse(self.CuttlefishHostSetup.ShouldRun())
+
+    # pylint: disable=no-member
+    def testRun(self):
+        """Test Run."""
+        self.Patch(CuttlefishHostSetup, "_IsSupportedKvm", return_value=True)
+        self.Patch(CuttlefishHostSetup, "ShouldRun", return_value=True)
+        self.Patch(utils, "InteractWithQuestion", return_value="y")
+        self.Patch(setup_common, "CheckCmdOutput")
+        self.CuttlefishHostSetup.Run()
+        setup_common.CheckCmdOutput.assert_called()
+        setup_common.CheckCmdOutput.reset_mock()
+
+        self.Patch(utils, "InteractWithQuestion", return_value="n")
+        self.CuttlefishHostSetup.Run()
+        setup_common.CheckCmdOutput.assert_not_called()
+
+        self.Patch(CuttlefishHostSetup, "_IsSupportedKvm", return_value=False)
+        self.Patch(utils, "InteractWithQuestion")
+        self.CuttlefishHostSetup.Run()
+        utils.InteractWithQuestion.assert_not_called()
+
+
     # pylint: disable=protected-access
     def testIsSupportedKvm(self):
         """Test _IsSupportedKvm."""
@@ -114,10 +139,32 @@ class AvdPkgInstallerTest(driver_test_lib.BaseDriverTest):
         super().setUp()
         self.AvdPkgInstaller = AvdPkgInstaller()
 
+    def testShouldRun(self):
+        """Test ShouldRun."""
+        self.Patch(platform, "system", return_value="Linux")
+        self.assertFalse(self.AvdPkgInstaller.ShouldRun())
+
     def testShouldNotRun(self):
-        """Test ShoudRun should raise error in non-linux os."""
+        """Test ShouldRun should raise error in non-linux os."""
         self.Patch(platform, "system", return_value="Mac")
         self.assertFalse(self.AvdPkgInstaller.ShouldRun())
+
+    # pylint: disable=no-member
+    def testRun(self):
+        """Test Run."""
+        self.Patch(platform, "system", return_value="Linux")
+        self.AvdPkgInstaller.PACKAGES = ["pkg1", "pkg2"]
+        self.Patch(setup_common, "PackageInstalled", return_value=False)
+        self.Patch(utils, "GetUserAnswerYes", return_value=True)
+        self.Patch(setup_common, "CheckCmdOutput")
+        self.Patch(setup_common, "InstallPackage")
+        self.AvdPkgInstaller.Run()
+        setup_common.InstallPackage.assert_called()
+
+        self.Patch(utils, "GetUserAnswerYes", return_value=False)
+        self.Patch(sys, "exit")
+        self.AvdPkgInstaller.Run()
+        sys.exit.assert_called_once()
 
 
 class CuttlefishCommonPkgInstallerTest(driver_test_lib.BaseDriverTest):
@@ -130,22 +177,35 @@ class CuttlefishCommonPkgInstallerTest(driver_test_lib.BaseDriverTest):
         self.CuttlefishCommonPkgInstaller = CuttlefishCommonPkgInstaller()
 
     def testShouldRun(self):
-        """Test ShoudRun."""
+        """Test ShouldRun."""
         self.Patch(platform, "system", return_value="Linux")
         self.Patch(setup_common, "PackageInstalled", return_value=False)
         self.assertTrue(self.CuttlefishCommonPkgInstaller.ShouldRun())
 
+        self.Patch(setup_common, "PackageInstalled", return_value=True)
+        self.assertFalse(self.CuttlefishCommonPkgInstaller.ShouldRun())
+
+        self.Patch(platform, "system", return_value="Mac")
+        self.assertFalse(self.CuttlefishCommonPkgInstaller.ShouldRun())
+
+    # pylint: disable=no-member
     @mock.patch.object(shutil, "rmtree")
     @mock.patch.object(setup_common, "CheckCmdOutput")
     def testRun(self, mock_cmd, mock_rmtree):
         """Test Run."""
         fake_tmp_folder = "/tmp/cf-common"
         self.Patch(tempfile, "mkdtemp", return_value=fake_tmp_folder)
-        self.Patch(utils, "GetUserAnswerYes", return_value="y")
+        self.Patch(utils, "GetUserAnswerYes", return_value=True)
         self.Patch(CuttlefishCommonPkgInstaller, "ShouldRun", return_value=True)
         self.CuttlefishCommonPkgInstaller.Run()
         self.assertEqual(mock_cmd.call_count, 1)
         mock_rmtree.assert_called_once_with(fake_tmp_folder)
+
+        self.Patch(utils, "GetUserAnswerYes", return_value=False)
+        self.Patch(sys, "exit")
+        self.CuttlefishCommonPkgInstaller.Run()
+        sys.exit.assert_called_once()
+
 
 class MkcertPkgInstallerTest(driver_test_lib.BaseDriverTest):
     """Test MkcertPkgInstallerTest."""
@@ -162,16 +222,34 @@ class MkcertPkgInstallerTest(driver_test_lib.BaseDriverTest):
         self.Patch(os.path, "exists", return_value=False)
         self.assertTrue(self.MkcertPkgInstaller.ShouldRun())
 
+        self.Patch(os.path, "exists", return_value=True)
+        self.assertFalse(self.MkcertPkgInstaller.ShouldRun())
+
+        self.Patch(platform, "system", return_value="Mac")
+        self.Patch(os.path, "exists", return_value=False)
+        self.assertFalse(self.MkcertPkgInstaller.ShouldRun())
+
+    # pylint: disable=no-member
     @mock.patch.object(setup_common, "CheckCmdOutput")
     def testRun(self, mock_cmd):
         """Test Run."""
-        self.Patch(utils, "GetUserAnswerYes", return_value="y")
+        self.Patch(utils, "GetUserAnswerYes", return_value=True)
         self.Patch(MkcertPkgInstaller, "ShouldRun", return_value=True)
+        self.Patch(os.path, "isdir", return_value=True)
         self.Patch(os, "mkdir")
         self.Patch(utils, "SetExecutable")
         self.Patch(utils, "CheckOutput")
         self.MkcertPkgInstaller.Run()
-        self.assertEqual(mock_cmd.call_count, 1)
+        mock_cmd.assert_called_once()
+
+        self.Patch(os.path, "isdir", return_value=False)
+        self.MkcertPkgInstaller.Run()
+        os.mkdir.assert_called_once()
+
+        self.Patch(utils, "GetUserAnswerYes", return_value=False)
+        self.Patch(sys, "exit")
+        self.MkcertPkgInstaller.Run()
+        sys.exit.assert_called_once()
 
 
 if __name__ == "__main__":
