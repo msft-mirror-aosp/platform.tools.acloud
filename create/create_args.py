@@ -656,6 +656,15 @@ def _VerifyLocalArgs(args):
         raise errors.UnsupportedCreateArgs("%s instance does not support "
                                            "--local-system-image" %
                                            args.avd_type)
+    # TODO(b/179340595): To support local image remote instance with kernel build.
+    if args.local_instance is None and args.local_image is not None and (
+            args.kernel_branch or args.kernel_build_id or args.kernel_build_target):
+        raise errors.UnsupportedCreateArgs(
+            "Acloud didn't support local image with specific kernel. "
+            "Please download the specific kernel and put it into "
+            "your local image folder: '%s'." % (
+            args.local_image if args.local_image else
+            utils.GetBuildEnvironmentVariable(constants.ENV_ANDROID_PRODUCT_OUT)))
 
     if (args.local_system_image and
             not os.path.exists(args.local_system_image)):
