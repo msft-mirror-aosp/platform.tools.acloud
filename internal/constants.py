@@ -32,6 +32,7 @@ LOGCAT_SERIAL_PORT = 2
 BUILD_TARGET = "build_target"
 BUILD_BRANCH = "branch"
 BUILD_ID = "build_id"
+BUILD_ARTIFACT = "artifact"
 
 # Special value of local image parameters
 FIND_IN_BUILD_ENV = ""
@@ -235,6 +236,9 @@ ACLOUD_SSH_CONNECT_ERROR = "ACLOUD_SSH_CONNECT_ERROR"
 GCE_QUOTA_ERROR = "GCE_QUOTA_ERROR"
 ACLOUD_OXYGEN_LEASE_ERROR = "ACLOUD_OXYGEN_LEASE_ERROR"
 ACLOUD_OXYGEN_RELEASE_ERROR = "ACLOUD_OXYGEN_RELEASE_ERROR"
+
+# Key words of error messages.
+ERROR_MSG_VNC_NOT_SUPPORT = "unknown command line flag 'start_vnc_server'"
 
 # The name of download image tool.
 FETCH_CVD = "fetch_cvd"
