@@ -225,7 +225,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         self.PrepareLocalCvdToolsLink(cvd_home_dir, artifact_paths.host_bins)
         launch_cvd_path = os.path.join(artifact_paths.host_bins, "bin",
                                        constants.CMD_LAUNCH_CVD)
-        if avd_spec.connect_webrtc:
+        if avd_spec.mkcert and avd_spec.connect_webrtc:
             self._TrustCertificatesForWebRTC(artifact_paths.host_artifacts)
 
         hw_property = None
