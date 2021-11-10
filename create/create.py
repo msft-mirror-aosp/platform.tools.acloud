@@ -201,7 +201,7 @@ def _CheckForSetup(args):
             args.host = True
             logger.debug("Auto-detect to install host packages.")
 
-    if args.autoconnect == constants.INS_KEY_WEBRTC:
+    if args.mkcert and args.autoconnect == constants.INS_KEY_WEBRTC:
         mkcert_pkg_setup = host_setup_runner.MkcertPkgInstaller()
         if mkcert_pkg_setup.ShouldRun():
             args.host_mkcert = True
