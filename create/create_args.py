@@ -75,6 +75,13 @@ def AddCommonCreateArgs(parser):
         required=False,
         help="Will not automatically create ssh tunnels forwarding adb & vnc "
              "when instance created.")
+    parser.add_argument(
+        "--mkcert",
+        action="store_true",
+        dest="mkcert",
+        required=False,
+        help="Install mkcert package on the host. It helps to create the "
+             "certification files for the WEB browser.")
     parser.set_defaults(autoconnect=constants.INS_KEY_WEBRTC)
     parser.add_argument(
         "--unlock",
