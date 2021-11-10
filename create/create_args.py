@@ -658,7 +658,7 @@ def _VerifyLocalArgs(args):
                                            args.avd_type)
     # TODO(b/179340595): To support local image remote instance with kernel build.
     if args.local_instance is None and args.local_image is not None and (
-            args.kernel_branch or args.kernel_build_id or args.kernel_build_target):
+            args.kernel_branch or args.kernel_build_id):
         raise errors.UnsupportedCreateArgs(
             "Acloud didn't support local image with specific kernel. "
             "Please download the specific kernel and put it into "
