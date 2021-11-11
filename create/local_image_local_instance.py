@@ -116,8 +116,8 @@ _CONFIRM_RELAUNCH = ("\nCuttlefish AVD[id:%d] is already running. \n"
 # are optional. They are set when the AVD spec requires to mix images.
 ArtifactPaths = collections.namedtuple(
     "ArtifactPaths",
-    ["image_dir", "host_bins", "misc_info", "ota_tools_dir", "system_image",
-     "boot_image"])
+    ["image_dir", "host_bins", "host_artifacts", "misc_info", "ota_tools_dir",
+     "system_image", "boot_image"])
 
 
 class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
@@ -225,8 +225,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         self.PrepareLocalCvdToolsLink(cvd_home_dir, artifact_paths.host_bins)
         launch_cvd_path = os.path.join(artifact_paths.host_bins, "bin",
                                        constants.CMD_LAUNCH_CVD)
-        if avd_spec.connect_webrtc:
-            self._TrustCertificatesForWebRTC(artifact_paths.host_bins)
+        if avd_spec.mkcert and avd_spec.connect_webrtc:
+            self._TrustCertificatesForWebRTC(artifact_paths.host_artifacts)
 
         hw_property = None
         if avd_spec.hw_customize:
@@ -249,6 +249,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         instance_name = instance.GetLocalInstanceName(local_instance_id)
         try:
             self._LaunchCvd(cmd, local_instance_id, artifact_paths.host_bins,
+                            artifact_paths.host_artifacts,
                             cvd_home_dir, (avd_spec.boot_timeout_secs or
                                            constants.DEFAULT_CF_BOOT_TIMEOUT))
         except errors.LaunchCVDFail as launch_error:
@@ -305,6 +306,17 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
 
         raise errors.GetCvdLocalHostPackageError(
             "CVD host binaries are not found. Please run `make hosttar`, or "
+            "set --local-tool to an extracted CVD host package.")
+
+    @staticmethod
+    def _FindCvdHostArtifactsPath(search_paths):
+        """Return the directory that contains CVD host artifacts (in particular webrtc)."""
+        for search_path in search_paths:
+            if os.path.isfile(os.path.join(search_path, "usr/share/webrtc/certs", "server.crt")):
+                return search_path
+
+        raise errors.GetCvdLocalHostPackageError(
+            "CVD host webrtc artifacts are not found. Please run `make hosttar`, or "
             "set --local-tool to an extracted CVD host package.")
 
     @staticmethod
@@ -380,6 +392,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                          constants.ENV_ANDROID_SOONG_HOST_OUT,
                          constants.ENV_ANDROID_HOST_OUT))
         host_bins_path = self._FindCvdHostBinaries(tool_dirs)
+        host_artifacts_path = self._FindCvdHostArtifactsPath(tool_dirs)
 
         if avd_spec.local_system_image:
             misc_info_path = self._FindMiscInfo(image_dir)
@@ -400,6 +413,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             boot_image_path = None
 
         return ArtifactPaths(image_dir, host_bins_path,
+                             host_artifacts=host_artifacts_path,
                              misc_info=misc_info_path,
                              ota_tools_dir=ota_tools_dir,
                              system_image=system_image_path,
@@ -592,8 +606,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         proc.terminate()
 
     @utils.TimeExecute(function_description="Waiting for AVD(s) to boot up")
-    def _LaunchCvd(self, cmd, local_instance_id, host_bins_path, cvd_home_dir,
-                   timeout):
+    def _LaunchCvd(self, cmd, local_instance_id, host_bins_path, host_artifacts_path,
+                   cvd_home_dir, timeout):
         """Execute Launch CVD.
 
         Kick off the launch_cvd command and log the output.
@@ -601,7 +615,9 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         Args:
             cmd: String, launch_cvd command.
             local_instance_id: Integer of instance id.
-            host_bins_path: String of host package directory.
+            host_bins_path: String of host package directory containing binaries.
+            host_artifacts_path: String of host package directory containing
+              other artifacts.
             cvd_home_dir: String, the home directory for the instance.
             timeout: Integer, the number of seconds to wait for the AVD to boot up.
 
@@ -609,8 +625,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             errors.LaunchCVDFail if launch_cvd times out or returns non-zero.
         """
         cvd_env = os.environ.copy()
+        cvd_env[constants.ENV_ANDROID_SOONG_HOST_OUT] = host_artifacts_path
         # launch_cvd assumes host bins are in $ANDROID_HOST_OUT.
-        cvd_env[constants.ENV_ANDROID_SOONG_HOST_OUT] = host_bins_path
         cvd_env[constants.ENV_ANDROID_HOST_OUT] = host_bins_path
         cvd_env[constants.ENV_CVD_HOME] = cvd_home_dir
         cvd_env[constants.ENV_CUTTLEFISH_INSTANCE] = str(local_instance_id)

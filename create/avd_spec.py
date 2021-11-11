@@ -89,7 +89,7 @@ def EscapeAnsi(line):
     return _RE_ANSI_ESCAPE.sub('', line)
 
 
-# pylint: disable=too-many-public-methods,too-many-lines
+# pylint: disable=too-many-public-methods,too-many-lines,too-many-statements
 class AVDSpec():
     """Class to store data on the type of AVD to create."""
 
@@ -138,6 +138,7 @@ class AVDSpec():
         self._host_ssh_private_key_path = None
         self._gpu = None
         self._disk_type = None
+        self._mkcert = None
         # Create config instance for android_build_client to query build api.
         self._cfg = config.GetAcloudConfig(args)
         # Reporting args.
@@ -342,6 +343,7 @@ class AVDSpec():
         self._gpu = args.gpu
         self._disk_type = (args.disk_type or self._cfg.disk_type)
         self._gce_metadata = create_common.ParseKeyValuePairArgs(args.gce_metadata)
+        self._mkcert = args.mkcert
 
         self._stable_cheeps_host_image_name = args.stable_cheeps_host_image_name
         self._stable_cheeps_host_image_project = args.stable_cheeps_host_image_project
@@ -1000,3 +1002,8 @@ class AVDSpec():
     def extra_files(self):
         """Return extra_files."""
         return self._extra_files
+
+    @property
+    def mkcert(self):
+        """Return mkcert."""
+        return self._mkcert

@@ -75,6 +75,13 @@ def AddCommonCreateArgs(parser):
         required=False,
         help="Will not automatically create ssh tunnels forwarding adb & vnc "
              "when instance created.")
+    parser.add_argument(
+        "--mkcert",
+        action="store_true",
+        dest="mkcert",
+        required=False,
+        help="Install mkcert package on the host. It helps to create the "
+             "certification files for the WEB browser.")
     parser.set_defaults(autoconnect=constants.INS_KEY_WEBRTC)
     parser.add_argument(
         "--unlock",
@@ -658,7 +665,7 @@ def _VerifyLocalArgs(args):
                                            args.avd_type)
     # TODO(b/179340595): To support local image remote instance with kernel build.
     if args.local_instance is None and args.local_image is not None and (
-            args.kernel_branch or args.kernel_build_id or args.kernel_build_target):
+            args.kernel_branch or args.kernel_build_id):
         raise errors.UnsupportedCreateArgs(
             "Acloud didn't support local image with specific kernel. "
             "Please download the specific kernel and put it into "
