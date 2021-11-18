@@ -239,6 +239,7 @@ ACLOUD_OXYGEN_RELEASE_ERROR = "ACLOUD_OXYGEN_RELEASE_ERROR"
 
 # Key words of error messages.
 ERROR_MSG_VNC_NOT_SUPPORT = "unknown command line flag 'start_vnc_server'"
+ERROR_MSG_WEBRTC_NOT_SUPPORT = "unknown command line flag 'start_webrtc'"
 
 # The name of download image tool.
 FETCH_CVD = "fetch_cvd"
