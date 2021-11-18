@@ -282,9 +282,15 @@ class SshTest(driver_test_lib.BaseDriverTest):
         self.assertRaises(
             subprocess.CalledProcessError, ssh._SshLogOutput, fake_cmd)
 
-        with mock.patch("sys.stderr", new = io.StringIO()):
+        with mock.patch("sys.stderr", new=io.StringIO()):
             self.created_subprocess.communicate = mock.MagicMock(
                 return_value=(constants.ERROR_MSG_VNC_NOT_SUPPORT, ''))
+            self.assertRaises(
+                errors.LaunchCVDFail, ssh._SshLogOutput, fake_cmd)
+
+        with mock.patch("sys.stderr", new=io.StringIO()):
+            self.created_subprocess.communicate = mock.MagicMock(
+                return_value=(constants.ERROR_MSG_WEBRTC_NOT_SUPPORT, ''))
             self.assertRaises(
                 errors.LaunchCVDFail, ssh._SshLogOutput, fake_cmd)
 
