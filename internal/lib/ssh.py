@@ -131,6 +131,8 @@ def _SshLogOutput(cmd, timeout=None, show_output=False):
     if process.returncode != 0:
         if constants.ERROR_MSG_VNC_NOT_SUPPORT in stdout:
             raise errors.LaunchCVDFail(constants.ERROR_MSG_VNC_NOT_SUPPORT)
+        if constants.ERROR_MSG_WEBRTC_NOT_SUPPORT in stdout:
+            raise errors.LaunchCVDFail(constants.ERROR_MSG_WEBRTC_NOT_SUPPORT)
         raise subprocess.CalledProcessError(process.returncode, cmd)
 
 
