@@ -576,11 +576,13 @@ class AVDSpec():
             self._flavor = args.flavor or self._GetFlavorFromString(
                 self._remote_image[constants.BUILD_TARGET]) or constants.FLAVOR_PHONE
             # infer avd_type from build_target.
-            for avd_type, avd_type_abbr in constants.AVD_TYPES_MAPPING.items():
-                if re.match(r"(.*_)?%s_" % avd_type_abbr,
-                            self._remote_image[constants.BUILD_TARGET]):
-                    self._avd_type = avd_type
-                    break
+            # OpenWrt uses cf target. So the infer logic is not suitable for it.
+            if self._avd_type != constants.TYPE_OPENWRT:
+                for avd_type, avd_type_abbr in constants.AVD_TYPES_MAPPING.items():
+                    if re.match(r"(.*_)?%s_" % avd_type_abbr,
+                                self._remote_image[constants.BUILD_TARGET]):
+                        self._avd_type = avd_type
+                        break
 
         self._remote_image[constants.BUILD_ID] = args.build_id
         if not self._remote_image[constants.BUILD_ID]:
