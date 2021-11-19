@@ -67,8 +67,6 @@ PORT_MAPPING = "-L %(local_port)d:127.0.0.1:%(target_port)d "
 _RELEASE_PORT_CMD = "kill $(lsof -t -i :%d)"
 _WEBRTC_TARGET_PORT = 8443
 PortMapping = collections.namedtuple("PortMapping", ["local", "target"])
-WEBRTC_PORTS_MAPPING = [PortMapping(15550, 15550),
-                        PortMapping(15551, 15551)]
 # Use mkcert to generate a localhost certificates for webrtc
 _MKCERT_LOCAL_CERT_CMD = ("%(local_ca_dir)s/mkcert "
                           "-key-file %(local_ca_dir)s/server.key "
@@ -877,11 +875,10 @@ def EstablishWebRTCSshTunnel(ip_addr, webrtc_local_port, rsa_key_file, ssh_user,
         ssh_user: String of user login into the instance.
         extra_args_ssh_tunnel: String, extra args for ssh tunnel connection.
     """
-    port_mapping = (WEBRTC_PORTS_MAPPING +
-                    [PortMapping(webrtc_local_port, _WEBRTC_TARGET_PORT)])
     try:
         EstablishSshTunnel(ip_addr, rsa_key_file, ssh_user,
-                           port_mapping, extra_args_ssh_tunnel)
+                           [PortMapping(webrtc_local_port, _WEBRTC_TARGET_PORT)],
+                           extra_args_ssh_tunnel)
     except subprocess.CalledProcessError as e:
         PrintColorString("\n%s\nFailed to create ssh tunnels, retry with '#acloud "
                          "reconnect'." % e, TextColors.FAIL)

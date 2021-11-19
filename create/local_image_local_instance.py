@@ -256,6 +256,10 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             err_msg = ("Cannot create cuttlefish instance: %s\n"
                        "For more detail: %s/launcher.log" %
                        (launch_error, runtime_dir))
+            if constants.ERROR_MSG_WEBRTC_NOT_SUPPORT in str(launch_error):
+                err_msg = (
+                    "WEBRTC is not supported in current build. Please try VNC such "
+                    "as '$acloud create --autoconnect vnc'")
             result_report.SetStatus(report.Status.BOOT_FAIL)
             result_report.SetErrorType(constants.ACLOUD_BOOT_UP_ERROR)
             result_report.AddDeviceBootFailure(
@@ -554,6 +558,10 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         """
         webrtc_certs_dir = os.path.join(host_bins_path,
                                         constants.WEBRTC_CERTS_PATH)
+        if not os.path.isdir(webrtc_certs_dir):
+            logger.debug("WebRTC frontend certificate path doesn't exist: %s",
+                         webrtc_certs_dir)
+            return
         mkcert_install_dir = os.path.join(os.path.expanduser("~"),
                                     constants.MKCERT_INSTALL_DIR)
         if os.path.exists(os.path.join(mkcert_install_dir, "mkcert")):
