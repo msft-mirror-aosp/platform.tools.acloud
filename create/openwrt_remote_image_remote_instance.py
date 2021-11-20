@@ -22,6 +22,8 @@ from acloud.internal import constants
 from acloud.internal.lib import utils
 from acloud.public.actions import common_operations
 from acloud.public.actions import remote_instance_cf_device_factory
+from acloud.public.actions import remote_instance_openwrt_device_factory
+from acloud.public import report
 
 
 class OpenWrtRemoteImageRemoteInstance(base_avd_create.BaseAVDCreate):
@@ -44,10 +46,10 @@ class OpenWrtRemoteImageRemoteInstance(base_avd_create.BaseAVDCreate):
             A Report instance.
         """
         # Launch CF AVD
-        device_factory = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
+        cf_device_factory = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
             avd_spec)
         create_report = common_operations.CreateDevices(
-            "create_openwrt", avd_spec.cfg, device_factory, avd_spec.num,
+            "create_openwrt", avd_spec.cfg, cf_device_factory, avd_spec.num,
             report_internal_ip=avd_spec.report_internal_ip,
             autoconnect=avd_spec.autoconnect,
             avd_type=constants.TYPE_CF,
@@ -58,17 +60,16 @@ class OpenWrtRemoteImageRemoteInstance(base_avd_create.BaseAVDCreate):
             client_adb_port=avd_spec.client_adb_port)
 
         # Launch openwrt AVD
-        self._CreateOpenWrtDevice()
+        if create_report.status == report.Status.SUCCESS:
+            instance_name = create_report.data.get("devices")[0].get("instance_name")
+            openwrt_factory = remote_instance_openwrt_device_factory.OpenWrtDeviceFactory(
+                avd_spec, instance_name)
+            openwrt_factory.CreateDevice()
 
-        # Launch vnc client if we're auto-connecting.
-        if avd_spec.connect_vnc:
-            utils.LaunchVNCFromReport(create_report, avd_spec, no_prompts)
-        if avd_spec.connect_webrtc:
-            utils.LaunchBrowserFromReport(create_report)
+            # Launch vnc client or browser if we're auto-connecting.
+            if avd_spec.connect_vnc:
+                utils.LaunchVNCFromReport(create_report, avd_spec, no_prompts)
+            if avd_spec.connect_webrtc:
+                utils.LaunchBrowserFromReport(create_report)
 
         return create_report
-
-    @staticmethod
-    def _CreateOpenWrtDevice():
-        """Create the OpenWrt device."""
-        print("We will implement the feature to create OpenWrt device.")
