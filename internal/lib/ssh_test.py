@@ -282,9 +282,15 @@ class SshTest(driver_test_lib.BaseDriverTest):
         self.assertRaises(
             subprocess.CalledProcessError, ssh._SshLogOutput, fake_cmd)
 
-        with mock.patch("sys.stderr", new = io.StringIO()):
+        with mock.patch("sys.stderr", new=io.StringIO()):
             self.created_subprocess.communicate = mock.MagicMock(
                 return_value=(constants.ERROR_MSG_VNC_NOT_SUPPORT, ''))
+            self.assertRaises(
+                errors.LaunchCVDFail, ssh._SshLogOutput, fake_cmd)
+
+        with mock.patch("sys.stderr", new=io.StringIO()):
+            self.created_subprocess.communicate = mock.MagicMock(
+                return_value=(constants.ERROR_MSG_WEBRTC_NOT_SUPPORT, ''))
             self.assertRaises(
                 errors.LaunchCVDFail, ssh._SshLogOutput, fake_cmd)
 
@@ -296,6 +302,63 @@ class SshTest(driver_test_lib.BaseDriverTest):
         fake_timeout = 30
         ssh._SshLogOutput(fake_cmd, fake_timeout)
         threading.Timer.assert_called_once()
+
+    def testGetErrorMessage(self):
+        """Test _GetErrorMessage."""
+        # should return response
+        fake_output = """
+fetch_cvd E 10-25 09:45:44  1337  1337 build_api.cc:184] URL endpoint did not have json path: {
+fetch_cvd E 10-25 09:45:44  1337  1337 build_api.cc:184] 	"error" : "Failed to parse json.",
+fetch_cvd E 10-25 09:45:44  1337  1337 build_api.cc:184] 	"response" : "fake_error_response"
+fetch_cvd E 10-25 09:45:44  1337  1337 build_api.cc:184] }
+fetch_cvd E 10-25 09:45:44  1337  1337 fetch_cvd.cc:102] Unable to download."""
+        self.assertEqual(ssh._GetErrorMessage(fake_output), "fake_error_response")
+
+        # should return message only
+        fake_output = """
+fetch_cvd F 11-15 07:34:13  2169  2169 build_api.cc:164] Error fetching the artifacts
+fetch_cvd F 11-15 07:34:13  2169  2169 build_api.cc:164] 	"error" :
+fetch_cvd F 11-15 07:34:13  2169  2169 build_api.cc:164] 	{
+fetch_cvd F 11-15 07:34:13  2169  2169 build_api.cc:164] 		"code" : 500,
+fetch_cvd F 11-15 07:34:13  2169  2169 build_api.cc:164] 		"errors" :
+fetch_cvd F 11-15 07:34:13  2169  2169 build_api.cc:164] 		[
+fetch_cvd F 11-15 07:34:13  2169  2169 build_api.cc:164] 			{}
+fetch_cvd F 11-15 07:34:13  2169  2169 build_api.cc:164] 		],
+fetch_cvd F 11-15 07:34:13  2169  2169 build_api.cc:164] 		"message" : "Unknown Error.",
+fetch_cvd F 11-15 07:34:13  2169  2169 build_api.cc:164] 		"status" : "UNKNOWN"
+fetch_cvd F 11-15 07:34:13  2169  2169 build_api.cc:164] 	}
+fetch_cvd F 11-15 07:34:13  2169  2169 build_api.cc:164] }", and code was 500Fail! (320s)"""
+        self.assertEqual(ssh._GetErrorMessage(fake_output), "Unknown Error.")
+
+        # should output last 10 line
+        fake_output = """
+fetch_cvd F 11-15 07:34:13  2169  2169 build_api.cc:164] Error fetching the artifacts of {
+fetch_cvd F 11-15 07:34:13  2169  2169 build_api.cc:164] 	"error" :
+fetch_cvd F 11-15 07:34:13  2169  2169 build_api.cc:164] 	{
+fetch_cvd F 11-15 07:34:13  2169  2169 build_api.cc:164] 		"code" : 500,
+fetch_cvd F 11-15 07:34:13  2169  2169 build_api.cc:164] 		"errors" :
+fetch_cvd F 11-15 07:34:13  2169  2169 build_api.cc:164] 		[
+fetch_cvd F 11-15 07:34:13  2169  2169 build_api.cc:164] 			{}
+fetch_cvd F 11-15 07:34:13  2169  2169 build_api.cc:164] 		],
+fetch_cvd F 11-15 07:34:13  2169  2169 build_api.cc:164] 		"status" : "UNKNOWN"
+fetch_cvd F 11-15 07:34:13  2169  2169 build_api.cc:164] 	}
+fetch_cvd F 11-15 07:34:13  2169  2169 build_api.cc:164] }", and code was 500Fail! (320s)"""
+        self.assertEqual(ssh._GetErrorMessage(fake_output), "\n".join(
+            fake_output.splitlines()[-10::]))
+
+    def testFilterUnusedContent(self):
+        """Test _FilterUnusedContent."""
+        # should remove html, !, title, span, a, p, b, style, ins, code, \n
+        fake_content = ("<!DOCTYPE html><html lang=en>\\n<meta charset=utf-8>"
+                        "<title>Error</title>\\n<style>*{padding:0}html}</style>"
+                        "<a href=//www.google.com/><span id=logo></span></a>"
+                        "<p><b>404.</b> <ins>That\u2019s an error.</ins><p>"
+                        "The requested URL was not found on this server <code>"
+                        "url/id</code> <ins>That\u2019s all we know.</ins>\\n")
+        expected = (" Error 404. That’s an error.The requested URL was not"
+                    " found on this server url/id That’s all we know. ")
+        self.assertEqual(ssh._FilterUnusedContent(fake_content), expected)
+
 
 if __name__ == "__main__":
     unittest.main()

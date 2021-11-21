@@ -436,6 +436,10 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                 error_msg = (
                     "VNC is not supported in current build. Please try WebRTC such "
                     "as '$acloud create' or '$acloud create --autoconnect webrtc'")
+            if constants.ERROR_MSG_WEBRTC_NOT_SUPPORT in str(e):
+                error_msg = (
+                    "WEBRTC is not supported in current build. Please try VNC such "
+                    "as '$acloud create --autoconnect vnc'")
             self._all_failures[instance] = error_msg
             utils.PrintColorString(str(e), utils.TextColors.FAIL)
             if avd_spec and not avd_spec.no_pull_log:
@@ -629,9 +633,12 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             for cert_file in constants.WEBRTC_CERTS_FILES + ["mkcert"]:
                 upload_files.append(os.path.join(mkcert_install_dir,
                                                  cert_file))
-            self._ssh.ScpPushFiles(upload_files, constants.WEBRTC_CERTS_PATH)
-            self._ssh.Run(_TRUST_REMOTE_INSTANCE_COMMAND % {
-                "webrtc_certs_path": constants.WEBRTC_CERTS_PATH})
+            try:
+                self._ssh.ScpPushFiles(upload_files, constants.WEBRTC_CERTS_PATH)
+                self._ssh.Run(_TRUST_REMOTE_INSTANCE_COMMAND % {
+                    "webrtc_certs_path": constants.WEBRTC_CERTS_PATH})
+            except subprocess.CalledProcessError:
+                logger.debug("Update WebRTC frontend certificate failed.")
 
     @utils.TimeExecute(function_description="Upload extra files to instance")
     def UploadExtraFiles(self, extra_files):
