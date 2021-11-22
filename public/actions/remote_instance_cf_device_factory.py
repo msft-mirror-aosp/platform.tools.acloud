@@ -223,7 +223,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             self._compute_client.UpdateFetchCvd()
             self._FetchBuild(self._avd_spec)
 
-        if self._avd_spec.connect_webrtc:
+        if self._avd_spec.mkcert and self._avd_spec.connect_webrtc:
             self._compute_client.UpdateCertificate()
 
         if self._avd_spec.extra_files:

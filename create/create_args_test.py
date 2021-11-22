@@ -42,7 +42,7 @@ def _CreateArgs():
         local_instance_dir=None,
         kernel_branch=None,
         kernel_build_id=None,
-        kernel_build_target=None,
+        kernel_build_target="kernel",
         kernel_artifact=None,
         system_branch=None,
         system_build_id=None,
@@ -164,11 +164,6 @@ class CreateArgsTest(driver_test_lib.BaseDriverTest):
         self.assertRaises(errors.UnsupportedCreateArgs,
                           create_args._VerifyLocalArgs, mock_args)
         mock_args.kernel_branch = None
-        mock_args.kernel_build_target = "fake_kernel_build_target"
-        self.assertRaises(errors.UnsupportedCreateArgs,
-                          create_args._VerifyLocalArgs, mock_args)
-        mock_args.kernel_branch = None
-        mock_args.kernel_build_target = None
         mock_args.kernel_build_id = "fake_kernel_1234567"
         self.assertRaises(errors.UnsupportedCreateArgs,
                           create_args._VerifyLocalArgs, mock_args)
