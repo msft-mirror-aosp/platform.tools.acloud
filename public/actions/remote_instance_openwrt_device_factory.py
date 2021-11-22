@@ -93,10 +93,13 @@ class OpenWrtDeviceFactory(gce_device_factory.GCEDeviceFactory):
 
     def CreateDevice(self):
         """Creates the OpenWrt device."""
+        # TODO(189417881): Update job status into report and move the hint
+        # messages into device summary.
         self._InstallPackages()
         self._BuildOpenWrtImage()
         self._LaunchOpenWrt()
         self._BootOpenWrt()
+        self._HintConnectMessage()
 
     @utils.TimeExecute(function_description="Install required packages")
     def _InstallPackages(self):
@@ -146,13 +149,17 @@ class OpenWrtDeviceFactory(gce_device_factory.GCEDeviceFactory):
             1. Create screen section.
             2. Reset environment to default values.
             3. Set fdt_addr_r environment value.
-            4. Show the hint of connecting OpenWrt device.
         """
         self._OpenScreenSection()
         env_fdt_addr = self._GetFdtAddrEnv()
         self._ssh.Run(_CMD_SCREEN_RESET_ENV)
         self._ssh.Run(_CMD_SCREEN_SET_FDT_AND_BOOT % env_fdt_addr)
+
+    def _HintConnectMessage(self):
+        """Display the ssh and screen commands for users."""
         utils.PrintColorString(
-            "\nPlease run the following commands to control the OpenWrt device:\n"
-            "$%(ssh_cmd)s\n$screen -r\n" %
-            {"ssh_cmd": self._ssh.GetBaseCmd(constants.SSH_BIN)})
+            "Please run the following commands to control the OpenWrt device:\n")
+        utils.PrintColorString(
+            "$ %(ssh_cmd)s\n$ screen -r\n" %
+            {"ssh_cmd": self._ssh.GetBaseCmd(constants.SSH_BIN)},
+            utils.TextColors.OKGREEN)
