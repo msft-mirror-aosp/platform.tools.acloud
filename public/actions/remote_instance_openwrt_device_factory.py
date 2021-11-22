@@ -17,6 +17,7 @@ device factory."""
 import logging
 import subprocess
 
+from acloud import errors
 from acloud.internal import constants
 from acloud.internal.lib import utils
 from acloud.internal.lib.ssh import Ssh
@@ -59,6 +60,8 @@ _LAUNCH_OPENWRT_CMD = (
     % (_OPENWRT_ROOT_PATH, _OPENWRT_KERNEL_PATH))
 _NO_RETRY = 0
 _TIMEOUT = 30
+_CONSOLE_PATH = "./cuttlefish_runtime/console"
+_CONSOLE_LOG_PATH = "./cuttlefish_runtime/console_log"
 # Screen commands to control OpenWrt device.
 _CMD_SCREEN_PRINT_ENV = r"screen -r -X stuff 'printenv^M'"
 _CMD_SCREEN_RESET_ENV = r"screen -r -X stuff 'env\ default\ -f\ -a\ -^M'"
@@ -114,12 +117,21 @@ class OpenWrtDeviceFactory(gce_device_factory.GCEDeviceFactory):
         try:
             self._ssh.Run(_LAUNCH_OPENWRT_CMD, timeout=_TIMEOUT, retry=_NO_RETRY)
         except subprocess.CalledProcessError:
-            logger.debug("Create OpenWRT screen file: cuttlefish_runtime/console")
-
+            logger.debug("Create OpenWRT screen file: %s", _CONSOLE_PATH)
 
     def _OpenScreenSection(self):
-        """Open Screen scection."""
-        self._ssh.Run("screen -d -m ./cuttlefish_runtime/console")
+        """Open Screen section from console file.
+
+        Raises:
+            errors.CheckPathError: The console file doesn't exist.
+        """
+        try:
+            self._ssh.Run("test -e %s" % _CONSOLE_PATH, retry=_NO_RETRY)
+        except subprocess.CalledProcessError as e:
+            raise errors.CheckPathError(
+                "File doesn't exist: %s. Please retry acloud create command." %
+                _CONSOLE_PATH) from e
+        self._ssh.Run("screen -d -m %s" % _CONSOLE_PATH)
 
     def _GetFdtAddrEnv(self):
         """Get fdt_addr_r value.
@@ -129,9 +141,8 @@ class OpenWrtDeviceFactory(gce_device_factory.GCEDeviceFactory):
         Returns:
             String, the environment value of "fdtcontroladdr".
         """
-        console_log = "./cuttlefish_runtime/console_log"
         self._ssh.Run(_CMD_SCREEN_PRINT_ENV)
-        output = self._ssh.GetCmdOutput("cat %s" % console_log)
+        output = self._ssh.GetCmdOutput("cat %s" % _CONSOLE_LOG_PATH)
         for line in output.splitlines():
             if line.startswith("fdtcontroladdr="):
                 logger.debug("Get environment %s", line)

@@ -13,10 +13,12 @@
 # limitations under the License.
 """Tests for remote_instance_openwrt_device_factory."""
 
+import subprocess
 import unittest
 
 from unittest import mock
 
+from acloud import errors
 from acloud.create import avd_spec
 from acloud.internal import constants
 from acloud.internal.lib import android_build_client
@@ -93,6 +95,13 @@ class RemoteInstanceOpenwrtDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         """Test LaunchOpenWrt."""
         self.openwrt_factory._LaunchOpenWrt()
         mock_ssh.assert_called_once()
+
+    def testOpenScreenSection(self):
+        """Test OpenScreenSection."""
+        self.Patch(ssh.Ssh, "Run",
+                   side_effect=subprocess.CalledProcessError(None, "Command error."))
+        with self.assertRaises(errors.CheckPathError):
+            self.openwrt_factory._OpenScreenSection()
 
     # pylint: disable=protected-access
     def testGetFdtAddrEnv(self):
