@@ -438,7 +438,9 @@ class UtilsTest(driver_test_lib.BaseDriverTest):
         ssh_user = "fake_user"
         fake_webrtc_local_port = 12345
         mock_establish_ssh_tunnel = self.Patch(utils, "EstablishSshTunnel")
-        fake_port_mapping = [utils.PortMapping(12345, 8443)]
+        fake_port_mapping = [utils.PortMapping(15550, 15550),
+                             utils.PortMapping(15551, 15551),
+                             utils.PortMapping(12345, 8443)]
 
         utils.EstablishWebRTCSshTunnel(
             ip_addr=fake_ip_addr, rsa_key_file=fake_rsa_key_file,
@@ -469,7 +471,7 @@ class UtilsTest(driver_test_lib.BaseDriverTest):
                           "/fake_ps_2 --fake arg \n"
                           "/usr/bin/ssh -i ~/.ssh/acloud_rsa "
                           "-o UserKnownHostsFile=/dev/null "
-                          "-o StrictHostKeyChecking=no "
+                          "-o StrictHostKeyChecking=no -L 15551:127.0.0.1:15551 "
                           "-L 12345:127.0.0.1:8443 -N -f -l user 1.1.1.1").encode()
         self.Patch(subprocess, "check_output", return_value=fake_ps_output)
         webrtc_ports = utils.GetWebrtcPortFromSSHTunnel("1.1.1.1")
