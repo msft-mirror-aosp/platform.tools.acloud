@@ -15,6 +15,7 @@
 from __future__ import print_function
 import logging
 
+import re
 import subprocess
 import sys
 import threading
@@ -31,6 +32,12 @@ _SSH_IDENTITY = "-l %(login_user)s %(ip_addr)s"
 _SSH_CMD_MAX_RETRY = 5
 _SSH_CMD_RETRY_SLEEP = 3
 _CONNECTION_TIMEOUT = 10
+_MAX_REPORTED_ERROR_LINES = 10
+_ERROR_MSG_RE = re.compile(r".*]\s*\"(?:message|response)\"\s:\s\"(?P<content>.*)\"")
+_ERROR_MSG_TO_QUOTE_RE = r"(\\u2019)|(\\u2018)"
+_ERROR_MSG_DEL_STYLE_RE = r"(<style.+\/style>)"
+_ERROR_MSG_DEL_TAGS_RE = (r"(<[\/]*(a|b|p|span|ins|code|title)>)|"
+                          r"(<(a|span|meta|html|!)[^>]*>)")
 
 
 def _SshCallWait(cmd, timeout=None):
@@ -127,11 +134,54 @@ def _SshLogOutput(cmd, timeout=None, show_output=False):
         timer.cancel()
     if process.returncode == 255:
         raise errors.DeviceConnectionError(
-            "Failed to send command to instance (%s)" % cmd)
+            "Failed to send command to instance (%(ssh_cmd)s)\n"
+            "Error message: %(error_message)s" % {
+                "ssh_cmd": cmd,
+                "error_message": _GetErrorMessage(stdout)}
+        )
     if process.returncode != 0:
         if constants.ERROR_MSG_VNC_NOT_SUPPORT in stdout:
             raise errors.LaunchCVDFail(constants.ERROR_MSG_VNC_NOT_SUPPORT)
+        if constants.ERROR_MSG_WEBRTC_NOT_SUPPORT in stdout:
+            raise errors.LaunchCVDFail(constants.ERROR_MSG_WEBRTC_NOT_SUPPORT)
         raise subprocess.CalledProcessError(process.returncode, cmd)
+
+
+def _GetErrorMessage(stdout):
+    """Get error message.
+
+    Fetch the content of "message" or "response" from the ssh output and filter
+    unused content then log into report. Once the two fields didn't match, to
+    log last _MAX_REPORTED_ERROR_LINES lines into report.
+
+    Args:
+        stdout: String of the ssh output.
+
+    Returns:
+        String of the formatted ssh output.
+    """
+    matches = _ERROR_MSG_RE.finditer(stdout)
+    for match in matches:
+        return _FilterUnusedContent(match.group("content"))
+    split_stdout = stdout.splitlines()[-_MAX_REPORTED_ERROR_LINES::]
+    return "\n".join(split_stdout)
+
+def _FilterUnusedContent(content):
+    """Filter unused content from html.
+
+    Remove the html tags and style from content.
+
+    Args:
+        content: String, html content.
+
+    Returns:
+        String without html style or tags.
+    """
+    content = re.sub(_ERROR_MSG_TO_QUOTE_RE, "'", content)
+    content = re.sub(_ERROR_MSG_DEL_STYLE_RE, "", content, flags=re.DOTALL)
+    content = re.sub(_ERROR_MSG_DEL_TAGS_RE, "", content)
+    content = re.sub(r"\\n", " ", content)
+    return content
 
 
 def ShellCmdWithRetry(cmd, timeout=None, show_output=False,
