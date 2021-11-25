@@ -58,6 +58,8 @@ class RemoteInstanceOpenwrtDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             self.avd_spec, self.instance)
 
     @mock.patch.object(remote_instance_openwrt_device_factory.OpenWrtDeviceFactory,
+                       "_HintConnectMessage")
+    @mock.patch.object(remote_instance_openwrt_device_factory.OpenWrtDeviceFactory,
                        "_InstallPackages")
     @mock.patch.object(remote_instance_openwrt_device_factory.OpenWrtDeviceFactory,
                        "_BuildOpenWrtImage")
@@ -65,13 +67,15 @@ class RemoteInstanceOpenwrtDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                        "_LaunchOpenWrt")
     @mock.patch.object(remote_instance_openwrt_device_factory.OpenWrtDeviceFactory,
                        "_BootOpenWrt")
-    def testCreateDevice(self, mock_boot, mock_launch, mock_build, mock_install):
+    def testCreateDevice(self, mock_boot, mock_launch, mock_build,
+                         mock_install, mock_hint):
         """Test CreateDevice."""
         self.openwrt_factory.CreateDevice()
         mock_install.assert_called_once()
         mock_build.assert_called_once()
         mock_launch.assert_called_once()
         mock_boot.assert_called_once()
+        mock_hint.assert_called_once()
 
     # pylint: disable=protected-access
     @mock.patch.object(ssh.Ssh, "Run")
