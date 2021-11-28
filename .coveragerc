@@ -23,5 +23,8 @@ exclude_lines =
     # Don't complain about missing code for debugging purpose:
     def __repr__
     raise NotImplementedError
+    logger.info(.*)
+    logger.warning(.*)
+    logger.debug(.*)
 
     if __name__ == .__main__.:
