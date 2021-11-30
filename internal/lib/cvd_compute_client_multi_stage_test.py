@@ -123,6 +123,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.args.disable_external_ip = False
         self.args.autoconnect = False
         self.args.disk_type = self.DISK_TYPE
+        self.args.openwrt = False
 
     # pylint: disable=protected-access
     @mock.patch.object(utils, "GetBuildEnvironmentVariable", return_value="fake_env_cf_x86")
@@ -133,23 +134,34 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.Patch(cvd_compute_client_multi_stage.CvdComputeClient,
                    "_GetConfigFromAndroidInfo", return_value="phone")
         fake_avd_spec = avd_spec.AVDSpec(self.args)
-        expeted_args = ["-config=phone", "-x_res=1080", "-y_res=1920", "-dpi=240",
-                        "-data_policy=always_create", "-blank_data_image_mb=10240",
-                        "-cpus=2", "-memory_mb=4096", "-num_instances=2",
-                        "--setupwizard_mode=REQUIRED",
-                        "-undefok=report_anonymous_usage_stats,config",
-                        "-report_anonymous_usage_stats=y"]
+        expected_args = ["-config=phone", "-x_res=1080", "-y_res=1920", "-dpi=240",
+                         "-data_policy=always_create", "-blank_data_image_mb=10240",
+                         "-cpus=2", "-memory_mb=4096", "-num_instances=2",
+                         "--setupwizard_mode=REQUIRED",
+                         "-undefok=report_anonymous_usage_stats,config",
+                         "-report_anonymous_usage_stats=y"]
         launch_cvd_args = self.cvd_compute_client_multi_stage._GetLaunchCvdArgs(fake_avd_spec)
-        self.assertEqual(launch_cvd_args, expeted_args)
+        self.assertEqual(launch_cvd_args, expected_args)
+
+        self.args.openwrt = True
+        fake_avd_spec = avd_spec.AVDSpec(self.args)
+        expected_args = ["-config=phone", "-x_res=1080", "-y_res=1920", "-dpi=240",
+                         "-data_policy=always_create", "-blank_data_image_mb=10240",
+                         "-cpus=2", "-memory_mb=4096", "-console=true",
+                         "-num_instances=2", "--setupwizard_mode=REQUIRED",
+                         "-undefok=report_anonymous_usage_stats,config",
+                         "-report_anonymous_usage_stats=y"]
+        launch_cvd_args = self.cvd_compute_client_multi_stage._GetLaunchCvdArgs(fake_avd_spec)
+        self.assertEqual(launch_cvd_args, expected_args)
 
         # test GetLaunchCvdArgs without avd_spec
-        expeted_args = ["-x_res=720", "-y_res=1280", "-dpi=160",
-                        "--setupwizard_mode=REQUIRED",
-                        "-undefok=report_anonymous_usage_stats,config",
-                        "-report_anonymous_usage_stats=y"]
+        expected_args = ["-x_res=720", "-y_res=1280", "-dpi=160",
+                         "--setupwizard_mode=REQUIRED",
+                         "-undefok=report_anonymous_usage_stats,config",
+                         "-report_anonymous_usage_stats=y"]
         launch_cvd_args = self.cvd_compute_client_multi_stage._GetLaunchCvdArgs(
             avd_spec=None)
-        self.assertEqual(launch_cvd_args, expeted_args)
+        self.assertEqual(launch_cvd_args, expected_args)
 
     @mock.patch.object(utils, "GetBuildEnvironmentVariable", return_value="fake_env_cf_x86")
     @mock.patch.object(glob, "glob", return_value=["fake.img"])
