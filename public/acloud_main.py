@@ -71,30 +71,17 @@ from __future__ import print_function
 import argparse
 import logging
 import os
-import platform
 import sys
 import sysconfig
 import traceback
 
-# TODO: Remove this once we switch over to embedded launcher.
-# Exit out if python version is < 2.7.13 due to b/120883119.
-if (sys.version_info.major == 2
-        and sys.version_info.minor == 7
-        and sys.version_info.micro < 13):
-    print("Acloud requires python version 2.7.13+ (currently @ %d.%d.%d)" %
-          (sys.version_info.major, sys.version_info.minor,
-           sys.version_info.micro))
-    print("Update your 2.7 python with:")
-    # pylint: disable=invalid-name
-    os_type = platform.system().lower()
-    if os_type == "linux":
-        print("  apt-get install python2.7")
-    elif os_type == "darwin":
-        print("  brew install python@2 (and then follow instructions at "
-              "https://docs.python-guide.org/starting/install/osx/)")
-        print("  - or -")
-        print("  POSIXLY_CORRECT=1 port -N install python27")
+if sys.version_info.major == 2:
+    print("Acloud only supports python3 (currently @ %d.%d.%d)."
+          " Please run Acloud with python3." % (sys.version_info.major,
+                                                sys.version_info.minor,
+                                                sys.version_info.micro))
     sys.exit(1)
+
 # This is a workaround to put '/usr/lib/python3.X' ahead of googleapiclient of
 # build system path list to fix python3 issue of http.client(b/144743252)
 # that googleapiclient existed http.py conflict with python3 build-in lib.
