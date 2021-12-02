@@ -564,6 +564,15 @@ def GetCreateArgParser(subparser):
         help="This is used to customize the GCE instance disk type, the "
         "default disk type is from the stable host image. Use pd-ssd or "
         "pd-standard to specify instance disk type.")
+    create_parser.add_argument(
+        "--stable-host-image-name",
+        type=str,
+        dest="stable_host_image_name",
+        required=False,
+        default=None,
+        help=("'cuttlefish only' The Cuttlefish host image from which instances "
+              "are launched. If specified here, the value set in Acloud config "
+              "file will be overridden."))
 
     # Arguments for goldfish type.
     create_parser.add_argument(
