@@ -59,6 +59,8 @@ _DECOMPRESS_KERNEL_ARG = "-decompress_kernel=true"
 _AGREEMENT_PROMPT_ARG = "-report_anonymous_usage_stats=y"
 _UNDEFOK_ARG = "-undefok=report_anonymous_usage_stats,config"
 _NUM_AVDS_ARG = "-num_instances=%(num_AVD)s"
+# Connect the OpenWrt device via console file.
+_ENABLE_CONSOLE_ARG = "-console=true"
 _DEFAULT_BRANCH = "aosp-master"
 _FETCHER_BUILD_TARGET = "aosp_cf_x86_64_phone-userdebug"
 _FETCHER_NAME = "fetch_cvd"
@@ -344,6 +346,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                 launch_cvd_args.append(_WEBRTC_ID % {"instance": instance})
             if avd_spec.connect_vnc:
                 launch_cvd_args.extend(_VNC_ARGS)
+            if avd_spec.openwrt:
+                launch_cvd_args.append(_ENABLE_CONSOLE_ARG)
             if avd_spec.num_avds_per_instance > 1:
                 launch_cvd_args.append(
                     _NUM_AVDS_ARG % {"num_AVD": avd_spec.num_avds_per_instance})
