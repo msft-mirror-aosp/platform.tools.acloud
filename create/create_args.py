@@ -519,6 +519,13 @@ def GetCreateArgParser(subparser):
         "provided. Select one gce instance to reuse if --reuse-gce is "
         "provided.")
     create_parser.add_argument(
+        "--openwrt",
+        action="store_true",
+        dest="openwrt",
+        required=False,
+        help="'cuttlefish only' Create OpenWrt device when launching cuttlefish "
+        "device.")
+    create_parser.add_argument(
         "--host",
         type=str,
         dest="remote_host",
