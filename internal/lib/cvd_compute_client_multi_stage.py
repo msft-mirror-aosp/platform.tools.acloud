@@ -438,11 +438,11 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                          % (instance, boot_timeout_secs))
             if constants.ERROR_MSG_VNC_NOT_SUPPORT in str(e):
                 error_msg = (
-                    "VNC is not supported in current build. Please try WebRTC such "
+                    "VNC is not supported in the current build. Please try WebRTC such "
                     "as '$acloud create' or '$acloud create --autoconnect webrtc'")
             if constants.ERROR_MSG_WEBRTC_NOT_SUPPORT in str(e):
                 error_msg = (
-                    "WEBRTC is not supported in current build. Please try VNC such "
+                    "WEBRTC is not supported in the current build. Please try VNC such "
                     "as '$acloud create --autoconnect vnc'")
             self._all_failures[instance] = error_msg
             utils.PrintColorString(str(e), utils.TextColors.FAIL)
