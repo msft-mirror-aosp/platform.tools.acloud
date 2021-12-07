@@ -546,6 +546,11 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(self.AvdSpec.connect_vnc, False)
         self.assertEqual(self.AvdSpec.connect_webrtc, True)
 
+        # Test stable host image name.
+        self.args.stable_host_image_name = "fake_host_image"
+        self.AvdSpec._ProcessMiscArgs(self.args)
+        self.assertEqual(self.AvdSpec.stable_host_image_name, "fake_host_image")
+
 
 if __name__ == "__main__":
     unittest.main()
