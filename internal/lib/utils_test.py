@@ -440,6 +440,7 @@ class UtilsTest(driver_test_lib.BaseDriverTest):
         mock_establish_ssh_tunnel = self.Patch(utils, "EstablishSshTunnel")
         fake_port_mapping = [utils.PortMapping(15550, 15550),
                              utils.PortMapping(15551, 15551),
+                             utils.PortMapping(15552, 15552),
                              utils.PortMapping(12345, 8443)]
 
         utils.EstablishWebRTCSshTunnel(
