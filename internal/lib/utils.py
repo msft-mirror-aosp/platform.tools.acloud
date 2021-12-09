@@ -68,7 +68,8 @@ _RELEASE_PORT_CMD = "kill $(lsof -t -i :%d)"
 _WEBRTC_TARGET_PORT = 8443
 PortMapping = collections.namedtuple("PortMapping", ["local", "target"])
 WEBRTC_PORTS_MAPPING = [PortMapping(15550, 15550),
-                        PortMapping(15551, 15551)]
+                        PortMapping(15551, 15551),
+                        PortMapping(15552, 15552)]
 # Use mkcert to generate a localhost certificates for webrtc
 _MKCERT_LOCAL_CERT_CMD = ("%(local_ca_dir)s/mkcert "
                           "-key-file %(local_ca_dir)s/server.key "
