@@ -332,6 +332,16 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         with self.assertRaises(errors.CheckPathError):
             self.cvd_compute_client_multi_stage.UploadExtraFiles(extra_files)
 
+    def testUpdateOpenWrtStatus(self):
+        """Test UpdateOpenWrtStatus."""
+        self.cvd_compute_client_multi_stage._UpdateOpenWrtStatus(avd_spec=None)
+        self.assertEqual(False, self.cvd_compute_client_multi_stage.openwrt)
+
+        fake_avd_spec = mock.MagicMock()
+        fake_avd_spec.openwrt = True
+        self.cvd_compute_client_multi_stage._UpdateOpenWrtStatus(fake_avd_spec)
+        self.assertEqual(True, self.cvd_compute_client_multi_stage.openwrt)
+
 
 if __name__ == "__main__":
     unittest.main()

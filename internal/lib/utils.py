@@ -1145,6 +1145,14 @@ def PrintDeviceSummary(report):
         PrintColorString("\n")
         PrintColorString("Note: To ensure Tradefed uses this AVD, please run:")
         PrintColorString("\texport ANDROID_SERIAL=%s" % adb_serial)
+        ssh_command = device.get("ssh_command")
+        screen_command = device.get("screen_command")
+        # Display OpenWrt device info.
+        if ssh_command and screen_command:
+            PrintColorString("\n")
+            PrintColorString("Note: To connect to the OpenWrt device, please run:")
+            PrintColorString("\tssh command: %s" % ssh_command)
+            PrintColorString("\tscreen command: %s" % screen_command)
 
     # TODO(b/117245508): Help user to delete instance if it got created.
     if report.errors:

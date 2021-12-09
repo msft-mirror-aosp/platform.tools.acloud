@@ -66,6 +66,7 @@ class CreateCuttlefishActionTest(driver_test_lib.BaseDriverTest):
             "AndroidBuildClient",
             return_value=self.build_client)
         self.compute_client = mock.MagicMock()
+        self.compute_client.openwrt = False
         self.Patch(
             cvd_compute_client,
             "CvdComputeClient",

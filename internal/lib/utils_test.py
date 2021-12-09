@@ -539,6 +539,34 @@ class UtilsTest(driver_test_lib.BaseDriverTest):
             utils.SetDirectoryTreeExecutable(temp_dir)
             self.assertEqual(os.stat(file_path).st_mode & 0o777, 0o755)
 
+    @mock.patch.object(utils, "PrintColorString")
+    def testPrintDeviceSummary(self, mock_print):
+        """test PrintDeviceSummary."""
+        fake_report = mock.MagicMock(data={})
+        fake_report.data = {
+            "devices": [{"instance_name": "remote_cf_instance_name",
+                         "ip": "192.168.1.1",
+                         "device_serial": "127.0.0.1:399"},],}
+        utils.PrintDeviceSummary(fake_report)
+        self.assertEqual(mock_print.call_count, 7)
+
+        # Test for OpenWrt device case.
+        fake_report.data = {
+            "devices": [{"instance_name": "remote_cf_instance_name",
+                         "ip": "192.168.1.1",
+                         "ssh_command": "fake_ssh_cmd",
+                         "screen_command": "fake_screen_cmd"},],}
+        mock_print.reset_mock()
+        utils.PrintDeviceSummary(fake_report)
+        self.assertEqual(mock_print.call_count, 11)
+
+        # Test for fail case
+        fake_report.data = {
+            "errors": "Fail to create devices"}
+        mock_print.reset_mock()
+        utils.PrintDeviceSummary(fake_report)
+        self.assertEqual(mock_print.call_count, 3)
+
 
 if __name__ == "__main__":
     unittest.main()
