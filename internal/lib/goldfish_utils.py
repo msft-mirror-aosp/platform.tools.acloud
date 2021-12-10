@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Utility functions that process goldfish images."""
+"""Utility functions that process goldfish images and arguments."""
 
 import os
 import shutil
 
 from acloud import errors
+from acloud.internal import constants
 from acloud.internal.lib import ota_tools
 
 
@@ -206,3 +207,39 @@ def MixWithSystemImage(output_dir, image_dir, system_image_path, ota):
             partition, image_dir, super=mixed_super_image_path,
             vbmeta=vbmeta_image_path))
     return disk_image
+
+
+def ConvertAvdSpecToArgs(avd_spec):
+    """Convert hardware specification to emulator arguments.
+
+    Args:
+        avd_spec: The AvdSpec object.
+
+    Returns:
+        A list of strings, the arguments.
+    """
+    args = []
+    if avd_spec.gpu:
+        args.extend(("-gpu", avd_spec.gpu))
+
+    if not avd_spec.hw_customize:
+        return args
+
+    cores = avd_spec.hw_property.get(constants.HW_ALIAS_CPUS)
+    if cores:
+        args.extend(("-cores", cores))
+    x_res = avd_spec.hw_property.get(constants.HW_X_RES)
+    y_res = avd_spec.hw_property.get(constants.HW_Y_RES)
+    if x_res and y_res:
+        args.extend(("-skin", ("%sx%s" % (x_res, y_res))))
+    dpi = avd_spec.hw_property.get(constants.HW_ALIAS_DPI)
+    if dpi:
+        args.extend(("-dpi-device", dpi))
+    memory_size_mb = avd_spec.hw_property.get(constants.HW_ALIAS_MEMORY)
+    if memory_size_mb:
+        args.extend(("-memory", memory_size_mb))
+    userdata_size_mb = avd_spec.hw_property.get(constants.HW_ALIAS_DISK)
+    if userdata_size_mb:
+        args.extend(("-partition-size", userdata_size_mb))
+
+    return args
