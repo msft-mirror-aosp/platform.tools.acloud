@@ -125,6 +125,13 @@ def AddCommonCreateArgs(parser):
         required=False,
         help="Skip the pre-run check.")
     parser.add_argument(
+        "--force-sync",
+        action="store_true",
+        dest="force_sync",
+        required=False,
+        help="Force to sync image files from Android Build servers even if "
+             "they are already existed for local instance mode.")
+    parser.add_argument(
         "--boot-timeout",
         dest="boot_timeout_secs",
         type=int,
