@@ -63,9 +63,15 @@ _SSH_TUNNEL_ARGS = (
     "-o StrictHostKeyChecking=no "
     "%(port_mapping)s"
     "-N -f -l %(ssh_user)s %(ip_addr)s")
+_SSH_COMMAND_PS = (
+    "exec %(ssh_bin)s -i %(rsa_key_file)s -o UserKnownHostsFile=/dev/null "
+    "-o StrictHostKeyChecking=no %(extra_args)s -l %(ssh_user)s %(ip_addr)s "
+    "ps aux")
 PORT_MAPPING = "-L %(local_port)d:127.0.0.1:%(target_port)d "
 _RELEASE_PORT_CMD = "kill $(lsof -t -i :%d)"
-_WEBRTC_TARGET_PORT = 8443
+_WEBRTC_OPERATOR_PATTERN = re.compile(r"(.+)(webrtc_operator )(.+)")
+_PORT_8443 = 8443
+_PORT_1443 = 1443
 PortMapping = collections.namedtuple("PortMapping", ["local", "target"])
 WEBRTC_PORTS_MAPPING = [PortMapping(15550, 15550),
                         PortMapping(15551, 15551),
@@ -877,15 +883,63 @@ def EstablishWebRTCSshTunnel(ip_addr, webrtc_local_port, rsa_key_file, ssh_user,
                       the ssh tunnels.
         ssh_user: String of user login into the instance.
         extra_args_ssh_tunnel: String, extra args for ssh tunnel connection.
+
+    Raises:
+        subprocess.CalledProcessError if the ssh command fails.
     """
+    webrtc_server_port = GetWebRTCServerPort(
+        ip_addr, rsa_key_file, ssh_user, extra_args_ssh_tunnel)
     port_mapping = (WEBRTC_PORTS_MAPPING +
-                    [PortMapping(webrtc_local_port, _WEBRTC_TARGET_PORT)])
+                    [PortMapping(webrtc_local_port, webrtc_server_port)])
     try:
         EstablishSshTunnel(ip_addr, rsa_key_file, ssh_user,
                            port_mapping, extra_args_ssh_tunnel)
     except subprocess.CalledProcessError as e:
         PrintColorString("\n%s\nFailed to create ssh tunnels, retry with '#acloud "
                          "reconnect'." % e, TextColors.FAIL)
+
+
+def GetWebRTCServerPort(ip_addr, rsa_key_file, ssh_user,
+                        extra_args_ssh_tunnel=None):
+    """Get WebRTC server port.
+
+    List all process information to find the "webrtc_operator" process, then
+    determine the WebRTC server port is 8443 or 1443.
+
+    Args:
+        ip_addr: String, use to build the adb & vnc tunnel between local
+                 and remote instance.
+        rsa_key_file: String, Private key file path to use when creating
+                      the ssh tunnels.
+        ssh_user: String of user login into the instance.
+        extra_args_ssh_tunnel: String, extra args for ssh tunnel connection.
+
+    Returns:
+        The WebRTC server port number.
+
+    Raises:
+        subprocess.CalledProcessError if the ssh command fails.
+    """
+    ssh_cmd = _SSH_COMMAND_PS % {
+        "ssh_bin": FindExecutable(constants.SSH_BIN),
+        "rsa_key_file": rsa_key_file,
+        "ssh_user": ssh_user,
+        "extra_args": extra_args_ssh_tunnel or "",
+        "ip_addr": ip_addr}
+    logger.info("Running command \"%s\"", ssh_cmd)
+    try:
+        process = subprocess.Popen(
+            ssh_cmd, shell=True, stdin=None, universal_newlines=True,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        stdout, _ = process.communicate()
+        for line in stdout.splitlines():
+            webrtc_match = _WEBRTC_OPERATOR_PATTERN.match(line)
+            if webrtc_match:
+                return _PORT_8443
+    except subprocess.CalledProcessError as e:
+        logger.debug("Failed to list processes: %s", e)
+    return _PORT_1443
+
 
 def AllocateLocalHostCert(local_ca_dir):
     """Allocate certificates of localhost by mkcert.

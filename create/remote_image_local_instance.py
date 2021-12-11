@@ -79,7 +79,7 @@ def DownloadAndProcessImageFiles(avd_spec):
 
     logger.debug("Extract path: %s", extract_path)
 
-    if os.path.exists(extract_path):
+    if avd_spec.force_sync and os.path.exists(extract_path):
         shutil.rmtree(extract_path)
     if not os.path.exists(extract_path):
         os.makedirs(extract_path)
