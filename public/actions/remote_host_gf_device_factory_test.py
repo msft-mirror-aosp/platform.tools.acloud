@@ -62,6 +62,8 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         "system_build_info": {},
         "kernel_build_info": {},
         "boot_timeout_secs": None,
+        "hw_customize": False,
+        "hw_property": {},
         "gpu": "auto",
     }
     _SSH_COMMAND = (
@@ -170,6 +172,8 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self._mock_avd_spec.emulator_build_id = "999999"
         self._mock_avd_spec.emulator_build_target = "aarch64_sdk_tools_mac"
         self._mock_avd_spec.boot_timeout_secs = 1
+        self._mock_avd_spec.hw_customize = True
+        self._mock_avd_spec.hw_property = {"disk": "4096"}
         self._mock_android_build_client.DownloadArtifact.side_effect = (
             AssertionError("DownloadArtifact should not be called."))
         # All artifacts are cached.
@@ -196,14 +200,15 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.assertEqual({}, factory.GetFailures())
 
     @mock.patch("acloud.public.actions.remote_host_gf_device_factory."
-                "goldfish_image")
-    def testCreateInstanceWithSystemBuild(self, mock_gf_image):
+                "goldfish_utils")
+    def testCreateInstanceWithSystemBuild(self, mock_gf_utils):
         """Test RemoteHostGoldfishDeviceFactory with system build."""
         self._mock_avd_spec.system_build_info = {
             constants.BUILD_ID: "111111",
             constants.BUILD_TARGET: "aosp_x86_64-userdebug"}
-        mock_gf_image.MixWithSystemImage.return_value = "/mixed/disk"
-        mock_gf_image.SYSTEM_QEMU_IMAGE_NAME = "system-qemu.img"
+        mock_gf_utils.ConvertAvdSpecToArgs.return_value = ["-gpu", "auto"]
+        mock_gf_utils.MixWithSystemImage.return_value = "/mixed/disk"
+        mock_gf_utils.SYSTEM_QEMU_IMAGE_NAME = "system-qemu.img"
 
         factory = gf_factory.RemoteHostGoldfishDeviceFactory(
             self._mock_avd_spec)
@@ -221,7 +226,7 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(
             5, self._mock_android_build_client.DownloadArtifact.call_count)
         # Images.
-        mock_gf_image.MixWithSystemImage.assert_called_once()
+        mock_gf_utils.MixWithSystemImage.assert_called_once()
         self._mock_ssh.ScpPushFile.assert_called_with(
             "/mixed/disk", "acloud_gf/image/x86_64/system-qemu.img")
 
@@ -230,14 +235,15 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.assertEqual({}, factory.GetFailures())
 
     @mock.patch("acloud.public.actions.remote_host_gf_device_factory."
-                "goldfish_image")
-    def testCreateInstanceWithKernelBuild(self, mock_gf_image):
+                "goldfish_utils")
+    def testCreateInstanceWithKernelBuild(self, mock_gf_utils):
         """Test RemoteHostGoldfishDeviceFactory with kernel build."""
         self._mock_avd_spec.kernel_build_info = {
             constants.BUILD_ID: "111111",
             constants.BUILD_TARGET: "aosp_x86_64-userdebug",
             constants.BUILD_ARTIFACT: "boot-5.10.img"}
-        mock_gf_image.MixWithBootImage.return_value = (
+        mock_gf_utils.ConvertAvdSpecToArgs.return_value = ["-gpu", "auto"]
+        mock_gf_utils.MixWithBootImage.return_value = (
             "/path/to/kernel", "/path/to/ramdisk")
 
         factory = gf_factory.RemoteHostGoldfishDeviceFactory(
@@ -256,7 +262,7 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(
             5, self._mock_android_build_client.DownloadArtifact.call_count)
         # Images.
-        mock_gf_image.MixWithBootImage.assert_called_once()
+        mock_gf_utils.MixWithBootImage.assert_called_once()
         self._mock_ssh.ScpPushFile.assert_any_call(
             "/path/to/kernel", "acloud_gf/kernel")
         self._mock_ssh.ScpPushFile.assert_any_call(
