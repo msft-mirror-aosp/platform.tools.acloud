@@ -28,8 +28,8 @@ from acloud import errors
 from acloud.internal import constants
 from acloud.internal.lib import android_build_client
 from acloud.internal.lib import auth
-from acloud.internal.lib import goldfish_image
 from acloud.internal.lib import goldfish_remote_host_client
+from acloud.internal.lib import goldfish_utils
 from acloud.internal.lib import emulator_console
 from acloud.internal.lib import ota_tools
 from acloud.internal.lib import utils
@@ -524,7 +524,7 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
             with zipfile.ZipFile(system_image_zip_path, "r") as zip_file:
                 zip_file.extract(_SYSTEM_IMAGE_NAME, temp_dir)
 
-            mixed_image = goldfish_image.MixWithSystemImage(
+            mixed_image = goldfish_utils.MixWithSystemImage(
                 os.path.join(temp_dir, "mix_disk"),
                 image_dir,
                 os.path.join(temp_dir, _SYSTEM_IMAGE_NAME),
@@ -532,7 +532,7 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
 
             # TODO(b/142228085): Use -system instead of overwriting the file.
             remote_disk_image_path = os.path.join(
-                remote_image_dir, goldfish_image.SYSTEM_QEMU_IMAGE_NAME)
+                remote_image_dir, goldfish_utils.SYSTEM_QEMU_IMAGE_NAME)
             self._ssh.ScpPushFile(mixed_image, remote_disk_image_path)
 
         return remote_disk_image_path
@@ -549,7 +549,7 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
             The remote paths to the kernel image and the ramdisk image.
         """
         with tempfile.TemporaryDirectory("host_gf_kernel") as temp_dir:
-            kernel_path, ramdisk_path = goldfish_image.MixWithBootImage(
+            kernel_path, ramdisk_path = goldfish_utils.MixWithBootImage(
                 temp_dir, image_dir, boot_image_path, ota)
 
             self._ssh.ScpPushFile(kernel_path, _REMOTE_KERNEL_PATH)
@@ -592,8 +592,7 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         if remote_paths.ramdisk:
             cmd.extend(("-ramdisk", remote_paths.ramdisk))
 
-        if self._avd_spec.gpu:
-            cmd.extend(("-gpu", self._avd_spec.gpu))
+        cmd.extend(goldfish_utils.ConvertAvdSpecToArgs(self._avd_spec))
 
         # Unlock the device so that the disabled vbmeta takes effect.
         # These arguments must be at the end of the command line.
