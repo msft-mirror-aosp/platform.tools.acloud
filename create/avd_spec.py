@@ -111,6 +111,7 @@ class AVDSpec():
         self._extra_files = None
         self._avd_type = None
         self._flavor = None
+        self._force_sync = None
         self._image_source = None
         self._instance_type = None
         self._launch_args = None
@@ -322,6 +323,7 @@ class AVDSpec():
         self._avd_type = args.avd_type
         self._extra_files = create_common.ParseExtraFilesArgs(args.extra_files)
         self._flavor = args.flavor or constants.FLAVOR_PHONE
+        self._force_sync = args.force_sync
         if args.remote_host:
             self._instance_type = constants.INSTANCE_TYPE_HOST
         else:
@@ -1024,3 +1026,8 @@ class AVDSpec():
     def mkcert(self):
         """Return mkcert."""
         return self._mkcert
+
+    @property
+    def force_sync(self):
+        """Return force_sync."""
+        return self._force_sync
