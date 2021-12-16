@@ -133,6 +133,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         self._ssh = None
         self._ip = None
         self._user = constants.GCE_USER
+        self._openwrt = None
         self._stage = constants.STAGE_INIT
         self._execution_time = {_FETCH_ARTIFACT: 0, _GCE_CREATE: 0, _LAUNCH_CVD: 0}
 
@@ -230,7 +231,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             ota_build_target: String of the otatools target name.
             ota_branch: String of the otatools branch name.
             ota_build_id: String of the otatools build id.
-
 
         Returns:
             A string, representing instance name.
@@ -432,6 +432,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         try:
             self.ExtendReportData(_LAUNCH_CVD_COMMAND, ssh_command)
             self._ssh.Run(ssh_command, boot_timeout_secs, retry=_NO_RETRY)
+            self._UpdateOpenWrtStatus(avd_spec)
         except (subprocess.CalledProcessError, errors.DeviceConnectionError,
                 errors.LaunchCVDFail) as e:
             error_msg = ("Device %s did not finish on boot within timeout (%s secs)"
@@ -660,6 +661,13 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                     "The path doesn't exist: %s" % extra_file.source)
             self._ssh.ScpPushFile(extra_file.source, extra_file.target)
 
+    def GetSshConnectCmd(self):
+        """Get ssh connect command.
+
+        Returns:
+            String of ssh connect command.
+        """
+        return self._ssh.GetBaseCmd(constants.SSH_BIN)
 
     def GetInstanceIP(self, instance=None):
         """Override method from parent class.
@@ -713,6 +721,14 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         """
         self._stage = stage
 
+    def _UpdateOpenWrtStatus(self, avd_spec):
+        """Update the OpenWrt device status.
+
+        Args:
+            avd_spec: An AVDSpec instance.
+        """
+        self._openwrt = avd_spec.openwrt if avd_spec else False
+
     @property
     def all_failures(self):
         """Return all_failures"""
@@ -727,6 +743,11 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
     def stage(self):
         """Return stage"""
         return self._stage
+
+    @property
+    def openwrt(self):
+        """Return openwrt"""
+        return self._openwrt
 
     @property
     def build_api(self):
