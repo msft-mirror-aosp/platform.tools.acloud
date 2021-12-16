@@ -498,6 +498,30 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(mock_upload_remote_image.call_count, 1)
         shutil.rmtree.assert_called_once_with(fake_tmp_folder)
 
+    def testGetOpenWrtInfoDict(self):
+        """Test GetOpenWrtInfoDict."""
+        self.Patch(cvd_compute_client_multi_stage.CvdComputeClient,
+                   "GetSshConnectCmd", return_value="fake_ssh_command")
+        args = mock.MagicMock()
+        args.config_file = ""
+        args.avd_type = constants.TYPE_CF
+        args.flavor = "phone"
+        args.local_image = "fake_local_image"
+        args.launch_args = None
+        args.openwrt = False
+        avd_spec_no_openwrt = avd_spec.AVDSpec(args)
+        factory = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
+            avd_spec_no_openwrt)
+        self.assertEqual(None, factory.GetOpenWrtInfoDict())
+
+        args.openwrt = True
+        avd_spec_openwrt = avd_spec.AVDSpec(args)
+        factory = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
+            avd_spec_openwrt)
+        expect_result = {"ssh_command": "fake_ssh_command",
+                         "screen_command": "screen ~/cuttlefish_runtime/console"}
+        self.assertEqual(expect_result, factory.GetOpenWrtInfoDict())
+
 
 if __name__ == "__main__":
     unittest.main()
