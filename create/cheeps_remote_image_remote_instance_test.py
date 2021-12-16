@@ -28,13 +28,14 @@ class CheepsRemoteImageRemoteInstanceTest(driver_test_lib.BaseDriverTest):
 
     def setUp(self):
         """Set up the test."""
-        super(CheepsRemoteImageRemoteInstanceTest, self).setUp()
+        super().setUp()
         self.build_client = mock.MagicMock()
         self.Patch(
             android_build_client,
             "AndroidBuildClient",
             return_value=self.build_client)
         self.compute_client = mock.MagicMock()
+        self.compute_client.openwrt = False
         self.Patch(
             cheeps_compute_client,
             "CheepsComputeClient",
@@ -101,6 +102,7 @@ class CheepsRemoteImageRemoteInstanceTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(report.command, "create_cheeps")
         self.assertEqual(report.status, "SUCCESS")
 
+    # pylint: disable=invalid-name
     def testStableCheepsHostImageArgsOverrideConfig(self):
         """Test that Cheeps host image specifed through args (which goes into
         avd_spec) override values set in Acloud config."""
