@@ -36,6 +36,7 @@ _BOOTLOADER = "bootloader"
 _KERNEL = "kernel"
 _ARTIFACT_FILES = ["*.img", _BOOTLOADER, _KERNEL]
 _HOME_FOLDER = os.path.expanduser("~")
+_SCREEN_CONSOLE_COMMAND = "screen ~/cuttlefish_runtime/console"
 
 
 class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
@@ -341,6 +342,17 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             self._cfg.extra_data_disk_size_gb,
             decompress_kernel,
             boot_timeout_secs)
+
+    def GetOpenWrtInfoDict(self):
+        """Get openwrt info dictionary.
+
+        Returns:
+            A openwrt info dictionary. None for the case is not openwrt device.
+        """
+        if not self._avd_spec.openwrt:
+            return None
+        return {"ssh_command": self._compute_client.GetSshConnectCmd(),
+                "screen_command": _SCREEN_CONSOLE_COMMAND}
 
     def GetBuildInfoDict(self):
         """Get build info dictionary.
