@@ -20,9 +20,13 @@ from unittest import mock
 
 from acloud import errors
 from acloud.delete import delete
+from acloud.internal.lib import cvd_compute_client_multi_stage
 from acloud.internal.lib import driver_test_lib
 from acloud.internal.lib import oxygen_client
+from acloud.internal.lib import utils
 from acloud.list import list as list_instances
+from acloud.public import config
+from acloud.public import device_driver
 from acloud.public import report
 
 
@@ -51,6 +55,10 @@ class DeleteTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(delete_report.status, "SUCCESS")
         mock_lock.SetInUse.assert_called_once_with(False)
         mock_lock.Unlock.assert_called_once()
+
+        mock_lock.Lock.return_value = False
+        delete.DeleteLocalCuttlefishInstance(instance_object, delete_report)
+        self.assertEqual(delete_report.status, "FAIL")
 
     def testDeleteLocalCuttlefishInstanceFailure(self):
         """Test DeleteLocalCuttlefishInstance with command failure."""
@@ -99,6 +107,10 @@ class DeleteTest(driver_test_lib.BaseDriverTest):
         mock_lock.SetInUse.assert_called_once_with(False)
         mock_lock.Unlock.assert_called_once()
 
+        mock_lock.Lock.return_value = False
+        delete.DeleteLocalGoldfishInstance(mock_instance, delete_report)
+        self.assertEqual(delete_report.status, "FAIL")
+
     def testDeleteLocalGoldfishInstanceFailure(self):
         """Test DeleteLocalGoldfishInstance with adb command failure."""
         mock_adb_tools = mock.Mock()
@@ -142,6 +154,10 @@ class DeleteTest(driver_test_lib.BaseDriverTest):
         mock_lock.Lock.assert_called_once()
         mock_lock.SetInUse.assert_called_once_with(False)
         mock_lock.Unlock.assert_called_once()
+
+        mock_lock.Lock.return_value = False
+        delete.ResetLocalInstanceLockByName("unittest", delete_report)
+        self.assertEqual(delete_report.status, "FAIL")
 
     def testResetLocalInstanceLockByNameFailure(self):
         """test ResetLocalInstanceLockByName with an invalid name."""
@@ -295,6 +311,136 @@ class DeleteTest(driver_test_lib.BaseDriverTest):
         instances = ["local-instance-1"]
         delete._ReleaseOxygenDevice(cfg, instances, ip)
         mock_release.assert_called_once()
+
+        mock_release.side_effect = subprocess.CalledProcessError(
+            0, "fake_cmd",
+            "Error received while trying to release device: error_msg")
+        delete_report = delete._ReleaseOxygenDevice(cfg, instances, ip)
+        self.assertEqual(delete_report.errors, ["error_msg"])
+
+        mock_release.side_effect = subprocess.CalledProcessError(
+            0, "fake_cmd",
+            "error")
+        delete_report = delete._ReleaseOxygenDevice(cfg, instances, ip)
+        self.assertEqual(delete_report.status, "FAIL")
+
+    def testDeleteInstances(self):
+        """test DeleteInstances."""
+        fake_ins = mock.MagicMock()
+        fake_ins.islocal = False
+        fake_ins.avd_type = "cuttlefish"
+        fake_ins.vnc_port = None
+
+        fake_ins2 = mock.MagicMock()
+        fake_ins2.islocal = True
+        fake_ins2.avd_type = "cuttlefish"
+        fake_ins2.vnc_port = None
+
+        fake_ins3 = mock.MagicMock()
+        fake_ins3.islocal = True
+        fake_ins3.avd_type = "goldfish"
+        fake_ins3.vnc_port = None
+
+        fake_ins4 = mock.MagicMock()
+        fake_ins4.islocal = True
+        fake_ins4.avd_type = "unknown"
+        fake_ins4.vnc_port = 12345
+
+        self.Patch(delete, "DeleteLocalGoldfishInstance")
+        self.Patch(delete, "DeleteLocalCuttlefishInstance")
+        self.Patch(delete, "DeleteRemoteInstances")
+        self.Patch(utils, "CleanupSSVncviewer")
+
+        fake_instances_to_delete = []
+        delete.DeleteInstances(None, fake_instances_to_delete)
+        delete.DeleteRemoteInstances.assert_not_called()
+
+        fake_instances_to_delete = [
+            fake_ins, fake_ins2, fake_ins3, fake_ins4]
+        delete.DeleteInstances(None, fake_instances_to_delete)
+        delete.DeleteRemoteInstances.assert_called_once()
+        delete.DeleteLocalGoldfishInstance.assert_called_once()
+        delete.DeleteLocalCuttlefishInstance.assert_called_once()
+        utils.CleanupSSVncviewer.assert_called_once()
+
+    def testDeleteRemoteInstances(self):
+        """test DeleteRemoteInstances."""
+        fake_cfg = mock.MagicMock()
+        fake_cfg.SupportRemoteInstance = mock.MagicMock()
+        fake_cfg.SupportRemoteInstance.return_value = True
+        fake_instances_to_delete = ["fake_ins"]
+        delete_report = report.Report(command="delete")
+        self.Patch(device_driver, "DeleteAndroidVirtualDevices",
+                   return_value=delete_report)
+        delete.DeleteRemoteInstances(fake_cfg, fake_instances_to_delete)
+        device_driver.DeleteAndroidVirtualDevices.assert_called_once()
+
+        fake_cfg.SupportRemoteInstance.return_value = False
+        self.assertRaises(errors.ConfigError,
+                          delete.DeleteRemoteInstances,
+                          fake_cfg, fake_instances_to_delete)
+
+    def testRun(self):
+        """test Run."""
+        args = mock.MagicMock()
+        args.oxygen = False
+        args.instance_names = None
+        args.remote_host = None
+        args.local_only = True
+        args.adb_port = None
+        args.all = True
+
+        self.Patch(delete, "_ReleaseOxygenDevice")
+        self.Patch(delete, "DeleteInstanceByNames")
+        self.Patch(cvd_compute_client_multi_stage.CvdComputeClient,
+                   "ParseRemoteHostAddress")
+        self.Patch(delete, "CleanUpRemoteHost")
+        fake_cfg = mock.MagicMock()
+        fake_cfg.SupportRemoteInstance = mock.MagicMock()
+        self.Patch(config, "GetAcloudConfig", return_value=fake_cfg)
+        self.Patch(list_instances, "GetLocalInstances",
+                   return_value=[])
+        self.Patch(list_instances, "GetRemoteInstances",
+                   return_value=["remote_instances"])
+        self.Patch(list_instances, "FilterInstancesByAdbPort",
+                   return_value=["filter_by_port_instance"])
+        self.Patch(list_instances, "ChooseInstancesFromList",
+                   return_value=["choice_instance"])
+        self.Patch(delete, "DeleteInstances")
+
+        delete.Run(args)
+        delete.DeleteInstances.assert_called_with(fake_cfg, [])
+
+        list_instances.GetLocalInstances.return_value = ["local_instances"]
+        delete.Run(args)
+        delete.DeleteInstances.assert_called_with(fake_cfg, ["local_instances"])
+
+        args.all = False
+        delete.Run(args)
+        delete.DeleteInstances.assert_called_with(fake_cfg, ["choice_instance"])
+
+        args.adb_port = "12345"
+        delete.Run(args)
+        delete.DeleteInstances.assert_called_with(fake_cfg, ["filter_by_port_instance"])
+
+        args.local_only = False
+        args.all = True
+        args.adb_port = None
+        delete.Run(args)
+        delete.DeleteInstances.assert_called_with(
+            fake_cfg, ["local_instances", "remote_instances"])
+
+        args.remote_host = True
+        delete.Run(args)
+        delete.CleanUpRemoteHost.assert_called_once()
+
+        args.instance_names = ["fake_ins_name"]
+        delete.Run(args)
+        delete.DeleteInstanceByNames.assert_called_once()
+
+        args.oxygen = True
+        delete.Run(args)
+        delete._ReleaseOxygenDevice.assert_called_once()
 
 
 if __name__ == "__main__":
