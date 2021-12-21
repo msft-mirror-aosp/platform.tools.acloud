@@ -17,58 +17,60 @@ import unittest
 
 from unittest import mock
 
-from acloud.create import avd_spec
-from acloud.create import create
 from acloud.create import create_common
+from acloud.create import local_image_remote_instance
 from acloud.internal import constants
 from acloud.internal.lib import driver_test_lib
 from acloud.internal.lib import utils
+from acloud.public import report
 from acloud.public.actions import common_operations
 from acloud.public.actions import remote_instance_cf_device_factory
 from acloud.public.actions import remote_instance_fvp_device_factory
 
+
 class LocalImageRemoteInstanceTest(driver_test_lib.BaseDriverTest):
     """Test LocalImageRemoteInstance method."""
 
-    # pylint: disable=no-member
-    def testRun(self):
-        """Test Create AVD of cuttlefish local image remote instance."""
-        args = mock.MagicMock()
-        args.skip_pre_run_check = True
+    def setUp(self):
+        """Initialize new LocalImageRemoteInstance."""
+        super().setUp()
+        self.local_image_remote_instance = local_image_remote_instance.LocalImageRemoteInstance()
+
+    # pylint: disable=protected-access
+    @mock.patch.object(utils, "LaunchVNCFromReport")
+    @mock.patch.object(utils, "LaunchBrowserFromReport")
+    @mock.patch.object(remote_instance_fvp_device_factory,
+                       "RemoteInstanceDeviceFactory")
+    @mock.patch.object(remote_instance_cf_device_factory,
+                       "RemoteInstanceDeviceFactory")
+    def testCreateAVD(self, mock_cf_factory, mock_fvp_factory,
+                      mock_launch_browser, mock_launch_vnc):
+        """Test CreateAVD."""
         spec = mock.MagicMock()
         spec.avd_type = constants.TYPE_CF
         spec.instance_type = constants.INSTANCE_TYPE_REMOTE
         spec.image_source = constants.IMAGE_SRC_LOCAL
         spec.connect_vnc = False
         spec.connect_webrtc = True
-        self.Patch(avd_spec, "AVDSpec", return_value=spec)
-        self.Patch(remote_instance_cf_device_factory,
-                   "RemoteInstanceDeviceFactory")
+        create_report = mock.Mock()
+        create_report.status = report.Status.SUCCESS
+        self.Patch(common_operations, "CreateDevices",
+                   return_value=create_report)
         self.Patch(create_common, "GetCvdHostPackage")
-        self.Patch(common_operations, "CreateDevices")
-        self.Patch(utils, "LaunchBrowserFromReport")
-        # cuttfish
-        create.Run(args)
-        remote_instance_cf_device_factory.RemoteInstanceDeviceFactory.assert_called_once()
-        common_operations.CreateDevices.assert_called_once()
-        utils.LaunchBrowserFromReport.assert_called_once()
-        common_operations.CreateDevices.reset_mock()
+        # cuttfish with webrtc
+        self.local_image_remote_instance._CreateAVD(
+            spec, no_prompts=True)
+        mock_cf_factory.assert_called_once()
+        mock_launch_browser.assert_called_once()
 
-        # fvp
+        # fvp with vnc
         spec.avd_type = constants.TYPE_FVP
-        self.Patch(avd_spec, "AVDSpec", return_value=spec)
-        self.Patch(remote_instance_fvp_device_factory,
-                   "RemoteInstanceDeviceFactory")
-        create.Run(args)
-        remote_instance_fvp_device_factory.RemoteInstanceDeviceFactory.assert_called_once()
-        common_operations.CreateDevices.assert_called_once()
-
         spec.connect_vnc = True
         spec.connect_webrtc = False
-        self.Patch(avd_spec, "AVDSpec", return_value=spec)
-        self.Patch(utils, "LaunchVNCFromReport")
-        create.Run(args)
-        utils.LaunchVNCFromReport.assert_called_once()
+        self.local_image_remote_instance._CreateAVD(
+            spec, no_prompts=True)
+        mock_fvp_factory.assert_called_once()
+        mock_launch_vnc.assert_called_once()
 
 
 if __name__ == "__main__":

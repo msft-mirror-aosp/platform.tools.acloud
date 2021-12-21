@@ -73,11 +73,11 @@ class RemoteImageRemoteInstance(base_avd_create.BaseAVDCreate):
             wait_for_boot=False,
             connect_webrtc=avd_spec.connect_webrtc,
             client_adb_port=avd_spec.client_adb_port)
-        # Launch vnc client if we're auto-connecting.
-        if avd_spec.connect_vnc:
-            utils.LaunchVNCFromReport(create_report, avd_spec, no_prompts)
-        if avd_spec.connect_webrtc:
-            utils.LaunchBrowserFromReport(create_report)
+        if create_report.status == report.Status.SUCCESS:
+            if avd_spec.connect_vnc:
+                utils.LaunchVNCFromReport(create_report, avd_spec, no_prompts)
+            if avd_spec.connect_webrtc:
+                utils.LaunchBrowserFromReport(create_report)
 
         return create_report
 
