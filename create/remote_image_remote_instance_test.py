@@ -21,6 +21,7 @@ from acloud.create import remote_image_remote_instance
 from acloud.internal import constants
 from acloud.internal.lib import driver_test_lib
 from acloud.internal.lib import oxygen_client
+from acloud.internal.lib import utils
 from acloud.public import report
 from acloud.public.actions import common_operations
 from acloud.public.actions import remote_instance_cf_device_factory
@@ -48,20 +49,36 @@ class RemoteImageRemoteInstanceTest(driver_test_lib.BaseDriverTest):
         self.remote_image_remote_instance = remote_image_remote_instance.RemoteImageRemoteInstance()
 
     # pylint: disable=protected-access
+    @mock.patch.object(utils, "LaunchVNCFromReport")
+    @mock.patch.object(utils, "LaunchBrowserFromReport")
     @mock.patch.object(remote_image_remote_instance.RemoteImageRemoteInstance,
                        "_LeaseOxygenAVD")
-    @mock.patch.object(common_operations, "CreateDevices")
     @mock.patch.object(remote_instance_cf_device_factory,
                        "RemoteInstanceDeviceFactory")
-    def testCreateAVD(self, mock_factory, mock_create_device, mock_lease):
+    def testCreateAVD(self, mock_factory, mock_lease, mock_launch_browser,
+                      mock_launch_vnc):
         """test CreateAVD."""
         avd_spec = mock.Mock()
         avd_spec.oxygen = False
+        avd_spec.connect_webrtc = True
+        avd_spec.connect_vnc = False
+        create_report = mock.Mock()
+        create_report.status = report.Status.SUCCESS
+        self.Patch(common_operations, "CreateDevices",
+                   return_value=create_report)
         self.remote_image_remote_instance._CreateAVD(
             avd_spec, no_prompts=True)
         mock_factory.assert_called_once()
-        mock_create_device.assert_called_once()
+        mock_launch_browser.assert_called_once()
 
+        # Test launch VNC case.
+        avd_spec.connect_webrtc = False
+        avd_spec.connect_vnc = True
+        self.remote_image_remote_instance._CreateAVD(
+            avd_spec, no_prompts=True)
+        mock_launch_vnc.assert_called_once()
+
+        # Test launch with Oxgen case.
         avd_spec.oxygen = True
         self.remote_image_remote_instance._CreateAVD(
             avd_spec, no_prompts=True)
