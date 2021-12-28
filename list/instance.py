@@ -50,6 +50,7 @@ from acloud.internal.lib.gcompute_client import GetInstanceIP
 logger = logging.getLogger(__name__)
 
 _ACLOUD_CVD_TEMP = os.path.join(tempfile.gettempdir(), "acloud_cvd_temp")
+_CVD_CONFIG_FOLDER = "%(cvd_runtime)s/instances/cvd-%(id)d"
 _CVD_RUNTIME_FOLDER_NAME = "cuttlefish_runtime"
 _CVD_STATUS_BIN = "cvd_status"
 _LOCAL_INSTANCE_NAME_FORMAT = "local-instance-%(id)d"
@@ -126,10 +127,15 @@ def GetLocalInstanceConfig(local_instance_id):
     Return:
         String, path of cf runtime config.
     """
-    cfg_path = os.path.join(GetLocalInstanceRuntimeDir(local_instance_id),
-                            constants.CUTTLEFISH_CONFIG_FILE)
-    if os.path.isfile(cfg_path):
-        return cfg_path
+    ins_runtime_dir = GetLocalInstanceRuntimeDir(local_instance_id)
+    cfg_dirs = [ins_runtime_dir]
+    cfg_dirs.append(_CVD_CONFIG_FOLDER % {
+        "cvd_runtime": ins_runtime_dir,
+        "id": local_instance_id})
+    for cfg_dir in cfg_dirs:
+        cfg_path = os.path.join(cfg_dir, constants.CUTTLEFISH_CONFIG_FILE)
+        if os.path.isfile(cfg_path):
+            return cfg_path
     return None
 
 
