@@ -295,7 +295,12 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         system_image_zip_path = self._RetrieveSystemImageZip(
             download_dir, build_api)
         boot_image_path = self._RetrieveBootImage(download_dir, build_api)
-        ota_tools_zip_path = self._RetrieveOtaToolsZip(download_dir, build_api)
+        # Retrieve OTA tools from the goldfish build which contains
+        # mk_combined_img.
+        ota_tools_zip_path = (
+            self._RetrieveArtifact(download_dir, build_api, build_target,
+                                   build_id, _OTA_TOOLS_ZIP_NAME)
+            if system_image_zip_path or boot_image_path else None)
 
         return ArtifactPaths(image_zip_path, emu_zip_path,
                              ota_tools_zip_path, system_image_zip_path,
@@ -343,32 +348,6 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         if build_id and build_target and image_name:
             return self._RetrieveArtifact(
                 download_dir, build_api, build_target, build_id, image_name)
-        return None
-
-    def _RetrieveOtaToolsZip(self, download_dir, build_api):
-        """Retrieve OTA tools zip if needed.
-
-        This class uses OTA tools to convert images into goldfish-specific
-        formats. We don't have a use case where the system and the kernel
-        require different sets of OTA tools. When both kernel and system builds
-        are specified, this method downloads OTA tools from one of them.
-
-        Args:
-            download_dir: The download cache directory.
-            build_api: An AndroidBuildClient object.
-
-        Returns:
-            The path to the OTA tools zip in download_dir.
-            None if the kernel and the system build infos are empty.
-        """
-        for build_info in (self._avd_spec.system_build_info,
-                           self._avd_spec.kernel_build_info):
-            build_id = build_info.get(constants.BUILD_ID)
-            build_target = build_info.get(constants.BUILD_TARGET)
-            if build_id and build_target:
-                return self._RetrieveArtifact(
-                    download_dir, build_api, build_target, build_id,
-                    _OTA_TOOLS_ZIP_NAME)
         return None
 
     @staticmethod

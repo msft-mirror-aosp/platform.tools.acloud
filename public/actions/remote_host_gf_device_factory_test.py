@@ -221,7 +221,7 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             "aosp_x86_64-userdebug", "111111",
             "aosp_x86_64-img-111111.zip", mock.ANY, mock.ANY)
         self._mock_android_build_client.DownloadArtifact.assert_any_call(
-            "aosp_x86_64-userdebug", "111111",
+            "sdk_x86_64-sdk", "123456",
             "otatools.zip", mock.ANY, mock.ANY)
         self.assertEqual(
             5, self._mock_android_build_client.DownloadArtifact.call_count)
@@ -257,7 +257,7 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             "aosp_x86_64-userdebug", "111111",
             "boot-5.10.img", mock.ANY, mock.ANY)
         self._mock_android_build_client.DownloadArtifact.assert_any_call(
-            "aosp_x86_64-userdebug", "111111",
+            "sdk_x86_64-sdk", "123456",
             "otatools.zip", mock.ANY, mock.ANY)
         self.assertEqual(
             5, self._mock_android_build_client.DownloadArtifact.call_count)

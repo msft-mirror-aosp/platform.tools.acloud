@@ -83,38 +83,19 @@ class BaseCloudApiClient():
             An apiclient.discovery.Resource object
         """
         http_auth = oauth2_credentials.authorize(httplib2.Http())
-        try:
-            return utils.RetryExceptionType(
-                exception_types=cls.RETRIABLE_AUTH_ERRORS,
-                max_retries=cls.RETRY_COUNT,
-                functor=build,
-                sleep_multiplier=cls.RETRY_SLEEP_MULTIPLIER,
-                retry_backoff_factor=cls.RETRY_BACKOFF_FACTOR,
-                serviceName=cls.API_NAME,
-                version=cls.API_VERSION,
-                # This is workaround for a known issue of some veriosn
-                # of api client.
-                # https://github.com/google/google-api-python-client/issues/435
-                cache_discovery=False,
-                # This is workaround for the errors.UnknownApiNameOrVersion
-                # https://github.com/googleapis/google-api-python-client/issues/1263
-                static_discovery=False,
-                http=http_auth)
-        except TypeError:
-            # TODO(154879379): The change should be merged before the googleapi
-            #  upgraded to compatible with old googleapi version which does not
-            #  support the argument 'static discovery'. The retry should be
-            #  deleted afterward.
-            return utils.RetryExceptionType(
-                exception_types=cls.RETRIABLE_AUTH_ERRORS,
-                max_retries=cls.RETRY_COUNT,
-                functor=build,
-                sleep_multiplier=cls.RETRY_SLEEP_MULTIPLIER,
-                retry_backoff_factor=cls.RETRY_BACKOFF_FACTOR,
-                serviceName=cls.API_NAME,
-                version=cls.API_VERSION,
-                cache_discovery=False,
-                http=http_auth)
+        return utils.RetryExceptionType(
+            exception_types=cls.RETRIABLE_AUTH_ERRORS,
+            max_retries=cls.RETRY_COUNT,
+            functor=build,
+            sleep_multiplier=cls.RETRY_SLEEP_MULTIPLIER,
+            retry_backoff_factor=cls.RETRY_BACKOFF_FACTOR,
+            serviceName=cls.API_NAME,
+            version=cls.API_VERSION,
+            # This is workaround for a known issue of some veriosn
+            # of api client.
+            # https://github.com/google/google-api-python-client/issues/435
+            cache_discovery=False,
+            http=http_auth)
 
     @staticmethod
     def _ShouldRetry(exception, retry_http_codes,
