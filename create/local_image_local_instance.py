@@ -97,6 +97,8 @@ _CMD_LAUNCH_CVD_VNC_ARG = " -start_vnc_server=true"
 _CMD_LAUNCH_CVD_SUPER_IMAGE_ARG = " -super_image=%s"
 _CMD_LAUNCH_CVD_BOOT_IMAGE_ARG = " -boot_image=%s"
 _CMD_LAUNCH_CVD_NO_ADB_ARG = " -run_adb_connector=false"
+# Connect the OpenWrt device via console file.
+_CMD_LAUNCH_CVD_CONSOLE_ARG = " -console=true"
 _CONFIG_RE = re.compile(r"^config=(?P<config>.+)")
 _MAX_REPORTED_ERROR_LINES = 10
 
@@ -243,7 +245,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                                        super_image_path,
                                        artifact_paths.boot_image,
                                        avd_spec.launch_args,
-                                       config or avd_spec.flavor)
+                                       config or avd_spec.flavor,
+                                       avd_spec.openwrt)
 
         result_report = report.Report(command="create")
         instance_name = instance.GetLocalInstanceName(local_instance_id)
@@ -468,7 +471,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
     def PrepareLaunchCVDCmd(launch_cvd_path, hw_property, connect_adb,
                             image_dir, runtime_dir, connect_webrtc,
                             connect_vnc, super_image_path, boot_image_path,
-                            launch_args, config):
+                            launch_args, config, openwrt=False):
         """Prepare launch_cvd command.
 
         Create the launch_cvd commands with all the required args and add
@@ -486,6 +489,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             boot_image_path: String of non-default boot image path.
             launch_args: String of launch args.
             config: String of config name.
+            openwrt: Boolean of enable OpenWrt devices.
 
         Returns:
             String, launch_cvd cmd.
@@ -518,6 +522,9 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             launch_cvd_w_args = (launch_cvd_w_args +
                                  _CMD_LAUNCH_CVD_BOOT_IMAGE_ARG %
                                  boot_image_path)
+
+        if openwrt:
+            launch_cvd_w_args = launch_cvd_w_args + _CMD_LAUNCH_CVD_CONSOLE_ARG
 
         if launch_args:
             launch_cvd_w_args = launch_cvd_w_args + " " + launch_args
