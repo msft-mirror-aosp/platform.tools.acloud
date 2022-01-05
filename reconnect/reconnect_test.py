@@ -21,9 +21,15 @@ from unittest import mock
 
 from acloud import errors
 from acloud.internal import constants
+from acloud.internal.lib import auth
+from acloud.internal.lib import android_compute_client
+from acloud.internal.lib import cvd_runtime_config
 from acloud.internal.lib import driver_test_lib
 from acloud.internal.lib import utils
+from acloud.internal.lib import ssh as ssh_object
 from acloud.internal.lib.adb_tools import AdbTools
+from acloud.list import list as list_instance
+from acloud.public import config
 from acloud.reconnect import reconnect
 
 
@@ -184,6 +190,17 @@ class ReconnectTest(driver_test_lib.BaseDriverTest):
                                                           rsa_key_file='/fake/acloud_rsa',
                                                           ssh_user='vsoc-01')
         utils.LaunchBrowser.assert_called_with('localhost', 12345)
+        utils.PickFreePort.assert_called_once()
+        utils.PickFreePort.reset_mock()
+
+        self.Patch(utils, "GetWebrtcPortFromSSHTunnel", return_value="11111")
+        reconnect.ReconnectInstance(ssh_private_key_path, instance_object, fake_report)
+        utils.PickFreePort.assert_not_called()
+
+        # local webrtc instance
+        instance_object.islocal = True
+        reconnect.ReconnectInstance(ssh_private_key_path, instance_object, fake_report)
+        utils.PickFreePort.assert_not_called()
 
     def testReconnectInstanceAvdtype(self):
         """Test Reconnect Instances of avd_type."""
@@ -258,6 +275,80 @@ class ReconnectTest(driver_test_lib.BaseDriverTest):
         utils.AutoConnect.call_count = 0
         reconnect.StartVnc(vnc_port, display)
         utils.LaunchVncClient.assert_called_with(5555, "888", "777")
+        utils.LaunchVncClient.reset_mock()
+
+        self.Patch(utils, "IsCommandRunning", return_value=True)
+        reconnect.StartVnc(vnc_port, display)
+        utils.LaunchVncClient.assert_not_called()
+
+    # pylint: disable=protected-access
+    def testIsWebrtcEnable(self):
+        """Test _IsWebrtcEnable."""
+        fake_ins = mock.MagicMock()
+        fake_ins.islocal = True
+        fake_ins.cf_runtime_cfg = mock.MagicMock()
+        fake_ins.cf_runtime_cfg.enable_webrtc = False
+        reconnect._IsWebrtcEnable(fake_ins, "fake_user", "ssh_pkey_path", "")
+        self.assertFalse(reconnect._IsWebrtcEnable(fake_ins, "fake_user", "ssh_pkey_path", ""))
+
+        fake_ins.islocal = False
+        fake_runtime_config = mock.MagicMock()
+        fake_runtime_config.enable_webrtc = True
+        self.Patch(ssh_object, "Ssh")
+        self.Patch(ssh_object.Ssh, "GetCmdOutput", return_value="fake_rawdata")
+        self.Patch(cvd_runtime_config, "CvdRuntimeConfig",
+                   return_value=fake_runtime_config)
+        self.assertTrue(reconnect._IsWebrtcEnable(fake_ins, "fake_user", "ssh_pkey_path", ""))
+
+        self.Patch(cvd_runtime_config, "CvdRuntimeConfig",
+                   side_effect=errors.ConfigError)
+        self.assertFalse(reconnect._IsWebrtcEnable(fake_ins, "fake_user", "ssh_pkey_path", ""))
+
+    def testRun(self):
+        """Test Run."""
+        fake_args = mock.MagicMock()
+        fake_args.instance_names = ["fake-ins-name"]
+        fake_ins1 = mock.MagicMock()
+        fake_ins1.avd_type = "cuttlefish"
+        fake_ins1.islocal = False
+        fake_ins2 = mock.MagicMock()
+        fake_ins2.avd_type = "cuttlefish"
+        fake_ins2.islocal = False
+        fake_ins3 = mock.MagicMock()
+        fake_ins3.avd_type = "goldfish"
+        fake_ins3.islocal = False
+        ins_to_reconnect = [fake_ins1]
+        # mock args.all equal to True and return 3 instances.
+        all_ins_to_reconnect = [fake_ins1, fake_ins2, fake_ins3]
+        self.Patch(config, "GetAcloudConfig")
+        self.Patch(list_instance, "GetInstancesFromInstanceNames",
+                   return_value=ins_to_reconnect)
+        self.Patch(list_instance, "ChooseInstances",
+                   return_value=all_ins_to_reconnect)
+        self.Patch(auth, "CreateCredentials")
+        self.Patch(android_compute_client, "AndroidComputeClient")
+        self.Patch(android_compute_client.AndroidComputeClient,
+                   "AddSshRsaInstanceMetadata")
+        self.Patch(reconnect, "ReconnectInstance")
+
+        reconnect.Run(fake_args)
+        list_instance.GetInstancesFromInstanceNames.assert_called_once()
+        self.assertEqual(reconnect.ReconnectInstance.call_count, 1)
+        reconnect.ReconnectInstance.reset_mock()
+
+        # should reconnect all instances
+        fake_args.instance_names = None
+        reconnect.Run(fake_args)
+        list_instance.ChooseInstances.assert_called_once()
+        self.assertEqual(reconnect.ReconnectInstance.call_count, 3)
+        reconnect.ReconnectInstance.reset_mock()
+
+        fake_ins1.islocal = True
+        fake_ins2.avd_type = "unknown"
+        self.Patch(list_instance, "ChooseInstances",
+                   return_value=[fake_ins1, fake_ins2])
+        reconnect.Run(fake_args)
+        self.assertEqual(reconnect.ReconnectInstance.call_count, 1)
 
 
 if __name__ == "__main__":
