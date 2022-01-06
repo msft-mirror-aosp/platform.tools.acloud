@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for RemoteImageRemoteHost."""
+"""Tests for GoldfishRemoteImageRemoteInstance."""
 
 import unittest
 
@@ -19,38 +19,29 @@ from unittest import mock
 
 from acloud.create import avd_spec
 from acloud.create import create
-from acloud.create import remote_image_remote_host
 from acloud.internal import constants
 from acloud.internal.lib import driver_test_lib
 from acloud.internal.lib import utils
-from acloud.public.actions import common_operations
-from acloud.public.actions import remote_instance_cf_device_factory
+from acloud.public.actions import create_goldfish_action
 
-class RemoteImageRemoteHostTest(driver_test_lib.BaseDriverTest):
-    """Test RemoteImageRemoteHost method."""
-
-    def setUp(self):
-        """Initialize new RemoteImageRemoteHost."""
-        super().setUp()
-        self.remote_image_remote_host = remote_image_remote_host.RemoteImageRemoteHost()
+class GoldfishRemoteImageRemoteInstanceTest(driver_test_lib.BaseDriverTest):
+    """Test GoldfishRemoteImageRemoteInstance method."""
 
     # pylint: disable=no-member
     def testRun(self):
-        """Test Create AVD of cuttlefish remote image remote Host."""
+        """Test Create AVD of goldfish remote image remote instance."""
         args = mock.MagicMock()
         args.skip_pre_run_check = True
         spec = mock.MagicMock()
-        spec.avd_type = constants.TYPE_CF
-        spec.instance_type = constants.INSTANCE_TYPE_HOST
+        spec.avd_type = constants.TYPE_GF
+        spec.instance_type = constants.INSTANCE_TYPE_REMOTE
         spec.image_source = constants.IMAGE_SRC_REMOTE
         spec.connect_vnc = False
         self.Patch(avd_spec, "AVDSpec", return_value=spec)
-        self.Patch(remote_instance_cf_device_factory,
-                   "RemoteInstanceDeviceFactory")
-        self.Patch(common_operations, "CreateDevices")
+        self.Patch(create_goldfish_action,
+                   "CreateDevices")
         create.Run(args)
-        remote_instance_cf_device_factory.RemoteInstanceDeviceFactory.assert_called_once()
-        common_operations.CreateDevices.assert_called_once()
+        create_goldfish_action.CreateDevices.assert_called_once()
 
         spec.connect_vnc = True
         self.Patch(avd_spec, "AVDSpec", return_value=spec)

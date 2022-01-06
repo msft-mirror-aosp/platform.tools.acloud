@@ -28,8 +28,8 @@ from acloud import errors
 from acloud.internal import constants
 from acloud.internal.lib import android_build_client
 from acloud.internal.lib import auth
-from acloud.internal.lib import goldfish_image
 from acloud.internal.lib import goldfish_remote_host_client
+from acloud.internal.lib import goldfish_utils
 from acloud.internal.lib import emulator_console
 from acloud.internal.lib import ota_tools
 from acloud.internal.lib import utils
@@ -295,7 +295,12 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         system_image_zip_path = self._RetrieveSystemImageZip(
             download_dir, build_api)
         boot_image_path = self._RetrieveBootImage(download_dir, build_api)
-        ota_tools_zip_path = self._RetrieveOtaToolsZip(download_dir, build_api)
+        # Retrieve OTA tools from the goldfish build which contains
+        # mk_combined_img.
+        ota_tools_zip_path = (
+            self._RetrieveArtifact(download_dir, build_api, build_target,
+                                   build_id, _OTA_TOOLS_ZIP_NAME)
+            if system_image_zip_path or boot_image_path else None)
 
         return ArtifactPaths(image_zip_path, emu_zip_path,
                              ota_tools_zip_path, system_image_zip_path,
@@ -343,32 +348,6 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         if build_id and build_target and image_name:
             return self._RetrieveArtifact(
                 download_dir, build_api, build_target, build_id, image_name)
-        return None
-
-    def _RetrieveOtaToolsZip(self, download_dir, build_api):
-        """Retrieve OTA tools zip if needed.
-
-        This class uses OTA tools to convert images into goldfish-specific
-        formats. We don't have a use case where the system and the kernel
-        require different sets of OTA tools. When both kernel and system builds
-        are specified, this method downloads OTA tools from one of them.
-
-        Args:
-            download_dir: The download cache directory.
-            build_api: An AndroidBuildClient object.
-
-        Returns:
-            The path to the OTA tools zip in download_dir.
-            None if the kernel and the system build infos are empty.
-        """
-        for build_info in (self._avd_spec.system_build_info,
-                           self._avd_spec.kernel_build_info):
-            build_id = build_info.get(constants.BUILD_ID)
-            build_target = build_info.get(constants.BUILD_TARGET)
-            if build_id and build_target:
-                return self._RetrieveArtifact(
-                    download_dir, build_api, build_target, build_id,
-                    _OTA_TOOLS_ZIP_NAME)
         return None
 
     @staticmethod
@@ -524,7 +503,7 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
             with zipfile.ZipFile(system_image_zip_path, "r") as zip_file:
                 zip_file.extract(_SYSTEM_IMAGE_NAME, temp_dir)
 
-            mixed_image = goldfish_image.MixWithSystemImage(
+            mixed_image = goldfish_utils.MixWithSystemImage(
                 os.path.join(temp_dir, "mix_disk"),
                 image_dir,
                 os.path.join(temp_dir, _SYSTEM_IMAGE_NAME),
@@ -532,7 +511,7 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
 
             # TODO(b/142228085): Use -system instead of overwriting the file.
             remote_disk_image_path = os.path.join(
-                remote_image_dir, goldfish_image.SYSTEM_QEMU_IMAGE_NAME)
+                remote_image_dir, goldfish_utils.SYSTEM_QEMU_IMAGE_NAME)
             self._ssh.ScpPushFile(mixed_image, remote_disk_image_path)
 
         return remote_disk_image_path
@@ -549,7 +528,7 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
             The remote paths to the kernel image and the ramdisk image.
         """
         with tempfile.TemporaryDirectory("host_gf_kernel") as temp_dir:
-            kernel_path, ramdisk_path = goldfish_image.MixWithBootImage(
+            kernel_path, ramdisk_path = goldfish_utils.MixWithBootImage(
                 temp_dir, image_dir, boot_image_path, ota)
 
             self._ssh.ScpPushFile(kernel_path, _REMOTE_KERNEL_PATH)
@@ -592,8 +571,7 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         if remote_paths.ramdisk:
             cmd.extend(("-ramdisk", remote_paths.ramdisk))
 
-        if self._avd_spec.gpu:
-            cmd.extend(("-gpu", self._avd_spec.gpu))
+        cmd.extend(goldfish_utils.ConvertAvdSpecToArgs(self._avd_spec))
 
         # Unlock the device so that the disabled vbmeta takes effect.
         # These arguments must be at the end of the command line.

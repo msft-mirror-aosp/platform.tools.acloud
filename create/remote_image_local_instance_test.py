@@ -16,6 +16,7 @@
 import unittest
 from collections import namedtuple
 import os
+import shutil
 import subprocess
 
 from unittest import mock
@@ -69,18 +70,20 @@ class RemoteImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(paths.image_dir, "/unit/test")
         self.assertEqual(paths.host_bins, "/unit/test")
 
-    def testDownloadAndProcessImageFiles(self):
+    @mock.patch.object(shutil, "rmtree")
+    def testDownloadAndProcessImageFiles(self, mock_rmtree):
         """Test process remote cuttlefish image."""
         avd_spec = mock.MagicMock()
         avd_spec.cfg = mock.MagicMock()
         avd_spec.cfg.creds_cache_file = "cache.file"
         avd_spec.remote_image = self._fake_remote_image
         avd_spec.image_download_dir = "/tmp"
-        self.Patch(os.path, "exists", return_value=False)
+        avd_spec.force_sync = True
+        self.Patch(os.path, "exists", side_effect=[True, False])
         self.Patch(os, "makedirs")
         self.Patch(subprocess, "check_call")
         remote_image_local_instance.DownloadAndProcessImageFiles(avd_spec)
-
+        self.assertEqual(mock_rmtree.call_count, 1)
         self.assertEqual(self.build_client.GetFetchBuildArgs.call_count, 1)
         self.assertEqual(self.build_client.GetFetchCertArg.call_count, 1)
 

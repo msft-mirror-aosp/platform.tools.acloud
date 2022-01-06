@@ -167,11 +167,6 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.AvdSpec._ProcessAutoconnect()
         self.assertEqual(self.AvdSpec._autoconnect, "vnc")
 
-        self.AvdSpec._avd_type = constants.TYPE_OPENWRT
-        self.AvdSpec._autoconnect = "webrtc"
-        self.AvdSpec._ProcessAutoconnect()
-        self.assertEqual(self.AvdSpec._autoconnect, "webrtc")
-
         self.AvdSpec._avd_type = constants.TYPE_GF
         self.AvdSpec._autoconnect = "webrtc"
         self.AvdSpec._ProcessAutoconnect()
@@ -545,6 +540,11 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(self.AvdSpec.connect_adb, True)
         self.assertEqual(self.AvdSpec.connect_vnc, False)
         self.assertEqual(self.AvdSpec.connect_webrtc, True)
+
+        # Test stable host image name.
+        self.args.stable_host_image_name = "fake_host_image"
+        self.AvdSpec._ProcessMiscArgs(self.args)
+        self.assertEqual(self.AvdSpec.stable_host_image_name, "fake_host_image")
 
 
 if __name__ == "__main__":

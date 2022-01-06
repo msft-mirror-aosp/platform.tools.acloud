@@ -77,7 +77,7 @@ class GCEDeviceFactory(base_device_factory.BaseDeviceFactory):
                 build_target=build_target, build_id=build_id)
 
         host_image_name = self._compute_client.GetHostImageName(
-            self._cfg.stable_host_image_name,
+            self._avd_spec.stable_host_image_name,
             self._cfg.stable_host_image_family,
             self._cfg.stable_host_image_project)
 

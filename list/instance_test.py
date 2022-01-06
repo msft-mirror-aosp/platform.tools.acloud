@@ -17,6 +17,7 @@
 
 import collections
 import datetime
+import os
 import subprocess
 import unittest
 
@@ -319,6 +320,20 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         # Test can't get zone name from zone info.
         zone_info = "v1/projects/project/us-central1-c"
         self.assertEqual(instance.RemoteInstance._GetZoneName(zone_info), None)
+
+    def testGetLocalInstanceConfig(self):
+        """Test GetLocalInstanceConfig."""
+        self.Patch(instance, "GetLocalInstanceRuntimeDir",
+                  return_value="ins_runtime_dir")
+        self.Patch(os.path, "isfile", return_value=False)
+        instance_id = 1
+        self.assertEqual(instance.GetLocalInstanceConfig(instance_id), None)
+
+        # Test config in new folder path.
+        self.Patch(os.path, "isfile", side_effect=[False, True])
+        expected_result = "ins_runtime_dir/instances/cvd-1/cuttlefish_config.json"
+        self.assertEqual(
+            instance.GetLocalInstanceConfig(instance_id), expected_result)
 
 
 if __name__ == "__main__":

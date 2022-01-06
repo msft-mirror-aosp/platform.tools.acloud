@@ -437,8 +437,12 @@ class UtilsTest(driver_test_lib.BaseDriverTest):
         fake_rsa_key_file = "/tmp/rsa_file"
         ssh_user = "fake_user"
         fake_webrtc_local_port = 12345
+        self.Patch(utils, "GetWebRTCServerPort", return_value=8443)
         mock_establish_ssh_tunnel = self.Patch(utils, "EstablishSshTunnel")
-        fake_port_mapping = [utils.PortMapping(12345, 8443)]
+        fake_port_mapping = [utils.PortMapping(15550, 15550),
+                             utils.PortMapping(15551, 15551),
+                             utils.PortMapping(15552, 15552),
+                             utils.PortMapping(12345, 8443)]
 
         utils.EstablishWebRTCSshTunnel(
             ip_addr=fake_ip_addr, rsa_key_file=fake_rsa_key_file,
@@ -463,13 +467,34 @@ class UtilsTest(driver_test_lib.BaseDriverTest):
             fake_port_mapping,
             extra_args_ssh_tunnel)
 
+    def testGetWebRTCServerPort(self):
+        """test GetWebRTCServerPort."""
+        fake_ip_addr = "1.1.1.1"
+        fake_rsa_key_file = "/tmp/rsa_file"
+        ssh_user = "fake_user"
+        extra_args_ssh_tunnel = "-o command='shell %s %h'"
+        fake_subprocess = mock.MagicMock()
+        fake_subprocess.returncode = 0
+        fake_subprocess.communicate = mock.MagicMock(
+            return_value=('', ''))
+        self.Patch(subprocess, "Popen", return_value=fake_subprocess)
+        self.assertEqual(1443, utils.GetWebRTCServerPort(
+            fake_ip_addr, fake_rsa_key_file,ssh_user,extra_args_ssh_tunnel))
+
+        # Test the case that find "webrtc_operator" process.
+        webrtc_operator_process = "11:45 bin/webrtc_operator -assets_dir=assets"
+        fake_subprocess.communicate = mock.MagicMock(
+            return_value=(webrtc_operator_process, ''))
+        self.assertEqual(8443, utils.GetWebRTCServerPort(
+            fake_ip_addr, fake_rsa_key_file,ssh_user,extra_args_ssh_tunnel))
+
     def testGetWebrtcPortFromSSHTunnel(self):
         """"Test Get forwarding webrtc port from ssh tunnel."""
         fake_ps_output = ("/fake_ps_1 --fake arg \n"
                           "/fake_ps_2 --fake arg \n"
                           "/usr/bin/ssh -i ~/.ssh/acloud_rsa "
                           "-o UserKnownHostsFile=/dev/null "
-                          "-o StrictHostKeyChecking=no "
+                          "-o StrictHostKeyChecking=no -L 15551:127.0.0.1:15551 "
                           "-L 12345:127.0.0.1:8443 -N -f -l user 1.1.1.1").encode()
         self.Patch(subprocess, "check_output", return_value=fake_ps_output)
         webrtc_ports = utils.GetWebrtcPortFromSSHTunnel("1.1.1.1")
@@ -535,6 +560,34 @@ class UtilsTest(driver_test_lib.BaseDriverTest):
                 pass
             utils.SetDirectoryTreeExecutable(temp_dir)
             self.assertEqual(os.stat(file_path).st_mode & 0o777, 0o755)
+
+    @mock.patch.object(utils, "PrintColorString")
+    def testPrintDeviceSummary(self, mock_print):
+        """test PrintDeviceSummary."""
+        fake_report = mock.MagicMock(data={})
+        fake_report.data = {
+            "devices": [{"instance_name": "remote_cf_instance_name",
+                         "ip": "192.168.1.1",
+                         "device_serial": "127.0.0.1:399"},],}
+        utils.PrintDeviceSummary(fake_report)
+        self.assertEqual(mock_print.call_count, 7)
+
+        # Test for OpenWrt device case.
+        fake_report.data = {
+            "devices": [{"instance_name": "remote_cf_instance_name",
+                         "ip": "192.168.1.1",
+                         "ssh_command": "fake_ssh_cmd",
+                         "screen_command": "fake_screen_cmd"},],}
+        mock_print.reset_mock()
+        utils.PrintDeviceSummary(fake_report)
+        self.assertEqual(mock_print.call_count, 11)
+
+        # Test for fail case
+        fake_report.data = {
+            "errors": "Fail to create devices"}
+        mock_print.reset_mock()
+        utils.PrintDeviceSummary(fake_report)
+        self.assertEqual(mock_print.call_count, 3)
 
 
 if __name__ == "__main__":
