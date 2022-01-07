@@ -25,10 +25,8 @@ import getpass
 import logging
 import os
 import shutil
-import subprocess
 import sys
 import tempfile
-import re
 
 from acloud.internal import constants
 from acloud.internal.lib import utils
@@ -39,8 +37,6 @@ from acloud.setup import setup_common
 logger = logging.getLogger(__name__)
 
 _CF_COMMOM_FOLDER = "cf-common"
-_CHECK_KVM_CMD = "virt-host-validate"
-_CHECK_KVM_PATTERN = r".*:.Checking for hardware virtualization.*PASS\n"
 
 _LIST_OF_MODULES = ["kvm_intel", "kvm"]
 _UPDATE_APT_GET_CMD = "sudo apt-get update"
@@ -243,33 +239,8 @@ class CuttlefishHostSetup(base_task_runner.BaseTaskRunner):
                 all_modules_present = False
         return all_modules_present
 
-    @staticmethod
-    def _IsSupportedKvm():
-        """Check if support kvm.
-
-        Returns:
-            True if environment supported kvm.
-        """
-        process = subprocess.Popen([_CHECK_KVM_CMD],
-                                   stdout=subprocess.PIPE,
-                                   universal_newlines=True)
-        stdout, _ = process.communicate()
-        re_pattern = re.compile(_CHECK_KVM_PATTERN)
-        if re_pattern.match(stdout):
-            return True
-
-        utils.PrintColorString(
-            "The environment doesn't support virtualization. If you want to "
-            "launch AVD on the local instance, Please refer to http://go/"
-            "acloud-cloudtop#acloud-create-local-instance-on-the-cloudtop ",
-            utils.TextColors.FAIL)
-        return False
-
     def _Run(self):
         """Setup host environment for local cuttlefish instance support."""
-        if not self._IsSupportedKvm():
-            return
-
         # TODO: provide --uid args to let user use prefered username
         username = getpass.getuser()
         setup_cmds = [
