@@ -124,6 +124,9 @@ _SUPPORTED_SYSTEMS_AND_DISTS = {"Linux": ["Ubuntu", "ubuntu", "Debian", "debian"
 _DEFAULT_TIMEOUT_ERR = "Function did not complete within %d secs."
 _SSVNC_VIEWER_PATTERN = "vnc://127.0.0.1:%(vnc_port)d"
 
+# Determine the environment whether to support kvm.
+_KVM_PATH = "/dev/kvm"
+
 
 class TempDir:
     """A context manager that ceates a temporary directory.
@@ -1370,6 +1373,22 @@ def IsSupportedPlatform(print_warning=False):
 
     return platform_supported
 
+def IsSupportedKvm():
+    """Check if support kvm.
+
+    Returns:
+        True if environment supported kvm.
+    """
+    if os.path.exists(_KVM_PATH):
+        return True
+
+    PrintColorString(
+        "The environment doesn't support virtualization. Please run "
+        "the remote instance by \"acloud create\" instead. If you want to "
+        "launch AVD on the local instance, Please refer to http://go/"
+        "acloud-cloudtop#acloud-create-local-instance-on-the-cloudtop",
+        TextColors.FAIL)
+    return False
 
 def GetDistDir():
     """Return the absolute path to the dist dir."""
