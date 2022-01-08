@@ -589,6 +589,15 @@ class UtilsTest(driver_test_lib.BaseDriverTest):
         utils.PrintDeviceSummary(fake_report)
         self.assertEqual(mock_print.call_count, 3)
 
+    # pylint: disable=protected-access
+    def testIsSupportedKvm(self):
+        """Test IsSupportedKvm."""
+        self.Patch(os.path, "exists", return_value=True)
+        self.assertTrue(utils.IsSupportedKvm())
+
+        self.Patch(os.path, "exists", return_value=False)
+        self.assertFalse(utils.IsSupportedKvm())
+
 
 if __name__ == "__main__":
     unittest.main()
