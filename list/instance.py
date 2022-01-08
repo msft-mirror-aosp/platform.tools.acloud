@@ -259,6 +259,7 @@ class Instance(object):
         self._is_local = is_local  # True if this is a local instance
         self._device_information = device_information
         self._zone = zone
+        self._autoconnect = self._GetAutoConnect()
 
     def __repr__(self):
         """Return full name property for print."""
@@ -276,6 +277,7 @@ class Instance(object):
         representation.append("%s display: %s" % (_INDENT, self._display))
         representation.append("%s vnc: 127.0.0.1:%s" % (_INDENT, self._vnc_port))
         representation.append("%s zone: %s" % (_INDENT, self._zone))
+        representation.append("%s autoconnect: %s" % (_INDENT, self._autoconnect))
         representation.append("%s webrtc port: %s" % (_INDENT, self._webrtc_port))
 
         if self._adb_port and self._device_information:
@@ -303,6 +305,20 @@ class Instance(object):
         if self._adb_port and self._device_information:
             return True
         return False
+
+    def _GetAutoConnect(self):
+        """Get the autoconnect of instance.
+
+        Returns:
+            String of autoconnect type. None for no autoconnect.
+        """
+        if self._webrtc_port:
+            return constants.INS_KEY_WEBRTC
+        if self._vnc_port:
+            return constants.INS_KEY_VNC
+        if self._adb_port:
+            return constants.INS_KEY_ADB
+        return None
 
     @property
     def name(self):
@@ -373,6 +389,11 @@ class Instance(object):
     def zone(self):
         """Return zone."""
         return self._zone
+
+    @property
+    def autoconnect(self):
+        """Return autoconnect."""
+        return self._autoconnect
 
 
 class LocalInstance(Instance):
