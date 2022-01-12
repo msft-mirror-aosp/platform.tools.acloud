@@ -204,7 +204,9 @@ WEBRTC_LOCAL_PORT = 8443
 WEBRTC_LOCAL_HOST = "localhost"
 WEBRTC_CERTS_PATH = "usr/share/webrtc/certs"
 WEBRTC_CERTS_FILES = ["server.crt", "server.key"]
-MKCERT_INSTALL_DIR = ".config/acloud/mkcert"
+SSL_DIR = ".config/acloud/mkcert"
+SSL_CA_NAME = "ACloud-webRTC-CA"
+SSL_TRUST_CA_DIR = "/usr/local/share/ca-certificates"
 
 # Remote Log
 REMOTE_LOG_FOLDER = "/home/%s/cuttlefish_runtime" % GCE_USER
