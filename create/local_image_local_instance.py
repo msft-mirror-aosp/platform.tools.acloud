@@ -138,9 +138,14 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             A Report instance.
         """
         # Running instances on local is not supported on all OS.
+        result_report = report.Report(command="create")
         if not utils.IsSupportedPlatform(print_warning=True):
-            result_report = report.Report(command="create")
-            result_report.SetStatus(report.Status.FAIL)
+            result_report.UpdateFailure(
+                "The platform doesn't support to run acloud.")
+            return result_report
+        if not utils.IsSupportedKvm():
+            result_report.UpdateFailure(
+                "The environment doesn't support virtualization.")
             return result_report
 
         artifact_paths = self.GetImageArtifactsPath(avd_spec)
@@ -148,9 +153,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         try:
             ins_id, ins_lock = self._SelectAndLockInstance(avd_spec)
         except errors.CreateError as e:
-            result_report = report.Report(command="create")
-            result_report.AddError(str(e))
-            result_report.SetStatus(report.Status.FAIL)
+            result_report.UpdateFailure(str(e))
             return result_report
 
         try:
