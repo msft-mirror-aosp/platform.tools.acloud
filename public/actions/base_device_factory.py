@@ -57,3 +57,12 @@ class BaseDeviceFactory():
           A build info dictionary.
         """
         return None
+
+    # pylint: disable=no-self-use
+    def GetLogs(self):
+        """Get log files of created instances.
+
+        Returns:
+            A dictionary that maps instance names to lists of report.LogFile.
+        """
+        return {}
