@@ -59,7 +59,7 @@ def Run(args):
     gcp_runner = gcp_setup_runner.GcpTaskRunner(args.config_file)
     task_queue = []
     # User must explicitly specify --host to install the avd host packages.
-    if args.host:
+    if args.host and utils.IsSupportedKvm():
         task_queue.append(host_base_runner)
         task_queue.append(host_avd_runner)
         task_queue.append(host_cf_common_runner)
