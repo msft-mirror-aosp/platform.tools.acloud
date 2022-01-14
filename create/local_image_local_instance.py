@@ -105,9 +105,12 @@ _MAX_REPORTED_ERROR_LINES = 10
 # /etc/init.d/cuttlefish-common
 _MAX_INSTANCE_ID = 10
 
+# TODO(b/213521240): To check why the delete function is not work and
+# has to manually delete temp folder.
 _INSTANCES_IN_USE_MSG = ("All instances are in use. Try resetting an instance "
                          "by specifying --local-instance and an id between 1 "
-                         "and %d." % _MAX_INSTANCE_ID)
+                         "and %d. Alternatively, to run 'acloud delete --all' "
+                         % _MAX_INSTANCE_ID)
 _CONFIRM_RELAUNCH = ("\nCuttlefish AVD[id:%d] is already running. \n"
                      "Enter 'y' to terminate current instance and launch a new "
                      "instance, enter anything else to exit out[y/N]: ")
