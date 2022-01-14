@@ -241,7 +241,7 @@ class Instance(object):
                  vnc_port=None, ssh_tunnel_is_connected=None, createtime=None,
                  elapsed_time=None, avd_type=None, avd_flavor=None,
                  is_local=False, device_information=None, zone=None,
-                 webrtc_port=None):
+                 webrtc_port=None, webrtc_forward_port=None):
         self._name = name
         self._fullname = fullname
         self._status = status
@@ -250,6 +250,7 @@ class Instance(object):
         self._adb_port = adb_port  # adb port which is forwarding to remote
         self._vnc_port = vnc_port  # vnc port which is forwarding to remote
         self._webrtc_port = webrtc_port
+        self._webrtc_forward_port = webrtc_forward_port
         # True if ssh tunnel is still connected
         self._ssh_tunnel_is_connected = ssh_tunnel_is_connected
         self._createtime = createtime
@@ -279,6 +280,8 @@ class Instance(object):
         representation.append("%s zone: %s" % (_INDENT, self._zone))
         representation.append("%s autoconnect: %s" % (_INDENT, self._autoconnect))
         representation.append("%s webrtc port: %s" % (_INDENT, self._webrtc_port))
+        representation.append("%s webrtc forward port: %s" %
+                              (_INDENT, self._webrtc_forward_port))
 
         if self._adb_port and self._device_information:
             representation.append("%s adb serial: 127.0.0.1:%s" %
@@ -312,7 +315,7 @@ class Instance(object):
         Returns:
             String of autoconnect type. None for no autoconnect.
         """
-        if self._webrtc_port:
+        if self._webrtc_port or self._webrtc_forward_port:
             return constants.INS_KEY_WEBRTC
         if self._vnc_port:
             return constants.INS_KEY_VNC
@@ -384,6 +387,11 @@ class Instance(object):
     def webrtc_port(self):
         """Return webrtc_port."""
         return self._webrtc_port
+
+    @property
+    def webrtc_forward_port(self):
+        """Return webrtc_forward_port."""
+        return self._webrtc_forward_port
 
     @property
     def zone(self):
@@ -727,10 +735,11 @@ class RemoteInstance(Instance):
         instance_ip = GetInstanceIP(gce_instance)
         ip = instance_ip.external or instance_ip.internal
 
-        # Get metadata
+        # Get metadata, webrtc_port will be removed if "cvd fleet" show it.
         display = None
         avd_type = None
         avd_flavor = None
+        webrtc_port = None
         for metadata in gce_instance.get("metadata", {}).get("items", []):
             key = metadata["key"]
             value = metadata["value"]
@@ -740,6 +749,8 @@ class RemoteInstance(Instance):
                 avd_type = value
             elif key == constants.INS_KEY_AVD_FLAVOR:
                 avd_flavor = value
+            elif key == constants.INS_KEY_WEBRTC_PORT:
+                webrtc_port = value
         # TODO(176884236): Insert avd information into metadata of instance.
         if not avd_type and name.startswith(_ACLOUDWEB_INSTANCE_START_STRING):
             avd_type = constants.TYPE_CF
@@ -747,14 +758,14 @@ class RemoteInstance(Instance):
         # Find ssl tunnel info.
         adb_port = None
         vnc_port = None
-        webrtc_port = constants.WEBRTC_LOCAL_PORT
+        webrtc_forward_port = None
         device_information = None
         if ip:
             forwarded_ports = self.GetAdbVncPortFromSSHTunnel(ip, avd_type)
             adb_port = forwarded_ports.adb_port
             vnc_port = forwarded_ports.vnc_port
             ssh_tunnel_is_connected = adb_port is not None
-            webrtc_port = utils.GetWebrtcPortFromSSHTunnel(ip)
+            webrtc_forward_port = utils.GetWebrtcPortFromSSHTunnel(ip)
 
             adb_device = AdbTools(adb_port)
             if adb_device.IsAdbConnected():
@@ -783,7 +794,8 @@ class RemoteInstance(Instance):
             createtime=create_time, elapsed_time=elapsed_time, avd_type=avd_type,
             avd_flavor=avd_flavor, is_local=False,
             device_information=device_information,
-            zone=zone, webrtc_port=webrtc_port)
+            zone=zone, webrtc_port=webrtc_port,
+            webrtc_forward_port=webrtc_forward_port)
 
     @staticmethod
     def _GetZoneName(zone_info):
