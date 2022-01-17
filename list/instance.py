@@ -281,8 +281,9 @@ class Instance(object):
         representation.append("%s webrtc port: %s" % (_INDENT, self._webrtc_port))
 
         if self._adb_port and self._device_information:
-            representation.append("%s adb serial: 127.0.0.1:%s" %
-                                  (_INDENT, self._adb_port))
+            serial_ip = self._ip if self._ip == "0.0.0.0" else "127.0.0.1"
+            representation.append("%s adb serial: %s:%s" %
+                                  (_INDENT, serial_ip, self._adb_port))
             representation.append("%s product: %s" % (
                 _INDENT, self._device_information["product"]))
             representation.append("%s model: %s" % (
@@ -419,7 +420,7 @@ class LocalInstance(Instance):
                     {"device_serial": "0.0.0.0:%s" % self._cf_runtime_cfg.adb_port,
                      "instance_name": name,
                      "elapsed_time": None})
-        adb_device = AdbTools(self._cf_runtime_cfg.adb_port)
+        adb_device = AdbTools(device_serial="0.0.0.0:%s" % self._cf_runtime_cfg.adb_port)
         webrtc_port = local_image_local_instance.LocalImageLocalInstance.GetWebrtcSigServerPort(
             self._local_instance_id)
         device_information = None
