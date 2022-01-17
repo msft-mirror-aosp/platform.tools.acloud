@@ -109,6 +109,7 @@ USER_ANSWER_YES = {"y", "yes", "Y"}
 # Cuttlefish groups
 LIST_CF_USER_GROUPS = ["kvm", "cvdnetwork"]
 
+# Report keys
 IP = "ip"
 INSTANCE_NAME = "instance_name"
 GCE_USER = "vsoc-01"
@@ -116,6 +117,7 @@ VNC_PORT = "vnc_port"
 ADB_PORT = "adb_port"
 WEBRTC_PORT = "webrtc_port"
 DEVICE_SERIAL = "device_serial"
+LOGS = "logs"
 # For cuttlefish remote instances
 CF_ADB_PORT = 6520
 CF_VNC_PORT = 6444
@@ -211,6 +213,12 @@ CHEEPS_BETTY_IMAGE = "betty_image"
 
 # Key name in report
 ERROR_LOG_FOLDER = "error_log_folder"
+
+# Type of "logs" entries in report.
+# The values must be consistent with LogDataType in TradeFed.
+LOG_TYPE_KERNEL_LOG = "KERNEL_LOG"
+LOG_TYPE_LOGCAT = "LOGCAT"
+LOG_TYPE_TEXT = "TEXT"
 
 # Stages for create progress
 STAGE_INIT = 0

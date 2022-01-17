@@ -27,15 +27,6 @@ import acloud.create.goldfish_local_image_local_instance as instance_module
 class GoldfishLocalImageLocalInstance(unittest.TestCase):
     """Test GoldfishLocalImageLocalInstance methods."""
 
-    _EXPECTED_DEVICES_IN_REPORT = [
-        {
-            "instance_name": "local-goldfish-instance",
-            "ip": "127.0.0.1:5555",
-            "adb_port": 5555,
-            "device_serial": "unittest"
-        }
-    ]
-
     def setUp(self):
         self._goldfish = instance_module.GoldfishLocalImageLocalInstance()
         self._temp_dir = tempfile.mkdtemp()
@@ -155,11 +146,28 @@ class GoldfishLocalImageLocalInstance(unittest.TestCase):
             "-logcat-output",
             os.path.join(self._instance_dir, "logcat.txt"),
             "-stdouterr-file",
-            os.path.join(self._instance_dir, "stdouterr.txt"),
+            os.path.join(self._instance_dir, "kernel.log"),
             "-gpu", "auto"
         ]
         cmd.extend(extra_args)
         return cmd
+
+    def _GetExpectedDevicesInReport(self):
+        logcat_path = os.path.join(self._instance_dir, "logcat.txt")
+        stdouterr_path = os.path.join(self._instance_dir, "kernel.log")
+        return [
+            {
+                "instance_name": "local-goldfish-instance",
+                "ip": "127.0.0.1:5555",
+                "adb_port": 5555,
+                "device_serial": "unittest",
+                "logs": [
+                    {"path": logcat_path, "type": "LOGCAT"},
+                    {"path": stdouterr_path, "type": "KERNEL_LOG"}
+                ]
+            }
+        ]
+
 
     # pylint: disable=protected-access
     @mock.patch("acloud.create.goldfish_local_image_local_instance.instance."
@@ -194,7 +202,7 @@ class GoldfishLocalImageLocalInstance(unittest.TestCase):
             report = self._goldfish._CreateAVD(mock_avd_spec, no_prompts=False)
 
         self.assertEqual(report.data.get("devices"),
-                         self._EXPECTED_DEVICES_IN_REPORT)
+                         self._GetExpectedDevicesInReport())
 
         self._mock_lock.Lock.assert_called_once()
         self._mock_lock.SetInUse.assert_called_once_with(True)
@@ -242,7 +250,7 @@ class GoldfishLocalImageLocalInstance(unittest.TestCase):
             report = self._goldfish._CreateAVD(mock_avd_spec, no_prompts=True)
 
         self.assertEqual(report.data.get("devices"),
-                         self._EXPECTED_DEVICES_IN_REPORT)
+                         self._GetExpectedDevicesInReport())
 
         self._mock_lock.Lock.assert_called_once()
         self._mock_lock.SetInUse.assert_called_once_with(True)
@@ -293,7 +301,7 @@ class GoldfishLocalImageLocalInstance(unittest.TestCase):
         self._mock_lock.Unlock.assert_called_once()
 
         self.assertEqual(report.data.get("devices_failing_boot"),
-                         self._EXPECTED_DEVICES_IN_REPORT)
+                         self._GetExpectedDevicesInReport())
         self.assertEqual(report.errors, ["timeout"])
 
     # pylint: disable=protected-access
@@ -355,7 +363,7 @@ class GoldfishLocalImageLocalInstance(unittest.TestCase):
             report = self._goldfish._CreateAVD(mock_avd_spec, no_prompts=True)
 
         self.assertEqual(report.data.get("devices"),
-                         self._EXPECTED_DEVICES_IN_REPORT)
+                         self._GetExpectedDevicesInReport())
 
         mock_instance.assert_called_once_with(3, avd_flavor="phone")
 
@@ -408,7 +416,7 @@ class GoldfishLocalImageLocalInstance(unittest.TestCase):
             report = self._goldfish._CreateAVD(mock_avd_spec, no_prompts=True)
 
         self.assertEqual(report.data.get("devices"),
-                         self._EXPECTED_DEVICES_IN_REPORT)
+                         self._GetExpectedDevicesInReport())
 
         mock_gf_utils.MixWithBootImage.assert_called_once_with(
             mock.ANY, os.path.join(image_subdir), boot_image_path,
@@ -460,7 +468,7 @@ class GoldfishLocalImageLocalInstance(unittest.TestCase):
             report = self._goldfish._CreateAVD(mock_avd_spec, no_prompts=True)
 
         self.assertEqual(report.data.get("devices"),
-                         self._EXPECTED_DEVICES_IN_REPORT)
+                         self._GetExpectedDevicesInReport())
 
         mock_ota_tools.FindOtaTools.assert_not_called()
         mock_gf_utils.FindKernelImages.assert_called_once_with(kernel_subdir)
@@ -511,7 +519,7 @@ class GoldfishLocalImageLocalInstance(unittest.TestCase):
             report = self._goldfish._CreateAVD(mock_avd_spec, no_prompts=True)
 
         self.assertEqual(report.data.get("devices"),
-                         self._EXPECTED_DEVICES_IN_REPORT)
+                         self._GetExpectedDevicesInReport())
 
         mock_instance.assert_called_once_with(3, avd_flavor="phone")
 
