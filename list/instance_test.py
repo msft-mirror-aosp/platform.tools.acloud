@@ -56,7 +56,9 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
             "items":[{"key":constants.INS_KEY_AVD_TYPE,
                       "value":"fake_type"},
                      {"key":constants.INS_KEY_AVD_FLAVOR,
-                      "value":"fake_flavor"}]}
+                      "value":"fake_flavor"},
+                     {"key":constants.INS_KEY_WEBRTC_PORT,
+                      "value":"fake_webrtc_port"}]}
     }
 
     @staticmethod
@@ -284,7 +286,8 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
                           "   vnc: 127.0.0.1:654321\n "
                           "   zone: fake_zone\n "
                           "   autoconnect: webrtc\n "
-                          "   webrtc port: 8443\n "
+                          "   webrtc port: fake_webrtc_port\n "
+                          "   webrtc forward port: 8443\n "
                           "   adb serial: 127.0.0.1:123456\n "
                           "   product: None\n "
                           "   model: None\n "
@@ -309,7 +312,8 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
                           "   vnc: 127.0.0.1:None\n "
                           "   zone: fake_zone\n "
                           "   autoconnect: webrtc\n "
-                          "   webrtc port: 8443\n "
+                          "   webrtc port: fake_webrtc_port\n "
+                          "   webrtc forward port: 8443\n "
                           "   adb serial: disconnected")
         self.assertEqual(remote_instance.Summary(), result_summary)
 
