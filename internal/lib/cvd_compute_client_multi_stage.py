@@ -531,6 +531,9 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             if avd_spec.gce_metadata:
                 for key, value in avd_spec.gce_metadata.items():
                     metadata[key] = value
+            # Record webrtc port, it will be removed if cvd support to show it.
+            if avd_spec.connect_webrtc:
+                metadata[constants.INS_KEY_WEBRTC_PORT] = constants.WEBRTC_LOCAL_PORT
 
         disk_args = self._GetDiskArgs(
             instance, image_name, image_project, boot_disk_size_gb)
