@@ -51,7 +51,7 @@ EOF"""
 
     LAUNCH_CVD_CMD_WITH_WEBRTC = """sg group1 <<EOF
 sg group2
-launch_cvd -daemon -config=auto -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -guest_enforce_security=false -start_webrtc=true
+launch_cvd -daemon -config=auto -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -start_webrtc=true
 EOF"""
 
     LAUNCH_CVD_CMD_WITH_MIXED_IMAGES = """sg group1 <<EOF

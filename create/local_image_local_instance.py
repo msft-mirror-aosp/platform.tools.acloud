@@ -91,8 +91,7 @@ _CMD_LAUNCH_CVD_ARGS = (
 _CMD_LAUNCH_CVD_HW_ARGS = " -cpus %s -x_res %s -y_res %s -dpi %s -memory_mb %s"
 _CMD_LAUNCH_CVD_DISK_ARGS = (
     " -blank_data_image_mb %s -data_policy always_create")
-_CMD_LAUNCH_CVD_WEBRTC_ARGS = (
-    " -guest_enforce_security=false -start_webrtc=true")
+_CMD_LAUNCH_CVD_WEBRTC_ARGS = " -start_webrtc=true"
 _CMD_LAUNCH_CVD_VNC_ARG = " -start_vnc_server=true"
 _CMD_LAUNCH_CVD_SUPER_IMAGE_ARG = " -super_image=%s"
 _CMD_LAUNCH_CVD_BOOT_IMAGE_ARG = " -boot_image=%s"
