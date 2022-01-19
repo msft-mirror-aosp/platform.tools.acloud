@@ -69,11 +69,10 @@ _FETCH_ARTIFACT = "fetch_artifact_time"
 _GCE_CREATE = "gce_create_time"
 _LAUNCH_CVD = "launch_cvd_time"
 # WebRTC args for launching AVD
-_GUEST_ENFORCE_SECURITY_FALSE = "--guest_enforce_security=false"
 _START_WEBRTC = "--start_webrtc"
 _WEBRTC_ID = "--webrtc_device_id=%(instance)s"
 _VM_MANAGER = "--vm_manager=crosvm"
-_WEBRTC_ARGS = [_GUEST_ENFORCE_SECURITY_FALSE, _START_WEBRTC, _VM_MANAGER]
+_WEBRTC_ARGS = [_START_WEBRTC, _VM_MANAGER]
 _VNC_ARGS = ["--start_vnc_server=true"]
 _NO_RETRY = 0
 # Launch cvd command for acloud report
