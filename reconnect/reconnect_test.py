@@ -57,7 +57,6 @@ class ReconnectTest(driver_test_lib.BaseDriverTest):
         self.Patch(AdbTools, "IsAdbConnected", return_value=False)
         self.Patch(AdbTools, "IsAdbConnectionAlive", return_value=False)
         self.Patch(utils, "IsCommandRunning", return_value=False)
-        self.Patch(reconnect, "_IsWebrtcEnable", return_value=False)
         fake_device_dict = {
             constants.IP: "1.1.1.1",
             constants.INSTANCE_NAME: "fake_name",
@@ -70,14 +69,16 @@ class ReconnectTest(driver_test_lib.BaseDriverTest):
         instance_object.vnc_port = 6666
         instance_object.display = ""
         utils.AutoConnect.call_count = 0
-        reconnect.ReconnectInstance(ssh_private_key_path, instance_object, fake_report)
+        reconnect.ReconnectInstance(
+            ssh_private_key_path, instance_object, fake_report, autoconnect="vnc")
         utils.AutoConnect.assert_not_called()
         utils.LaunchVncClient.assert_called_with(6666)
         fake_report.AddData.assert_called_with(key="devices", value=fake_device_dict)
 
         instance_object.display = "888x777 (99)"
         utils.AutoConnect.call_count = 0
-        reconnect.ReconnectInstance(ssh_private_key_path, instance_object, fake_report)
+        reconnect.ReconnectInstance(
+            ssh_private_key_path, instance_object, fake_report, autoconnect="vnc")
         utils.AutoConnect.assert_not_called()
         utils.LaunchVncClient.assert_called_with(6666, "888", "777")
         fake_report.AddData.assert_called_with(key="devices", value=fake_device_dict)
@@ -90,7 +91,8 @@ class ReconnectTest(driver_test_lib.BaseDriverTest):
         extra_args_ssh_tunnel = None
         self.Patch(utils, "AutoConnect",
                    return_value=ForwardedPorts(vnc_port=11111, adb_port=22222))
-        reconnect.ReconnectInstance(ssh_private_key_path, instance_object, fake_report)
+        reconnect.ReconnectInstance(
+            ssh_private_key_path, instance_object, fake_report, autoconnect="vnc")
         utils.AutoConnect.assert_called_with(ip_addr=instance_object.ip,
                                              rsa_key_file=ssh_private_key_path,
                                              target_vnc_port=constants.CF_VNC_PORT,
@@ -110,10 +112,10 @@ class ReconnectTest(driver_test_lib.BaseDriverTest):
         instance_object.display = "999x777 (99)"
         extra_args_ssh_tunnel = "fake_extra_args_ssh_tunnel"
         utils.AutoConnect.call_count = 0
-        reconnect.ReconnectInstance(ssh_private_key_path,
-                                    instance_object,
-                                    fake_report,
-                                    extra_args_ssh_tunnel)
+        reconnect.ReconnectInstance(
+            ssh_private_key_path, instance_object, fake_report,
+            extra_args_ssh_tunnel=extra_args_ssh_tunnel,
+            autoconnect="vnc")
         utils.AutoConnect.assert_called_with(ip_addr=instance_object.ip,
                                              rsa_key_file=ssh_private_key_path,
                                              target_vnc_port=constants.CF_VNC_PORT,
@@ -126,7 +128,8 @@ class ReconnectTest(driver_test_lib.BaseDriverTest):
         # test fail reconnect report.
         self.Patch(utils, "AutoConnect",
                    return_value=ForwardedPorts(vnc_port=None, adb_port=None))
-        reconnect.ReconnectInstance(ssh_private_key_path, instance_object, fake_report)
+        reconnect.ReconnectInstance(
+            ssh_private_key_path, instance_object, fake_report, autoconnect="vnc")
         fake_device_dict = {
             constants.IP: "1.1.1.1",
             constants.INSTANCE_NAME: "fake_name",
@@ -142,9 +145,8 @@ class ReconnectTest(driver_test_lib.BaseDriverTest):
         instance_object.vnc_port = 5555
         instance_object.ssh_tunnel_is_connected = False
         utils.AutoConnect.call_count = 0
-        reconnect.ReconnectInstance(ssh_private_key_path,
-                                    instance_object,
-                                    fake_report)
+        reconnect.ReconnectInstance(
+            ssh_private_key_path, instance_object, fake_report, autoconnect="vnc")
         utils.AutoConnect.assert_not_called()
         utils.LaunchVncClient.assert_called_with(5555)
         fake_device_dict = {
@@ -175,13 +177,13 @@ class ReconnectTest(driver_test_lib.BaseDriverTest):
         self.Patch(AdbTools, "IsAdbConnected", return_value=False)
         self.Patch(AdbTools, "IsAdbConnectionAlive", return_value=False)
         self.Patch(utils, "IsCommandRunning", return_value=False)
-        self.Patch(reconnect, "_IsWebrtcEnable", return_value=True)
 
         # test ssh tunnel not reconnect to the remote instance.
         instance_object.vnc_port = 6666
         instance_object.display = ""
         utils.AutoConnect.call_count = 0
-        reconnect.ReconnectInstance(ssh_private_key_path, instance_object, fake_report)
+        reconnect.ReconnectInstance(ssh_private_key_path, instance_object, fake_report,
+                                    None, "webrtc")
         utils.AutoConnect.assert_not_called()
         utils.LaunchVncClient.assert_not_called()
         utils.EstablishWebRTCSshTunnel.assert_called_with(extra_args_ssh_tunnel=None,
@@ -194,13 +196,24 @@ class ReconnectTest(driver_test_lib.BaseDriverTest):
         utils.PickFreePort.reset_mock()
 
         self.Patch(utils, "GetWebrtcPortFromSSHTunnel", return_value="11111")
-        reconnect.ReconnectInstance(ssh_private_key_path, instance_object, fake_report)
+        reconnect.ReconnectInstance(ssh_private_key_path, instance_object, fake_report,
+                                    None, "webrtc")
         utils.PickFreePort.assert_not_called()
 
         # local webrtc instance
         instance_object.islocal = True
-        reconnect.ReconnectInstance(ssh_private_key_path, instance_object, fake_report)
+        reconnect.ReconnectInstance(ssh_private_key_path, instance_object, fake_report,
+                                    None, "webrtc")
         utils.PickFreePort.assert_not_called()
+
+        # autoconnect adb only should launch nothing.
+        utils.LaunchBrowser.reset_mock()
+        utils.LaunchVncClient.reset_mock()
+        reconnect.ReconnectInstance(ssh_private_key_path, instance_object, fake_report,
+                                    None, "adb")
+        utils.LaunchBrowser.assert_not_called()
+        utils.LaunchVncClient.assert_not_called()
+
 
     def testReconnectInstanceAvdtype(self):
         """Test Reconnect Instances of avd_type."""
@@ -214,10 +227,10 @@ class ReconnectTest(driver_test_lib.BaseDriverTest):
         instance_object.ssh_tunnel_is_connected = False
         self.Patch(utils, "AutoConnect")
         self.Patch(reconnect, "StartVnc")
-        self.Patch(reconnect, "_IsWebrtcEnable", return_value=False)
         #test reconnect remote instance when avd_type as gce.
         instance_object.avd_type = "gce"
-        reconnect.ReconnectInstance(ssh_private_key_path, instance_object, fake_report)
+        reconnect.ReconnectInstance(
+            ssh_private_key_path, instance_object, fake_report, autoconnect="vnc")
         utils.AutoConnect.assert_called_with(ip_addr=instance_object.ip,
                                              rsa_key_file=ssh_private_key_path,
                                              target_vnc_port=constants.GCE_VNC_PORT,
@@ -229,7 +242,8 @@ class ReconnectTest(driver_test_lib.BaseDriverTest):
         #test reconnect remote instance when avd_type as cuttlefish.
         instance_object.avd_type = "cuttlefish"
         reconnect.StartVnc.call_count = 0
-        reconnect.ReconnectInstance(ssh_private_key_path, instance_object, fake_report)
+        reconnect.ReconnectInstance(
+            ssh_private_key_path, instance_object, fake_report, autoconnect="vnc")
         utils.AutoConnect.assert_called_with(ip_addr=instance_object.ip,
                                              rsa_key_file=ssh_private_key_path,
                                              target_vnc_port=constants.CF_VNC_PORT,
@@ -307,6 +321,7 @@ class ReconnectTest(driver_test_lib.BaseDriverTest):
     def testRun(self):
         """Test Run."""
         fake_args = mock.MagicMock()
+        fake_args.autoconnect = "webrtc"
         fake_args.instance_names = ["fake-ins-name"]
         fake_ins1 = mock.MagicMock()
         fake_ins1.avd_type = "cuttlefish"
@@ -314,13 +329,17 @@ class ReconnectTest(driver_test_lib.BaseDriverTest):
         fake_ins2 = mock.MagicMock()
         fake_ins2.avd_type = "cuttlefish"
         fake_ins2.islocal = False
-        fake_ins3 = mock.MagicMock()
-        fake_ins3.avd_type = "goldfish"
-        fake_ins3.islocal = False
+        fake_ins_gf = mock.MagicMock()
+        fake_ins_gf.avd_type = "goldfish"
+        fake_ins_gf.islocal = False
+        fake_ins_gf.vnc_port = 1234
         ins_to_reconnect = [fake_ins1]
         # mock args.all equal to True and return 3 instances.
-        all_ins_to_reconnect = [fake_ins1, fake_ins2, fake_ins3]
-        self.Patch(config, "GetAcloudConfig")
+        all_ins_to_reconnect = [fake_ins1, fake_ins2, fake_ins_gf]
+        cfg = mock.MagicMock()
+        cfg.ssh_private_key_path = None
+        cfg.extra_args_ssh_tunnel = None
+        self.Patch(config, "GetAcloudConfig", return_value=cfg)
         self.Patch(list_instance, "GetInstancesFromInstanceNames",
                    return_value=ins_to_reconnect)
         self.Patch(list_instance, "ChooseInstances",
