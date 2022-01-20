@@ -193,12 +193,17 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         instance_dir = ins.instance_dir
         create_common.PrepareLocalInstanceDir(instance_dir, avd_spec)
 
+        logcat_path = os.path.join(instance_dir, "logcat.txt")
+        stdouterr_path = os.path.join(instance_dir, "kernel.log")
+        logs = [report.LogFile(logcat_path, constants.LOG_TYPE_LOGCAT),
+                report.LogFile(stdouterr_path, constants.LOG_TYPE_KERNEL_LOG)]
         extra_args = self._ConvertAvdSpecToArgs(avd_spec, instance_dir)
 
         logger.info("Instance directory: %s", instance_dir)
         proc = self._StartEmulatorProcess(emulator_path, instance_dir,
                                           image_dir, ins.console_port,
-                                          ins.adb_port, extra_args)
+                                          ins.adb_port, logcat_path,
+                                          stdouterr_path, extra_args)
 
         boot_timeout_secs = (avd_spec.boot_timeout_secs or
                              _DEFAULT_EMULATOR_TIMEOUT_SECS)
@@ -210,12 +215,14 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             result_report.AddDeviceBootFailure(ins.name, ins.ip,
                                                ins.adb_port, vnc_port=None,
                                                error=str(e),
-                                               device_serial=ins.device_serial)
+                                               device_serial=ins.device_serial,
+                                               logs=logs)
         else:
             result_report.SetStatus(report.Status.SUCCESS)
             result_report.AddDevice(ins.name, ins.ip, ins.adb_port,
                                     vnc_port=None,
-                                    device_serial=ins.device_serial)
+                                    device_serial=ins.device_serial,
+                                    logs=logs)
 
         return result_report
 
@@ -465,7 +472,8 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
 
     @staticmethod
     def _StartEmulatorProcess(emulator_path, working_dir, image_dir,
-                              console_port, adb_port, extra_args):
+                              console_port, adb_port, logcat_path,
+                              stdouterr_path, extra_args):
         """Start an emulator process.
 
         Args:
@@ -476,6 +484,8 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                        e.g., composite system.img or system-qemu.img.
             console_port: The console port of the emulator.
             adb_port: The ADB port of the emulator.
+            logcat_path: The path where logcat is redirected.
+            stdouterr_path: The path where stdout and stderr are redirected.
             extra_args: List of strings, the extra arguments.
 
         Returns:
@@ -490,8 +500,6 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         if constants.ENV_ANDROID_BUILD_TOP not in emulator_env:
             emulator_env[constants.ENV_ANDROID_BUILD_TOP] = image_dir
 
-        logcat_path = os.path.join(working_dir, "logcat.txt")
-        stdouterr_path = os.path.join(working_dir, "stdouterr.txt")
         # The command doesn't create -stdouterr-file automatically.
         with open(stdouterr_path, "w") as _:
             pass
