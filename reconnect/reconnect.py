@@ -121,7 +121,7 @@ def ReconnectInstance(ssh_private_key_path,
                       instance,
                       reconnect_report,
                       extra_args_ssh_tunnel=None,
-                      connect_vnc=True):
+                      autoconnect=None):
     """Reconnect to the specified instance.
 
     It will:
@@ -136,7 +136,7 @@ def ReconnectInstance(ssh_private_key_path,
         instance: list.Instance() object.
         reconnect_report: Report object.
         extra_args_ssh_tunnel: String, extra args for ssh tunnel connection.
-        connect_vnc: Boolean, True will launch vnc.
+        autoconnect: String, for decide whether to launch vnc/browser or not.
 
     Raises:
         errors.UnknownAvdType: Unable to reconnect to instance of unknown avd
@@ -167,10 +167,7 @@ def ReconnectInstance(ssh_private_key_path,
             extra_args_ssh_tunnel=extra_args_ssh_tunnel)
         vnc_port = forwarded_ports.vnc_port
         adb_port = forwarded_ports.adb_port
-    if _IsWebrtcEnable(instance,
-                       constants.GCE_USER,
-                       ssh_private_key_path,
-                       extra_args_ssh_tunnel):
+    if autoconnect is constants.INS_KEY_WEBRTC:
         if not instance.islocal:
             webrtc_port = utils.GetWebrtcPortFromSSHTunnel(instance.ip)
             if not webrtc_port:
@@ -183,7 +180,7 @@ def ReconnectInstance(ssh_private_key_path,
                     extra_args_ssh_tunnel=extra_args_ssh_tunnel)
         utils.LaunchBrowser(constants.WEBRTC_LOCAL_HOST,
                             webrtc_port)
-    elif(vnc_port and connect_vnc):
+    elif vnc_port and autoconnect is constants.INS_KEY_VNC:
         StartVnc(vnc_port, instance.display)
 
     device_dict = {
@@ -196,7 +193,7 @@ def ReconnectInstance(ssh_private_key_path,
         device_dict[constants.DEVICE_SERIAL] = (
             constants.REMOTE_INSTANCE_ADB_SERIAL % adb_port)
 
-    if vnc_port and adb_port:
+    if (vnc_port or webrtc_port) and adb_port:
         reconnect_report.AddData(key="devices", value=device_dict)
     else:
         # We use 'ps aux' to grep adb/vnc fowarding port from ssh tunnel
@@ -235,6 +232,6 @@ def Run(args):
                           instance,
                           reconnect_report,
                           cfg.extra_args_ssh_tunnel,
-                          connect_vnc=(args.autoconnect is True))
+                          autoconnect=(args.autoconnect or instance.autoconnect))
 
     utils.PrintDeviceSummary(reconnect_report)
