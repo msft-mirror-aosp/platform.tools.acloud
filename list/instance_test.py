@@ -341,6 +341,18 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(
             instance.GetLocalInstanceConfig(instance_id), expected_result)
 
+    def testGetLocalInstanceLogDir(self):
+        """Test GetLocalInstanceLogDir."""
+        self.Patch(instance, "GetLocalInstanceRuntimeDir",
+                   return_value="ins_runtime_dir")
+        self.Patch(os.path, "isdir", return_value=False)
+        self.assertEqual(instance.GetLocalInstanceLogDir(1), "ins_runtime_dir")
+
+        expected_path = "ins_runtime_dir/instances/cvd-1/logs"
+        self.Patch(os.path, "isdir",
+                   side_effect=lambda path: path == expected_path)
+        self.assertEqual(instance.GetLocalInstanceLogDir(1), expected_path)
+
     def testGetAutoConnect(self):
         """Test GetAutoConnect."""
         name = "ins_name"
