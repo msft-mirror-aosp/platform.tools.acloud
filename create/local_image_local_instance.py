@@ -91,8 +91,7 @@ _CMD_LAUNCH_CVD_ARGS = (
 _CMD_LAUNCH_CVD_HW_ARGS = " -cpus %s -x_res %s -y_res %s -dpi %s -memory_mb %s"
 _CMD_LAUNCH_CVD_DISK_ARGS = (
     " -blank_data_image_mb %s -data_policy always_create")
-_CMD_LAUNCH_CVD_WEBRTC_ARGS = (
-    " -guest_enforce_security=false -start_webrtc=true")
+_CMD_LAUNCH_CVD_WEBRTC_ARGS = " -start_webrtc=true"
 _CMD_LAUNCH_CVD_VNC_ARG = " -start_vnc_server=true"
 _CMD_LAUNCH_CVD_SUPER_IMAGE_ARG = " -super_image=%s"
 _CMD_LAUNCH_CVD_BOOT_IMAGE_ARG = " -boot_image=%s"
@@ -258,7 +257,9 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                             artifact_paths.host_artifacts,
                             cvd_home_dir, (avd_spec.boot_timeout_secs or
                                            constants.DEFAULT_CF_BOOT_TIMEOUT))
+            logs = self._FindLogs(local_instance_id)
         except errors.LaunchCVDFail as launch_error:
+            logs = self._FindLogs(local_instance_id)
             err_msg = ("Cannot create cuttlefish instance: %s\n"
                        "For more detail: %s/launcher.log" %
                        (launch_error, runtime_dir))
@@ -269,7 +270,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             result_report.SetStatus(report.Status.BOOT_FAIL)
             result_report.SetErrorType(constants.ACLOUD_BOOT_UP_ERROR)
             result_report.AddDeviceBootFailure(
-                instance_name, constants.LOCALHOST, None, None, error=err_msg)
+                instance_name, constants.LOCALHOST, None, None, error=err_msg,
+                logs=logs)
             return result_report
 
         active_ins = list_instance.GetActiveCVD(local_instance_id)
@@ -277,7 +279,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             result_report.SetStatus(report.Status.SUCCESS)
             result_report.AddDevice(instance_name, constants.LOCALHOST,
                                     active_ins.adb_port, active_ins.vnc_port,
-                                    webrtc_port)
+                                    webrtc_port, logs=logs)
             # Launch vnc client if we're auto-connecting.
             if avd_spec.connect_vnc:
                 utils.LaunchVNCFromReport(result_report, avd_spec, no_prompts)
@@ -291,7 +293,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             result_report.SetStatus(report.Status.BOOT_FAIL)
             result_report.SetErrorType(constants.ACLOUD_BOOT_UP_ERROR)
             result_report.AddDeviceBootFailure(
-                instance_name, constants.LOCALHOST, None, None, error=err_msg)
+                instance_name, constants.LOCALHOST, None, None, error=err_msg,
+                logs=logs)
         return result_report
 
     @staticmethod
@@ -671,3 +674,20 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         split_stderr = stderr.splitlines()[-_MAX_REPORTED_ERROR_LINES:]
         raise errors.LaunchCVDFail("%s Stderr:\n%s" %
                                    (error_msg, "\n".join(split_stderr)))
+
+    @staticmethod
+    def _FindLogs(local_instance_id):
+        """Find log paths that will be written to report.
+
+        Args:
+            local_instance_id: An integer, the instance id.
+
+        Returns:
+            A list of report.LogFile.
+        """
+        log_dir = instance.GetLocalInstanceLogDir(local_instance_id)
+        return [report.LogFile(os.path.join(log_dir, name), log_type)
+                for name, log_type in [
+                    ("launcher.log", constants.LOG_TYPE_TEXT),
+                    ("kernel.log", constants.LOG_TYPE_KERNEL_LOG),
+                    ("logcat", constants.LOG_TYPE_LOGCAT)]]
