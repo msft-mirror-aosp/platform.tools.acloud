@@ -125,6 +125,13 @@ def AddCommonCreateArgs(parser):
         required=False,
         help="Skip the pre-run check.")
     parser.add_argument(
+        "--force-sync",
+        action="store_true",
+        dest="force_sync",
+        required=False,
+        help="Force to sync image files from Android Build servers even if "
+             "they are already existed for local instance mode.")
+    parser.add_argument(
         "--boot-timeout",
         dest="boot_timeout_secs",
         type=int,
@@ -435,7 +442,7 @@ def GetCreateArgParser(subparser):
         dest="avd_type",
         default=constants.TYPE_CF,
         choices=[constants.TYPE_GCE, constants.TYPE_CF, constants.TYPE_GF, constants.TYPE_CHEEPS,
-                 constants.TYPE_FVP, constants.TYPE_OPENWRT],
+                 constants.TYPE_FVP],
         help="Android Virtual Device type (default %s)." % constants.TYPE_CF)
     create_parser.add_argument(
         "--config", "--flavor",
@@ -519,6 +526,13 @@ def GetCreateArgParser(subparser):
         "provided. Select one gce instance to reuse if --reuse-gce is "
         "provided.")
     create_parser.add_argument(
+        "--openwrt",
+        action="store_true",
+        dest="openwrt",
+        required=False,
+        help="'cuttlefish only' Create OpenWrt device when launching cuttlefish "
+        "device.")
+    create_parser.add_argument(
         "--host",
         type=str,
         dest="remote_host",
@@ -564,6 +578,15 @@ def GetCreateArgParser(subparser):
         help="This is used to customize the GCE instance disk type, the "
         "default disk type is from the stable host image. Use pd-ssd or "
         "pd-standard to specify instance disk type.")
+    create_parser.add_argument(
+        "--stable-host-image-name",
+        type=str,
+        dest="stable_host_image_name",
+        required=False,
+        default=None,
+        help=("'cuttlefish only' The Cuttlefish host image from which instances "
+              "are launched. If specified here, the value set in Acloud config "
+              "file will be overridden."))
 
     # Arguments for goldfish type.
     create_parser.add_argument(

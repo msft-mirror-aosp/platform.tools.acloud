@@ -43,7 +43,6 @@ TYPE_CF = "cuttlefish"
 TYPE_GCE = "gce"
 TYPE_GF = "goldfish"
 TYPE_FVP = "fvp"
-TYPE_OPENWRT = "openwrt"
 
 # Image types
 IMAGE_SRC_REMOTE = "remote_image"
@@ -56,8 +55,6 @@ AVD_TYPES_MAPPING = {
     TYPE_GF: "sdk",
     # Cheeps uses the cheets target.
     TYPE_CHEEPS: "cheets",
-    # OpenWrt use the cf target.
-    TYPE_OPENWRT: "cf",
 }
 
 # Instance types
@@ -239,6 +236,7 @@ ACLOUD_OXYGEN_RELEASE_ERROR = "ACLOUD_OXYGEN_RELEASE_ERROR"
 
 # Key words of error messages.
 ERROR_MSG_VNC_NOT_SUPPORT = "unknown command line flag 'start_vnc_server'"
+ERROR_MSG_WEBRTC_NOT_SUPPORT = "unknown command line flag 'start_webrtc'"
 
 # The name of download image tool.
 FETCH_CVD = "fetch_cvd"

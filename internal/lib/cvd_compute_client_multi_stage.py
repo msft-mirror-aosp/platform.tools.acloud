@@ -59,6 +59,8 @@ _DECOMPRESS_KERNEL_ARG = "-decompress_kernel=true"
 _AGREEMENT_PROMPT_ARG = "-report_anonymous_usage_stats=y"
 _UNDEFOK_ARG = "-undefok=report_anonymous_usage_stats,config"
 _NUM_AVDS_ARG = "-num_instances=%(num_AVD)s"
+# Connect the OpenWrt device via console file.
+_ENABLE_CONSOLE_ARG = "-console=true"
 _DEFAULT_BRANCH = "aosp-master"
 _FETCHER_BUILD_TARGET = "aosp_cf_x86_64_phone-userdebug"
 _FETCHER_NAME = "fetch_cvd"
@@ -131,6 +133,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         self._ssh = None
         self._ip = None
         self._user = constants.GCE_USER
+        self._openwrt = None
         self._stage = constants.STAGE_INIT
         self._execution_time = {_FETCH_ARTIFACT: 0, _GCE_CREATE: 0, _LAUNCH_CVD: 0}
 
@@ -228,7 +231,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             ota_build_target: String of the otatools target name.
             ota_branch: String of the otatools branch name.
             ota_build_id: String of the otatools build id.
-
 
         Returns:
             A string, representing instance name.
@@ -344,6 +346,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                 launch_cvd_args.append(_WEBRTC_ID % {"instance": instance})
             if avd_spec.connect_vnc:
                 launch_cvd_args.extend(_VNC_ARGS)
+            if avd_spec.openwrt:
+                launch_cvd_args.append(_ENABLE_CONSOLE_ARG)
             if avd_spec.num_avds_per_instance > 1:
                 launch_cvd_args.append(
                     _NUM_AVDS_ARG % {"num_AVD": avd_spec.num_avds_per_instance})
@@ -428,14 +432,19 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         try:
             self.ExtendReportData(_LAUNCH_CVD_COMMAND, ssh_command)
             self._ssh.Run(ssh_command, boot_timeout_secs, retry=_NO_RETRY)
+            self._UpdateOpenWrtStatus(avd_spec)
         except (subprocess.CalledProcessError, errors.DeviceConnectionError,
                 errors.LaunchCVDFail) as e:
             error_msg = ("Device %s did not finish on boot within timeout (%s secs)"
                          % (instance, boot_timeout_secs))
             if constants.ERROR_MSG_VNC_NOT_SUPPORT in str(e):
                 error_msg = (
-                    "VNC is not supported in current build. Please try WebRTC such "
+                    "VNC is not supported in the current build. Please try WebRTC such "
                     "as '$acloud create' or '$acloud create --autoconnect webrtc'")
+            if constants.ERROR_MSG_WEBRTC_NOT_SUPPORT in str(e):
+                error_msg = (
+                    "WEBRTC is not supported in the current build. Please try VNC such "
+                    "as '$acloud create --autoconnect vnc'")
             self._all_failures[instance] = error_msg
             utils.PrintColorString(str(e), utils.TextColors.FAIL)
             if avd_spec and not avd_spec.no_pull_log:
@@ -629,9 +638,12 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             for cert_file in constants.WEBRTC_CERTS_FILES + ["mkcert"]:
                 upload_files.append(os.path.join(mkcert_install_dir,
                                                  cert_file))
-            self._ssh.ScpPushFiles(upload_files, constants.WEBRTC_CERTS_PATH)
-            self._ssh.Run(_TRUST_REMOTE_INSTANCE_COMMAND % {
-                "webrtc_certs_path": constants.WEBRTC_CERTS_PATH})
+            try:
+                self._ssh.ScpPushFiles(upload_files, constants.WEBRTC_CERTS_PATH)
+                self._ssh.Run(_TRUST_REMOTE_INSTANCE_COMMAND % {
+                    "webrtc_certs_path": constants.WEBRTC_CERTS_PATH})
+            except subprocess.CalledProcessError:
+                logger.debug("Update WebRTC frontend certificate failed.")
 
     @utils.TimeExecute(function_description="Upload extra files to instance")
     def UploadExtraFiles(self, extra_files):
@@ -649,6 +661,13 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                     "The path doesn't exist: %s" % extra_file.source)
             self._ssh.ScpPushFile(extra_file.source, extra_file.target)
 
+    def GetSshConnectCmd(self):
+        """Get ssh connect command.
+
+        Returns:
+            String of ssh connect command.
+        """
+        return self._ssh.GetBaseCmd(constants.SSH_BIN)
 
     def GetInstanceIP(self, instance=None):
         """Override method from parent class.
@@ -702,6 +721,14 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         """
         self._stage = stage
 
+    def _UpdateOpenWrtStatus(self, avd_spec):
+        """Update the OpenWrt device status.
+
+        Args:
+            avd_spec: An AVDSpec instance.
+        """
+        self._openwrt = avd_spec.openwrt if avd_spec else False
+
     @property
     def all_failures(self):
         """Return all_failures"""
@@ -716,6 +743,11 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
     def stage(self):
         """Return stage"""
         return self._stage
+
+    @property
+    def openwrt(self):
+        """Return openwrt"""
+        return self._openwrt
 
     @property
     def build_api(self):

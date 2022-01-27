@@ -50,6 +50,7 @@ from acloud.internal.lib.gcompute_client import GetInstanceIP
 logger = logging.getLogger(__name__)
 
 _ACLOUD_CVD_TEMP = os.path.join(tempfile.gettempdir(), "acloud_cvd_temp")
+_CVD_CONFIG_FOLDER = "%(cvd_runtime)s/instances/cvd-%(id)d"
 _CVD_RUNTIME_FOLDER_NAME = "cuttlefish_runtime"
 _CVD_STATUS_BIN = "cvd_status"
 _LOCAL_INSTANCE_NAME_FORMAT = "local-instance-%(id)d"
@@ -126,10 +127,15 @@ def GetLocalInstanceConfig(local_instance_id):
     Return:
         String, path of cf runtime config.
     """
-    cfg_path = os.path.join(GetLocalInstanceRuntimeDir(local_instance_id),
-                            constants.CUTTLEFISH_CONFIG_FILE)
-    if os.path.isfile(cfg_path):
-        return cfg_path
+    ins_runtime_dir = GetLocalInstanceRuntimeDir(local_instance_id)
+    cfg_dirs = [ins_runtime_dir]
+    cfg_dirs.append(_CVD_CONFIG_FOLDER % {
+        "cvd_runtime": ins_runtime_dir,
+        "id": local_instance_id})
+    for cfg_dir in cfg_dirs:
+        cfg_path = os.path.join(cfg_dir, constants.CUTTLEFISH_CONFIG_FILE)
+        if os.path.isfile(cfg_path):
+            return cfg_path
     return None
 
 
@@ -253,6 +259,7 @@ class Instance(object):
         self._is_local = is_local  # True if this is a local instance
         self._device_information = device_information
         self._zone = zone
+        self._autoconnect = self._GetAutoConnect()
 
     def __repr__(self):
         """Return full name property for print."""
@@ -270,6 +277,7 @@ class Instance(object):
         representation.append("%s display: %s" % (_INDENT, self._display))
         representation.append("%s vnc: 127.0.0.1:%s" % (_INDENT, self._vnc_port))
         representation.append("%s zone: %s" % (_INDENT, self._zone))
+        representation.append("%s autoconnect: %s" % (_INDENT, self._autoconnect))
         representation.append("%s webrtc port: %s" % (_INDENT, self._webrtc_port))
 
         if self._adb_port and self._device_information:
@@ -297,6 +305,20 @@ class Instance(object):
         if self._adb_port and self._device_information:
             return True
         return False
+
+    def _GetAutoConnect(self):
+        """Get the autoconnect of instance.
+
+        Returns:
+            String of autoconnect type. None for no autoconnect.
+        """
+        if self._webrtc_port:
+            return constants.INS_KEY_WEBRTC
+        if self._vnc_port:
+            return constants.INS_KEY_VNC
+        if self._adb_port:
+            return constants.INS_KEY_ADB
+        return None
 
     @property
     def name(self):
@@ -367,6 +389,11 @@ class Instance(object):
     def zone(self):
         """Return zone."""
         return self._zone
+
+    @property
+    def autoconnect(self):
+        """Return autoconnect."""
+        return self._autoconnect
 
 
 class LocalInstance(Instance):

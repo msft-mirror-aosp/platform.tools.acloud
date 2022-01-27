@@ -111,6 +111,7 @@ class AVDSpec():
         self._extra_files = None
         self._avd_type = None
         self._flavor = None
+        self._force_sync = None
         self._image_source = None
         self._instance_type = None
         self._launch_args = None
@@ -125,6 +126,7 @@ class AVDSpec():
         self._num_avds_per_instance = None
         self._no_pull_log = None
         self._oxygen = None
+        self._openwrt = None
         self._remote_image = None
         self._system_build_info = None
         self._kernel_build_info = None
@@ -139,6 +141,7 @@ class AVDSpec():
         self._gpu = None
         self._disk_type = None
         self._mkcert = None
+        self._stable_host_image_name = None
         # Create config instance for android_build_client to query build api.
         self._cfg = config.GetAcloudConfig(args)
         # Reporting args.
@@ -213,7 +216,7 @@ class AVDSpec():
         Other AVD types(goldfish, cheeps..etc.) still keep using ‘vnc’.
         """
         if self._autoconnect == constants.INS_KEY_WEBRTC:
-            if self.avd_type not in [constants.TYPE_CF, constants.TYPE_OPENWRT]:
+            if self.avd_type != constants.TYPE_CF:
                 self._autoconnect = constants.INS_KEY_VNC
 
     def _ProcessImageArgs(self, args):
@@ -320,6 +323,7 @@ class AVDSpec():
         self._avd_type = args.avd_type
         self._extra_files = create_common.ParseExtraFilesArgs(args.extra_files)
         self._flavor = args.flavor or constants.FLAVOR_PHONE
+        self._force_sync = args.force_sync
         if args.remote_host:
             self._instance_type = constants.INSTANCE_TYPE_HOST
         else:
@@ -337,6 +341,7 @@ class AVDSpec():
         self._num_avds_per_instance = args.num_avds_per_instance
         self._no_pull_log = args.no_pull_log
         self._oxygen = args.oxygen
+        self._openwrt = args.openwrt
         self._serial_log_file = args.serial_log_file
         self._emulator_build_id = args.emulator_build_id
         self._emulator_build_target = args.emulator_build_target
@@ -344,6 +349,8 @@ class AVDSpec():
         self._disk_type = (args.disk_type or self._cfg.disk_type)
         self._gce_metadata = create_common.ParseKeyValuePairArgs(args.gce_metadata)
         self._mkcert = args.mkcert
+        self._stable_host_image_name = (
+            args.stable_host_image_name or self._cfg.stable_host_image_name)
 
         self._stable_cheeps_host_image_name = args.stable_cheeps_host_image_name
         self._stable_cheeps_host_image_project = args.stable_cheeps_host_image_project
@@ -908,6 +915,11 @@ class AVDSpec():
         return self._client_adb_port
 
     @property
+    def stable_host_image_name(self):
+        """Return the Cuttlefish host image name."""
+        return self._stable_host_image_name
+
+    @property
     def stable_cheeps_host_image_name(self):
         """Return the Cheeps host image name."""
         return self._stable_cheeps_host_image_name
@@ -989,6 +1001,11 @@ class AVDSpec():
         return self._oxygen
 
     @property
+    def openwrt(self):
+        """Return openwrt."""
+        return self._openwrt
+
+    @property
     def launch_args(self):
         """Return launch_args."""
         return self._launch_args
@@ -1007,3 +1024,8 @@ class AVDSpec():
     def mkcert(self):
         """Return mkcert."""
         return self._mkcert
+
+    @property
+    def force_sync(self):
+        """Return force_sync."""
+        return self._force_sync

@@ -97,6 +97,8 @@ _CMD_LAUNCH_CVD_VNC_ARG = " -start_vnc_server=true"
 _CMD_LAUNCH_CVD_SUPER_IMAGE_ARG = " -super_image=%s"
 _CMD_LAUNCH_CVD_BOOT_IMAGE_ARG = " -boot_image=%s"
 _CMD_LAUNCH_CVD_NO_ADB_ARG = " -run_adb_connector=false"
+# Connect the OpenWrt device via console file.
+_CMD_LAUNCH_CVD_CONSOLE_ARG = " -console=true"
 _CONFIG_RE = re.compile(r"^config=(?P<config>.+)")
 _MAX_REPORTED_ERROR_LINES = 10
 
@@ -136,9 +138,14 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             A Report instance.
         """
         # Running instances on local is not supported on all OS.
+        result_report = report.Report(command="create")
         if not utils.IsSupportedPlatform(print_warning=True):
-            result_report = report.Report(command="create")
-            result_report.SetStatus(report.Status.FAIL)
+            result_report.UpdateFailure(
+                "The platform doesn't support to run acloud.")
+            return result_report
+        if not utils.IsSupportedKvm():
+            result_report.UpdateFailure(
+                "The environment doesn't support virtualization.")
             return result_report
 
         artifact_paths = self.GetImageArtifactsPath(avd_spec)
@@ -146,9 +153,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         try:
             ins_id, ins_lock = self._SelectAndLockInstance(avd_spec)
         except errors.CreateError as e:
-            result_report = report.Report(command="create")
-            result_report.AddError(str(e))
-            result_report.SetStatus(report.Status.FAIL)
+            result_report.UpdateFailure(str(e))
             return result_report
 
         try:
@@ -243,7 +248,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                                        super_image_path,
                                        artifact_paths.boot_image,
                                        avd_spec.launch_args,
-                                       config or avd_spec.flavor)
+                                       config or avd_spec.flavor,
+                                       avd_spec.openwrt)
 
         result_report = report.Report(command="create")
         instance_name = instance.GetLocalInstanceName(local_instance_id)
@@ -256,6 +262,10 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             err_msg = ("Cannot create cuttlefish instance: %s\n"
                        "For more detail: %s/launcher.log" %
                        (launch_error, runtime_dir))
+            if constants.ERROR_MSG_WEBRTC_NOT_SUPPORT in str(launch_error):
+                err_msg = (
+                    "WEBRTC is not supported in current build. Please try VNC such "
+                    "as '$acloud create --autoconnect vnc'")
             result_report.SetStatus(report.Status.BOOT_FAIL)
             result_report.SetErrorType(constants.ACLOUD_BOOT_UP_ERROR)
             result_report.AddDeviceBootFailure(
@@ -464,7 +474,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
     def PrepareLaunchCVDCmd(launch_cvd_path, hw_property, connect_adb,
                             image_dir, runtime_dir, connect_webrtc,
                             connect_vnc, super_image_path, boot_image_path,
-                            launch_args, config):
+                            launch_args, config, openwrt=False):
         """Prepare launch_cvd command.
 
         Create the launch_cvd commands with all the required args and add
@@ -482,6 +492,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             boot_image_path: String of non-default boot image path.
             launch_args: String of launch args.
             config: String of config name.
+            openwrt: Boolean of enable OpenWrt devices.
 
         Returns:
             String, launch_cvd cmd.
@@ -514,6 +525,9 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             launch_cvd_w_args = (launch_cvd_w_args +
                                  _CMD_LAUNCH_CVD_BOOT_IMAGE_ARG %
                                  boot_image_path)
+
+        if openwrt:
+            launch_cvd_w_args = launch_cvd_w_args + _CMD_LAUNCH_CVD_CONSOLE_ARG
 
         if launch_args:
             launch_cvd_w_args = launch_cvd_w_args + " " + launch_args
@@ -554,6 +568,10 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         """
         webrtc_certs_dir = os.path.join(host_bins_path,
                                         constants.WEBRTC_CERTS_PATH)
+        if not os.path.isdir(webrtc_certs_dir):
+            logger.debug("WebRTC frontend certificate path doesn't exist: %s",
+                         webrtc_certs_dir)
+            return
         mkcert_install_dir = os.path.join(os.path.expanduser("~"),
                                     constants.MKCERT_INSTALL_DIR)
         if os.path.exists(os.path.join(mkcert_install_dir, "mkcert")):
