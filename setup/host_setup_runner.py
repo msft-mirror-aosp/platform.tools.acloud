@@ -44,9 +44,8 @@ _UPDATE_APT_GET_CMD = "sudo apt-get update"
 _INSTALL_CUTTLEFISH_COMMOM_CMD = [
     "git clone https://github.com/google/android-cuttlefish.git {git_folder}",
     "cd {git_folder}",
-    "yes | sudo mk-build-deps -i -r -B",
-    "dpkg-buildpackage -uc -us",
-    "sudo apt-get install -y -f ../cuttlefish-common_*_amd64.deb"]
+    "debuild -i -us -uc -b",
+    "sudo dpkg -i ../cuttlefish-common_*_*64.deb || sudo apt-get install -f"]
 
 
 class BasePkgInstaller(base_task_runner.BaseTaskRunner):

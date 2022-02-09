@@ -107,7 +107,7 @@ HW_Y_RES = "y_res"
 USER_ANSWER_YES = {"y", "yes", "Y"}
 
 # Cuttlefish groups
-LIST_CF_USER_GROUPS = ["kvm", "cvdnetwork"]
+LIST_CF_USER_GROUPS = ["kvm", "cvdnetwork", "render"]
 
 # Report keys
 IP = "ip"
