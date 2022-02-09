@@ -105,6 +105,7 @@ from acloud.create import create_args
 from acloud.delete import delete
 from acloud.delete import delete_args
 from acloud.internal import constants
+from acloud.internal.lib import utils
 from acloud.reconnect import reconnect
 from acloud.reconnect import reconnect_args
 from acloud.list import list as list_instances
@@ -421,6 +422,9 @@ def main(argv=None):
     elif args.which == create_args.CMD_CREATE:
         reporter = create.Run(args)
     elif args.which == CMD_CREATE_CUTTLEFISH:
+        # Set ports offset when base_instance_num is specified
+        utils.SetCvdPorts(args.base_instance_num)
+
         reporter = create_cuttlefish_action.CreateDevices(
             cfg=cfg,
             build_target=args.build_target,

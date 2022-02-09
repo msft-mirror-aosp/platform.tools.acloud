@@ -88,6 +88,7 @@ _ADB_CONNECT_ARGS = "connect 127.0.0.1:%(adb_port)d"
 # Store the ports that vnc/adb are forwarded to, both are integers.
 ForwardedPorts = collections.namedtuple("ForwardedPorts", [constants.VNC_PORT,
                                                            constants.ADB_PORT])
+
 AVD_PORT_DICT = {
     constants.TYPE_GCE: ForwardedPorts(constants.GCE_VNC_PORT,
                                        constants.GCE_ADB_PORT),
@@ -1552,3 +1553,26 @@ def SetDirectoryTreeExecutable(dir_path):
     for parent_dir, _, file_names in os.walk(dir_path):
         for name in file_names:
             SetExecutable(os.path.join(parent_dir, name))
+
+
+def GetCvdPorts():
+    """Get CVD ports
+
+
+    Returns:
+        ForwardedPorts: vnc port and adb port.
+    """
+    return AVD_PORT_DICT[constants.TYPE_CF]
+
+
+def SetCvdPorts(base_instance_num):
+    """Adjust ports by base_instance_num.
+
+    Args:
+        base_instance_num: int, cuttlefish base_instance_num.
+    """
+    offset = (base_instance_num or 1) - 1
+    AVD_PORT_DICT[constants.TYPE_CF] = ForwardedPorts(
+        constants.CF_VNC_PORT + offset, constants.CF_ADB_PORT + offset)
+
+    # TODO: adjust WebRTC ports
