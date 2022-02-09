@@ -437,6 +437,13 @@ def GetCreateArgParser(subparser):
         required=False,
         help="Specify port for adb forwarding.")
     create_parser.add_argument(
+        "--base-instance-num",
+        type=int,
+        default=None,
+        dest="base_instance_num",
+        required=False,
+        help="'cuttlefish only' The instance number of the created device.")
+    create_parser.add_argument(
         "--avd-type",
         type=str,
         dest="avd_type",
