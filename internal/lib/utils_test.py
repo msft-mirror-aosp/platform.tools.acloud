@@ -580,7 +580,7 @@ class UtilsTest(driver_test_lib.BaseDriverTest):
                          "screen_command": "fake_screen_cmd"},],}
         mock_print.reset_mock()
         utils.PrintDeviceSummary(fake_report)
-        self.assertEqual(mock_print.call_count, 11)
+        self.assertEqual(mock_print.call_count, 13)
 
         # Test for fail case
         fake_report.data = {

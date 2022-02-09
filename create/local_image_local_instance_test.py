@@ -80,7 +80,8 @@ EOF"""
                 {'path': '/log/launcher.log', 'type': 'TEXT'},
                 {'path': '/log/kernel.log', 'type': 'KERNEL_LOG'},
                 {'path': '/log/logcat', 'type': 'LOGCAT'}
-            ]
+            ],
+            "screen_command": "screen /instances/cvd/console"
         }
     ]
 
@@ -193,12 +194,15 @@ EOF"""
             "/local-instance-1")
         mock_instance.GetLocalInstanceName.return_value = "local-instance-1"
         mock_instance.GetLocalInstanceLogDir.return_value = "/log"
+        mock_instance.GetLocalInstanceConfig.return_value = (
+            "/instances/cvd/config")
         artifact_paths = local_image_local_instance.ArtifactPaths(
             "/image/path", "/host/bin/path", "/host/usr/path", "/misc/info/path",
             "/ota/tools/dir", "/system/image/path", "/boot/image/path")
         mock_ota_tools_object = mock.Mock()
         mock_ota_tools.OtaTools.return_value = mock_ota_tools_object
-        mock_avd_spec = mock.Mock(unlock_screen=False, connect_webrtc=True)
+        mock_avd_spec = mock.Mock(
+            unlock_screen=False, connect_webrtc=True, openwrt=True)
         local_ins = mock.Mock(
             adb_port=6520,
             vnc_port=6444
