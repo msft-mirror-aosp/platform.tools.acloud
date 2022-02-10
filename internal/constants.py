@@ -92,12 +92,8 @@ HW_ALIAS_DPI = "dpi"
 HW_ALIAS_MEMORY = "memory"
 HW_ALIAS_DISK = "disk"
 HW_PROPERTIES_CMD_EXAMPLE = (
-    " %s:2,%s:1280x700,%s:160,%s:2g,%s:2g" %
-    (HW_ALIAS_CPUS,
-     HW_ALIAS_RESOLUTION,
-     HW_ALIAS_DPI,
-     HW_ALIAS_MEMORY,
-     HW_ALIAS_DISK)
+    f" {HW_ALIAS_CPUS}:2,{HW_ALIAS_RESOLUTION}:1280x700,{HW_ALIAS_DPI}:160,"
+    f"{HW_ALIAS_MEMORY}:2g,{HW_ALIAS_DISK}:2g"
 )
 HW_PROPERTIES = [HW_ALIAS_CPUS, HW_ALIAS_RESOLUTION, HW_ALIAS_DPI,
                  HW_ALIAS_MEMORY, HW_ALIAS_DISK]
@@ -209,7 +205,7 @@ SSL_CA_NAME = "ACloud-webRTC-CA"
 SSL_TRUST_CA_DIR = "/usr/local/share/ca-certificates"
 
 # Remote Log
-REMOTE_LOG_FOLDER = "/home/%s/cuttlefish_runtime" % GCE_USER
+REMOTE_LOG_FOLDER = f"/home/{GCE_USER}/cuttlefish_runtime"
 
 # Cheeps specific stuff.
 CHEEPS_BETTY_IMAGE = "betty_image"
@@ -254,7 +250,9 @@ FETCH_CVD = "fetch_cvd"
 
 # For setup and cleanup
 # Packages "devscripts" and "equivs" are required for "mk-build-deps".
+# Packages from: https://android.googlesource.com/device/google/cuttlefish/
 AVD_REQUIRED_PKGS = [
-    "devscripts", "equivs", "libvirt-clients", "libvirt-daemon-system"]
+    "devscripts", "equivs", "libvirt-clients", "libvirt-daemon-system",
+    "config-package-dev", "golang"]
 BASE_REQUIRED_PKGS = ["ssvnc", "lzop", "python3-tk"]
 CUTTLEFISH_COMMOM_PKG = "cuttlefish-common"
