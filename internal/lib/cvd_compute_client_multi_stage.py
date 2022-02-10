@@ -50,6 +50,7 @@ from acloud.internal.lib import gcompute_client
 from acloud.internal.lib import utils
 from acloud.internal.lib.ssh import Ssh
 from acloud.pull import pull
+from acloud.setup import mkcert
 
 
 logger = logging.getLogger(__name__)
@@ -78,10 +79,10 @@ _NO_RETRY = 0
 # Launch cvd command for acloud report
 _LAUNCH_CVD_COMMAND = "launch_cvd_command"
 _CONFIG_RE = re.compile(r"^config=(?P<config>.+)")
-# Trust local certificates command for webrtc
 _TRUST_REMOTE_INSTANCE_COMMAND = (
-    "\"export CAROOT=%(webrtc_certs_path)s; "
-    "./%(webrtc_certs_path)s/mkcert -install;\"")
+    f"\"sudo cp ~/{constants.WEBRTC_CERTS_PATH}/{constants.SSL_CA_NAME}.pem "
+    f"{constants.SSL_TRUST_CA_DIR}/{constants.SSL_CA_NAME}.crt;"
+    "sudo update-ca-certificates;\"")
 # Remote host instance name
 _HOST_INSTANCE_NAME_FORMAT = (constants.INSTANCE_TYPE_HOST +
                               "-%(ip_addr)s-%(build_id)s-%(build_target)s")
@@ -629,21 +630,17 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         default certificates for connecting to a remote webrtc AVD without the
         insecure warning.
         """
-        mkcert_install_dir = os.path.join(os.path.expanduser("~"),
-                                          constants.MKCERT_INSTALL_DIR)
-        if os.path.exists(os.path.join(mkcert_install_dir, "mkcert")):
-            utils.AllocateLocalHostCert(mkcert_install_dir)
-            mkcert_rootca_dir = utils.CheckOutput(
-                "%s/mkcert -CAROOT" % mkcert_install_dir,
-                shell=True).rstrip("\n")
-            upload_files = [os.path.join(mkcert_rootca_dir, "rootCA.pem")]
-            for cert_file in constants.WEBRTC_CERTS_FILES + ["mkcert"]:
-                upload_files.append(os.path.join(mkcert_install_dir,
+        local_cert_dir = os.path.join(os.path.expanduser("~"),
+                                      constants.SSL_DIR)
+        if mkcert.AllocateLocalHostCert():
+            upload_files = []
+            for cert_file in (constants.WEBRTC_CERTS_FILES +
+                              [f"{constants.SSL_CA_NAME}.pem"]):
+                upload_files.append(os.path.join(local_cert_dir,
                                                  cert_file))
             try:
                 self._ssh.ScpPushFiles(upload_files, constants.WEBRTC_CERTS_PATH)
-                self._ssh.Run(_TRUST_REMOTE_INSTANCE_COMMAND % {
-                    "webrtc_certs_path": constants.WEBRTC_CERTS_PATH})
+                self._ssh.Run(_TRUST_REMOTE_INSTANCE_COMMAND)
             except subprocess.CalledProcessError:
                 logger.debug("Update WebRTC frontend certificate failed.")
 
