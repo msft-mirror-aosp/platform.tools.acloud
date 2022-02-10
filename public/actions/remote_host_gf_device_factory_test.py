@@ -66,15 +66,17 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         "hw_property": {},
         "gpu": "auto",
     }
+    _LOGS = [{"path": "acloud_gf/instance/kernel.log", "type": "KERNEL_LOG"},
+             {"path": "acloud_gf/instance/logcat.txt", "type": "LOGCAT"}]
     _SSH_COMMAND = (
         "'export ANDROID_PRODUCT_OUT=~/acloud_gf/image/x86_64 "
         "ANDROID_TMP=~/acloud_gf/instance "
         "ANDROID_BUILD_TOP=~/acloud_gf/instance ; "
+        "touch acloud_gf/instance/kernel.log ; "
         "nohup acloud_gf/emulator/x86_64/emulator -verbose "
         "-show-kernel -read-only -ports 5554,5555 -no-window "
-        "-logcat-output acloud_gf/instance/logcat.txt -gpu auto "
-        "1> acloud_gf/instance/stdout.txt "
-        "2> acloud_gf/instance/stderr.txt &'"
+        "-logcat-output acloud_gf/instance/logcat.txt "
+        "-stdouterr-file acloud_gf/instance/kernel.log -gpu auto &'"
     )
 
     def setUp(self):
@@ -146,6 +148,7 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(self._X86_64_INSTANCE_NAME, instance_name)
         self.assertEqual(self._X86_64_BUILD_INFO, factory.GetBuildInfoDict())
         self.assertEqual({}, factory.GetFailures())
+        self.assertEqual({instance_name: self._LOGS}, factory.GetLogs())
         # Artifacts.
         self._mock_android_build_client.DownloadArtifact.assert_any_call(
             "sdk_tools_linux", "111111",
@@ -284,6 +287,8 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         failures = factory.GetFailures()
         self.assertIsInstance(failures.get(self._X86_64_INSTANCE_NAME),
                               errors.DeviceBootError)
+        self.assertEqual({self._X86_64_INSTANCE_NAME: self._LOGS},
+                         factory.GetLogs())
 
     def testCreateInstanceTimeout(self):
         """Test RemoteHostGoldfishDeviceFactory with timeout."""
@@ -303,6 +308,8 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         failures = factory.GetFailures()
         self.assertIsInstance(failures.get(self._X86_64_INSTANCE_NAME),
                               errors.DeviceBootTimeoutError)
+        self.assertEqual({self._X86_64_INSTANCE_NAME: self._LOGS},
+                         factory.GetLogs())
 
 
 if __name__ == "__main__":
