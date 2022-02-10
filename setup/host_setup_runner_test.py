@@ -23,12 +23,12 @@ from unittest import mock
 
 from acloud.internal.lib import driver_test_lib
 from acloud.internal.lib import utils
+from acloud.setup import mkcert
 from acloud.setup import setup_common
 from acloud.setup.host_setup_runner import AvdPkgInstaller
 from acloud.setup.host_setup_runner import CuttlefishCommonPkgInstaller
 from acloud.setup.host_setup_runner import CuttlefishHostSetup
-from acloud.setup.host_setup_runner import MkcertPkgInstaller
-
+from acloud.setup.host_setup_runner import LocalCAHostSetup
 
 class CuttlefishHostSetupTest(driver_test_lib.BaseDriverTest):
     """Test CuttlsfishHostSetup."""
@@ -175,48 +175,44 @@ class CuttlefishCommonPkgInstallerTest(driver_test_lib.BaseDriverTest):
         sys.exit.assert_called_once()
 
 
-class MkcertPkgInstallerTest(driver_test_lib.BaseDriverTest):
-    """Test MkcertPkgInstallerTest."""
+class LocalCAHostSetupTest(driver_test_lib.BaseDriverTest):
+    """Test LocalCAHostSetupTest."""
 
     # pylint: disable=invalid-name
     def setUp(self):
         """Set up the test."""
         super().setUp()
-        self.MkcertPkgInstaller = MkcertPkgInstaller()
+        self.LocalCAHostSetup = LocalCAHostSetup()
 
     def testShouldRun(self):
         """Test ShouldRun."""
         self.Patch(platform, "system", return_value="Linux")
         self.Patch(os.path, "exists", return_value=False)
-        self.assertTrue(self.MkcertPkgInstaller.ShouldRun())
+        self.assertTrue(self.LocalCAHostSetup.ShouldRun())
 
         self.Patch(os.path, "exists", return_value=True)
-        self.assertFalse(self.MkcertPkgInstaller.ShouldRun())
+        self.assertFalse(self.LocalCAHostSetup.ShouldRun())
 
         self.Patch(platform, "system", return_value="Mac")
         self.Patch(os.path, "exists", return_value=False)
-        self.assertFalse(self.MkcertPkgInstaller.ShouldRun())
+        self.assertFalse(self.LocalCAHostSetup.ShouldRun())
 
     # pylint: disable=no-member
-    @mock.patch.object(setup_common, "CheckCmdOutput")
-    def testRun(self, mock_cmd):
+    def testRun(self):
         """Test Run."""
         self.Patch(utils, "GetUserAnswerYes", return_value=True)
-        self.Patch(MkcertPkgInstaller, "ShouldRun", return_value=True)
-        self.Patch(os.path, "isdir", return_value=True)
-        self.Patch(os, "mkdir")
-        self.Patch(utils, "SetExecutable")
-        self.Patch(utils, "CheckOutput")
-        self.MkcertPkgInstaller.Run()
-        mock_cmd.assert_called_once()
+        self.Patch(LocalCAHostSetup, "ShouldRun", return_value=True)
+        self.Patch(mkcert, "Install")
+        self.LocalCAHostSetup.Run()
+        mkcert.Install.assert_called_once()
 
-        self.Patch(os.path, "isdir", return_value=False)
-        self.MkcertPkgInstaller.Run()
-        os.mkdir.assert_called_once()
+        self.Patch(LocalCAHostSetup, "ShouldRun", return_value=False)
+        self.LocalCAHostSetup.Run()
+        mkcert.Install.assert_not_called()
 
         self.Patch(utils, "GetUserAnswerYes", return_value=False)
         self.Patch(sys, "exit")
-        self.MkcertPkgInstaller.Run()
+        self.LocalCAHostSetup.Run()
         sys.exit.assert_called_once()
 
 
