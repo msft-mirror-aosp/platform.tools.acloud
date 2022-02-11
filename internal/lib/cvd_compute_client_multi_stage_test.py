@@ -35,6 +35,7 @@ from acloud.internal.lib import utils
 from acloud.internal.lib.ssh import Ssh
 from acloud.internal.lib.ssh import IP
 from acloud.list import list as list_instances
+from acloud.setup import mkcert
 
 
 ExtraFile = collections.namedtuple("ExtraFile", ["source", "target"])
@@ -286,30 +287,24 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
 
     @mock.patch.object(Ssh, "Run")
     @mock.patch.object(Ssh, "ScpPushFiles")
-    @mock.patch.object(utils, "AllocateLocalHostCert")
-    def testUpdateCertificate(self, mock_allocateca, mock_upload,
-                              mock_trustremote):
+    def testUpdateCertificate(self, mock_upload, mock_trustremote):
         """Test UpdateCertificate"""
-        self.Patch(os, "makedirs")
-        self.Patch(utils, "CheckOutput", return_value="rootca_path")
-        # mkcert is not exist
-        self.Patch(os.path, "exists", return_value=False)
+        # Certificate is not ready
+        self.Patch(mkcert, "AllocateLocalHostCert", return_value=False)
         self.cvd_compute_client_multi_stage.UpdateCertificate()
-        self.assertEqual(mock_allocateca.call_count, 0)
         self.assertEqual(mock_upload.call_count, 0)
         self.assertEqual(mock_trustremote.call_count, 0)
 
-        # mkcert is exist
-        self.Patch(os.path, "exists", return_value=True)
-        mkcert_install_dir = os.path.join(os.path.expanduser("~"),
-                                          constants.MKCERT_INSTALL_DIR)
+        # Certificate is ready
+        self.Patch(mkcert, "AllocateLocalHostCert", return_value=True)
+        local_cert_dir = os.path.join(os.path.expanduser("~"),
+                                      constants.SSL_DIR)
         self.cvd_compute_client_multi_stage.UpdateCertificate()
-        mock_allocateca.assert_called_once()
         mock_upload.assert_called_once_with(
-            ["rootca_path/rootCA.pem",
-             "%s/server.crt" % mkcert_install_dir,
-             "%s/server.key" % mkcert_install_dir,
-             "%s/mkcert" % mkcert_install_dir], constants.WEBRTC_CERTS_PATH)
+            ["%s/server.crt" % local_cert_dir,
+             "%s/server.key" % local_cert_dir,
+             "%s/%s.pem" % (local_cert_dir, constants.SSL_CA_NAME)],
+            constants.WEBRTC_CERTS_PATH)
         mock_trustremote.assert_called_once()
 
     def testGetBootTimeout(self):

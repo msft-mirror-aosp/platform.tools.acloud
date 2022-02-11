@@ -54,7 +54,7 @@ def Run(args):
     host_base_runner = host_setup_runner.HostBasePkgInstaller()
     host_avd_runner = host_setup_runner.AvdPkgInstaller()
     host_cf_common_runner = host_setup_runner.CuttlefishCommonPkgInstaller()
-    host_mkcert_runner = host_setup_runner.MkcertPkgInstaller()
+    host_localca_runner = host_setup_runner.LocalCAHostSetup()
     host_env_runner = host_setup_runner.CuttlefishHostSetup()
     gcp_runner = gcp_setup_runner.GcpTaskRunner(args.config_file)
     task_queue = []
@@ -64,8 +64,8 @@ def Run(args):
         task_queue.append(host_avd_runner)
         task_queue.append(host_cf_common_runner)
         task_queue.append(host_env_runner)
-    if args.host_mkcert:
-        task_queue.append(host_mkcert_runner)
+
+    task_queue.append(host_localca_runner)
 
     # We should do these setup tasks if specified or if no args were used.
     if args.host_base or (not args.host and not args.gcp_init):
