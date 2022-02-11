@@ -187,7 +187,7 @@ class Report():
 
     def AddDevice(self, instance_name, ip_address, adb_port, vnc_port,
                   webrtc_port=None, device_serial=None, logs=None,
-                  key="devices"):
+                  key="devices", update_data=None):
         """Add a record of a device.
 
         Args:
@@ -199,6 +199,7 @@ class Report():
             device_serial: String of device serial.
             logs: A list of LogFile.
             key: A string, the data entry where the record is added.
+            update_data: A dict to update device data.
         """
         device = {constants.INSTANCE_NAME: instance_name}
         if adb_port:
@@ -218,6 +219,9 @@ class Report():
 
         if logs:
             device[constants.LOGS] = logs
+
+        if update_data:
+            device.update(update_data)
         self.AddData(key=key, value=device)
 
     def AddDeviceBootFailure(self, instance_name, ip_address, adb_port,
