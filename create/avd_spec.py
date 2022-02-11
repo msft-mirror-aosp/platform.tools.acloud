@@ -140,7 +140,6 @@ class AVDSpec():
         self._host_ssh_private_key_path = None
         self._gpu = None
         self._disk_type = None
-        self._mkcert = None
         self._stable_host_image_name = None
         # Create config instance for android_build_client to query build api.
         self._cfg = config.GetAcloudConfig(args)
@@ -348,7 +347,6 @@ class AVDSpec():
         self._gpu = args.gpu
         self._disk_type = (args.disk_type or self._cfg.disk_type)
         self._gce_metadata = create_common.ParseKeyValuePairArgs(args.gce_metadata)
-        self._mkcert = args.mkcert
         self._stable_host_image_name = (
             args.stable_host_image_name or self._cfg.stable_host_image_name)
 
@@ -1019,11 +1017,6 @@ class AVDSpec():
     def extra_files(self):
         """Return extra_files."""
         return self._extra_files
-
-    @property
-    def mkcert(self):
-        """Return mkcert."""
-        return self._mkcert
 
     @property
     def force_sync(self):
