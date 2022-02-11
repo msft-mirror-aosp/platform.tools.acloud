@@ -14,6 +14,7 @@
 """Tests for mkcert."""
 import filecmp
 import os
+import shutil
 import unittest
 
 from acloud.internal.lib import driver_test_lib
@@ -33,16 +34,19 @@ class MkcertTest(driver_test_lib.BaseDriverTest):
         self.Patch(mkcert, "IsRootCAReady")
         self.Patch(mkcert, "UnInstall")
         self.Patch(utils, "Popen")
+        self.Patch(shutil, "rmtree")
         mkcert.Install()
-        os.mkdir.assert_called_once()
+        shutil.rmtree.assert_not_called()
+        mkcert.UnInstall.assert_not_called()
         self.assertEqual(4, utils.Popen.call_count)
         utils.Popen.reset_mock()
 
         self.Patch(os.path, "isdir", return_value=True)
         self.Patch(os.path, "exists", return_value=True)
         mkcert.Install()
+        shutil.rmtree.assert_called_once()
         mkcert.UnInstall.assert_called_once()
-        self.assertEqual(0, utils.Popen.call_count)
+        self.assertEqual(4, utils.Popen.call_count)
 
 
     def testAllocateLocalHostCert(self):

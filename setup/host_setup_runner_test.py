@@ -205,6 +205,7 @@ class LocalCAHostSetupTest(driver_test_lib.BaseDriverTest):
         self.Patch(mkcert, "Install")
         self.LocalCAHostSetup.Run()
         mkcert.Install.assert_called_once()
+        mkcert.Install.reset_mock()
 
         self.Patch(LocalCAHostSetup, "ShouldRun", return_value=False)
         self.LocalCAHostSetup.Run()
@@ -213,7 +214,7 @@ class LocalCAHostSetupTest(driver_test_lib.BaseDriverTest):
         self.Patch(utils, "GetUserAnswerYes", return_value=False)
         self.Patch(sys, "exit")
         self.LocalCAHostSetup.Run()
-        sys.exit.assert_called_once()
+        mkcert.Install.assert_not_called()
 
 
 if __name__ == "__main__":
