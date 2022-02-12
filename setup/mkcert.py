@@ -21,6 +21,7 @@ import filecmp
 import logging
 import os
 import platform
+import shutil
 
 from acloud.internal import constants
 from acloud.internal.lib import utils
@@ -81,18 +82,17 @@ def Install():
     Returns:
         True when the Root SSL Certificates are generated and setup.
     """
-    if not os.path.isdir(_CERT_DIR):
-        os.mkdir(_CERT_DIR)
+    if os.path.isdir(_CERT_DIR):
+        shutil.rmtree(_CERT_DIR)
+    os.mkdir(_CERT_DIR)
 
     if os.path.exists(_TRUST_CA_PATH):
         UnInstall()
 
-    if not os.path.exists(_CA_KEY_PATH) or not os.path.exists(_CA_CRT_PATH):
-        utils.Popen(_CA_CMD, shell=True)
-    if not os.path.exists(_TRUST_CA_PATH):
-        utils.Popen(_TRUST_CA_COPY_CMD, shell=True)
-        utils.Popen(_UPDATE_TRUST_CA_CMD, shell=True)
-        utils.Popen(_TRUST_CHROME_CMD, shell=True)
+    utils.Popen(_CA_CMD, shell=True)
+    utils.Popen(_TRUST_CA_COPY_CMD, shell=True)
+    utils.Popen(_UPDATE_TRUST_CA_CMD, shell=True)
+    utils.Popen(_TRUST_CHROME_CMD, shell=True)
 
     return IsRootCAReady()
 

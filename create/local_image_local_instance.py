@@ -100,6 +100,7 @@ _CMD_LAUNCH_CVD_NO_ADB_ARG = " -run_adb_connector=false"
 # Connect the OpenWrt device via console file.
 _CMD_LAUNCH_CVD_CONSOLE_ARG = " -console=true"
 _CONFIG_RE = re.compile(r"^config=(?P<config>.+)")
+_CONSOLE_NAME = "console"
 _MAX_REPORTED_ERROR_LINES = 10
 
 # In accordance with the number of network interfaces in
@@ -204,7 +205,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                 return ins_id, ins_lock
         raise errors.CreateError(_INSTANCES_IN_USE_MSG)
 
-    #pylint: disable=too-many-locals
+    #pylint: disable=too-many-locals,too-many-statements
     def _CreateInstance(self, local_instance_id, artifact_paths, avd_spec,
                         no_prompts):
         """Create a CVD instance.
@@ -280,10 +281,15 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
 
         active_ins = list_instance.GetActiveCVD(local_instance_id)
         if active_ins:
+            if avd_spec.openwrt:
+                console_dir = os.path.dirname(
+                    instance.GetLocalInstanceConfig(local_instance_id))
+                console_path = os.path.join(console_dir, _CONSOLE_NAME)
+                update_data = {"screen_command": f"screen {console_path}"}
             result_report.SetStatus(report.Status.SUCCESS)
             result_report.AddDevice(instance_name, constants.LOCALHOST,
                                     active_ins.adb_port, active_ins.vnc_port,
-                                    webrtc_port, logs=logs)
+                                    webrtc_port, logs=logs, update_data=update_data)
             # Launch vnc client if we're auto-connecting.
             if avd_spec.connect_vnc:
                 utils.LaunchVNCFromReport(result_report, avd_spec, no_prompts)
