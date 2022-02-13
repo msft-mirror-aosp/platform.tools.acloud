@@ -207,25 +207,25 @@ class OtaToolsTest(unittest.TestCase):
                          _EXPECTED_MISC_INFO % lpmake)
         self.assertFalse(os.path.exists(rewritten_misc_info.path))
 
-    @mock.patch("acloud.internal.lib.ota_tools.subprocess.Popen")
+    @mock.patch("acloud.internal.lib.utils.subprocess.Popen")
     def testBuildSuperImageSuccess(self, mock_popen):
         """Test BuildSuperImage."""
         self._TestBuildSuperImage(mock_popen, self._MockPopen(return_value=0))
 
-    @mock.patch("acloud.internal.lib.ota_tools.subprocess.Popen")
+    @mock.patch("acloud.internal.lib.utils.subprocess.Popen")
     def testBuildSuperImageTimeout(self, mock_popen):
         """Test BuildSuperImage with command timeout."""
         self._TestBuildSuperImage(mock_popen, self._MockPopenTimeout(),
                                   errors.FunctionTimeoutError)
 
-    @mock.patch("acloud.internal.lib.ota_tools.subprocess.Popen")
+    @mock.patch("acloud.internal.lib.utils.subprocess.Popen")
     def testMakeDisabledVbmetaImageSuccess(self, mock_popen):
         """Test MakeDisabledVbmetaImage."""
         avbtool = self._CreateBinary("avbtool")
 
         mock_popen.return_value = self._MockPopen(return_value=0)
 
-        with mock.patch.dict("acloud.internal.lib.ota_tools.os.environ",
+        with mock.patch.dict("acloud.internal.lib.utils.os.environ",
                              {"PYTHONPATH": "/unit/test"}, clear=True):
             self._ota.MakeDisabledVbmetaImage("/unit/test")
 
@@ -289,13 +289,13 @@ class OtaToolsTest(unittest.TestCase):
                          _EXPECTED_SYSTEM_QEMU_CONFIG)
         self.assertFalse(os.path.exists(rewritten_config.path))
 
-    @mock.patch("acloud.internal.lib.ota_tools.subprocess.Popen")
+    @mock.patch("acloud.internal.lib.utils.subprocess.Popen")
     def testMkCombinedImgSuccess(self, mock_popen):
         """Test MkCombinedImg."""
         return self._TestMkCombinedImg(mock_popen,
                                        self._MockPopen(return_value=0))
 
-    @mock.patch("acloud.internal.lib.ota_tools.subprocess.Popen")
+    @mock.patch("acloud.internal.lib.utils.subprocess.Popen")
     def testMkCombinedImgFailure(self, mock_popen):
         """Test MkCombinedImg with command failure."""
         return self._TestMkCombinedImg(mock_popen,

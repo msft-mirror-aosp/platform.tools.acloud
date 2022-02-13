@@ -34,6 +34,7 @@ from acloud.internal.lib import emulator_console
 from acloud.internal.lib import ota_tools
 from acloud.internal.lib import utils
 from acloud.internal.lib import ssh
+from acloud.public import report
 from acloud.public.actions import base_device_factory
 
 
@@ -60,6 +61,8 @@ _REMOTE_KERNEL_PATH = remote_path.join(_REMOTE_WORKING_DIR, "kernel")
 _REMOTE_RAMDISK_PATH = remote_path.join(_REMOTE_WORKING_DIR, "mixed_ramdisk")
 _REMOTE_EMULATOR_DIR = remote_path.join(_REMOTE_WORKING_DIR, "emulator")
 _REMOTE_INSTANCE_DIR = remote_path.join(_REMOTE_WORKING_DIR, "instance")
+_REMOTE_LOGCAT_PATH = os.path.join(_REMOTE_INSTANCE_DIR, "logcat.txt")
+_REMOTE_STDOUTERR_PATH = os.path.join(_REMOTE_INSTANCE_DIR, "kernel.log")
 # Runtime parameters
 _EMULATOR_DEFAULT_CONSOLE_PORT = 5554
 _DEFAULT_BOOT_TIMEOUT_SECS = 150
@@ -82,6 +85,7 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         ssh: Ssh object that executes commands on the remote host.
         failures: A dictionary the maps instance names to
                   error.DeviceBootError objects.
+        logs: A dictionary that maps instance names to lists of report.LogFile.
     """
     def __init__(self, avd_spec):
         """Initialize the attributes and the compute client."""
@@ -93,6 +97,7 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
             extra_args_ssh_tunnel=self._ssh_extra_args,
             report_internal_ip=False)
         self._failures = {}
+        self._logs = {}
         super().__init__(compute_client=(
             goldfish_remote_host_client.GoldfishRemoteHostClient()))
 
@@ -122,6 +127,10 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
             self._avd_spec.remote_host,
             _EMULATOR_DEFAULT_CONSOLE_PORT,
             self._avd_spec.remote_image)
+        self._logs[instance_name] = [
+            report.LogFile(_REMOTE_STDOUTERR_PATH,
+                           constants.LOG_TYPE_KERNEL_LOG),
+            report.LogFile(_REMOTE_LOGCAT_PATH, constants.LOG_TYPE_LOGCAT)]
         try:
             self._StartEmulator(remote_paths)
             self._WaitForEmulator()
@@ -552,10 +561,6 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         remote_bin_paths.append(remote_emulator_bin_path)
         self._ssh.Run("chmod -R +x %s" % " ".join(remote_bin_paths))
 
-        remote_logcat_path = os.path.join(_REMOTE_INSTANCE_DIR, "logcat.txt")
-        remote_stdout_path = os.path.join(_REMOTE_INSTANCE_DIR, "stdout.txt")
-        remote_stderr_path = os.path.join(_REMOTE_INSTANCE_DIR, "stderr.txt")
-
         env = {constants.ENV_ANDROID_PRODUCT_OUT: remote_paths.image_dir,
                constants.ENV_ANDROID_TMP: _REMOTE_INSTANCE_DIR,
                constants.ENV_ANDROID_BUILD_TOP: _REMOTE_INSTANCE_DIR}
@@ -563,7 +568,9 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         cmd = ["nohup", remote_emulator_bin_path, "-verbose", "-show-kernel",
                "-read-only", "-ports",
                str(_EMULATOR_DEFAULT_CONSOLE_PORT) + "," + str(adb_port),
-               "-no-window", "-logcat-output", remote_logcat_path]
+               "-no-window",
+               "-logcat-output", _REMOTE_LOGCAT_PATH,
+               "-stdouterr-file", _REMOTE_STDOUTERR_PATH]
 
         if remote_paths.kernel:
             cmd.extend(("-kernel", remote_paths.kernel))
@@ -579,12 +586,12 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
             cmd.extend(("-qemu", "-append",
                         "androidboot.verifiedbootstate=orange"))
 
+        # Emulator doesn't create -stdouterr-file automatically.
         self._ssh.Run(
-            "'export {env} ; {cmd} 1> {stdout} 2> {stderr} &'".format(
+            "'export {env} ; touch {stdouterr} ; {cmd} &'".format(
                 env=" ".join(k + "=~/" + v for k, v in env.items()),
-                cmd=" ".join(cmd),
-                stdout=remote_stdout_path,
-                stderr=remote_stderr_path))
+                stdouterr=_REMOTE_STDOUTERR_PATH,
+                cmd=" ".join(cmd)))
 
     @utils.TimeExecute(function_description="Wait for emulator")
     def _WaitForEmulator(self):
@@ -635,3 +642,11 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
             and the value is an errors.DeviceBootError object.
         """
         return self._failures
+
+    def GetLogs(self):
+        """Get log files of created instances.
+
+        Returns:
+            A dictionary that maps instance names to lists of report.LogFile.
+        """
+        return self._logs
