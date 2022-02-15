@@ -561,6 +561,14 @@ class UtilsTest(driver_test_lib.BaseDriverTest):
             utils.SetDirectoryTreeExecutable(temp_dir)
             self.assertEqual(os.stat(file_path).st_mode & 0o777, 0o755)
 
+    def testSetCvdPort(self):
+        """test base_instance_num."""
+        utils.SetCvdPorts(2)
+        self.assertEqual(utils.GetCvdPorts().adb_port, 6521)
+        self.assertEqual(utils.GetCvdPorts().vnc_port, 6445)
+        utils.SetCvdPorts(None)
+
+
     @mock.patch.object(utils, "PrintColorString")
     def testPrintDeviceSummary(self, mock_print):
         """test PrintDeviceSummary."""
@@ -580,7 +588,7 @@ class UtilsTest(driver_test_lib.BaseDriverTest):
                          "screen_command": "fake_screen_cmd"},],}
         mock_print.reset_mock()
         utils.PrintDeviceSummary(fake_report)
-        self.assertEqual(mock_print.call_count, 11)
+        self.assertEqual(mock_print.call_count, 13)
 
         # Test for fail case
         fake_report.data = {
