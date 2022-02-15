@@ -15,7 +15,6 @@
 import os
 import platform
 import shutil
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -24,12 +23,12 @@ from unittest import mock
 
 from acloud.internal.lib import driver_test_lib
 from acloud.internal.lib import utils
+from acloud.setup import mkcert
 from acloud.setup import setup_common
 from acloud.setup.host_setup_runner import AvdPkgInstaller
 from acloud.setup.host_setup_runner import CuttlefishCommonPkgInstaller
 from acloud.setup.host_setup_runner import CuttlefishHostSetup
-from acloud.setup.host_setup_runner import MkcertPkgInstaller
-
+from acloud.setup.host_setup_runner import LocalCAHostSetup
 
 class CuttlefishHostSetupTest(driver_test_lib.BaseDriverTest):
     """Test CuttlsfishHostSetup."""
@@ -50,14 +49,12 @@ lrw                    16384  1 aesni_intel"""
 
     def testShouldRunFalse(self):
         """Test ShouldRun returns False."""
-        self.Patch(CuttlefishHostSetup, "_IsSupportedKvm", return_value=True)
         self.Patch(utils, "CheckUserInGroups", return_value=True)
         self.Patch(CuttlefishHostSetup, "_CheckLoadedModules", return_value=True)
         self.assertFalse(self.CuttlefishHostSetup.ShouldRun())
 
     def testShouldRunTrue(self):
         """Test ShouldRun returns True."""
-        self.Patch(CuttlefishHostSetup, "_IsSupportedKvm", return_value=True)
         # 1. Checking groups fails.
         self.Patch(
             utils, "CheckUserInGroups", return_value=False)
@@ -76,7 +73,6 @@ lrw                    16384  1 aesni_intel"""
     # pylint: disable=no-member
     def testRun(self):
         """Test Run."""
-        self.Patch(CuttlefishHostSetup, "_IsSupportedKvm", return_value=True)
         self.Patch(CuttlefishHostSetup, "ShouldRun", return_value=True)
         self.Patch(utils, "InteractWithQuestion", return_value="y")
         self.Patch(setup_common, "CheckCmdOutput")
@@ -87,34 +83,6 @@ lrw                    16384  1 aesni_intel"""
         self.Patch(utils, "InteractWithQuestion", return_value="n")
         self.CuttlefishHostSetup.Run()
         setup_common.CheckCmdOutput.assert_not_called()
-
-        self.Patch(CuttlefishHostSetup, "_IsSupportedKvm", return_value=False)
-        self.Patch(utils, "InteractWithQuestion")
-        self.CuttlefishHostSetup.Run()
-        utils.InteractWithQuestion.assert_not_called()
-
-
-    # pylint: disable=protected-access
-    def testIsSupportedKvm(self):
-        """Test _IsSupportedKvm."""
-        fake_success_message = (
-            "  QEMU: Checking for hardware virtualization                                 : PASS\n"
-            "  QEMU: Checking if device /dev/kvm exists                                   : PASS\n"
-            "  QEMU: Checking if device /dev/kvm is accessible                            : PASS\n")
-        fake_fail_message = (
-            "  QEMU: Checking for hardware virtualization                                 : FAIL"
-            "(Only emulated CPUs are available, performance will be significantly limited)\n"
-            "  QEMU: Checking if device /dev/vhost-net exists                             : PASS\n"
-            "  QEMU: Checking if device /dev/net/tun exists                               : PASS\n")
-        popen = mock.Mock(returncode=None)
-        popen.poll.return_value = None
-        popen.communicate.return_value = (fake_success_message, "stderr")
-        self.Patch(subprocess, "Popen", return_value=popen)
-        self.assertTrue(self.CuttlefishHostSetup._IsSupportedKvm())
-
-        popen.communicate.return_value = (fake_fail_message, "stderr")
-        self.Patch(subprocess, "Popen", return_value=popen)
-        self.assertFalse(self.CuttlefishHostSetup._IsSupportedKvm())
 
     # pylint: disable=protected-access
     def testCheckLoadedModules(self):
@@ -207,49 +175,46 @@ class CuttlefishCommonPkgInstallerTest(driver_test_lib.BaseDriverTest):
         sys.exit.assert_called_once()
 
 
-class MkcertPkgInstallerTest(driver_test_lib.BaseDriverTest):
-    """Test MkcertPkgInstallerTest."""
+class LocalCAHostSetupTest(driver_test_lib.BaseDriverTest):
+    """Test LocalCAHostSetupTest."""
 
     # pylint: disable=invalid-name
     def setUp(self):
         """Set up the test."""
         super().setUp()
-        self.MkcertPkgInstaller = MkcertPkgInstaller()
+        self.LocalCAHostSetup = LocalCAHostSetup()
 
     def testShouldRun(self):
         """Test ShouldRun."""
         self.Patch(platform, "system", return_value="Linux")
         self.Patch(os.path, "exists", return_value=False)
-        self.assertTrue(self.MkcertPkgInstaller.ShouldRun())
+        self.assertTrue(self.LocalCAHostSetup.ShouldRun())
 
         self.Patch(os.path, "exists", return_value=True)
-        self.assertFalse(self.MkcertPkgInstaller.ShouldRun())
+        self.assertFalse(self.LocalCAHostSetup.ShouldRun())
 
         self.Patch(platform, "system", return_value="Mac")
         self.Patch(os.path, "exists", return_value=False)
-        self.assertFalse(self.MkcertPkgInstaller.ShouldRun())
+        self.assertFalse(self.LocalCAHostSetup.ShouldRun())
 
     # pylint: disable=no-member
-    @mock.patch.object(setup_common, "CheckCmdOutput")
-    def testRun(self, mock_cmd):
+    def testRun(self):
         """Test Run."""
         self.Patch(utils, "GetUserAnswerYes", return_value=True)
-        self.Patch(MkcertPkgInstaller, "ShouldRun", return_value=True)
-        self.Patch(os.path, "isdir", return_value=True)
-        self.Patch(os, "mkdir")
-        self.Patch(utils, "SetExecutable")
-        self.Patch(utils, "CheckOutput")
-        self.MkcertPkgInstaller.Run()
-        mock_cmd.assert_called_once()
+        self.Patch(LocalCAHostSetup, "ShouldRun", return_value=True)
+        self.Patch(mkcert, "Install")
+        self.LocalCAHostSetup.Run()
+        mkcert.Install.assert_called_once()
+        mkcert.Install.reset_mock()
 
-        self.Patch(os.path, "isdir", return_value=False)
-        self.MkcertPkgInstaller.Run()
-        os.mkdir.assert_called_once()
+        self.Patch(LocalCAHostSetup, "ShouldRun", return_value=False)
+        self.LocalCAHostSetup.Run()
+        mkcert.Install.assert_not_called()
 
         self.Patch(utils, "GetUserAnswerYes", return_value=False)
         self.Patch(sys, "exit")
-        self.MkcertPkgInstaller.Run()
-        sys.exit.assert_called_once()
+        self.LocalCAHostSetup.Run()
+        mkcert.Install.assert_not_called()
 
 
 if __name__ == "__main__":

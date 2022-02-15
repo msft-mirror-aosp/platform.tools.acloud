@@ -68,6 +68,7 @@ from acloud.internal.lib.adb_tools import AdbTools
 from acloud.list import list as list_instance
 from acloud.list import instance
 from acloud.public import report
+from acloud.setup import mkcert
 
 
 logger = logging.getLogger(__name__)
@@ -91,22 +92,27 @@ _CMD_LAUNCH_CVD_ARGS = (
 _CMD_LAUNCH_CVD_HW_ARGS = " -cpus %s -x_res %s -y_res %s -dpi %s -memory_mb %s"
 _CMD_LAUNCH_CVD_DISK_ARGS = (
     " -blank_data_image_mb %s -data_policy always_create")
-_CMD_LAUNCH_CVD_WEBRTC_ARGS = (
-    " -guest_enforce_security=false -start_webrtc=true")
+_CMD_LAUNCH_CVD_WEBRTC_ARGS = " -start_webrtc=true"
 _CMD_LAUNCH_CVD_VNC_ARG = " -start_vnc_server=true"
 _CMD_LAUNCH_CVD_SUPER_IMAGE_ARG = " -super_image=%s"
 _CMD_LAUNCH_CVD_BOOT_IMAGE_ARG = " -boot_image=%s"
 _CMD_LAUNCH_CVD_NO_ADB_ARG = " -run_adb_connector=false"
+# Connect the OpenWrt device via console file.
+_CMD_LAUNCH_CVD_CONSOLE_ARG = " -console=true"
 _CONFIG_RE = re.compile(r"^config=(?P<config>.+)")
+_CONSOLE_NAME = "console"
 _MAX_REPORTED_ERROR_LINES = 10
 
 # In accordance with the number of network interfaces in
 # /etc/init.d/cuttlefish-common
 _MAX_INSTANCE_ID = 10
 
+# TODO(b/213521240): To check why the delete function is not work and
+# has to manually delete temp folder.
 _INSTANCES_IN_USE_MSG = ("All instances are in use. Try resetting an instance "
                          "by specifying --local-instance and an id between 1 "
-                         "and %d." % _MAX_INSTANCE_ID)
+                         "and %d. Alternatively, to run 'acloud delete --all' "
+                         % _MAX_INSTANCE_ID)
 _CONFIRM_RELAUNCH = ("\nCuttlefish AVD[id:%d] is already running. \n"
                      "Enter 'y' to terminate current instance and launch a new "
                      "instance, enter anything else to exit out[y/N]: ")
@@ -136,9 +142,14 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             A Report instance.
         """
         # Running instances on local is not supported on all OS.
+        result_report = report.Report(command="create")
         if not utils.IsSupportedPlatform(print_warning=True):
-            result_report = report.Report(command="create")
-            result_report.SetStatus(report.Status.FAIL)
+            result_report.UpdateFailure(
+                "The platform doesn't support to run acloud.")
+            return result_report
+        if not utils.IsSupportedKvm():
+            result_report.UpdateFailure(
+                "The environment doesn't support virtualization.")
             return result_report
 
         artifact_paths = self.GetImageArtifactsPath(avd_spec)
@@ -146,9 +157,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         try:
             ins_id, ins_lock = self._SelectAndLockInstance(avd_spec)
         except errors.CreateError as e:
-            result_report = report.Report(command="create")
-            result_report.AddError(str(e))
-            result_report.SetStatus(report.Status.FAIL)
+            result_report.UpdateFailure(str(e))
             return result_report
 
         try:
@@ -196,7 +205,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                 return ins_id, ins_lock
         raise errors.CreateError(_INSTANCES_IN_USE_MSG)
 
-    #pylint: disable=too-many-locals
+    #pylint: disable=too-many-locals,too-many-statements
     def _CreateInstance(self, local_instance_id, artifact_paths, avd_spec,
                         no_prompts):
         """Create a CVD instance.
@@ -225,7 +234,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         self.PrepareLocalCvdToolsLink(cvd_home_dir, artifact_paths.host_bins)
         launch_cvd_path = os.path.join(artifact_paths.host_bins, "bin",
                                        constants.CMD_LAUNCH_CVD)
-        if avd_spec.mkcert and avd_spec.connect_webrtc:
+        if avd_spec.connect_webrtc:
             self._TrustCertificatesForWebRTC(artifact_paths.host_artifacts)
 
         hw_property = None
@@ -243,7 +252,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                                        super_image_path,
                                        artifact_paths.boot_image,
                                        avd_spec.launch_args,
-                                       config or avd_spec.flavor)
+                                       config or avd_spec.flavor,
+                                       avd_spec.openwrt)
 
         result_report = report.Report(command="create")
         instance_name = instance.GetLocalInstanceName(local_instance_id)
@@ -252,7 +262,9 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                             artifact_paths.host_artifacts,
                             cvd_home_dir, (avd_spec.boot_timeout_secs or
                                            constants.DEFAULT_CF_BOOT_TIMEOUT))
+            logs = self._FindLogs(local_instance_id)
         except errors.LaunchCVDFail as launch_error:
+            logs = self._FindLogs(local_instance_id)
             err_msg = ("Cannot create cuttlefish instance: %s\n"
                        "For more detail: %s/launcher.log" %
                        (launch_error, runtime_dir))
@@ -263,15 +275,22 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             result_report.SetStatus(report.Status.BOOT_FAIL)
             result_report.SetErrorType(constants.ACLOUD_BOOT_UP_ERROR)
             result_report.AddDeviceBootFailure(
-                instance_name, constants.LOCALHOST, None, None, error=err_msg)
+                instance_name, constants.LOCALHOST, None, None, error=err_msg,
+                logs=logs)
             return result_report
 
         active_ins = list_instance.GetActiveCVD(local_instance_id)
         if active_ins:
+            update_data = None
+            if avd_spec.openwrt:
+                console_dir = os.path.dirname(
+                    instance.GetLocalInstanceConfig(local_instance_id))
+                console_path = os.path.join(console_dir, _CONSOLE_NAME)
+                update_data = {"screen_command": f"screen {console_path}"}
             result_report.SetStatus(report.Status.SUCCESS)
             result_report.AddDevice(instance_name, constants.LOCALHOST,
                                     active_ins.adb_port, active_ins.vnc_port,
-                                    webrtc_port)
+                                    webrtc_port, logs=logs, update_data=update_data)
             # Launch vnc client if we're auto-connecting.
             if avd_spec.connect_vnc:
                 utils.LaunchVNCFromReport(result_report, avd_spec, no_prompts)
@@ -285,7 +304,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             result_report.SetStatus(report.Status.BOOT_FAIL)
             result_report.SetErrorType(constants.ACLOUD_BOOT_UP_ERROR)
             result_report.AddDeviceBootFailure(
-                instance_name, constants.LOCALHOST, None, None, error=err_msg)
+                instance_name, constants.LOCALHOST, None, None, error=err_msg,
+                logs=logs)
         return result_report
 
     @staticmethod
@@ -468,7 +488,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
     def PrepareLaunchCVDCmd(launch_cvd_path, hw_property, connect_adb,
                             image_dir, runtime_dir, connect_webrtc,
                             connect_vnc, super_image_path, boot_image_path,
-                            launch_args, config):
+                            launch_args, config, openwrt=False):
         """Prepare launch_cvd command.
 
         Create the launch_cvd commands with all the required args and add
@@ -486,6 +506,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             boot_image_path: String of non-default boot image path.
             launch_args: String of launch args.
             config: String of config name.
+            openwrt: Boolean of enable OpenWrt devices.
 
         Returns:
             String, launch_cvd cmd.
@@ -519,6 +540,9 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                                  _CMD_LAUNCH_CVD_BOOT_IMAGE_ARG %
                                  boot_image_path)
 
+        if openwrt:
+            launch_cvd_w_args = launch_cvd_w_args + _CMD_LAUNCH_CVD_CONSOLE_ARG
+
         if launch_args:
             launch_cvd_w_args = launch_cvd_w_args + " " + launch_args
 
@@ -550,8 +574,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
 
     @staticmethod
     def _TrustCertificatesForWebRTC(host_bins_path):
-        """Copy the trusted certificates generated by mkcert to the webrtc
-        frontend certificate directory.
+        """Copy the trusted certificates generated by openssl tool to the
+        webrtc frontend certificate directory.
 
         Args:
             host_bins_path: String of host package directory.
@@ -562,13 +586,12 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             logger.debug("WebRTC frontend certificate path doesn't exist: %s",
                          webrtc_certs_dir)
             return
-        mkcert_install_dir = os.path.join(os.path.expanduser("~"),
-                                    constants.MKCERT_INSTALL_DIR)
-        if os.path.exists(os.path.join(mkcert_install_dir, "mkcert")):
-            utils.AllocateLocalHostCert(mkcert_install_dir)
+        local_cert_dir = os.path.join(os.path.expanduser("~"),
+                                      constants.SSL_DIR)
+        if mkcert.AllocateLocalHostCert():
             for cert_file_name in constants.WEBRTC_CERTS_FILES:
                 shutil.copyfile(
-                    os.path.join(mkcert_install_dir, cert_file_name),
+                    os.path.join(local_cert_dir, cert_file_name),
                     os.path.join(webrtc_certs_dir, cert_file_name))
 
     @staticmethod
@@ -661,3 +684,20 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         split_stderr = stderr.splitlines()[-_MAX_REPORTED_ERROR_LINES:]
         raise errors.LaunchCVDFail("%s Stderr:\n%s" %
                                    (error_msg, "\n".join(split_stderr)))
+
+    @staticmethod
+    def _FindLogs(local_instance_id):
+        """Find log paths that will be written to report.
+
+        Args:
+            local_instance_id: An integer, the instance id.
+
+        Returns:
+            A list of report.LogFile.
+        """
+        log_dir = instance.GetLocalInstanceLogDir(local_instance_id)
+        return [report.LogFile(os.path.join(log_dir, name), log_type)
+                for name, log_type in [
+                    ("launcher.log", constants.LOG_TYPE_TEXT),
+                    ("kernel.log", constants.LOG_TYPE_KERNEL_LOG),
+                    ("logcat", constants.LOG_TYPE_LOGCAT)]]

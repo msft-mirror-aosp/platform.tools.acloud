@@ -38,7 +38,6 @@ from acloud.create import goldfish_remote_image_remote_instance
 from acloud.create import local_image_local_instance
 from acloud.create import local_image_remote_instance
 from acloud.create import local_image_remote_host
-from acloud.create import openwrt_remote_image_remote_instance
 from acloud.create import remote_image_remote_instance
 from acloud.create import remote_image_local_instance
 from acloud.create import remote_image_remote_host
@@ -87,9 +86,6 @@ _CREATOR_CLASS_DICT = {
     # FVP types
     (constants.TYPE_FVP, constants.IMAGE_SRC_LOCAL, constants.INSTANCE_TYPE_REMOTE):
         local_image_remote_instance.LocalImageRemoteInstance,
-    # OpenWrt types
-    (constants.TYPE_OPENWRT, constants.IMAGE_SRC_REMOTE, constants.INSTANCE_TYPE_REMOTE):
-        openwrt_remote_image_remote_instance.OpenWrtRemoteImageRemoteInstance,
 }
 
 
@@ -181,7 +177,7 @@ def _CheckForSetup(args):
     args.host_base = False
     args.force = False
     args.update_config = None
-    args.host_mkcert = False
+    args.host_local_ca = False
     # Remote image/instance requires the GCP config setup.
     if args.local_instance is None or args.local_image is None:
         gcp_setup = gcp_setup_runner.GcpTaskRunner(args.config_file)
@@ -201,11 +197,11 @@ def _CheckForSetup(args):
             args.host = True
             logger.debug("Auto-detect to install host packages.")
 
-    if args.mkcert and args.autoconnect == constants.INS_KEY_WEBRTC:
-        mkcert_pkg_setup = host_setup_runner.MkcertPkgInstaller()
-        if mkcert_pkg_setup.ShouldRun():
-            args.host_mkcert = True
-            logger.debug("Auto-detect to install mkcert.")
+    if args.autoconnect == constants.INS_KEY_WEBRTC:
+        local_ca_setup = host_setup_runner.LocalCAHostSetup()
+        if local_ca_setup.ShouldRun():
+            args.host_local_ca = True
+            logger.debug("Auto-detect to setup local CA.")
 
     # Install base packages if we haven't already.
     host_base_setup = host_setup_runner.HostBasePkgInstaller()
@@ -214,7 +210,7 @@ def _CheckForSetup(args):
         logger.debug("Auto-detect to install host_base packages.")
 
     run_setup = any([
-        args.force, args.gcp_init, args.host, args.host_base, args.host_mkcert])
+        args.force, args.gcp_init, args.host, args.host_base, args.host_local_ca])
 
     if run_setup:
         answer = utils.InteractWithQuestion("Missing necessary acloud setup, "

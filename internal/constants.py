@@ -43,7 +43,6 @@ TYPE_CF = "cuttlefish"
 TYPE_GCE = "gce"
 TYPE_GF = "goldfish"
 TYPE_FVP = "fvp"
-TYPE_OPENWRT = "openwrt"
 
 # Image types
 IMAGE_SRC_REMOTE = "remote_image"
@@ -56,8 +55,6 @@ AVD_TYPES_MAPPING = {
     TYPE_GF: "sdk",
     # Cheeps uses the cheets target.
     TYPE_CHEEPS: "cheets",
-    # OpenWrt use the cf target.
-    TYPE_OPENWRT: "cf",
 }
 
 # Instance types
@@ -95,12 +92,8 @@ HW_ALIAS_DPI = "dpi"
 HW_ALIAS_MEMORY = "memory"
 HW_ALIAS_DISK = "disk"
 HW_PROPERTIES_CMD_EXAMPLE = (
-    " %s:2,%s:1280x700,%s:160,%s:2g,%s:2g" %
-    (HW_ALIAS_CPUS,
-     HW_ALIAS_RESOLUTION,
-     HW_ALIAS_DPI,
-     HW_ALIAS_MEMORY,
-     HW_ALIAS_DISK)
+    f" {HW_ALIAS_CPUS}:2,{HW_ALIAS_RESOLUTION}:1280x700,{HW_ALIAS_DPI}:160,"
+    f"{HW_ALIAS_MEMORY}:2g,{HW_ALIAS_DISK}:2g"
 )
 HW_PROPERTIES = [HW_ALIAS_CPUS, HW_ALIAS_RESOLUTION, HW_ALIAS_DPI,
                  HW_ALIAS_MEMORY, HW_ALIAS_DISK]
@@ -110,8 +103,9 @@ HW_Y_RES = "y_res"
 USER_ANSWER_YES = {"y", "yes", "Y"}
 
 # Cuttlefish groups
-LIST_CF_USER_GROUPS = ["kvm", "cvdnetwork"]
+LIST_CF_USER_GROUPS = ["kvm", "cvdnetwork", "render"]
 
+# Report keys
 IP = "ip"
 INSTANCE_NAME = "instance_name"
 GCE_USER = "vsoc-01"
@@ -119,6 +113,7 @@ VNC_PORT = "vnc_port"
 ADB_PORT = "adb_port"
 WEBRTC_PORT = "webrtc_port"
 DEVICE_SERIAL = "device_serial"
+LOGS = "logs"
 # For cuttlefish remote instances
 CF_ADB_PORT = 6520
 CF_VNC_PORT = 6444
@@ -172,6 +167,7 @@ INS_KEY_IP = "ip"
 INS_KEY_ADB = "adb"
 INS_KEY_VNC = "vnc"
 INS_KEY_WEBRTC = "webrtc"
+INS_KEY_WEBRTC_PORT = "webrtc_port"
 INS_KEY_CREATETIME = "creationTimestamp"
 INS_KEY_AVD_TYPE = "avd_type"
 INS_KEY_AVD_FLAVOR = "flavor"
@@ -204,16 +200,24 @@ WEBRTC_LOCAL_PORT = 8443
 WEBRTC_LOCAL_HOST = "localhost"
 WEBRTC_CERTS_PATH = "usr/share/webrtc/certs"
 WEBRTC_CERTS_FILES = ["server.crt", "server.key"]
-MKCERT_INSTALL_DIR = ".config/acloud/mkcert"
+SSL_DIR = ".config/acloud/mkcert"
+SSL_CA_NAME = "ACloud-webRTC-CA"
+SSL_TRUST_CA_DIR = "/usr/local/share/ca-certificates"
 
 # Remote Log
-REMOTE_LOG_FOLDER = "/home/%s/cuttlefish_runtime" % GCE_USER
+REMOTE_LOG_FOLDER = f"/home/{GCE_USER}/cuttlefish_runtime"
 
 # Cheeps specific stuff.
 CHEEPS_BETTY_IMAGE = "betty_image"
 
 # Key name in report
 ERROR_LOG_FOLDER = "error_log_folder"
+
+# Type of "logs" entries in report.
+# The values must be consistent with LogDataType in TradeFed.
+LOG_TYPE_KERNEL_LOG = "KERNEL_LOG"
+LOG_TYPE_LOGCAT = "LOGCAT"
+LOG_TYPE_TEXT = "TEXT"
 
 # Stages for create progress
 STAGE_INIT = 0
@@ -246,7 +250,9 @@ FETCH_CVD = "fetch_cvd"
 
 # For setup and cleanup
 # Packages "devscripts" and "equivs" are required for "mk-build-deps".
+# Packages from: https://android.googlesource.com/device/google/cuttlefish/
 AVD_REQUIRED_PKGS = [
-    "devscripts", "equivs", "libvirt-clients", "libvirt-daemon-system"]
+    "devscripts", "equivs", "libvirt-clients", "libvirt-daemon-system",
+    "config-package-dev", "golang"]
 BASE_REQUIRED_PKGS = ["ssvnc", "lzop", "python3-tk"]
 CUTTLEFISH_COMMOM_PKG = "cuttlefish-common"

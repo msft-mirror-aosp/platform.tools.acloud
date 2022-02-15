@@ -50,6 +50,7 @@ from acloud.internal.lib import gcompute_client
 from acloud.internal.lib import utils
 from acloud.internal.lib.ssh import Ssh
 from acloud.pull import pull
+from acloud.setup import mkcert
 
 
 logger = logging.getLogger(__name__)
@@ -69,20 +70,19 @@ _FETCH_ARTIFACT = "fetch_artifact_time"
 _GCE_CREATE = "gce_create_time"
 _LAUNCH_CVD = "launch_cvd_time"
 # WebRTC args for launching AVD
-_GUEST_ENFORCE_SECURITY_FALSE = "--guest_enforce_security=false"
 _START_WEBRTC = "--start_webrtc"
 _WEBRTC_ID = "--webrtc_device_id=%(instance)s"
 _VM_MANAGER = "--vm_manager=crosvm"
-_WEBRTC_ARGS = [_GUEST_ENFORCE_SECURITY_FALSE, _START_WEBRTC, _VM_MANAGER]
+_WEBRTC_ARGS = [_START_WEBRTC, _VM_MANAGER]
 _VNC_ARGS = ["--start_vnc_server=true"]
 _NO_RETRY = 0
 # Launch cvd command for acloud report
 _LAUNCH_CVD_COMMAND = "launch_cvd_command"
 _CONFIG_RE = re.compile(r"^config=(?P<config>.+)")
-# Trust local certificates command for webrtc
 _TRUST_REMOTE_INSTANCE_COMMAND = (
-    "\"export CAROOT=%(webrtc_certs_path)s; "
-    "./%(webrtc_certs_path)s/mkcert -install;\"")
+    f"\"sudo cp ~/{constants.WEBRTC_CERTS_PATH}/{constants.SSL_CA_NAME}.pem "
+    f"{constants.SSL_TRUST_CA_DIR}/{constants.SSL_CA_NAME}.crt;"
+    "sudo update-ca-certificates;\"")
 # Remote host instance name
 _HOST_INSTANCE_NAME_FORMAT = (constants.INSTANCE_TYPE_HOST +
                               "-%(ip_addr)s-%(build_id)s-%(build_target)s")
@@ -133,6 +133,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         self._ssh = None
         self._ip = None
         self._user = constants.GCE_USER
+        self._openwrt = None
         self._stage = constants.STAGE_INIT
         self._execution_time = {_FETCH_ARTIFACT: 0, _GCE_CREATE: 0, _LAUNCH_CVD: 0}
 
@@ -230,7 +231,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             ota_build_target: String of the otatools target name.
             ota_branch: String of the otatools branch name.
             ota_build_id: String of the otatools build id.
-
 
         Returns:
             A string, representing instance name.
@@ -432,6 +432,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         try:
             self.ExtendReportData(_LAUNCH_CVD_COMMAND, ssh_command)
             self._ssh.Run(ssh_command, boot_timeout_secs, retry=_NO_RETRY)
+            self._UpdateOpenWrtStatus(avd_spec)
         except (subprocess.CalledProcessError, errors.DeviceConnectionError,
                 errors.LaunchCVDFail) as e:
             error_msg = ("Device %s did not finish on boot within timeout (%s secs)"
@@ -530,6 +531,9 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             if avd_spec.gce_metadata:
                 for key, value in avd_spec.gce_metadata.items():
                     metadata[key] = value
+            # Record webrtc port, it will be removed if cvd support to show it.
+            if avd_spec.connect_webrtc:
+                metadata[constants.INS_KEY_WEBRTC_PORT] = constants.WEBRTC_LOCAL_PORT
 
         disk_args = self._GetDiskArgs(
             instance, image_name, image_project, boot_disk_size_gb)
@@ -626,21 +630,17 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         default certificates for connecting to a remote webrtc AVD without the
         insecure warning.
         """
-        mkcert_install_dir = os.path.join(os.path.expanduser("~"),
-                                          constants.MKCERT_INSTALL_DIR)
-        if os.path.exists(os.path.join(mkcert_install_dir, "mkcert")):
-            utils.AllocateLocalHostCert(mkcert_install_dir)
-            mkcert_rootca_dir = utils.CheckOutput(
-                "%s/mkcert -CAROOT" % mkcert_install_dir,
-                shell=True).rstrip("\n")
-            upload_files = [os.path.join(mkcert_rootca_dir, "rootCA.pem")]
-            for cert_file in constants.WEBRTC_CERTS_FILES + ["mkcert"]:
-                upload_files.append(os.path.join(mkcert_install_dir,
+        local_cert_dir = os.path.join(os.path.expanduser("~"),
+                                      constants.SSL_DIR)
+        if mkcert.AllocateLocalHostCert():
+            upload_files = []
+            for cert_file in (constants.WEBRTC_CERTS_FILES +
+                              [f"{constants.SSL_CA_NAME}.pem"]):
+                upload_files.append(os.path.join(local_cert_dir,
                                                  cert_file))
             try:
                 self._ssh.ScpPushFiles(upload_files, constants.WEBRTC_CERTS_PATH)
-                self._ssh.Run(_TRUST_REMOTE_INSTANCE_COMMAND % {
-                    "webrtc_certs_path": constants.WEBRTC_CERTS_PATH})
+                self._ssh.Run(_TRUST_REMOTE_INSTANCE_COMMAND)
             except subprocess.CalledProcessError:
                 logger.debug("Update WebRTC frontend certificate failed.")
 
@@ -660,6 +660,13 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                     "The path doesn't exist: %s" % extra_file.source)
             self._ssh.ScpPushFile(extra_file.source, extra_file.target)
 
+    def GetSshConnectCmd(self):
+        """Get ssh connect command.
+
+        Returns:
+            String of ssh connect command.
+        """
+        return self._ssh.GetBaseCmd(constants.SSH_BIN)
 
     def GetInstanceIP(self, instance=None):
         """Override method from parent class.
@@ -713,6 +720,14 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         """
         self._stage = stage
 
+    def _UpdateOpenWrtStatus(self, avd_spec):
+        """Update the OpenWrt device status.
+
+        Args:
+            avd_spec: An AVDSpec instance.
+        """
+        self._openwrt = avd_spec.openwrt if avd_spec else False
+
     @property
     def all_failures(self):
         """Return all_failures"""
@@ -727,6 +742,11 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
     def stage(self):
         """Return stage"""
         return self._stage
+
+    @property
+    def openwrt(self):
+        """Return openwrt"""
+        return self._openwrt
 
     @property
     def build_api(self):

@@ -113,9 +113,12 @@ class DevicePool:
                 self._compute_client, "execution_time") else {}
             stage = self._compute_client.stage if hasattr(
                 self._compute_client, "stage") else 0
+            openwrt = self._compute_client.openwrt if hasattr(
+                self._compute_client, "openwrt") else False
             self.devices.append(
                 avd.AndroidVirtualDevice(ip=ip, instance_name=instance,
-                                         time_info=time_info, stage=stage))
+                                         time_info=time_info, stage=stage,
+                                         openwrt=openwrt))
 
     @utils.TimeExecute(function_description="Waiting for AVD(s) to boot up",
                        result_evaluator=utils.BootEvaluator)
@@ -261,6 +264,7 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
             reporter.SetStatus(report.Status.SUCCESS)
 
         # Collect logs
+        logs = device_factory.GetLogs()
         if serial_log_file:
             device_pool.CollectSerialPortLogs(
                 serial_log_file, port=constants.DEFAULT_SERIAL_PORT)
@@ -278,6 +282,8 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
                 device_dict.update(device.build_info)
             if device.time_info:
                 device_dict.update(device.time_info)
+            if device.openwrt:
+                device_dict.update(device_factory.GetOpenWrtInfoDict())
             if autoconnect and reporter.status == report.Status.SUCCESS:
                 forwarded_ports = utils.AutoConnect(
                     ip_addr=ip,
@@ -305,6 +311,8 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
                                   cfg.ssh_private_key_path),
                     ssh_user=ssh_user,
                     extra_args_ssh_tunnel=cfg.extra_args_ssh_tunnel)
+            if device.instance_name in logs:
+                device_dict[constants.LOGS] = logs[device.instance_name]
             if device.instance_name in failures:
                 reporter.SetErrorType(constants.ACLOUD_BOOT_UP_ERROR)
                 if device.stage:

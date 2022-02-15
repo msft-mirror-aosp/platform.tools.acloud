@@ -75,13 +75,6 @@ def AddCommonCreateArgs(parser):
         required=False,
         help="Will not automatically create ssh tunnels forwarding adb & vnc "
              "when instance created.")
-    parser.add_argument(
-        "--mkcert",
-        action="store_true",
-        dest="mkcert",
-        required=False,
-        help="Install mkcert package on the host. It helps to create the "
-             "certification files for the WEB browser.")
     parser.set_defaults(autoconnect=constants.INS_KEY_WEBRTC)
     parser.add_argument(
         "--unlock",
@@ -437,12 +430,19 @@ def GetCreateArgParser(subparser):
         required=False,
         help="Specify port for adb forwarding.")
     create_parser.add_argument(
+        "--base-instance-num",
+        type=int,
+        default=None,
+        dest="base_instance_num",
+        required=False,
+        help="'cuttlefish only' The instance number of the created device.")
+    create_parser.add_argument(
         "--avd-type",
         type=str,
         dest="avd_type",
         default=constants.TYPE_CF,
         choices=[constants.TYPE_GCE, constants.TYPE_CF, constants.TYPE_GF, constants.TYPE_CHEEPS,
-                 constants.TYPE_FVP, constants.TYPE_OPENWRT],
+                 constants.TYPE_FVP],
         help="Android Virtual Device type (default %s)." % constants.TYPE_CF)
     create_parser.add_argument(
         "--config", "--flavor",

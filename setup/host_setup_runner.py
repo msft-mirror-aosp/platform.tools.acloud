@@ -25,42 +25,27 @@ import getpass
 import logging
 import os
 import shutil
-import subprocess
 import sys
 import tempfile
-import re
 
 from acloud.internal import constants
 from acloud.internal.lib import utils
 from acloud.setup import base_task_runner
 from acloud.setup import setup_common
+from acloud.setup import mkcert
 
 
 logger = logging.getLogger(__name__)
 
 _CF_COMMOM_FOLDER = "cf-common"
-_CHECK_KVM_CMD = "virt-host-validate"
-_CHECK_KVM_PATTERN = r".*:.Checking for hardware virtualization.*PASS\n"
 
 _LIST_OF_MODULES = ["kvm_intel", "kvm"]
 _UPDATE_APT_GET_CMD = "sudo apt-get update"
 _INSTALL_CUTTLEFISH_COMMOM_CMD = [
     "git clone https://github.com/google/android-cuttlefish.git {git_folder}",
     "cd {git_folder}",
-    "yes | sudo mk-build-deps -i -r -B",
-    "dpkg-buildpackage -uc -us",
-    "sudo apt-get install -y -f ../cuttlefish-common_*_amd64.deb"]
-_MKCERT_URL = "https://github.com/FiloSottile/mkcert"
-_MKCERT_VERSION = "v1.4.3"
-_MKCERT_INSTALL_PATH = os.path.join(os.path.expanduser("~"), ".config",
-                                    constants.TOOL_NAME, "mkcert")
-_MKCERT_CAROOT_CMD = "%s/mkcert -install" % _MKCERT_INSTALL_PATH
-_MKCERT_DOWNLOAD_CMD = ("wget -O %(mkcert_install_path)s/mkcert "
-                        "%(mkcert_url)s/releases/download/"
-                        "%(mkcert_ver)s/mkcert-%(mkcert_ver)s-linux-amd64" %
-                        {"mkcert_install_path": _MKCERT_INSTALL_PATH,
-                         "mkcert_url": _MKCERT_URL,
-                         "mkcert_ver": _MKCERT_VERSION})
+    "debuild -i -us -uc -b",
+    "sudo dpkg -i ../cuttlefish-common_*_*64.deb || sudo apt-get install -f"]
 
 
 class BasePkgInstaller(base_task_runner.BaseTaskRunner):
@@ -164,49 +149,44 @@ class CuttlefishCommonPkgInstaller(base_task_runner.BaseTaskRunner):
             shutil.rmtree(os.path.dirname(cf_common_path))
         logger.info("Cuttlefish-common package installed now.")
 
-class MkcertPkgInstaller(base_task_runner.BaseTaskRunner):
-    """Subtask base runner class for installing mkcert."""
 
-    WELCOME_MESSAGE_TITLE = "Install mkcert package on the host"
-    WELCOME_MESSAGE = ("This step will walk you through the mkcert "
-                       "package installation to your host for "
-                       "assuring a secure localhost url connection "
-                       "when launching an AVD over webrtc")
+class LocalCAHostSetup(base_task_runner.BaseTaskRunner):
+    """Subtask class that setup host for setup local CA."""
+
+    WELCOME_MESSAGE_TITLE = "Local CA Host Environment Setup"
+    WELCOME_MESSAGE = ("This step will walk you through the local CA setup "
+                       "to your host for assuring a secure localhost url "
+                       "connection when launching an AVD over webrtc.")
 
     def ShouldRun(self):
-        """Check if mkcert package is installed.
+        """Check if the local CA is setup or not.
 
         Returns:
-            Boolean, True if mkcert is not installed.
+            Boolean, True if local CA is ready.
         """
         if not utils.IsSupportedPlatform():
             return False
 
-        if not os.path.exists(os.path.join(_MKCERT_INSTALL_PATH, "mkcert")):
-            return True
-        return False
+        return not mkcert.IsRootCAReady()
 
     def _Run(self):
-        """Install mkcert packages."""
-        if not utils.GetUserAnswerYes("\nStart to install mkcert :\n%s"
+        """Setup host environment for the local CA."""
+        if not utils.GetUserAnswerYes("\nStart to setup the local CA:\n"
                                       "\nEnter 'y' to continue, otherwise N or "
-                                      "enter to exit: " % _MKCERT_DOWNLOAD_CMD):
+                                      "enter to exit: "):
             sys.exit(constants.EXIT_BY_USER)
 
-        if not os.path.isdir(_MKCERT_INSTALL_PATH):
-            os.mkdir(_MKCERT_INSTALL_PATH)
-        setup_common.CheckCmdOutput(_MKCERT_DOWNLOAD_CMD, shell=True)
-        utils.SetExecutable(os.path.join(_MKCERT_INSTALL_PATH, "mkcert"))
-        utils.CheckOutput(_MKCERT_CAROOT_CMD, shell=True)
-        logger.info("Mkcert package is installed at \"%s\" now.",
-                    _MKCERT_INSTALL_PATH)
+        mkcert.Install()
+        logger.info("The local CA '%s.pem' is installed now.",
+                    constants.SSL_CA_NAME)
+
 
 class CuttlefishHostSetup(base_task_runner.BaseTaskRunner):
     """Subtask class that setup host for cuttlefish."""
 
-    WELCOME_MESSAGE_TITLE = "Host Enviornment Setup"
+    WELCOME_MESSAGE_TITLE = "Host Environment Setup"
     WELCOME_MESSAGE = (
-        "This step will help you to setup enviornment for running Android "
+        "This step will help you to setup environment for running Android "
         "cuttlefish devices on your host. That includes adding user to kvm "
         "related groups and checking required linux modules."
     )
@@ -243,33 +223,8 @@ class CuttlefishHostSetup(base_task_runner.BaseTaskRunner):
                 all_modules_present = False
         return all_modules_present
 
-    @staticmethod
-    def _IsSupportedKvm():
-        """Check if support kvm.
-
-        Returns:
-            True if environment supported kvm.
-        """
-        process = subprocess.Popen([_CHECK_KVM_CMD],
-                                   stdout=subprocess.PIPE,
-                                   universal_newlines=True)
-        stdout, _ = process.communicate()
-        re_pattern = re.compile(_CHECK_KVM_PATTERN)
-        if re_pattern.match(stdout):
-            return True
-
-        utils.PrintColorString(
-            "The environment doesn't support virtualization. If you want to "
-            "launch AVD on the local instance, Please refer to http://go/"
-            "acloud-cloudtop#acloud-create-local-instance-on-the-cloudtop ",
-            utils.TextColors.FAIL)
-        return False
-
     def _Run(self):
         """Setup host environment for local cuttlefish instance support."""
-        if not self._IsSupportedKvm():
-            return
-
         # TODO: provide --uid args to let user use prefered username
         username = getpass.getuser()
         setup_cmds = [

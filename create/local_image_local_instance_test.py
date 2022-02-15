@@ -51,7 +51,7 @@ EOF"""
 
     LAUNCH_CVD_CMD_WITH_WEBRTC = """sg group1 <<EOF
 sg group2
-launch_cvd -daemon -config=auto -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -guest_enforce_security=false -start_webrtc=true
+launch_cvd -daemon -config=auto -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -start_webrtc=true
 EOF"""
 
     LAUNCH_CVD_CMD_WITH_MIXED_IMAGES = """sg group1 <<EOF
@@ -64,20 +64,36 @@ sg group2
 launch_cvd -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -start_vnc_server=true -setupwizard_mode=REQUIRED
 EOF"""
 
+    LAUNCH_CVD_CMD_WITH_OPENWRT = """sg group1 <<EOF
+sg group2
+launch_cvd -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -start_vnc_server=true -console=true
+EOF"""
+
     _EXPECTED_DEVICES_IN_REPORT = [
         {
             "instance_name": "local-instance-1",
             "ip": "0.0.0.0:6520",
             "adb_port": 6520,
             "vnc_port": 6444,
-            "webrtc_port": 8443
+            "webrtc_port": 8443,
+            'logs': [
+                {'path': '/log/launcher.log', 'type': 'TEXT'},
+                {'path': '/log/kernel.log', 'type': 'KERNEL_LOG'},
+                {'path': '/log/logcat', 'type': 'LOGCAT'}
+            ],
+            "screen_command": "screen /instances/cvd/console"
         }
     ]
 
     _EXPECTED_DEVICES_IN_FAILED_REPORT = [
         {
             "instance_name": "local-instance-1",
-            "ip": "0.0.0.0"
+            "ip": "0.0.0.0",
+            'logs': [
+                {'path': '/log/launcher.log', 'type': 'TEXT'},
+                {'path': '/log/kernel.log', 'type': 'KERNEL_LOG'},
+                {'path': '/log/logcat', 'type': 'LOGCAT'}
+            ]
         }
     ]
 
@@ -168,22 +184,25 @@ EOF"""
                        "_LaunchCvd")
     @mock.patch.object(local_image_local_instance.LocalImageLocalInstance,
                        "PrepareLaunchCVDCmd")
-    @mock.patch.object(instance, "GetLocalInstanceRuntimeDir")
-    @mock.patch.object(instance, "GetLocalInstanceHomeDir")
-    def testCreateInstance(self, mock_home_dir, _mock_runtime_dir,
+    @mock.patch("acloud.create.local_image_local_instance.instance")
+    def testCreateInstance(self, mock_instance,
                            _mock_prepare_cmd, mock_launch_cvd,
                            _mock_create_common, mock_ota_tools, _mock_utils,
                            _mock_trust_certs):
         """Test the report returned by _CreateInstance."""
-        self.Patch(instance, "GetLocalInstanceName",
-                   return_value="local-instance-1")
-        mock_home_dir.return_value = "/local-instance-1"
+        mock_instance.GetLocalInstanceHomeDir.return_value = (
+            "/local-instance-1")
+        mock_instance.GetLocalInstanceName.return_value = "local-instance-1"
+        mock_instance.GetLocalInstanceLogDir.return_value = "/log"
+        mock_instance.GetLocalInstanceConfig.return_value = (
+            "/instances/cvd/config")
         artifact_paths = local_image_local_instance.ArtifactPaths(
             "/image/path", "/host/bin/path", "/host/usr/path", "/misc/info/path",
             "/ota/tools/dir", "/system/image/path", "/boot/image/path")
         mock_ota_tools_object = mock.Mock()
         mock_ota_tools.OtaTools.return_value = mock_ota_tools_object
-        mock_avd_spec = mock.Mock(unlock_screen=False, connect_webrtc=True)
+        mock_avd_spec = mock.Mock(
+            unlock_screen=False, connect_webrtc=True, openwrt=True)
         local_ins = mock.Mock(
             adb_port=6520,
             vnc_port=6444
@@ -214,7 +233,6 @@ EOF"""
         self.local_image_local_instance._CreateInstance(
             1, artifact_paths, mock_avd_spec, no_prompts=True)
         self.assertEqual(_mock_create_common.call_count, 0)
-
 
         # Failure
         mock_launch_cvd.side_effect = errors.LaunchCVDFail("unit test")
@@ -394,6 +412,13 @@ EOF"""
             "fake_cvd_dir", False, True, None, None,
             "-setupwizard_mode=REQUIRED", "phone")
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_ARGS)
+
+        # Test with "openwrt" is enabled.
+        launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
+            constants.CMD_LAUNCH_CVD, None, True, "fake_image_dir",
+            "fake_cvd_dir", False, True, None, None, None,
+            "phone", openwrt=True)
+        self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_OPENWRT)
 
     @mock.patch.object(utils, "GetUserAnswerYes")
     @mock.patch.object(list_instance, "GetActiveCVD")

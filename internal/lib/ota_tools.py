@@ -15,7 +15,6 @@
 
 import logging
 import os
-import subprocess
 import tempfile
 
 from six import b
@@ -133,47 +132,6 @@ class OtaTools:
         return path
 
     @staticmethod
-    def _ExecuteCommand(*command, **popen_args):
-        """Execute a command and log the output.
-
-        This method waits for the process to terminate. It kills the process
-        if it's interrupted due to timeout.
-
-        Args:
-            command: Strings, the command.
-            popen_kwargs: The arguments to be passed to subprocess.Popen.
-
-        Raises:
-            errors.SubprocessFail if the process returns non-zero.
-        """
-        proc = None
-        try:
-            logger.info("Execute %s", command)
-            popen_args["stdin"] = subprocess.PIPE
-            popen_args["stdout"] = subprocess.PIPE
-            popen_args["stderr"] = subprocess.PIPE
-
-            # Some OTA tools are Python scripts in different versions. The
-            # PYTHONPATH for acloud may be incompatible with the tools.
-            if "env" not in popen_args and "PYTHONPATH" in os.environ:
-                popen_env = os.environ.copy()
-                del popen_env["PYTHONPATH"]
-                popen_args["env"] = popen_env
-
-            proc = subprocess.Popen(command, **popen_args)
-            stdout, stderr = proc.communicate()
-            logger.info("%s stdout: %s", command[0], stdout)
-            logger.info("%s stderr: %s", command[0], stderr)
-
-            if proc.returncode != 0:
-                raise errors.SubprocessFail("%s returned %d." %
-                                            (command[0], proc.returncode))
-        finally:
-            if proc and proc.poll() is None:
-                logger.info("Kill %s", command[0])
-                proc.kill()
-
-    @staticmethod
     def _RewriteMiscInfo(output_file, input_file, lpmake_path, get_image):
         """Rewrite lpmake and image paths in misc_info.txt.
 
@@ -246,8 +204,7 @@ class OtaTools:
                     self._RewriteMiscInfo(new_misc_info, misc_info, lpmake,
                                           get_image)
 
-            self._ExecuteCommand(build_super_image, new_misc_info_path,
-                                 output_path)
+            utils.Popen(build_super_image, new_misc_info_path, output_path)
         finally:
             if new_misc_info_path:
                 os.remove(new_misc_info_path)
@@ -261,10 +218,10 @@ class OtaTools:
             output_path: The path to the output vbmeta image.
         """
         avbtool = self._GetBinary(_AVBTOOL)
-        self._ExecuteCommand(avbtool, "make_vbmeta_image",
-                             "--flag", "2",
-                             "--padding_size", "4096",
-                             "--output", output_path)
+        utils.Popen(avbtool, "make_vbmeta_image",
+                    "--flag", "2",
+                    "--padding_size", "4096",
+                    "--output", output_path)
 
     @staticmethod
     def _RewriteSystemQemuConfig(output_file, input_file, get_image):
@@ -323,10 +280,10 @@ class OtaTools:
                                                   get_image)
 
             mk_combined_img_env = {"SGDISK": sgdisk, "SIMG2IMG": simg2img}
-            self._ExecuteCommand(mk_combined_img,
-                                 "-i", new_config_path,
-                                 "-o", output_path,
-                                 env=mk_combined_img_env)
+            utils.Popen(mk_combined_img,
+                        "-i", new_config_path,
+                        "-o", output_path,
+                        env=mk_combined_img_env)
         finally:
             if new_config_path:
                 os.remove(new_config_path)
@@ -341,6 +298,6 @@ class OtaTools:
             boot_img: The path to the boot image.
         """
         unpack_bootimg = self._GetBinary(_UNPACK_BOOTIMG)
-        self._ExecuteCommand(unpack_bootimg,
-                             "--out", out_dir,
-                             "--boot_img", boot_img)
+        utils.Popen(unpack_bootimg,
+                    "--out", out_dir,
+                    "--boot_img", boot_img)

@@ -50,6 +50,8 @@ from acloud.internal.lib.gcompute_client import GetInstanceIP
 logger = logging.getLogger(__name__)
 
 _ACLOUD_CVD_TEMP = os.path.join(tempfile.gettempdir(), "acloud_cvd_temp")
+_CVD_CONFIG_FOLDER = "%(cvd_runtime)s/instances/cvd-%(id)d"
+_CVD_LOG_FOLDER = _CVD_CONFIG_FOLDER + "/logs"
 _CVD_RUNTIME_FOLDER_NAME = "cuttlefish_runtime"
 _CVD_STATUS_BIN = "cvd_status"
 _LOCAL_INSTANCE_NAME_FORMAT = "local-instance-%(id)d"
@@ -126,10 +128,15 @@ def GetLocalInstanceConfig(local_instance_id):
     Return:
         String, path of cf runtime config.
     """
-    cfg_path = os.path.join(GetLocalInstanceRuntimeDir(local_instance_id),
-                            constants.CUTTLEFISH_CONFIG_FILE)
-    if os.path.isfile(cfg_path):
-        return cfg_path
+    ins_runtime_dir = GetLocalInstanceRuntimeDir(local_instance_id)
+    cfg_dirs = [ins_runtime_dir]
+    cfg_dirs.append(_CVD_CONFIG_FOLDER % {
+        "cvd_runtime": ins_runtime_dir,
+        "id": local_instance_id})
+    for cfg_dir in cfg_dirs:
+        cfg_path = os.path.join(cfg_dir, constants.CUTTLEFISH_CONFIG_FILE)
+        if os.path.isfile(cfg_path):
+            return cfg_path
     return None
 
 
@@ -197,6 +204,37 @@ def GetLocalInstanceRuntimeDir(local_instance_id):
                         _CVD_RUNTIME_FOLDER_NAME)
 
 
+def GetLocalInstanceLogDir(local_instance_id):
+    """Get local instance log directory.
+
+    Cuttlefish log directories are different between versions:
+
+    In Android 10, the logs are in `<runtime_dir>`.
+
+    In Android 11, the logs are in `<runtime_dir>.<id>`.
+    `<runtime_dir>` is a symbolic link to `<runtime_dir>.<id>`.
+
+    In the latest version, the logs are in
+    `<runtime_dir>/instances/cvd-<id>/logs`.
+    `<runtime_dir>_runtime` and `<runtime_dir>.<id>` are symbolic links to
+    `<runtime_dir>/instances/cvd-<id>`.
+
+    This method looks for `<runtime_dir>/instances/cvd-<id>/logs` which is the
+    latest known location. If it doesn't exist, this method returns
+    `<runtime_dir>` which is compatible with the old versions.
+
+    Args:
+        local_instance_id: Integer of instance id.
+
+    Returns:
+        The path to the log directory.
+    """
+    runtime_dir = GetLocalInstanceRuntimeDir(local_instance_id)
+    log_dir = _CVD_LOG_FOLDER % {"cvd_runtime": runtime_dir,
+                                 "id": local_instance_id}
+    return log_dir if os.path.isdir(log_dir) else runtime_dir
+
+
 def _GetCurrentLocalTime():
     """Return a datetime object for current time in local time zone."""
     return datetime.datetime.now(dateutil.tz.tzlocal())
@@ -235,7 +273,7 @@ class Instance(object):
                  vnc_port=None, ssh_tunnel_is_connected=None, createtime=None,
                  elapsed_time=None, avd_type=None, avd_flavor=None,
                  is_local=False, device_information=None, zone=None,
-                 webrtc_port=None):
+                 webrtc_port=None, webrtc_forward_port=None):
         self._name = name
         self._fullname = fullname
         self._status = status
@@ -244,6 +282,7 @@ class Instance(object):
         self._adb_port = adb_port  # adb port which is forwarding to remote
         self._vnc_port = vnc_port  # vnc port which is forwarding to remote
         self._webrtc_port = webrtc_port
+        self._webrtc_forward_port = webrtc_forward_port
         # True if ssh tunnel is still connected
         self._ssh_tunnel_is_connected = ssh_tunnel_is_connected
         self._createtime = createtime
@@ -253,6 +292,7 @@ class Instance(object):
         self._is_local = is_local  # True if this is a local instance
         self._device_information = device_information
         self._zone = zone
+        self._autoconnect = self._GetAutoConnect()
 
     def __repr__(self):
         """Return full name property for print."""
@@ -270,11 +310,15 @@ class Instance(object):
         representation.append("%s display: %s" % (_INDENT, self._display))
         representation.append("%s vnc: 127.0.0.1:%s" % (_INDENT, self._vnc_port))
         representation.append("%s zone: %s" % (_INDENT, self._zone))
+        representation.append("%s autoconnect: %s" % (_INDENT, self._autoconnect))
         representation.append("%s webrtc port: %s" % (_INDENT, self._webrtc_port))
+        representation.append("%s webrtc forward port: %s" %
+                              (_INDENT, self._webrtc_forward_port))
 
         if self._adb_port and self._device_information:
-            representation.append("%s adb serial: 127.0.0.1:%s" %
-                                  (_INDENT, self._adb_port))
+            serial_ip = self._ip if self._ip == "0.0.0.0" else "127.0.0.1"
+            representation.append("%s adb serial: %s:%s" %
+                                  (_INDENT, serial_ip, self._adb_port))
             representation.append("%s product: %s" % (
                 _INDENT, self._device_information["product"]))
             representation.append("%s model: %s" % (
@@ -297,6 +341,20 @@ class Instance(object):
         if self._adb_port and self._device_information:
             return True
         return False
+
+    def _GetAutoConnect(self):
+        """Get the autoconnect of instance.
+
+        Returns:
+            String of autoconnect type. None for no autoconnect.
+        """
+        if self._webrtc_port or self._webrtc_forward_port:
+            return constants.INS_KEY_WEBRTC
+        if self._vnc_port:
+            return constants.INS_KEY_VNC
+        if self._adb_port:
+            return constants.INS_KEY_ADB
+        return None
 
     @property
     def name(self):
@@ -364,9 +422,19 @@ class Instance(object):
         return self._webrtc_port
 
     @property
+    def webrtc_forward_port(self):
+        """Return webrtc_forward_port."""
+        return self._webrtc_forward_port
+
+    @property
     def zone(self):
         """Return zone."""
         return self._zone
+
+    @property
+    def autoconnect(self):
+        """Return autoconnect."""
+        return self._autoconnect
 
 
 class LocalInstance(Instance):
@@ -392,7 +460,7 @@ class LocalInstance(Instance):
                     {"device_serial": "0.0.0.0:%s" % self._cf_runtime_cfg.adb_port,
                      "instance_name": name,
                      "elapsed_time": None})
-        adb_device = AdbTools(self._cf_runtime_cfg.adb_port)
+        adb_device = AdbTools(device_serial="0.0.0.0:%s" % self._cf_runtime_cfg.adb_port)
         webrtc_port = local_image_local_instance.LocalImageLocalInstance.GetWebrtcSigServerPort(
             self._local_instance_id)
         device_information = None
@@ -700,10 +768,11 @@ class RemoteInstance(Instance):
         instance_ip = GetInstanceIP(gce_instance)
         ip = instance_ip.external or instance_ip.internal
 
-        # Get metadata
+        # Get metadata, webrtc_port will be removed if "cvd fleet" show it.
         display = None
         avd_type = None
         avd_flavor = None
+        webrtc_port = None
         for metadata in gce_instance.get("metadata", {}).get("items", []):
             key = metadata["key"]
             value = metadata["value"]
@@ -713,6 +782,8 @@ class RemoteInstance(Instance):
                 avd_type = value
             elif key == constants.INS_KEY_AVD_FLAVOR:
                 avd_flavor = value
+            elif key == constants.INS_KEY_WEBRTC_PORT:
+                webrtc_port = value
         # TODO(176884236): Insert avd information into metadata of instance.
         if not avd_type and name.startswith(_ACLOUDWEB_INSTANCE_START_STRING):
             avd_type = constants.TYPE_CF
@@ -720,14 +791,14 @@ class RemoteInstance(Instance):
         # Find ssl tunnel info.
         adb_port = None
         vnc_port = None
-        webrtc_port = constants.WEBRTC_LOCAL_PORT
+        webrtc_forward_port = None
         device_information = None
         if ip:
             forwarded_ports = self.GetAdbVncPortFromSSHTunnel(ip, avd_type)
             adb_port = forwarded_ports.adb_port
             vnc_port = forwarded_ports.vnc_port
             ssh_tunnel_is_connected = adb_port is not None
-            webrtc_port = utils.GetWebrtcPortFromSSHTunnel(ip)
+            webrtc_forward_port = utils.GetWebrtcPortFromSSHTunnel(ip)
 
             adb_device = AdbTools(adb_port)
             if adb_device.IsAdbConnected():
@@ -756,7 +827,8 @@ class RemoteInstance(Instance):
             createtime=create_time, elapsed_time=elapsed_time, avd_type=avd_type,
             avd_flavor=avd_flavor, is_local=False,
             device_information=device_information,
-            zone=zone, webrtc_port=webrtc_port)
+            zone=zone, webrtc_port=webrtc_port,
+            webrtc_forward_port=webrtc_forward_port)
 
     @staticmethod
     def _GetZoneName(zone_info):

@@ -561,6 +561,51 @@ class UtilsTest(driver_test_lib.BaseDriverTest):
             utils.SetDirectoryTreeExecutable(temp_dir)
             self.assertEqual(os.stat(file_path).st_mode & 0o777, 0o755)
 
+    def testSetCvdPort(self):
+        """test base_instance_num."""
+        utils.SetCvdPorts(2)
+        self.assertEqual(utils.GetCvdPorts().adb_port, 6521)
+        self.assertEqual(utils.GetCvdPorts().vnc_port, 6445)
+        utils.SetCvdPorts(None)
+
+
+    @mock.patch.object(utils, "PrintColorString")
+    def testPrintDeviceSummary(self, mock_print):
+        """test PrintDeviceSummary."""
+        fake_report = mock.MagicMock(data={})
+        fake_report.data = {
+            "devices": [{"instance_name": "remote_cf_instance_name",
+                         "ip": "192.168.1.1",
+                         "device_serial": "127.0.0.1:399"},],}
+        utils.PrintDeviceSummary(fake_report)
+        self.assertEqual(mock_print.call_count, 7)
+
+        # Test for OpenWrt device case.
+        fake_report.data = {
+            "devices": [{"instance_name": "remote_cf_instance_name",
+                         "ip": "192.168.1.1",
+                         "ssh_command": "fake_ssh_cmd",
+                         "screen_command": "fake_screen_cmd"},],}
+        mock_print.reset_mock()
+        utils.PrintDeviceSummary(fake_report)
+        self.assertEqual(mock_print.call_count, 13)
+
+        # Test for fail case
+        fake_report.data = {
+            "errors": "Fail to create devices"}
+        mock_print.reset_mock()
+        utils.PrintDeviceSummary(fake_report)
+        self.assertEqual(mock_print.call_count, 3)
+
+    # pylint: disable=protected-access
+    def testIsSupportedKvm(self):
+        """Test IsSupportedKvm."""
+        self.Patch(os.path, "exists", return_value=True)
+        self.assertTrue(utils.IsSupportedKvm())
+
+        self.Patch(os.path, "exists", return_value=False)
+        self.assertFalse(utils.IsSupportedKvm())
+
 
 if __name__ == "__main__":
     unittest.main()
