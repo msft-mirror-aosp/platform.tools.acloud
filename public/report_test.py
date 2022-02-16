@@ -80,19 +80,14 @@ class ReportTest(unittest.TestCase):
     def testAddDevice(self):
         """test AddDevice."""
         test_report = report.Report("create")
-        test_report.AddDevice("instance_1", "127.0.0.1", 6520, 6444, 8443,
-                              logs=[report.LogFile("/log/path", "KERNEL_LOG")])
+        test_report.AddDevice("instance_1", "127.0.0.1", 6520, 6444, 8443)
         expected = {
             "devices": [{
                 "instance_name": "instance_1",
                 "ip": "127.0.0.1:6520",
                 "adb_port": 6520,
                 "vnc_port": 6444,
-                "webrtc_port": 8443,
-                "logs": [{
-                    "path": "/log/path",
-                    "type": "KERNEL_LOG"
-                }]
+                "webrtc_port": 8443
             }]
         }
         self.assertEqual(test_report.data, expected)
@@ -100,18 +95,15 @@ class ReportTest(unittest.TestCase):
         # Write report with "device_serial"
         test_report = report.Report("create")
         device_serial = "emulator-test"
-        update_data = {"screen_command": "screen console"}
-        test_report.AddDevice(
-            "instance_1", "127.0.0.1", 6520, 6444, device_serial=device_serial,
-            update_data=update_data)
+        test_report.AddDevice("instance_1", "127.0.0.1", 6520, 6444,
+                              device_serial=device_serial)
         expected = {
             "devices": [{
                 "instance_name": "instance_1",
                 "ip": "127.0.0.1:6520",
                 "adb_port": 6520,
                 "vnc_port": 6444,
-                "device_serial": device_serial,
-                "screen_command": "screen console"
+                "device_serial": device_serial
             }]
         }
         self.assertEqual(test_report.data, expected)
@@ -120,21 +112,15 @@ class ReportTest(unittest.TestCase):
         """test AddDeviceBootFailure."""
         test_report = report.Report("create")
         device_serial = "emulator-test"
-        test_report.AddDeviceBootFailure(
-            "instance_1", "127.0.0.1", 6520, 6444, "some errors",
-            device_serial, logs=[report.LogFile("/log/path", "TEXT", "txt")])
+        test_report.AddDeviceBootFailure("instance_1", "127.0.0.1", 6520, 6444,
+                                         "some errors", device_serial)
         expected = {
             "devices_failing_boot": [{
                 "instance_name": "instance_1",
                 "ip": "127.0.0.1:6520",
                 "adb_port": 6520,
                 "vnc_port": 6444,
-                "device_serial": device_serial,
-                "logs": [{
-                    "path": "/log/path",
-                    "type": "TEXT",
-                    "name": "txt"
-                }]
+                "device_serial": device_serial
             }]
         }
         self.assertEqual(test_report.data, expected)

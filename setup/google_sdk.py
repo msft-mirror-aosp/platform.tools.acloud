@@ -77,16 +77,16 @@ def GetSdkUrl():
     if is_64bits:
         if os_type == LINUX:
             return LINUX_GCP_SDK_64_URL
-        if os_type == MAC:
+        elif os_type == MAC:
             return MAC_GCP_SDK_64_URL
-        if os_type == WIN:
+        elif os_type == WIN:
             return WIN_GCP_SDK_64_URL
     else:
         if os_type == LINUX:
             return LINUX_GCP_SDK_32_URL
-        if os_type == MAC:
+        elif os_type == MAC:
             return MAC_GCP_SDK_32_URL
-        if os_type == WIN:
+        elif os_type == WIN:
             return WIN_GCP_SDK_32_URL
     raise errors.OSTypeError("no gcloud for os type: %s" % (os_type))
 
@@ -105,7 +105,7 @@ def SDKInstalled():
     return False
 
 
-class GoogleSDK():
+class GoogleSDK(object):
     """Google SDK tools installer."""
 
     def __init__(self):
@@ -155,7 +155,7 @@ class GoogleSDK():
         builtin_gcloud = utils.FindExecutable(GCLOUD_BIN)
         if builtin_gcloud:
             return os.path.dirname(builtin_gcloud)
-        if os.path.exists(self._tmp_sdk_path):
+        elif os.path.exists(self._tmp_sdk_path):
             return self._tmp_sdk_path
         raise errors.NoGoogleSDKDetected("no sdk path.")
 
