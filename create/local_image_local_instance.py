@@ -281,6 +281,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
 
         active_ins = list_instance.GetActiveCVD(local_instance_id)
         if active_ins:
+            update_data = None
             if avd_spec.openwrt:
                 console_dir = os.path.dirname(
                     instance.GetLocalInstanceConfig(local_instance_id))
