@@ -81,7 +81,7 @@ _NO_RETRY = 0
 _LAUNCH_CVD_COMMAND = "launch_cvd_command"
 _CONFIG_RE = re.compile(r"^config=(?P<config>.+)")
 _TRUST_REMOTE_INSTANCE_COMMAND = (
-    f"\"sudo cp ~/{constants.WEBRTC_CERTS_PATH}/{constants.SSL_CA_NAME}.pem "
+    f"\"sudo cp -p ~/{constants.WEBRTC_CERTS_PATH}/{constants.SSL_CA_NAME}.pem "
     f"{constants.SSL_TRUST_CA_DIR}/{constants.SSL_CA_NAME}.crt;"
     "sudo update-ca-certificates;\"")
 # Remote host instance name
