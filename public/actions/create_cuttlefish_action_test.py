@@ -59,14 +59,13 @@ class CreateCuttlefishActionTest(driver_test_lib.BaseDriverTest):
 
     def setUp(self):
         """Set up the test."""
-        super().setUp()
+        super(CreateCuttlefishActionTest, self).setUp()
         self.build_client = mock.MagicMock()
         self.Patch(
             android_build_client,
             "AndroidBuildClient",
             return_value=self.build_client)
         self.compute_client = mock.MagicMock()
-        self.compute_client.openwrt = False
         self.Patch(
             cvd_compute_client,
             "CvdComputeClient",

@@ -32,16 +32,19 @@ from acloud.internal.lib.adb_tools import AdbTools
 
 
 logger = logging.getLogger(__name__)
-_GCE_QUOTA_ERROR_KEYWORDS = [
-    "Quota exceeded for quota",
-    "ZONE_RESOURCE_POOL_EXHAUSTED",
-    "ZONE_RESOURCE_POOL_EXHAUSTED_WITH_DETAILS"]
+_ACLOUD_BOOT_UP_ERROR = "ACLOUD_BOOT_UP_ERROR"
+_ACLOUD_DOWNLOAD_ARTIFACT_ERROR = "ACLOUD_DOWNLOAD_ARTIFACT_ERROR"
+_ACLOUD_GENERIC_ERROR = "ACLOUD_GENERIC_ERROR"
+_ACLOUD_SSH_CONNECT_ERROR = "ACLOUD_SSH_CONNECT_ERROR"
+# Error type of GCE quota error.
+_GCE_QUOTA_ERROR = "GCE_QUOTA_ERROR"
+_GCE_QUOTA_ERROR_MSG = "Quota exceeded for quota"
 _DICT_ERROR_TYPE = {
-    constants.STAGE_INIT: constants.ACLOUD_INIT_ERROR,
-    constants.STAGE_GCE: constants.ACLOUD_CREATE_GCE_ERROR,
-    constants.STAGE_SSH_CONNECT: constants.ACLOUD_SSH_CONNECT_ERROR,
-    constants.STAGE_ARTIFACT: constants.ACLOUD_DOWNLOAD_ARTIFACT_ERROR,
-    constants.STAGE_BOOT_UP: constants.ACLOUD_BOOT_UP_ERROR,
+    constants.STAGE_INIT: "ACLOUD_INIT_ERROR",
+    constants.STAGE_GCE: "ACLOUD_CREATE_GCE_ERROR",
+    constants.STAGE_SSH_CONNECT: _ACLOUD_SSH_CONNECT_ERROR,
+    constants.STAGE_ARTIFACT: _ACLOUD_DOWNLOAD_ARTIFACT_ERROR,
+    constants.STAGE_BOOT_UP: _ACLOUD_BOOT_UP_ERROR,
 }
 
 
@@ -113,12 +116,9 @@ class DevicePool:
                 self._compute_client, "execution_time") else {}
             stage = self._compute_client.stage if hasattr(
                 self._compute_client, "stage") else 0
-            openwrt = self._compute_client.openwrt if hasattr(
-                self._compute_client, "openwrt") else False
             self.devices.append(
                 avd.AndroidVirtualDevice(ip=ip, instance_name=instance,
-                                         time_info=time_info, stage=stage,
-                                         openwrt=openwrt))
+                                         time_info=time_info, stage=stage))
 
     @utils.TimeExecute(function_description="Waiting for AVD(s) to boot up",
                        result_evaluator=utils.BootEvaluator)
@@ -198,24 +198,21 @@ def _GetErrorType(error):
         String of error type. e.g. "ACLOUD_BOOT_UP_ERROR".
     """
     if isinstance(error, errors.CheckGCEZonesQuotaError):
-        return constants.GCE_QUOTA_ERROR
+        return _GCE_QUOTA_ERROR
     if isinstance(error, errors.DownloadArtifactError):
-        return constants.ACLOUD_DOWNLOAD_ARTIFACT_ERROR
+        return _ACLOUD_DOWNLOAD_ARTIFACT_ERROR
     if isinstance(error, errors.DeviceConnectionError):
-        return constants.ACLOUD_SSH_CONNECT_ERROR
-    for keyword in _GCE_QUOTA_ERROR_KEYWORDS:
-        if keyword in str(error):
-            return constants.GCE_QUOTA_ERROR
-    return constants.ACLOUD_UNKNOWN_ERROR
+        return _ACLOUD_SSH_CONNECT_ERROR
+    if _GCE_QUOTA_ERROR_MSG in str(error):
+        return _GCE_QUOTA_ERROR
+    return _ACLOUD_GENERIC_ERROR
 
 # pylint: disable=too-many-locals,unused-argument,too-many-branches
 def CreateDevices(command, cfg, device_factory, num, avd_type,
                   report_internal_ip=False, autoconnect=False,
                   serial_log_file=None, client_adb_port=None,
                   boot_timeout_secs=None, unlock_screen=False,
-                  wait_for_boot=True, connect_webrtc=False,
-                  ssh_private_key_path=None,
-                  ssh_user=constants.GCE_USER):
+                  wait_for_boot=True, connect_webrtc=False):
     """Create a set of devices using the given factory.
 
     Main jobs in create devices.
@@ -238,8 +235,6 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
         wait_for_boot: Boolean, True to check serial log include boot up
                        message.
         connect_webrtc: Boolean, whether to auto connect webrtc to device.
-        ssh_private_key_path: String, the private key for SSH tunneling.
-        ssh_user: String, the user name for SSH tunneling.
 
     Raises:
         errors: Create instance fail.
@@ -264,7 +259,6 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
             reporter.SetStatus(report.Status.SUCCESS)
 
         # Collect logs
-        logs = device_factory.GetLogs()
         if serial_log_file:
             device_pool.CollectSerialPortLogs(
                 serial_log_file, port=constants.DEFAULT_SERIAL_PORT)
@@ -282,16 +276,13 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
                 device_dict.update(device.build_info)
             if device.time_info:
                 device_dict.update(device.time_info)
-            if device.openwrt:
-                device_dict.update(device_factory.GetOpenWrtInfoDict())
-            if autoconnect and reporter.status == report.Status.SUCCESS:
+            if autoconnect:
                 forwarded_ports = utils.AutoConnect(
                     ip_addr=ip,
-                    rsa_key_file=(ssh_private_key_path or
-                                  cfg.ssh_private_key_path),
+                    rsa_key_file=cfg.ssh_private_key_path,
                     target_vnc_port=utils.AVD_PORT_DICT[avd_type].vnc_port,
                     target_adb_port=utils.AVD_PORT_DICT[avd_type].adb_port,
-                    ssh_user=ssh_user,
+                    ssh_user=constants.GCE_USER,
                     client_adb_port=client_adb_port,
                     extra_args_ssh_tunnel=cfg.extra_args_ssh_tunnel)
                 device_dict[constants.VNC_PORT] = forwarded_ports.vnc_port
@@ -301,20 +292,14 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
                     forwarded_ports.adb_port)
                 if unlock_screen:
                     AdbTools(forwarded_ports.adb_port).AutoUnlockScreen()
-            if connect_webrtc and reporter.status == report.Status.SUCCESS:
-                webrtc_local_port = utils.PickFreePort()
-                device_dict[constants.WEBRTC_PORT] = webrtc_local_port
+            if connect_webrtc:
                 utils.EstablishWebRTCSshTunnel(
                     ip_addr=ip,
-                    webrtc_local_port=webrtc_local_port,
-                    rsa_key_file=(ssh_private_key_path or
-                                  cfg.ssh_private_key_path),
-                    ssh_user=ssh_user,
+                    rsa_key_file=cfg.ssh_private_key_path,
+                    ssh_user=constants.GCE_USER,
                     extra_args_ssh_tunnel=cfg.extra_args_ssh_tunnel)
-            if device.instance_name in logs:
-                device_dict[constants.LOGS] = logs[device.instance_name]
             if device.instance_name in failures:
-                reporter.SetErrorType(constants.ACLOUD_BOOT_UP_ERROR)
+                reporter.SetErrorType(_ACLOUD_BOOT_UP_ERROR)
                 if device.stage:
                     reporter.SetErrorType(_DICT_ERROR_TYPE[device.stage])
                 reporter.AddData(key="devices_failing_boot", value=device_dict)
