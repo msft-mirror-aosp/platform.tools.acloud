@@ -73,7 +73,7 @@ class ComputeClientTest(driver_test_lib.BaseDriverTest):
 
     def setUp(self):
         """Set up test."""
-        super().setUp()
+        super(ComputeClientTest, self).setUp()
         self.Patch(gcompute_client.ComputeClient, "InitResourceHandle")
         fake_cfg = mock.MagicMock()
         fake_cfg.project = PROJECT
