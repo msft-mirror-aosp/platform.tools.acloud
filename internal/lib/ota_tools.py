@@ -15,12 +15,14 @@
 
 import logging
 import os
+import subprocess
 import tempfile
 
 from six import b
 
 
 from acloud import errors
+from acloud.internal import constants
 from acloud.internal.lib import utils
 
 logger = logging.getLogger(__name__)
@@ -32,20 +34,18 @@ _AVBTOOL = "avbtool"
 _SGDISK = "sgdisk"
 _SIMG2IMG = "simg2img"
 _MK_COMBINED_IMG = "mk_combined_img"
-_UNPACK_BOOTIMG = "unpack_bootimg"
 
 _BUILD_SUPER_IMAGE_TIMEOUT_SECS = 30
 _AVBTOOL_TIMEOUT_SECS = 30
 _MK_COMBINED_IMG_TIMEOUT_SECS = 180
-_UNPACK_BOOTIMG_TIMEOUT_SECS = 30
 
 _MISSING_OTA_TOOLS_MSG = ("%(tool_name)s is not found. Run `make otatools` "
                           "in build environment, or set --local-tool to an "
                           "extracted otatools.zip.")
 
 
-def FindOtaToolsDir(search_paths):
-    """Find OTA tools directory in the search paths.
+def FindOtaTools(search_paths):
+    """Find OTA tools in the search paths and in build environment.
 
     Args:
         search_paths: List of paths, the directories to search for OTA tools.
@@ -60,23 +60,16 @@ def FindOtaToolsDir(search_paths):
         if os.path.isfile(os.path.join(search_path, _BIN_DIR_NAME,
                                        _BUILD_SUPER_IMAGE)):
             return search_path
+    for env_host_out in [constants.ENV_ANDROID_SOONG_HOST_OUT,
+                         constants.ENV_ANDROID_HOST_OUT]:
+        host_out_dir = os.environ.get(env_host_out)
+        if (host_out_dir and
+                os.path.isfile(os.path.join(host_out_dir, _BIN_DIR_NAME,
+                                            _BUILD_SUPER_IMAGE))):
+            return host_out_dir
+
     raise errors.CheckPathError(_MISSING_OTA_TOOLS_MSG %
                                 {"tool_name": "OTA tool directory"})
-
-
-def FindOtaTools(search_paths):
-    """Find OTA tools in the search paths.
-
-    Args:
-        search_paths: List of paths, the directories to search for OTA tools.
-
-    Returns:
-        An OtaTools object.
-
-    Raises:
-        errors.CheckPathError if OTA tools are not found.
-    """
-    return OtaTools(FindOtaToolsDir(search_paths))
 
 
 def GetImageForPartition(partition_name, image_dir, **image_paths):
@@ -130,6 +123,47 @@ class OtaTools:
                                       {"tool_name": name})
         utils.SetExecutable(path)
         return path
+
+    @staticmethod
+    def _ExecuteCommand(*command, **popen_args):
+        """Execute a command and log the output.
+
+        This method waits for the process to terminate. It kills the process
+        if it's interrupted due to timeout.
+
+        Args:
+            command: Strings, the command.
+            popen_kwargs: The arguments to be passed to subprocess.Popen.
+
+        Raises:
+            errors.SubprocessFail if the process returns non-zero.
+        """
+        proc = None
+        try:
+            logger.info("Execute %s", command)
+            popen_args["stdin"] = subprocess.PIPE
+            popen_args["stdout"] = subprocess.PIPE
+            popen_args["stderr"] = subprocess.PIPE
+
+            # Some OTA tools are Python scripts in different versions. The
+            # PYTHONPATH for acloud may be incompatible with the tools.
+            if "env" not in popen_args and "PYTHONPATH" in os.environ:
+                popen_env = os.environ.copy()
+                del popen_env["PYTHONPATH"]
+                popen_args["env"] = popen_env
+
+            proc = subprocess.Popen(command, **popen_args)
+            stdout, stderr = proc.communicate()
+            logger.info("%s stdout: %s", command[0], stdout)
+            logger.info("%s stderr: %s", command[0], stderr)
+
+            if proc.returncode != 0:
+                raise errors.SubprocessFail("%s returned %d." %
+                                            (command[0], proc.returncode))
+        finally:
+            if proc and proc.poll() is None:
+                logger.info("Kill %s", command[0])
+                proc.kill()
 
     @staticmethod
     def _RewriteMiscInfo(output_file, input_file, lpmake_path, get_image):
@@ -204,7 +238,8 @@ class OtaTools:
                     self._RewriteMiscInfo(new_misc_info, misc_info, lpmake,
                                           get_image)
 
-            utils.Popen(build_super_image, new_misc_info_path, output_path)
+            self._ExecuteCommand(build_super_image, new_misc_info_path,
+                                 output_path)
         finally:
             if new_misc_info_path:
                 os.remove(new_misc_info_path)
@@ -218,10 +253,10 @@ class OtaTools:
             output_path: The path to the output vbmeta image.
         """
         avbtool = self._GetBinary(_AVBTOOL)
-        utils.Popen(avbtool, "make_vbmeta_image",
-                    "--flag", "2",
-                    "--padding_size", "4096",
-                    "--output", output_path)
+        self._ExecuteCommand(avbtool, "make_vbmeta_image",
+                             "--flag", "2",
+                             "--padding_size", "4096",
+                             "--output", output_path)
 
     @staticmethod
     def _RewriteSystemQemuConfig(output_file, input_file, get_image):
@@ -280,24 +315,10 @@ class OtaTools:
                                                   get_image)
 
             mk_combined_img_env = {"SGDISK": sgdisk, "SIMG2IMG": simg2img}
-            utils.Popen(mk_combined_img,
-                        "-i", new_config_path,
-                        "-o", output_path,
-                        env=mk_combined_img_env)
+            self._ExecuteCommand(mk_combined_img,
+                                 "-i", new_config_path,
+                                 "-o", output_path,
+                                 env=mk_combined_img_env)
         finally:
             if new_config_path:
                 os.remove(new_config_path)
-
-    @utils.TimeExecute(function_description="Unpack boot image")
-    @utils.TimeoutException(_UNPACK_BOOTIMG_TIMEOUT_SECS)
-    def UnpackBootImg(self, out_dir, boot_img):
-        """Use unpack_bootimg to unpack a boot image to a direcotry.
-
-        Args:
-            out_dir: The output directory.
-            boot_img: The path to the boot image.
-        """
-        unpack_bootimg = self._GetBinary(_UNPACK_BOOTIMG)
-        utils.Popen(unpack_bootimg,
-                    "--out", out_dir,
-                    "--boot_img", boot_img)

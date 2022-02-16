@@ -31,7 +31,6 @@ CMD_CREATE = "create"
 
 
 # TODO: Add this into main create args once create_cf/gf is deprecated.
-# pylint: disable=too-many-statements
 def AddCommonCreateArgs(parser):
     """Adds arguments common to create parsers.
 
@@ -56,7 +55,7 @@ def AddCommonCreateArgs(parser):
         "--autoconnect",
         type=str,
         nargs="?",
-        const=constants.INS_KEY_WEBRTC,
+        const=constants.INS_KEY_VNC,
         dest="autoconnect",
         required=False,
         choices=[constants.INS_KEY_VNC, constants.INS_KEY_ADB,
@@ -75,7 +74,7 @@ def AddCommonCreateArgs(parser):
         required=False,
         help="Will not automatically create ssh tunnels forwarding adb & vnc "
              "when instance created.")
-    parser.set_defaults(autoconnect=constants.INS_KEY_WEBRTC)
+    parser.set_defaults(autoconnect=constants.INS_KEY_VNC)
     parser.add_argument(
         "--unlock",
         action="store_true",
@@ -92,20 +91,6 @@ def AddCommonCreateArgs(parser):
              "ip. Using the internal ip is used when connecting from another "
              "GCE instance.")
     parser.add_argument(
-        "--disable-external-ip",
-        action="store_true",
-        dest="disable_external_ip",
-        required=False,
-        help="Disable the external ip of the created instance.")
-    parser.add_argument(
-        "--extra-files",
-        nargs='+',
-        type=str,
-        dest="extra_files",
-        required=False,
-        help="Upload the extra files into GCE instance. e.g. "
-             "/path/to/file_in_local,/path/to/file_in_gce")
-    parser.add_argument(
         "--network",
         type=str,
         dest="network",
@@ -118,19 +103,11 @@ def AddCommonCreateArgs(parser):
         required=False,
         help="Skip the pre-run check.")
     parser.add_argument(
-        "--force-sync",
-        action="store_true",
-        dest="force_sync",
-        required=False,
-        help="Force to sync image files from Android Build servers even if "
-             "they are already existed for local instance mode.")
-    parser.add_argument(
         "--boot-timeout",
         dest="boot_timeout_secs",
         type=int,
         required=False,
-        help="The maximum time in seconds used to wait for the AVD to download "
-             "artifacts and boot.")
+        help="The maximum time in seconds used to wait for the AVD to boot.")
     parser.add_argument(
         "--wait-for-ins-stable",
         dest="ins_timeout_secs",
@@ -142,7 +119,7 @@ def AddCommonCreateArgs(parser):
         "--build-target",
         type=str,
         dest="build_target",
-        help="Android build target, e.g. aosp_cf_x86_64_phone-userdebug, "
+        help="Android build target, e.g. aosp_cf_x86_phone-userdebug, "
              "or short names: phone, tablet, or tablet_mobile.")
     parser.add_argument(
         "--branch",
@@ -199,32 +176,6 @@ def AddCommonCreateArgs(parser):
         default="kernel",
         help="Kernel build target, specify if different from 'kernel'")
     parser.add_argument(
-        "--kernel-artifact",
-        type=str,
-        dest="kernel_artifact",
-        required=False,
-        help="Goldfish remote host only. The name of the boot image to be "
-        "retrieved from Android build, e.g., boot-5.10.img.")
-    parser.add_argument(
-        "--ota-branch",
-        type=str,
-        dest="ota_branch",
-        required=False,
-        help="'cuttlefish only' OTA tools branch name. e.g. aosp-master")
-    parser.add_argument(
-        "--ota-build-id",
-        type=str,
-        dest="ota_build_id",
-        required=False,
-        help="'cuttlefish only' OTA tools build id, e.g. 2145099, P2804227")
-    parser.add_argument(
-        "--ota-build-target",
-        type=str,
-        dest="ota_build_target",
-        required=False,
-        help="'cuttlefish only' OTA tools build target, e.g. "
-        "cf_x86_64_phone-userdebug.")
-    parser.add_argument(
         "--system-branch",
         type=str,
         dest="system_branch",
@@ -252,13 +203,6 @@ def AddCommonCreateArgs(parser):
         dest="launch_args",
         help="'cuttlefish only' Add extra args to launch_cvd command.",
         required=False)
-    parser.add_argument(
-        "--gce-metadata",
-        type=str,
-        dest="gce_metadata",
-        default=None,
-        help="'GCE instance only' Record data into GCE instance metadata with "
-        "key-value pair format. e.g. id:12,name:unknown.")
     # TODO(146314062): Remove --multi-stage-launch after infra don't use this
     # args.
     parser.add_argument(
@@ -430,13 +374,6 @@ def GetCreateArgParser(subparser):
         required=False,
         help="Specify port for adb forwarding.")
     create_parser.add_argument(
-        "--base-instance-num",
-        type=int,
-        default=None,
-        dest="base_instance_num",
-        required=False,
-        help="'cuttlefish only' The instance number of the created device.")
-    create_parser.add_argument(
         "--avd-type",
         type=str,
         dest="avd_type",
@@ -462,7 +399,7 @@ def GetCreateArgParser(subparser):
         "e.g --local-image or --local-image /path/to/dir or --local-image "
         "/path/to/file")
     create_parser.add_argument(
-        "--local-kernel-image", "--local-boot-image",
+        "--local-kernel-image",
         const=constants.FIND_IN_BUILD_ENV,
         type=str,
         dest="local_kernel_image",
@@ -492,15 +429,8 @@ def GetCreateArgParser(subparser):
         default=[],
         required=False,
         help="Use the tools in the specified directory to create local "
-        "instances. The directory structure follows $ANDROID_SOONG_HOST_OUT "
-        "or $ANDROID_EMULATOR_PREBUILTS.")
-    create_parser.add_argument(
-        "--cvd-host-package",
-        type=str,
-        dest="cvd_host_package",
-        required=False,
-        help="Use the specified path of the cvd host package to create "
-        "instances. e.g. /path/cvd-host_package_v1.tar.gz")
+        "instances. The directory structure follows $ANDROID_HOST_OUT or "
+        "$ANDROID_EMULATOR_PREBUILTS.")
     create_parser.add_argument(
         "--image-download-dir",
         type=str,
@@ -526,12 +456,12 @@ def GetCreateArgParser(subparser):
         "provided. Select one gce instance to reuse if --reuse-gce is "
         "provided.")
     create_parser.add_argument(
-        "--openwrt",
-        action="store_true",
-        dest="openwrt",
-        required=False,
-        help="'cuttlefish only' Create OpenWrt device when launching cuttlefish "
-        "device.")
+        "--gce-metadata",
+        type=str,
+        dest="gce_metadata",
+        default=None,
+        help="'GCE instance only' Record data into GCE instance metadata with "
+        "key-value pair format. e.g. id:12,name:unknown.")
     create_parser.add_argument(
         "--host",
         type=str,
@@ -570,38 +500,16 @@ def GetCreateArgParser(subparser):
         choices=constants.SPEC_NAMES,
         help="The name of a pre-configured device spec that we are "
         "going to use.")
-    create_parser.add_argument(
-        "--disk-type",
-        type=str,
-        dest="disk_type",
-        required=False,
-        help="This is used to customize the GCE instance disk type, the "
-        "default disk type is from the stable host image. Use pd-ssd or "
-        "pd-standard to specify instance disk type.")
-    create_parser.add_argument(
-        "--stable-host-image-name",
-        type=str,
-        dest="stable_host_image_name",
-        required=False,
-        default=None,
-        help=("'cuttlefish only' The Cuttlefish host image from which instances "
-              "are launched. If specified here, the value set in Acloud config "
-              "file will be overridden."))
-
     # Arguments for goldfish type.
+    # TODO(b/118439885): Verify args that are used in wrong avd_type.
+    # e.g. $acloud create --avd-type cuttlefish --emulator-build-id
     create_parser.add_argument(
         "--emulator-build-id",
         type=int,
         dest="emulator_build_id",
         required=False,
-        help="'goldfish only' Emulator build ID used to run the images. "
+        help="'goldfish only' Emulator build used to run the images. "
         "e.g. 4669466.")
-    create_parser.add_argument(
-        "--emulator-build-target",
-        dest="emulator_build_target",
-        required=False,
-        help="'goldfish remote host only' Emulator build target used to run "
-        "the images. e.g. sdk_tools_linux.")
 
     # Arguments for cheeps type.
     create_parser.add_argument(
@@ -686,15 +594,6 @@ def _VerifyLocalArgs(args):
         raise errors.UnsupportedCreateArgs("%s instance does not support "
                                            "--local-system-image" %
                                            args.avd_type)
-    # TODO(b/179340595): To support local image remote instance with kernel build.
-    if args.local_instance is None and args.local_image is not None and (
-            args.kernel_branch or args.kernel_build_id):
-        raise errors.UnsupportedCreateArgs(
-            "Acloud didn't support local image with specific kernel. "
-            "Please download the specific kernel and put it into "
-            "your local image folder: '%s'." % (
-            args.local_image if args.local_image else
-            utils.GetBuildEnvironmentVariable(constants.ENV_ANDROID_PRODUCT_OUT)))
 
     if (args.local_system_image and
             not os.path.exists(args.local_system_image)):
@@ -705,6 +604,11 @@ def _VerifyLocalArgs(args):
         if not os.path.exists(tool_dir):
             raise errors.CheckPathError(
                 "Specified path doesn't exist: %s" % tool_dir)
+
+    if args.autoconnect == constants.INS_KEY_WEBRTC:
+        if args.avd_type != constants.TYPE_CF:
+            raise errors.UnsupportedCreateArgs(
+                "'--autoconnect webrtc' only support cuttlefish.")
 
 
 def _VerifyHostArgs(args):
@@ -734,59 +638,6 @@ def _VerifyHostArgs(args):
             "--host-ssh-private-key-path only support for remote host.")
 
 
-def _VerifyGoldfishArgs(args):
-    """Verify goldfish args.
-
-    Args:
-        args: Namespace object from argparse.parse_args.
-
-    Raises:
-        errors.UnsupportedCreateArgs: When a create arg is specified but
-                                      unsupported for goldfish.
-    """
-    goldfish_only_flags = [
-        args.emulator_build_id,
-        args.emulator_build_target,
-        args.kernel_artifact
-    ]
-    if args.avd_type != constants.TYPE_GF and any(goldfish_only_flags):
-        raise errors.UnsupportedCreateArgs(
-            "--emulator-* and --kernel-artifact are only valid with "
-            "avd_type == %s" % constants.TYPE_GF)
-
-    # Exclude kernel_build_target because the default value isn't empty.
-    remote_kernel_flags = [
-        args.kernel_build_id,
-        args.kernel_branch,
-        args.kernel_artifact,
-    ]
-    if (args.avd_type == constants.TYPE_GF and any(remote_kernel_flags) and
-            not all(remote_kernel_flags)):
-        raise errors.UnsupportedCreateArgs(
-            "Either none or all of --kernel-branch, --kernel-build-target, "
-            "--kernel-build-id, and --kernel-artifact must be specified for "
-            "goldfish.")
-
-    remote_system_flags = [
-        args.system_build_target,
-        args.system_build_id,
-        args.system_branch,
-    ]
-    if (args.avd_type == constants.TYPE_GF and any(remote_system_flags) and
-            not all(remote_system_flags)):
-        raise errors.UnsupportedCreateArgs(
-            "Either none or all of --system-branch, --system-build-target, "
-            "and --system-build-id must be specified for goldfish.")
-
-    remote_host_only_flags = ([args.emulator_build_target] +
-                              remote_kernel_flags + remote_system_flags)
-    if args.avd_type == constants.TYPE_GF and args.remote_host is None and any(
-            remote_host_only_flags):
-        raise errors.UnsupportedCreateArgs(
-            "--kernel-*, --system-*, and --emulator-build-target for goldfish "
-            "are only supported for remote host.")
-
-
 def VerifyArgs(args):
     """Verify args.
 
@@ -806,7 +657,7 @@ def VerifyArgs(args):
         logger.debug("Flavor[%s] isn't in default support list: %s",
                      args.flavor, constants.ALL_FLAVORS)
 
-    if args.avd_type not in (constants.TYPE_CF, constants.TYPE_GF):
+    if args.avd_type != constants.TYPE_CF:
         if args.system_branch or args.system_build_id or args.system_build_target:
             raise errors.UnsupportedCreateArgs(
                 "--system-* args are not supported for AVD type: %s"
@@ -850,6 +701,5 @@ def VerifyArgs(args):
         raise ValueError("--no-autoconnect and --unlock couldn't be "
                          "passed in together.")
 
-    _VerifyGoldfishArgs(args)
     _VerifyLocalArgs(args)
     _VerifyHostArgs(args)

@@ -20,7 +20,6 @@ remote image.
 """
 import logging
 import os
-import shutil
 import subprocess
 import sys
 
@@ -78,9 +77,8 @@ def DownloadAndProcessImageFiles(avd_spec):
         build_id + build_target)
 
     logger.debug("Extract path: %s", extract_path)
-
-    if avd_spec.force_sync and os.path.exists(extract_path):
-        shutil.rmtree(extract_path)
+    # TODO(b/117189191): If extract folder exists, check if the files are
+    # already downloaded and skip this step if they are.
     if not os.path.exists(extract_path):
         os.makedirs(extract_path)
         build_api = (
@@ -99,10 +97,7 @@ def DownloadAndProcessImageFiles(avd_spec):
             avd_spec.kernel_build_info.get(constants.BUILD_TARGET),
             avd_spec.bootloader_build_info.get(constants.BUILD_ID),
             avd_spec.bootloader_build_info.get(constants.BUILD_BRANCH),
-            avd_spec.bootloader_build_info.get(constants.BUILD_TARGET),
-            avd_spec.ota_build_info.get(constants.BUILD_ID),
-            avd_spec.ota_build_info.get(constants.BUILD_BRANCH),
-            avd_spec.ota_build_info.get(constants.BUILD_TARGET))
+            avd_spec.bootloader_build_info.get(constants.BUILD_TARGET))
         creds_cache_file = os.path.join(_HOME_FOLDER, cfg.creds_cache_file)
         fetch_cvd_cert_arg = build_api.GetFetchCertArg(creds_cache_file)
         fetch_cvd_args = [fetch_cvd, "-directory=%s" % extract_path,
@@ -192,4 +187,4 @@ class RemoteImageLocalInstance(local_image_local_instance.LocalImageLocalInstanc
         # This method does not set the optional fields because launch_cvd loads
         # the paths from the fetcher config in image_dir.
         return local_image_local_instance.ArtifactPaths(
-            image_dir, image_dir, image_dir, None, None, None, None)
+            image_dir, image_dir, None, None, None, None)
