@@ -39,7 +39,7 @@ class AdbToolsTest(driver_test_lib.BaseDriverTest):
 
     def setUp(self):
         """Patch the path to adb."""
-        super().setUp()
+        super(AdbToolsTest, self).setUp()
         self.Patch(adb_tools.AdbTools, "_adb_command", "path/adb")
 
     # pylint: disable=no-member
@@ -97,20 +97,6 @@ class AdbToolsTest(driver_test_lib.BaseDriverTest):
         self.Patch(subprocess, "check_output", return_value=self.DEVICE_NONE)
         adb_cmd = adb_tools.AdbTools(fake_adb_port)
         self.assertEqual(adb_cmd.device_information, dict_none)
-
-    # pylint: disable=protected-access
-    def testSetDeviceSerial(self):
-        """Test SetDeviceSerial."""
-        self.Patch(subprocess, "check_output", return_value=self.DEVICE_ALIVE)
-        adb_port = "6666"
-        adb_tool = adb_tools.AdbTools(adb_port)
-        expected_result = "127.0.0.1:6666"
-        self.assertEqual(adb_tool._device_address, expected_result)
-
-        serial = "0.0.0.0:6520"
-        adb_tool = adb_tools.AdbTools(device_serial=serial)
-        expected_result = "0.0.0.0:6520"
-        self.assertEqual(adb_tool._device_address, expected_result)
 
     def testGetDeviceSerials(self):
         """Test parsing the output of adb devices."""
