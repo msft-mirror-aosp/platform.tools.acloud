@@ -95,9 +95,6 @@ class BaseCloudApiClient():
             # of api client.
             # https://github.com/google/google-api-python-client/issues/435
             cache_discovery=False,
-            # This is workaround to prevent raise the errors.UnknownApiNameOrVersion
-            # https://github.com/googleapis/google-api-python-client/issues/1263
-            static_discovery=False,
             http=http_auth)
 
     @staticmethod
