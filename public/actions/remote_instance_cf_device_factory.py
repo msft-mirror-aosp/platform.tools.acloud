@@ -36,6 +36,7 @@ _BOOTLOADER = "bootloader"
 _KERNEL = "kernel"
 _ARTIFACT_FILES = ["*.img", _BOOTLOADER, _KERNEL]
 _HOME_FOLDER = os.path.expanduser("~")
+_SCREEN_CONSOLE_COMMAND = "screen ~/cuttlefish_runtime/console"
 
 
 class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
@@ -118,9 +119,8 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         if self._avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
             build_id = self._avd_spec.remote_image[constants.BUILD_ID]
 
-        instance = "%s-%s-%s-%s" % (constants.INSTANCE_TYPE_HOST,
-                                    self._avd_spec.remote_host,
-                                    build_id, build_target)
+        instance = self._compute_client.FormatRemoteHostInstanceName(
+            self._avd_spec.remote_host, build_id, build_target)
         ip = ssh.IP(ip=self._avd_spec.remote_host)
         self._ssh = ssh.Ssh(
             ip=ip,
@@ -165,7 +165,10 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             self._avd_spec.kernel_build_info.get(constants.BUILD_TARGET),
             self._avd_spec.bootloader_build_info.get(constants.BUILD_ID),
             self._avd_spec.bootloader_build_info.get(constants.BUILD_BRANCH),
-            self._avd_spec.bootloader_build_info.get(constants.BUILD_TARGET))
+            self._avd_spec.bootloader_build_info.get(constants.BUILD_TARGET),
+            self._avd_spec.ota_build_info.get(constants.BUILD_ID),
+            self._avd_spec.ota_build_info.get(constants.BUILD_BRANCH),
+            self._avd_spec.ota_build_info.get(constants.BUILD_TARGET))
         creds_cache_file = os.path.join(_HOME_FOLDER, cfg.creds_cache_file)
         fetch_cvd_cert_arg = self._compute_client.build_api.GetFetchCertArg(
             creds_cache_file)
@@ -221,6 +224,13 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             self._compute_client.UpdateFetchCvd()
             self._FetchBuild(self._avd_spec)
 
+        if self._avd_spec.connect_webrtc:
+            self._compute_client.UpdateCertificate()
+
+        if self._avd_spec.extra_files:
+            self._compute_client.UploadExtraFiles(self._avd_spec.extra_files)
+
+
     def _FetchBuild(self, avd_spec):
         """Download CF artifacts from android build.
 
@@ -239,7 +249,10 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             avd_spec.kernel_build_info[constants.BUILD_TARGET],
             avd_spec.bootloader_build_info[constants.BUILD_ID],
             avd_spec.bootloader_build_info[constants.BUILD_BRANCH],
-            avd_spec.bootloader_build_info[constants.BUILD_TARGET])
+            avd_spec.bootloader_build_info[constants.BUILD_TARGET],
+            avd_spec.ota_build_info[constants.BUILD_ID],
+            avd_spec.ota_build_info[constants.BUILD_BRANCH],
+            avd_spec.ota_build_info[constants.BUILD_TARGET])
 
     @utils.TimeExecute(function_description="Processing and uploading local images")
     def _UploadLocalImageArtifacts(self,
@@ -278,6 +291,8 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
                     artifact_files.extend(
                         os.path.basename(image) for image in glob.glob(
                             os.path.join(images_dir, file_name)))
+            # Upload android-info.txt to parse config value.
+            artifact_files.append(constants.ANDROID_INFO_FILE)
             cmd = ("tar -cf - --lzop -S -C {images_dir} {artifact_files} | "
                    "{ssh_cmd} -- tar -xf - --lzop -S".format(
                        images_dir=images_dir,
@@ -328,6 +343,17 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             decompress_kernel,
             boot_timeout_secs)
 
+    def GetOpenWrtInfoDict(self):
+        """Get openwrt info dictionary.
+
+        Returns:
+            A openwrt info dictionary. None for the case is not openwrt device.
+        """
+        if not self._avd_spec.openwrt:
+            return None
+        return {"ssh_command": self._compute_client.GetSshConnectCmd(),
+                "screen_command": _SCREEN_CONSOLE_COMMAND}
+
     def GetBuildInfoDict(self):
         """Get build info dictionary.
 
@@ -356,3 +382,11 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
              for key, val in self._avd_spec.bootloader_build_info.items() if val}
         )
         return build_info_dict
+
+    def GetLogs(self):
+        """Get all device logs.
+
+        Returns:
+            A dictionary that maps instance names to lists of report.LogFile.
+        """
+        return self._compute_client.all_logs
