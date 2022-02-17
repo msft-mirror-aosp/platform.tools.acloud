@@ -17,6 +17,7 @@
 
 import collections
 import datetime
+import os
 import subprocess
 import unittest
 
@@ -55,7 +56,9 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
             "items":[{"key":constants.INS_KEY_AVD_TYPE,
                       "value":"fake_type"},
                      {"key":constants.INS_KEY_AVD_FLAVOR,
-                      "value":"fake_flavor"}]}
+                      "value":"fake_flavor"},
+                     {"key":constants.INS_KEY_WEBRTC_PORT,
+                      "value":"fake_webrtc_port"}]}
     }
 
     @staticmethod
@@ -269,6 +272,7 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
             instance.RemoteInstance,
             "GetAdbVncPortFromSSHTunnel",
             return_value=forwarded_ports(vnc_port=fake_vnc, adb_port=fake_adb))
+        self.Patch(utils, "GetWebrtcPortFromSSHTunnel", return_value=8443)
         self.Patch(instance, "_GetElapsedTime", return_value="fake_time")
         self.Patch(AdbTools, "IsAdbConnected", return_value=True)
         remote_instance = instance.RemoteInstance(self.GCE_INSTANCE)
@@ -281,7 +285,9 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
                           "   display: None\n "
                           "   vnc: 127.0.0.1:654321\n "
                           "   zone: fake_zone\n "
-                          "   webrtc port: 8443\n "
+                          "   autoconnect: webrtc\n "
+                          "   webrtc port: fake_webrtc_port\n "
+                          "   webrtc forward port: 8443\n "
                           "   adb serial: 127.0.0.1:123456\n "
                           "   product: None\n "
                           "   model: None\n "
@@ -305,7 +311,9 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
                           "   display: None\n "
                           "   vnc: 127.0.0.1:None\n "
                           "   zone: fake_zone\n "
-                          "   webrtc port: 8443\n "
+                          "   autoconnect: webrtc\n "
+                          "   webrtc port: fake_webrtc_port\n "
+                          "   webrtc forward port: 8443\n "
                           "   adb serial: disconnected")
         self.assertEqual(remote_instance.Summary(), result_summary)
 
@@ -318,6 +326,53 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         # Test can't get zone name from zone info.
         zone_info = "v1/projects/project/us-central1-c"
         self.assertEqual(instance.RemoteInstance._GetZoneName(zone_info), None)
+
+    def testGetLocalInstanceConfig(self):
+        """Test GetLocalInstanceConfig."""
+        self.Patch(instance, "GetLocalInstanceRuntimeDir",
+                  return_value="ins_runtime_dir")
+        self.Patch(os.path, "isfile", return_value=False)
+        instance_id = 1
+        self.assertEqual(instance.GetLocalInstanceConfig(instance_id), None)
+
+        # Test config in new folder path.
+        self.Patch(os.path, "isfile", side_effect=[False, True])
+        expected_result = "ins_runtime_dir/instances/cvd-1/cuttlefish_config.json"
+        self.assertEqual(
+            instance.GetLocalInstanceConfig(instance_id), expected_result)
+
+    def testGetLocalInstanceLogDir(self):
+        """Test GetLocalInstanceLogDir."""
+        self.Patch(instance, "GetLocalInstanceRuntimeDir",
+                   return_value="ins_runtime_dir")
+        self.Patch(os.path, "isdir", return_value=False)
+        self.assertEqual(instance.GetLocalInstanceLogDir(1), "ins_runtime_dir")
+
+        expected_path = "ins_runtime_dir/instances/cvd-1/logs"
+        self.Patch(os.path, "isdir",
+                   side_effect=lambda path: path == expected_path)
+        self.assertEqual(instance.GetLocalInstanceLogDir(1), expected_path)
+
+    def testGetAutoConnect(self):
+        """Test GetAutoConnect."""
+        name = "ins_name"
+        fullname = "fake_fullname"
+        display = "1080x1920 (480)"
+        ip = "fake_ip"
+        ins_webrtc = instance.Instance(
+            name, fullname, display, ip, webrtc_port=8443)
+        self.assertEqual(ins_webrtc._GetAutoConnect(), constants.INS_KEY_WEBRTC)
+
+        ins_webrtc = instance.Instance(
+            name, fullname, display, ip, vnc_port=6520)
+        self.assertEqual(ins_webrtc._GetAutoConnect(), constants.INS_KEY_VNC)
+
+        ins_webrtc = instance.Instance(
+            name, fullname, display, ip, adb_port=6666)
+        self.assertEqual(ins_webrtc._GetAutoConnect(), constants.INS_KEY_ADB)
+
+        ins_webrtc = instance.Instance(name, fullname, display, ip)
+        self.assertEqual(ins_webrtc._GetAutoConnect(), None)
 
 
 if __name__ == "__main__":
