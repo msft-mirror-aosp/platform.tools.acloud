@@ -53,11 +53,13 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.Patch(glob, "glob", return_vale=["fake.img"])
 
     # pylint: disable=protected-access
+    @mock.patch.object(cvd_compute_client_multi_stage.CvdComputeClient,
+                       "UpdateCertificate")
     @mock.patch.object(remote_instance_cf_device_factory.RemoteInstanceDeviceFactory,
                        "_FetchBuild")
     @mock.patch.object(remote_instance_cf_device_factory.RemoteInstanceDeviceFactory,
                        "_UploadLocalImageArtifacts")
-    def testProcessArtifacts(self, mock_upload, mock_download):
+    def testProcessArtifacts(self, mock_upload, mock_download, mock_uploadca):
         """test ProcessArtifacts."""
         # Test image source type is local.
         args = mock.MagicMock()
@@ -67,6 +69,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.local_image = constants.FIND_IN_BUILD_ENV
         args.local_system_image = None
         args.launch_args = None
+        args.autoconnect = constants.INS_KEY_WEBRTC
         avd_spec_local_img = avd_spec.AVDSpec(args)
         fake_image_name = "/fake/aosp_cf_x86_phone-img-eng.username.zip"
         fake_host_package_name = "/fake/host_package.tar.gz"
@@ -76,6 +79,19 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             fake_host_package_name)
         factory_local_img._ProcessArtifacts(constants.IMAGE_SRC_LOCAL)
         self.assertEqual(mock_upload.call_count, 1)
+        # cf default autoconnect webrtc and should upload certificates
+        self.assertEqual(mock_uploadca.call_count, 1)
+        mock_uploadca.reset_mock()
+
+        # given autoconnect to vnc should not upload certificates
+        args.autoconnect = constants.INS_KEY_VNC
+        avd_spec_local_img = avd_spec.AVDSpec(args)
+        factory_local_img = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
+            avd_spec_local_img,
+            fake_image_name,
+            fake_host_package_name)
+        factory_local_img._ProcessArtifacts(constants.IMAGE_SRC_LOCAL)
+        self.assertEqual(mock_uploadca.call_count, 0)
 
         # Test image source type is remote.
         args.local_image = None
@@ -236,6 +252,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.kernel_build_id = "345"
         args.kernel_branch = "kernel_branch"
         args.kernel_build_target = "kernel_target"
+        args.kernel_artifact = None
         args.bootloader_build_id = "456"
         args.bootloader_branch = "bootloader_branch"
         args.bootloader_build_target = "bootloader_target"
@@ -301,7 +318,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                                            fake_host_package,
                                            fake_local_image_dir)
         expected_cmd = (
-            "tar -cf - --lzop -S -C %s fake.img bootloader kernel | "
+            "tar -cf - --lzop -S -C %s fake.img bootloader kernel android-info.txt | "
             "%s -- tar -xf - --lzop -S" %
             (fake_local_image_dir, factory._ssh.GetBaseCmd(constants.SSH_BIN)))
         mock_shell.assert_called_once_with(expected_cmd)
@@ -318,8 +335,8 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                                                fake_host_package,
                                                fake_local_image_dir)
             expected_cmd = (
-                "tar -cf - --lzop -S -C %s boot.img cache.img super.img userdata.img bootloader | "
-                "%s -- tar -xf - --lzop -S" %
+                "tar -cf - --lzop -S -C %s boot.img cache.img super.img userdata.img "
+                "bootloader android-info.txt | %s -- tar -xf - --lzop -S" %
                 (fake_local_image_dir, factory._ssh.GetBaseCmd(constants.SSH_BIN)))
             mock_shell.assert_called_once_with(expected_cmd)
 
@@ -480,6 +497,30 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         factory._ProcessRemoteHostArtifacts()
         self.assertEqual(mock_upload_remote_image.call_count, 1)
         shutil.rmtree.assert_called_once_with(fake_tmp_folder)
+
+    def testGetOpenWrtInfoDict(self):
+        """Test GetOpenWrtInfoDict."""
+        self.Patch(cvd_compute_client_multi_stage.CvdComputeClient,
+                   "GetSshConnectCmd", return_value="fake_ssh_command")
+        args = mock.MagicMock()
+        args.config_file = ""
+        args.avd_type = constants.TYPE_CF
+        args.flavor = "phone"
+        args.local_image = "fake_local_image"
+        args.launch_args = None
+        args.openwrt = False
+        avd_spec_no_openwrt = avd_spec.AVDSpec(args)
+        factory = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
+            avd_spec_no_openwrt)
+        self.assertEqual(None, factory.GetOpenWrtInfoDict())
+
+        args.openwrt = True
+        avd_spec_openwrt = avd_spec.AVDSpec(args)
+        factory = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
+            avd_spec_openwrt)
+        expect_result = {"ssh_command": "fake_ssh_command",
+                         "screen_command": "screen ~/cuttlefish_runtime/console"}
+        self.assertEqual(expect_result, factory.GetOpenWrtInfoDict())
 
 
 if __name__ == "__main__":
