@@ -16,6 +16,7 @@
 
 """Tests for acloud.internal.lib.cvd_compute_client_multi_stage."""
 
+import collections
 import glob
 import os
 import subprocess
@@ -23,6 +24,7 @@ import unittest
 
 from unittest import mock
 
+from acloud import errors
 from acloud.create import avd_spec
 from acloud.internal import constants
 from acloud.internal.lib import android_build_client
@@ -31,7 +33,12 @@ from acloud.internal.lib import driver_test_lib
 from acloud.internal.lib import gcompute_client
 from acloud.internal.lib import utils
 from acloud.internal.lib.ssh import Ssh
+from acloud.internal.lib.ssh import IP
 from acloud.list import list as list_instances
+from acloud.setup import mkcert
+
+
+ExtraFile = collections.namedtuple("ExtraFile", ["source", "target"])
 
 
 class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
@@ -45,7 +52,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
     NETWORK = "fake-network"
     ZONE = "fake-zone"
     BRANCH = "fake-branch"
-    TARGET = "aosp_cf_x86_phone-userdebug"
+    TARGET = "aosp_cf_x86_64_phone-userdebug"
     BUILD_ID = "2263051"
     KERNEL_BRANCH = "fake-kernel-branch"
     KERNEL_BUILD_ID = "1234567"
@@ -59,6 +66,10 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
     LAUNCH_ARGS = "--setupwizard_mode=REQUIRED"
     EXTRA_SCOPES = ["scope1"]
     GPU = "fake-gpu"
+    DISK_TYPE = "fake-disk-type"
+    FAKE_IP = IP(external="1.1.1.1", internal="10.1.1.1")
+    REMOTE_HOST_IP = "192.0.2.1"
+    REMOTE_HOST_INSTANCE_NAME = "host-192.0.2.1-2263051-aosp_cf_x86_64_phone"
 
     def _GetFakeConfig(self):
         """Create a fake configuration object.
@@ -79,14 +90,12 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         fake_cfg.extra_scopes = self.EXTRA_SCOPES
         return fake_cfg
 
+    # pylint: disable=protected-access
     def setUp(self):
         """Set up the test."""
         super().setUp()
         self.Patch(cvd_compute_client_multi_stage.CvdComputeClient, "InitResourceHandle")
         self.Patch(cvd_compute_client_multi_stage.CvdComputeClient, "_VerifyZoneByQuota",
-                   return_value=True)
-        self.Patch(cvd_compute_client_multi_stage.CvdComputeClient,
-                   "_ArgSupportInLaunchCVD",
                    return_value=True)
         self.Patch(android_build_client.AndroidBuildClient, "InitResourceHandle")
         self.Patch(android_build_client.AndroidBuildClient, "DownloadArtifact")
@@ -97,6 +106,10 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.Patch(Ssh, "GetBaseCmd")
         self.cvd_compute_client_multi_stage = cvd_compute_client_multi_stage.CvdComputeClient(
             self._GetFakeConfig(), mock.MagicMock(), gpu=self.GPU)
+        self.cvd_compute_client_multi_stage._ssh = Ssh(
+            ip=self.FAKE_IP,
+            user=constants.GCE_USER,
+            ssh_private_key_path="/fake/acloud_rea")
         self.args = mock.MagicMock()
         self.args.local_image = constants.FIND_IN_BUILD_ENV
         self.args.local_system_image = None
@@ -108,6 +121,10 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.args.num_avds_per_instance = 2
         self.args.remote_host = False
         self.args.launch_args = self.LAUNCH_ARGS
+        self.args.disable_external_ip = False
+        self.args.autoconnect = False
+        self.args.disk_type = self.DISK_TYPE
+        self.args.openwrt = False
 
     # pylint: disable=protected-access
     @mock.patch.object(utils, "GetBuildEnvironmentVariable", return_value="fake_env_cf_x86")
@@ -115,24 +132,37 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
     def testGetLaunchCvdArgs(self, _mock_check_img, _mock_env):
         """test GetLaunchCvdArgs."""
         # test GetLaunchCvdArgs with avd_spec
+        self.Patch(cvd_compute_client_multi_stage.CvdComputeClient,
+                   "_GetConfigFromAndroidInfo", return_value="phone")
         fake_avd_spec = avd_spec.AVDSpec(self.args)
-        expeted_args = ["-config=phone", "-x_res=1080", "-y_res=1920", "-dpi=240",
-                        "-data_policy=always_create", "-blank_data_image_mb=10240",
-                        "-cpus=2", "-memory_mb=4096", "-num_instances=2",
-                        "--setupwizard_mode=REQUIRED",
-                        "-undefok=report_anonymous_usage_stats,config",
-                        "-report_anonymous_usage_stats=y"]
+        expected_args = ["-config=phone", "-x_res=1080", "-y_res=1920", "-dpi=240",
+                         "-data_policy=always_create", "-blank_data_image_mb=10240",
+                         "-cpus=2", "-memory_mb=4096", "-num_instances=2",
+                         "--setupwizard_mode=REQUIRED",
+                         "-undefok=report_anonymous_usage_stats,config",
+                         "-report_anonymous_usage_stats=y"]
         launch_cvd_args = self.cvd_compute_client_multi_stage._GetLaunchCvdArgs(fake_avd_spec)
-        self.assertEqual(launch_cvd_args, expeted_args)
+        self.assertEqual(launch_cvd_args, expected_args)
+
+        self.args.openwrt = True
+        fake_avd_spec = avd_spec.AVDSpec(self.args)
+        expected_args = ["-config=phone", "-x_res=1080", "-y_res=1920", "-dpi=240",
+                         "-data_policy=always_create", "-blank_data_image_mb=10240",
+                         "-cpus=2", "-memory_mb=4096", "-console=true",
+                         "-num_instances=2", "--setupwizard_mode=REQUIRED",
+                         "-undefok=report_anonymous_usage_stats,config",
+                         "-report_anonymous_usage_stats=y"]
+        launch_cvd_args = self.cvd_compute_client_multi_stage._GetLaunchCvdArgs(fake_avd_spec)
+        self.assertEqual(launch_cvd_args, expected_args)
 
         # test GetLaunchCvdArgs without avd_spec
-        expeted_args = ["-x_res=720", "-y_res=1280", "-dpi=160",
-                        "--setupwizard_mode=REQUIRED",
-                        "-undefok=report_anonymous_usage_stats,config",
-                        "-report_anonymous_usage_stats=y"]
+        expected_args = ["-x_res=720", "-y_res=1280", "-dpi=160",
+                         "--setupwizard_mode=REQUIRED",
+                         "-undefok=report_anonymous_usage_stats,config",
+                         "-report_anonymous_usage_stats=y"]
         launch_cvd_args = self.cvd_compute_client_multi_stage._GetLaunchCvdArgs(
             avd_spec=None)
-        self.assertEqual(launch_cvd_args, expeted_args)
+        self.assertEqual(launch_cvd_args, expected_args)
 
     @mock.patch.object(utils, "GetBuildEnvironmentVariable", return_value="fake_env_cf_x86")
     @mock.patch.object(glob, "glob", return_value=["fake.img"])
@@ -143,10 +173,11 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
     @mock.patch.object(gcompute_client.ComputeClient, "CreateInstance")
     @mock.patch.object(cvd_compute_client_multi_stage.CvdComputeClient, "_GetDiskArgs",
                        return_value=[{"fake_arg": "fake_value"}])
+    @mock.patch("acloud.internal.lib.cvd_compute_client_multi_stage.pull")
     @mock.patch("getpass.getuser", return_value="fake_user")
-    def testCreateInstance(self, _get_user, _get_disk_args, mock_create,
-                           _get_image, _compare_machine_size, mock_check_img,
-                           _mock_env):
+    def testCreateInstance(self, _get_user, mock_pull, _get_disk_args,
+                           mock_create, _get_image, _compare_machine_size,
+                           mock_check_img, _mock_env):
         """Test CreateInstance."""
         expected_metadata = dict()
         expected_metadata_local_image = dict()
@@ -156,6 +187,24 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         expected_disk_args = [{"fake_arg": "fake_value"}]
         fake_avd_spec = avd_spec.AVDSpec(self.args)
         fake_avd_spec._instance_name_to_reuse = None
+        expected_logs = {
+            self.INSTANCE: [
+                {
+                    "path": "/var/log/kern.log",
+                    "type": constants.LOG_TYPE_KERNEL_LOG,
+                    "name": "host_kernel.log"
+                },
+                {"path": "/kernel.log", "type": constants.LOG_TYPE_KERNEL_LOG},
+                {
+                    "path": "/logcat",
+                    "type": constants.LOG_TYPE_LOGCAT,
+                    "name": "full_gce_logcat"
+                },
+                {"path": "/launcher.log", "type": constants.LOG_TYPE_TEXT}
+            ]
+        }
+        mock_pull.GetAllLogFilePaths.return_value = [
+            "/kernel.log", "/logcat", "/launcher.log"]
 
         created_subprocess = mock.MagicMock()
         created_subprocess.stdout = mock.MagicMock()
@@ -163,8 +212,6 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         created_subprocess.poll = mock.MagicMock(return_value=0)
         created_subprocess.returncode = 0
         created_subprocess.communicate = mock.MagicMock(return_value=('', ''))
-        self.Patch(cvd_compute_client_multi_stage.CvdComputeClient,
-                   "_RecordBuildInfo")
         self.Patch(subprocess, "Popen", return_value=created_subprocess)
         self.Patch(subprocess, "check_call")
         self.Patch(os, "chmod")
@@ -188,7 +235,10 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
             zone=self.ZONE,
             extra_scopes=self.EXTRA_SCOPES,
             gpu=self.GPU,
-            tags=None)
+            disk_type=None,
+            disable_external_ip=False)
+        self.assertEqual(self.cvd_compute_client_multi_stage.all_logs,
+                         expected_logs)
 
         mock_check_img.return_value = True
         #test use local image in the remote instance.
@@ -222,44 +272,24 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
             zone=self.ZONE,
             extra_scopes=self.EXTRA_SCOPES,
             gpu=self.GPU,
-            tags=None)
+            disk_type=self.DISK_TYPE,
+            disable_external_ip=False)
 
-    def testRecordBuildInfo(self):
-        """Test RecordBuildInfo"""
-        build_id = "build_id"
-        build_target = "build_target"
-        system_build_id = "system_id"
-        system_build_target = "system_target"
-        kernel_build_id = "kernel_id"
-        kernel_build_target = "kernel_target"
-        fake_avd_spec = mock.MagicMock()
-        fake_avd_spec.image_source = constants.IMAGE_SRC_REMOTE
-        fake_avd_spec.remote_image = {constants.BUILD_ID: build_id,
-                                      constants.BUILD_TARGET: build_target}
-        fake_avd_spec.system_build_info = {constants.BUILD_ID: system_build_id,
-                                           constants.BUILD_TARGET: system_build_target}
-        fake_avd_spec.kernel_build_info = {constants.BUILD_ID: kernel_build_id,
-                                           constants.BUILD_TARGET: kernel_build_target}
-        expected_metadata = dict()
-        expected_metadata.update(self.METADATA)
-        expected_metadata.update({"build_id": build_id})
-        expected_metadata.update({"build_target": build_target})
-        expected_metadata.update({"system_build_id": system_build_id})
-        expected_metadata.update({"system_build_target": system_build_target})
-        expected_metadata.update({"kernel_build_id": kernel_build_id})
-        expected_metadata.update({"kernel_build_target": kernel_build_target})
+    def testFormatRemoteHostInstanceName(self):
+        """Test FormatRemoteHostInstanceName."""
+        name = self.cvd_compute_client_multi_stage.FormatRemoteHostInstanceName(
+            self.REMOTE_HOST_IP, self.BUILD_ID, self.TARGET.split("-")[0])
+        self.assertEqual(name, self.REMOTE_HOST_INSTANCE_NAME)
 
-        # Test record metadata with avd_spec for acloud create
-        self.cvd_compute_client_multi_stage._RecordBuildInfo(
-            fake_avd_spec, build_id=None, build_target=None, system_build_id=None,
-            system_build_target=None, kernel_build_id=None, kernel_build_target=None)
-        self.assertEqual(self.cvd_compute_client_multi_stage._metadata, expected_metadata)
+    def testParseRemoteHostAddress(self):
+        """Test ParseRemoteHostAddress."""
+        ip_addr = self.cvd_compute_client_multi_stage.ParseRemoteHostAddress(
+            self.REMOTE_HOST_INSTANCE_NAME)
+        self.assertEqual(ip_addr, self.REMOTE_HOST_IP)
 
-        # Test record metadata with build info for acloud create_cf
-        self.cvd_compute_client_multi_stage._RecordBuildInfo(
-            None, build_id, build_target, system_build_id, system_build_target,
-            kernel_build_id, kernel_build_target)
-        self.assertEqual(self.cvd_compute_client_multi_stage._metadata, expected_metadata)
+        ip_addr = self.cvd_compute_client_multi_stage.ParseRemoteHostAddress(
+            "host-goldfish-192.0.2.1-5554-123456-sdk_x86_64-sdk")
+        self.assertIsNone(ip_addr)
 
     def testSetStage(self):
         """Test SetStage"""
@@ -268,12 +298,65 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(self.cvd_compute_client_multi_stage.stage,
                          device_stage)
 
-    def testArgSupportInLaunchCVD(self):
-        """Test ArgSupportInLaunchCVD"""
-        self.Patch(Ssh, "GetCmdOutput", return_value="-config (Config)")
-        self.assertTrue(
-            self.cvd_compute_client_multi_stage._ArgSupportInLaunchCVD(
-                "-config"))
+    def testGetConfigFromAndroidInfo(self):
+        """Test GetConfigFromAndroidInfo"""
+        self.Patch(Ssh, "GetCmdOutput", return_value="config=phone")
+        expected = "phone"
+        self.assertEqual(
+            self.cvd_compute_client_multi_stage._GetConfigFromAndroidInfo(),
+            expected)
+
+    @mock.patch.object(Ssh, "Run")
+    @mock.patch.object(Ssh, "ScpPushFiles")
+    def testUpdateCertificate(self, mock_upload, mock_trustremote):
+        """Test UpdateCertificate"""
+        # Certificate is not ready
+        self.Patch(mkcert, "AllocateLocalHostCert", return_value=False)
+        self.cvd_compute_client_multi_stage.UpdateCertificate()
+        self.assertEqual(mock_upload.call_count, 0)
+        self.assertEqual(mock_trustremote.call_count, 0)
+
+        # Certificate is ready
+        self.Patch(mkcert, "AllocateLocalHostCert", return_value=True)
+        local_cert_dir = os.path.join(os.path.expanduser("~"),
+                                      constants.SSL_DIR)
+        self.cvd_compute_client_multi_stage.UpdateCertificate()
+        mock_upload.assert_called_once_with(
+            ["%s/server.crt" % local_cert_dir,
+             "%s/server.key" % local_cert_dir,
+             "%s/%s.pem" % (local_cert_dir, constants.SSL_CA_NAME)],
+            constants.WEBRTC_CERTS_PATH)
+        mock_trustremote.assert_called_once()
+
+    def testGetBootTimeout(self):
+        """Test GetBootTimeout"""
+        self.cvd_compute_client_multi_stage._execution_time = {
+            "fetch_artifact_time": 100}
+        self.assertEqual(
+            400, self.cvd_compute_client_multi_stage._GetBootTimeout(500))
+
+    @mock.patch.object(Ssh, "ScpPushFile")
+    def testUploadExtraFiles(self, mock_upload):
+        """Test UploadExtraFiles."""
+        self.Patch(os.path, "exists", return_value=True)
+        extra_files = [ExtraFile(source="local_path", target="gce_path")]
+        self.cvd_compute_client_multi_stage.UploadExtraFiles(extra_files)
+        mock_upload.assert_called_once_with("local_path", "gce_path")
+
+        # Test the local file doesn't exist.
+        self.Patch(os.path, "exists", return_value=False)
+        with self.assertRaises(errors.CheckPathError):
+            self.cvd_compute_client_multi_stage.UploadExtraFiles(extra_files)
+
+    def testUpdateOpenWrtStatus(self):
+        """Test UpdateOpenWrtStatus."""
+        self.cvd_compute_client_multi_stage._UpdateOpenWrtStatus(avd_spec=None)
+        self.assertEqual(False, self.cvd_compute_client_multi_stage.openwrt)
+
+        fake_avd_spec = mock.MagicMock()
+        fake_avd_spec.openwrt = True
+        self.cvd_compute_client_multi_stage._UpdateOpenWrtStatus(fake_avd_spec)
+        self.assertEqual(True, self.cvd_compute_client_multi_stage.openwrt)
 
 
 if __name__ == "__main__":
