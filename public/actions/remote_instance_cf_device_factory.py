@@ -382,3 +382,11 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
              for key, val in self._avd_spec.bootloader_build_info.items() if val}
         )
         return build_info_dict
+
+    def GetLogs(self):
+        """Get all device logs.
+
+        Returns:
+            A dictionary that maps instance names to lists of report.LogFile.
+        """
+        return self._compute_client.all_logs
