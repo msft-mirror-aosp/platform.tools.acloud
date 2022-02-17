@@ -71,30 +71,17 @@ from __future__ import print_function
 import argparse
 import logging
 import os
-import platform
 import sys
 import sysconfig
 import traceback
 
-# TODO: Remove this once we switch over to embedded launcher.
-# Exit out if python version is < 2.7.13 due to b/120883119.
-if (sys.version_info.major == 2
-        and sys.version_info.minor == 7
-        and sys.version_info.micro < 13):
-    print("Acloud requires python version 2.7.13+ (currently @ %d.%d.%d)" %
-          (sys.version_info.major, sys.version_info.minor,
-           sys.version_info.micro))
-    print("Update your 2.7 python with:")
-    # pylint: disable=invalid-name
-    os_type = platform.system().lower()
-    if os_type == "linux":
-        print("  apt-get install python2.7")
-    elif os_type == "darwin":
-        print("  brew install python@2 (and then follow instructions at "
-              "https://docs.python-guide.org/starting/install/osx/)")
-        print("  - or -")
-        print("  POSIXLY_CORRECT=1 port -N install python27")
+if sys.version_info.major == 2:
+    print("Acloud only supports python3 (currently @ %d.%d.%d)."
+          " Please run Acloud with python3." % (sys.version_info.major,
+                                                sys.version_info.minor,
+                                                sys.version_info.micro))
     sys.exit(1)
+
 # This is a workaround to put '/usr/lib/python3.X' ahead of googleapiclient of
 # build system path list to fix python3 issue of http.client(b/144743252)
 # that googleapiclient existed http.py conflict with python3 build-in lib.
@@ -118,6 +105,7 @@ from acloud.create import create_args
 from acloud.delete import delete
 from acloud.delete import delete_args
 from acloud.internal import constants
+from acloud.internal.lib import utils
 from acloud.reconnect import reconnect
 from acloud.reconnect import reconnect_args
 from acloud.list import list as list_instances
@@ -136,6 +124,8 @@ from acloud.restart import restart
 from acloud.restart import restart_args
 from acloud.setup import setup
 from acloud.setup import setup_args
+from acloud.hostcleanup import hostcleanup
+from acloud.hostcleanup import hostcleanup_args
 
 
 LOGGING_FMT = "%(asctime)s |%(levelname)s| %(module)s:%(lineno)s| %(message)s"
@@ -143,7 +133,6 @@ ACLOUD_LOGGER = "acloud"
 _LOGGER = logging.getLogger(ACLOUD_LOGGER)
 NO_ERROR_MESSAGE = ""
 PROG = "acloud"
-_ACLOUD_CONFIG_ERROR = "ACLOUD_CONFIG_ERROR"
 
 # Commands
 CMD_CREATE_CUTTLEFISH = "create_cf"
@@ -167,7 +156,7 @@ def _ParseArgs(args):
         args: Argument list passed from main.
 
     Returns:
-        Parsed args.
+        Parsed args and a list of unknown argument strings.
     """
     usage = ",".join([
         setup_args.CMD_SETUP,
@@ -177,6 +166,7 @@ def _ParseArgs(args):
         reconnect_args.CMD_RECONNECT,
         pull_args.CMD_PULL,
         restart_args.CMD_RESTART,
+        hostcleanup_args.CMD_HOSTCLEANUP,
     ])
     parser = argparse.ArgumentParser(
         description=__doc__,
@@ -260,6 +250,9 @@ def _ParseArgs(args):
     # Command "pull"
     subparser_list.append(pull_args.GetPullArgParser(subparsers))
 
+    # Command "hostcleanup"
+    subparser_list.append(hostcleanup_args.GetHostcleanupArgParser(subparsers))
+
     # Add common arguments.
     for subparser in subparser_list:
         acloud_common.AddCommonArguments(subparser)
@@ -268,7 +261,7 @@ def _ParseArgs(args):
         parser.print_help()
         sys.exit(constants.EXIT_BY_WRONG_CMD)
 
-    return parser.parse_args(args)
+    return parser.parse_known_args(args)
 
 
 # pylint: disable=too-many-branches
@@ -332,7 +325,11 @@ def _ParsingConfig(args, cfg):
     if args.which == CMD_CREATE_CUTTLEFISH:
         missing_fields.extend(cfg.GetMissingFields(_CREATE_CF_REQUIRE_FIELDS))
     if missing_fields:
-        return "Missing required configuration fields: %s" % missing_fields
+        return (
+            "Config file (%s) missing required fields: %s, please add these "
+            "fields or reset config file. For reset config information: "
+            "go/acloud-googler-setup#reset-configuration" %
+            (config.GetUserConfigPath(args.config_file), missing_fields))
     return None
 
 
@@ -401,7 +398,7 @@ def main(argv=None):
         Job status: Integer, 0 if success. None-zero if fails.
         Stack trace: String of errors.
     """
-    args = _ParseArgs(argv)
+    args, unknown_args = _ParseArgs(argv)
     _SetupLogging(args.log_file, args.verbose)
     _VerifyArgs(args)
     _LOGGER.info("Acloud version: %s", config.GetVersion())
@@ -415,10 +412,19 @@ def main(argv=None):
     reporter = None
     if parsing_config_error:
         reporter = report.Report(command=args.which)
-        reporter.UpdateFailure(parsing_config_error, _ACLOUD_CONFIG_ERROR)
+        reporter.UpdateFailure(parsing_config_error,
+                               constants.ACLOUD_CONFIG_ERROR)
+    elif unknown_args:
+        reporter = report.Report(command=args.which)
+        reporter.UpdateFailure(
+            "unrecognized arguments: %s" % ",".join(unknown_args),
+            constants.ACLOUD_UNKNOWN_ARGS_ERROR)
     elif args.which == create_args.CMD_CREATE:
         reporter = create.Run(args)
     elif args.which == CMD_CREATE_CUTTLEFISH:
+        # Set ports offset when base_instance_num is specified
+        utils.SetCvdPorts(args.base_instance_num)
+
         reporter = create_cuttlefish_action.CreateDevices(
             cfg=cfg,
             build_target=args.build_target,
@@ -472,6 +478,8 @@ def main(argv=None):
         reporter = pull.Run(args)
     elif args.which == setup_args.CMD_SETUP:
         setup.Run(args)
+    elif args.which == hostcleanup_args.CMD_HOSTCLEANUP:
+        hostcleanup.Run(args)
     else:
         error_msg = "Invalid command %s" % args.which
         sys.stderr.write(error_msg)
