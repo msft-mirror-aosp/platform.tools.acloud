@@ -66,7 +66,7 @@ class CheepsComputeClientTest(driver_test_lib.BaseDriverTest):
     def setUp(self):
         """Set up the test."""
 
-        super(CheepsComputeClientTest, self).setUp()
+        super().setUp()
         self.Patch(cheeps_compute_client.CheepsComputeClient,
                    "InitResourceHandle")
         self.cheeps_compute_client = (
