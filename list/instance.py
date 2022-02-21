@@ -28,6 +28,7 @@ The details include:
 
 import collections
 import datetime
+import json
 import logging
 import os
 import re
@@ -53,7 +54,10 @@ _ACLOUD_CVD_TEMP = os.path.join(tempfile.gettempdir(), "acloud_cvd_temp")
 _CVD_CONFIG_FOLDER = "%(cvd_runtime)s/instances/cvd-%(id)d"
 _CVD_LOG_FOLDER = _CVD_CONFIG_FOLDER + "/logs"
 _CVD_RUNTIME_FOLDER_NAME = "cuttlefish_runtime"
+_CVD_BIN = "cvd"
+_CVD_BIN_FOLDER = "host_bins/bin"
 _CVD_STATUS_BIN = "cvd_status"
+_CVD_SERVER = "cvd_server"
 _LOCAL_INSTANCE_NAME_FORMAT = "local-instance-%(id)d"
 _LOCAL_INSTANCE_NAME_PATTERN = re.compile(r"^local-instance-(?P<id>\d+)$")
 _ACLOUDWEB_INSTANCE_START_STRING = "cf-"
@@ -263,6 +267,20 @@ def _GetElapsedTime(start_time):
         logger.debug(("Can't parse datetime string(%s)."), start_time)
         return _MSG_UNABLE_TO_CALCULATE
 
+def _IsProcessRunning(process):
+    """Check if this process is running.
+
+    Returns:
+        Boolean, True for this process is running.
+    """
+    match_pattern = re.compile(f"(.+)({process} )(.+)")
+    process_output = utils.CheckOutput(constants.COMMAND_PS)
+    for line in process_output.splitlines():
+        process_match = match_pattern.match(line)
+        if process_match:
+            return True
+    return False
+
 
 # pylint: disable=useless-object-inheritance
 class Instance(object):
@@ -449,7 +467,6 @@ class LocalInstance(Instance):
         self._instance_dir = self._cf_runtime_cfg.instance_dir
         self._virtual_disk_paths = self._cf_runtime_cfg.virtual_disk_paths
         self._local_instance_id = int(self._cf_runtime_cfg.instance_id)
-
         display = _DISPLAY_STRING % {"x_res": self._cf_runtime_cfg.x_res,
                                      "y_res": self._cf_runtime_cfg.y_res,
                                      "dpi": self._cf_runtime_cfg.dpi}
@@ -463,6 +480,10 @@ class LocalInstance(Instance):
         adb_device = AdbTools(device_serial="0.0.0.0:%s" % self._cf_runtime_cfg.adb_port)
         webrtc_port = local_image_local_instance.LocalImageLocalInstance.GetWebrtcSigServerPort(
             self._local_instance_id)
+        cvd_fleet_info = self.GetDevidInfoFromCvdFleet()
+        if cvd_fleet_info:
+            display = cvd_fleet_info.get("displays")
+
         device_information = None
         if adb_device.IsAdbConnected():
             device_information = adb_device.device_information
@@ -481,6 +502,50 @@ class LocalInstance(Instance):
         instance_home = "%s instance home: %s" % (_INDENT, self._instance_dir)
         return "%s\n%s" % (super().Summary(), instance_home)
 
+    def _GetCvdEnv(self):
+        """Get the environment to run cvd commands.
+
+        Returns:
+            os.environ with cuttlefish variables updated.
+        """
+        cvd_env = os.environ.copy()
+        cvd_env[constants.ENV_ANDROID_SOONG_HOST_OUT] = os.path.dirname(
+            self._cf_runtime_cfg.cvd_tools_path)
+        cvd_env[constants.ENV_CUTTLEFISH_CONFIG_FILE] = self._cf_runtime_cfg.config_path
+        cvd_env[constants.ENV_CVD_HOME] = GetLocalInstanceHomeDir(self._local_instance_id)
+        cvd_env[constants.ENV_CUTTLEFISH_INSTANCE] = str(self._local_instance_id)
+        return cvd_env
+
+    def GetDevidInfoFromCvdFleet(self):
+        """Get device information from 'cvd fleet'.
+
+        Execute 'cvd fleet' cmd to get device information.
+
+        Returns
+            Output of 'cvd fleet'. None for fail to run 'cvd fleet'.
+        """
+        ins_home_dir = GetLocalInstanceHomeDir(self._local_instance_id)
+        try:
+            cvd_tool = os.path.join(ins_home_dir, _CVD_BIN_FOLDER, _CVD_BIN)
+            cvd_fleet_cmd = f"{cvd_tool} fleet"
+            if not os.path.exists(cvd_tool):
+                logger.warning("Cvd tools path doesn't exist:%s", cvd_tool)
+                return None
+            if not _IsProcessRunning(_CVD_SERVER):
+                logger.warning("The %s is not active.", _CVD_SERVER)
+                return None
+            logger.debug("Running cmd [%s] to get device info.", cvd_fleet_cmd)
+            process = subprocess.Popen(cvd_fleet_cmd, shell=True, text=True,
+                                       env=self._GetCvdEnv(),
+                                       stdout=subprocess.PIPE,
+                                       stderr=subprocess.PIPE)
+            stdout, _ = process.communicate()
+            logger.debug("Output of cvd fleet: %s", stdout)
+            return json.loads(stdout)
+        except (subprocess.CalledProcessError, json.JSONDecodeError) as error:
+            logger.error("Failed to run 'cvd fleet': %s", str(error))
+            return None
+
     def CvdStatus(self):
         """check if local instance is active.
 
@@ -493,12 +558,6 @@ class LocalInstance(Instance):
             logger.debug("No cvd tools path found from config:%s",
                          self._cf_runtime_cfg.config_path)
             return False
-        cvd_env = os.environ.copy()
-        cvd_env[constants.ENV_ANDROID_SOONG_HOST_OUT] = os.path.dirname(
-            self._cf_runtime_cfg.cvd_tools_path)
-        cvd_env[constants.ENV_CUTTLEFISH_CONFIG_FILE] = self._cf_runtime_cfg.config_path
-        cvd_env[constants.ENV_CVD_HOME] = GetLocalInstanceHomeDir(self._local_instance_id)
-        cvd_env[constants.ENV_CUTTLEFISH_INSTANCE] = str(self._local_instance_id)
         try:
             cvd_status_cmd = os.path.join(self._cf_runtime_cfg.cvd_tools_path,
                                           _CVD_STATUS_BIN)
@@ -521,7 +580,7 @@ class LocalInstance(Instance):
                                        stdin=None,
                                        stdout=subprocess.PIPE,
                                        stderr=subprocess.STDOUT,
-                                       env=cvd_env)
+                                       env=self._GetCvdEnv())
             stdout, _ = process.communicate()
             if process.returncode != 0:
                 if stdout:
@@ -546,19 +605,13 @@ class LocalInstance(Instance):
         stop_cvd_cmd = os.path.join(self.cf_runtime_cfg.cvd_tools_path,
                                     constants.CMD_STOP_CVD)
         logger.debug("Running cmd[%s] to delete local cvd", stop_cvd_cmd)
-        cvd_env = os.environ.copy()
-        if self.instance_dir:
-            cvd_env[constants.ENV_CUTTLEFISH_CONFIG_FILE] = self._cf_runtime_cfg.config_path
-            cvd_env[constants.ENV_CVD_HOME] = GetLocalInstanceHomeDir(
-                self._local_instance_id)
-            cvd_env[constants.ENV_CUTTLEFISH_INSTANCE] = str(self._local_instance_id)
-        else:
+        if not self.instance_dir:
             logger.error("instance_dir is null!! instance[%d] might not be"
                          " deleted", self._local_instance_id)
         subprocess.check_call(
             utils.AddUserGroupsToCmd(stop_cvd_cmd,
                                      constants.LIST_CF_USER_GROUPS),
-            stderr=subprocess.STDOUT, shell=True, env=cvd_env)
+            stderr=subprocess.STDOUT, shell=True, env=self._GetCvdEnv())
 
         adb_cmd = AdbTools(self.adb_port)
         # When relaunch a local instance, we need to pass in retry=True to make
