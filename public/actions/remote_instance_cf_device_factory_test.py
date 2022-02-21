@@ -219,8 +219,9 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             fake_image_name,
             fake_host_package_name)
         self.assertEqual(factory._CreateGceInstance(), "fake-1234-userbuild-fake-target")
-
-    def testGetBuildInfoDict(self):
+    @mock.patch("acloud.public.actions.remote_instance_cf_device_factory."
+                "cvd_utils")
+    def testGetBuildInfoDict(self, mock_cvd_utils):
         """Test GetBuildInfoDict."""
         fake_host_package_name = "/fake/host_package.tar.gz"
         fake_image_name = "/fake/aosp_cf_x86_phone-img-eng.username.zip"
@@ -240,46 +241,25 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             fake_image_name,
             fake_host_package_name)
         self.assertEqual(factory.GetBuildInfoDict(), None)
+        mock_cvd_utils.assert_not_called()
 
         # Test image source type is remote.
         args.local_image = None
         args.build_id = "123"
         args.branch = "fake_branch"
         args.build_target = "fake_target"
-        args.system_build_id = "234"
-        args.system_branch = "sys_branch"
-        args.system_build_target = "sys_target"
-        args.kernel_build_id = "345"
-        args.kernel_branch = "kernel_branch"
-        args.kernel_build_target = "kernel_target"
-        args.kernel_artifact = None
-        args.bootloader_build_id = "456"
-        args.bootloader_branch = "bootloader_branch"
-        args.bootloader_build_target = "bootloader_target"
         avd_spec_remote_image = avd_spec.AVDSpec(args)
         factory = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
             avd_spec_remote_image,
             fake_image_name,
             fake_host_package_name)
-        expected_build_info = {
-            "build_id": "123",
-            "branch": "fake_branch",
-            "build_target": "fake_target",
-            "system_build_id": "234",
-            "system_branch": "sys_branch",
-            "system_build_target": "sys_target",
-            "kernel_build_id": "345",
-            "kernel_branch": "kernel_branch",
-            "kernel_build_target": "kernel_target",
-            "bootloader_build_id": "456",
-            "bootloader_branch": "bootloader_branch",
-            "bootloader_build_target": "bootloader_target"
-        }
-        self.assertEqual(factory.GetBuildInfoDict(), expected_build_info)
+        factory.GetBuildInfoDict()
+        mock_cvd_utils.GetRemoteBuildInfoDict.assert_called()
 
-    @mock.patch.object(ssh, "ShellCmdWithRetry")
-    @mock.patch.object(ssh.Ssh, "Run")
-    def testUploadArtifacts(self, mock_ssh_run, mock_shell):
+    @staticmethod
+    @mock.patch("acloud.public.actions.remote_instance_cf_device_factory."
+                "cvd_utils")
+    def testUploadArtifacts(mock_cvd_utils):
         """Test UploadArtifacts."""
         fake_host_package = "/fake/host_package.tar.gz"
         fake_image = "/fake/aosp_cf_x86_phone-img-eng.username.zip"
@@ -299,46 +279,24 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             avd_spec_local_image,
             fake_image,
             fake_host_package)
-        factory._ssh = ssh.Ssh(ip=fake_ip,
-                               user=constants.GCE_USER,
-                               ssh_private_key_path="/fake/acloud_rea")
         factory._UploadLocalImageArtifacts(fake_image,
                                            fake_host_package,
-                                           fake_local_image_dir)
-        expected_cmd1 = ("/usr/bin/install_zip.sh . < %s" % fake_image)
-        expected_cmd2 = ("tar -x -z -f - < %s" % fake_host_package)
-        mock_ssh_run.assert_has_calls([
-            mock.call(expected_cmd1),
-            mock.call(expected_cmd2)])
+                                           None)
+        mock_cvd_utils.UploadImageZip.assert_called_with(mock.ANY, fake_image)
+        mock_cvd_utils.UploadImageDir.assert_not_called()
+        mock_cvd_utils.UploadCvdHostPackage.assert_called_with(
+            mock.ANY, fake_host_package)
 
         # Test local image get from local folder case.
-        fake_image = None
-        self.Patch(glob, "glob", side_effect=[["fake.img"], ["bootloader"], ["kernel"]])
-        factory._UploadLocalImageArtifacts(fake_image,
+        mock_cvd_utils.reset_mock()
+        factory._UploadLocalImageArtifacts(None,
                                            fake_host_package,
                                            fake_local_image_dir)
-        expected_cmd = (
-            "tar -cf - --lzop -S -C %s fake.img bootloader kernel android-info.txt | "
-            "%s -- tar -xf - --lzop -S" %
-            (fake_local_image_dir, factory._ssh.GetBaseCmd(constants.SSH_BIN)))
-        mock_shell.assert_called_once_with(expected_cmd)
-
-        mock_shell.reset_mock()
-        required_images = mock.mock_open(read_data=(
-            "boot.img\n"
-            "cache.img\n"
-            "super.img\n"
-            "userdata.img\n"
-            "bootloader\n"))
-        with mock.patch.object(six.moves.builtins, "open", required_images):
-            factory._UploadLocalImageArtifacts(fake_image,
-                                               fake_host_package,
-                                               fake_local_image_dir)
-            expected_cmd = (
-                "tar -cf - --lzop -S -C %s boot.img cache.img super.img userdata.img "
-                "bootloader android-info.txt | %s -- tar -xf - --lzop -S" %
-                (fake_local_image_dir, factory._ssh.GetBaseCmd(constants.SSH_BIN)))
-            mock_shell.assert_called_once_with(expected_cmd)
+        mock_cvd_utils.UploadImageZip.assert_not_called()
+        mock_cvd_utils.UploadImageDir.assert_called_with(
+            mock.ANY, fake_local_image_dir)
+        mock_cvd_utils.UploadCvdHostPackage.assert_called_with(
+            mock.ANY, fake_host_package)
 
     @mock.patch.object(ssh, "ShellCmdWithRetry")
     def testUploadRemoteImageArtifacts(self, mock_shell):
