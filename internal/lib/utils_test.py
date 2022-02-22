@@ -442,6 +442,10 @@ class UtilsTest(driver_test_lib.BaseDriverTest):
         fake_port_mapping = [utils.PortMapping(15550, 15550),
                              utils.PortMapping(15551, 15551),
                              utils.PortMapping(15552, 15552),
+                             utils.PortMapping(15553, 15553),
+                             utils.PortMapping(15554, 15554),
+                             utils.PortMapping(15555, 15555),
+                             utils.PortMapping(15556, 15556),
                              utils.PortMapping(12345, 8443)]
 
         utils.EstablishWebRTCSshTunnel(
