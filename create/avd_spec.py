@@ -125,6 +125,7 @@ class AVDSpec():
         self._num_of_instances = None
         self._num_avds_per_instance = None
         self._no_pull_log = None
+        self._mkcert = None
         self._oxygen = None
         self._openwrt = None
         self._remote_image = None
@@ -339,6 +340,7 @@ class AVDSpec():
         self._num_of_instances = args.num
         self._num_avds_per_instance = args.num_avds_per_instance
         self._no_pull_log = args.no_pull_log
+        self._mkcert = args.mkcert
         self._oxygen = args.oxygen
         self._openwrt = args.openwrt
         self._serial_log_file = args.serial_log_file
@@ -987,6 +989,11 @@ class AVDSpec():
     def no_pull_log(self):
         """Return no_pull_log."""
         return self._no_pull_log
+
+    @property
+    def mkcert(self):
+        """Return mkcert."""
+        return self._mkcert
 
     @property
     def gce_metadata(self):
