@@ -75,7 +75,11 @@ _PORT_1443 = 1443
 PortMapping = collections.namedtuple("PortMapping", ["local", "target"])
 WEBRTC_PORTS_MAPPING = [PortMapping(15550, 15550),
                         PortMapping(15551, 15551),
-                        PortMapping(15552, 15552)]
+                        PortMapping(15552, 15552),
+                        PortMapping(15553, 15553),
+                        PortMapping(15554, 15554),
+                        PortMapping(15555, 15555),
+                        PortMapping(15556, 15556)]
 _RE_GROUP_WEBRTC = "local_webrtc_port"
 _RE_WEBRTC_SSH_TUNNEL_PATTERN = (
     r"((.*-L\s)(?P<local_webrtc_port>\d+):127.0.0.1:%s)(.+%s)")
