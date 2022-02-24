@@ -282,6 +282,13 @@ def AddCommonCreateArgs(parser):
         required=False,
         default=None,
         help="Disable auto download logs when AVD booting up failed.")
+    parser.add_argument(
+        "--no-mkcert",
+        dest="mkcert",
+        action="store_false",
+        required=False,
+        default=True,
+        help="Disable mkcert setup process on the host.")
     # TODO(147335651): Add gpu in user config.
     # TODO(147335651): Support "--gpu" without giving any value.
     parser.add_argument(

@@ -24,6 +24,7 @@ import tempfile
 
 from acloud import errors
 from acloud.internal import constants
+from acloud.internal.lib import cvd_utils
 from acloud.internal.lib import utils
 from acloud.internal.lib import ssh
 from acloud.public.actions import gce_device_factory
@@ -31,10 +32,6 @@ from acloud.public.actions import gce_device_factory
 
 logger = logging.getLogger(__name__)
 _ALL_FILES = "*"
-# bootloader and kernel are files required to launch AVD.
-_BOOTLOADER = "bootloader"
-_KERNEL = "kernel"
-_ARTIFACT_FILES = ["*.img", _BOOTLOADER, _KERNEL]
 _HOME_FOLDER = os.path.expanduser("~")
 _SCREEN_CONSOLE_COMMAND = "screen ~/cuttlefish_runtime/console"
 
@@ -224,7 +221,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             self._compute_client.UpdateFetchCvd()
             self._FetchBuild(self._avd_spec)
 
-        if self._avd_spec.connect_webrtc:
+        if self._avd_spec.mkcert and self._avd_spec.connect_webrtc:
             self._compute_client.UpdateCertificate()
 
         if self._avd_spec.extra_files:
@@ -274,37 +271,10 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
                         from 'm'.
         """
         if local_image_zip:
-            remote_cmd = ("/usr/bin/install_zip.sh . < %s" % local_image_zip)
-            logger.debug("remote_cmd:\n %s", remote_cmd)
-            self._ssh.Run(remote_cmd)
+            cvd_utils.UploadImageZip(self._ssh, local_image_zip)
         else:
-            # Compress image files for faster upload.
-            try:
-                images_path = os.path.join(images_dir, "required_images")
-                with open(images_path, "r") as images:
-                    artifact_files = images.read().splitlines()
-            except IOError:
-                # Older builds may not have a required_images file. In this case
-                # we fall back to *.img.
-                artifact_files = []
-                for file_name in _ARTIFACT_FILES:
-                    artifact_files.extend(
-                        os.path.basename(image) for image in glob.glob(
-                            os.path.join(images_dir, file_name)))
-            # Upload android-info.txt to parse config value.
-            artifact_files.append(constants.ANDROID_INFO_FILE)
-            cmd = ("tar -cf - --lzop -S -C {images_dir} {artifact_files} | "
-                   "{ssh_cmd} -- tar -xf - --lzop -S".format(
-                       images_dir=images_dir,
-                       artifact_files=" ".join(artifact_files),
-                       ssh_cmd=self._ssh.GetBaseCmd(constants.SSH_BIN)))
-            logger.debug("cmd:\n %s", cmd)
-            ssh.ShellCmdWithRetry(cmd)
-
-        # host_package
-        remote_cmd = ("tar -x -z -f - < %s" % cvd_host_package_artifact)
-        logger.debug("remote_cmd:\n %s", remote_cmd)
-        self._ssh.Run(remote_cmd)
+            cvd_utils.UploadImageDir(self._ssh, images_dir)
+        cvd_utils.UploadCvdHostPackage(self._ssh, cvd_host_package_artifact)
 
     @utils.TimeExecute(function_description="Uploading remote image artifacts")
     def _UploadRemoteImageArtifacts(self, images_dir):
@@ -362,23 +332,12 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         """
         if self._avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
             return None
-        build_info_dict = {
-            key: val for key, val in self._avd_spec.remote_image.items() if val}
+        return cvd_utils.GetRemoteBuildInfoDict(self._avd_spec)
 
-        # kernel_target have default value "kernel". If user provide kernel_build_id
-        # or kernel_branch, then start to process kernel image.
-        if (self._avd_spec.kernel_build_info[constants.BUILD_ID]
-                or self._avd_spec.kernel_build_info[constants.BUILD_BRANCH]):
-            build_info_dict.update(
-                {"kernel_%s" % key: val
-                 for key, val in self._avd_spec.kernel_build_info.items() if val}
-            )
-        build_info_dict.update(
-            {"system_%s" % key: val
-             for key, val in self._avd_spec.system_build_info.items() if val}
-        )
-        build_info_dict.update(
-            {"bootloader_%s" % key: val
-             for key, val in self._avd_spec.bootloader_build_info.items() if val}
-        )
-        return build_info_dict
+    def GetLogs(self):
+        """Get all device logs.
+
+        Returns:
+            A dictionary that maps instance names to lists of report.LogFile.
+        """
+        return self._compute_client.all_logs
