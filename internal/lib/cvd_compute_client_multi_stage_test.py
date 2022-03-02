@@ -204,7 +204,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
             ]
         }
         mock_pull.GetAllLogFilePaths.return_value = [
-            "/kernel.log", "/logcat", "/launcher.log"]
+            "/kernel.log", "/logcat", "/launcher.log", "/access-kregistry"]
 
         created_subprocess = mock.MagicMock()
         created_subprocess.stdout = mock.MagicMock()
