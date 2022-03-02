@@ -75,11 +75,7 @@ _PORT_1443 = 1443
 PortMapping = collections.namedtuple("PortMapping", ["local", "target"])
 WEBRTC_PORTS_MAPPING = [PortMapping(15550, 15550),
                         PortMapping(15551, 15551),
-                        PortMapping(15552, 15552),
-                        PortMapping(15553, 15553),
-                        PortMapping(15554, 15554),
-                        PortMapping(15555, 15555),
-                        PortMapping(15556, 15556)]
+                        PortMapping(15552, 15552)]
 _RE_GROUP_WEBRTC = "local_webrtc_port"
 _RE_WEBRTC_SSH_TUNNEL_PATTERN = (
     r"((.*-L\s)(?P<local_webrtc_port>\d+):127.0.0.1:%s)(.+%s)")
@@ -892,6 +888,11 @@ def EstablishWebRTCSshTunnel(ip_addr, webrtc_local_port, rsa_key_file, ssh_user,
     """
     webrtc_server_port = GetWebRTCServerPort(
         ip_addr, rsa_key_file, ssh_user, extra_args_ssh_tunnel)
+
+    # TODO(b/209502647): design a better way to forward webrtc ports.
+    if extra_args_ssh_tunnel:
+        for webrtc_port in WEBRTC_PORTS_MAPPING:
+            ReleasePort(webrtc_port.local)
     port_mapping = (WEBRTC_PORTS_MAPPING +
                     [PortMapping(webrtc_local_port, webrtc_server_port)])
     try:
