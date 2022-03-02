@@ -487,9 +487,11 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             log = report.LogFile(log_file, constants.LOG_TYPE_TEXT)
             if log_file.endswith("kernel.log"):
                 log = report.LogFile(log_file, constants.LOG_TYPE_KERNEL_LOG)
-            if log_file.endswith("logcat"):
+            elif log_file.endswith("logcat"):
                 log = report.LogFile(log_file, constants.LOG_TYPE_LOGCAT,
                                      "full_gce_logcat")
+            elif not (log_file.endswith(".log") or log_file.endswith(".json")):
+                continue
             self._all_logs[instance].append(log)
 
         if not download:
