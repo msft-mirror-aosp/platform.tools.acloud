@@ -49,7 +49,9 @@ from acloud.internal.lib import android_compute_client
 from acloud.internal.lib import gcompute_client
 from acloud.internal.lib import utils
 from acloud.internal.lib.ssh import Ssh
+from acloud.public import report
 from acloud.pull import pull
+from acloud.setup import mkcert
 
 
 logger = logging.getLogger(__name__)
@@ -78,10 +80,10 @@ _NO_RETRY = 0
 # Launch cvd command for acloud report
 _LAUNCH_CVD_COMMAND = "launch_cvd_command"
 _CONFIG_RE = re.compile(r"^config=(?P<config>.+)")
-# Trust local certificates command for webrtc
 _TRUST_REMOTE_INSTANCE_COMMAND = (
-    "\"export CAROOT=%(webrtc_certs_path)s; "
-    "./%(webrtc_certs_path)s/mkcert -install;\"")
+    f"\"sudo cp -p ~/{constants.WEBRTC_CERTS_PATH}/{constants.SSL_CA_NAME}.pem "
+    f"{constants.SSL_TRUST_CA_DIR}/{constants.SSL_CA_NAME}.crt;"
+    "sudo update-ca-certificates;\"")
 # Remote host instance name
 _HOST_INSTANCE_NAME_FORMAT = (constants.INSTANCE_TYPE_HOST +
                               "-%(ip_addr)s-%(build_id)s-%(build_target)s")
@@ -127,7 +129,9 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         self._report_internal_ip = report_internal_ip
         self._gpu = gpu
         # Store all failures result when creating one or multiple instances.
-        self._all_failures = dict()
+        self._all_failures = {}
+        # Map from instance names to lists of report.LogFile.
+        self._all_logs = {}
         self._extra_args_ssh_tunnel = acloud_config.extra_args_ssh_tunnel
         self._ssh = None
         self._ip = None
@@ -446,9 +450,9 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                     "as '$acloud create --autoconnect vnc'")
             self._all_failures[instance] = error_msg
             utils.PrintColorString(str(e), utils.TextColors.FAIL)
-            if avd_spec and not avd_spec.no_pull_log:
-                self._PullAllLogFiles(instance)
 
+        self._FindLogFiles(instance,
+                           error_msg and avd_spec and not avd_spec.no_pull_log)
         self._execution_time[_LAUNCH_CVD] = round(time.time() - timestart, 2)
         return {instance: error_msg} if error_msg else {}
 
@@ -467,16 +471,31 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         logger.debug("Timeout for boot: %s secs", boot_timeout_secs)
         return boot_timeout_secs
 
-    def _PullAllLogFiles(self, instance):
-        """Pull all log files from instance.
-
-        1. Download log files to temp folder.
-        2. Show messages about the download folder for users.
+    def _FindLogFiles(self, instance, download):
+        """Find and pull all log files from instance.
 
         Args:
             instance: String, instance name.
+            download: Whether to download the files to a temporary directory
+                      and show messages to the user.
         """
+        self._all_logs[instance] = [
+            report.LogFile("/var/log/kern.log", constants.LOG_TYPE_KERNEL_LOG,
+                           "host_kernel.log")]
         log_files = pull.GetAllLogFilePaths(self._ssh)
+        for log_file in log_files:
+            log = report.LogFile(log_file, constants.LOG_TYPE_TEXT)
+            if log_file.endswith("kernel.log"):
+                log = report.LogFile(log_file, constants.LOG_TYPE_KERNEL_LOG)
+            elif log_file.endswith("logcat"):
+                log = report.LogFile(log_file, constants.LOG_TYPE_LOGCAT,
+                                     "full_gce_logcat")
+            elif not (log_file.endswith(".log") or log_file.endswith(".json")):
+                continue
+            self._all_logs[instance].append(log)
+
+        if not download:
+            return
         error_log_folder = pull.GetDownloadLogFolder(instance)
         pull.PullLogs(self._ssh, log_files, error_log_folder)
         self.ExtendReportData(constants.ERROR_LOG_FOLDER, error_log_folder)
@@ -629,21 +648,17 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         default certificates for connecting to a remote webrtc AVD without the
         insecure warning.
         """
-        mkcert_install_dir = os.path.join(os.path.expanduser("~"),
-                                          constants.MKCERT_INSTALL_DIR)
-        if os.path.exists(os.path.join(mkcert_install_dir, "mkcert")):
-            utils.AllocateLocalHostCert(mkcert_install_dir)
-            mkcert_rootca_dir = utils.CheckOutput(
-                "%s/mkcert -CAROOT" % mkcert_install_dir,
-                shell=True).rstrip("\n")
-            upload_files = [os.path.join(mkcert_rootca_dir, "rootCA.pem")]
-            for cert_file in constants.WEBRTC_CERTS_FILES + ["mkcert"]:
-                upload_files.append(os.path.join(mkcert_install_dir,
+        local_cert_dir = os.path.join(os.path.expanduser("~"),
+                                      constants.SSL_DIR)
+        if mkcert.AllocateLocalHostCert():
+            upload_files = []
+            for cert_file in (constants.WEBRTC_CERTS_FILES +
+                              [f"{constants.SSL_CA_NAME}.pem"]):
+                upload_files.append(os.path.join(local_cert_dir,
                                                  cert_file))
             try:
                 self._ssh.ScpPushFiles(upload_files, constants.WEBRTC_CERTS_PATH)
-                self._ssh.Run(_TRUST_REMOTE_INSTANCE_COMMAND % {
-                    "webrtc_certs_path": constants.WEBRTC_CERTS_PATH})
+                self._ssh.Run(_TRUST_REMOTE_INSTANCE_COMMAND)
             except subprocess.CalledProcessError:
                 logger.debug("Update WebRTC frontend certificate failed.")
 
@@ -735,6 +750,11 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
     def all_failures(self):
         """Return all_failures"""
         return self._all_failures
+
+    @property
+    def all_logs(self):
+        """Return all_logs"""
+        return self._all_logs
 
     @property
     def execution_time(self):

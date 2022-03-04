@@ -85,6 +85,8 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         mock_adb_tools.return_value = mock_adb_tools_object
         self.Patch(cvd_runtime_config, "CvdRuntimeConfig",
                    return_value=self._MockCvdRuntimeConfig())
+        self.Patch(instance.LocalInstance, "GetDevidInfoFromCvdFleet",
+                   return_value=None)
         local_instance = instance.LocalInstance("fake_config_path")
 
         self.assertEqual("local-instance-2", local_instance.name)
@@ -98,6 +100,28 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(6521, local_instance.adb_port)
         self.assertEqual(6445, local_instance.vnc_port)
         self.assertEqual(8444, local_instance.webrtc_port)
+
+    # pylint: disable=protected-access
+    def testGetCvdEnv(self):
+        """Test GetCvdEnv."""
+        self.Patch(cvd_runtime_config, "CvdRuntimeConfig",
+                   return_value=self._MockCvdRuntimeConfig())
+        local_instance = instance.LocalInstance("fake_config_path")
+        cvd_env = local_instance._GetCvdEnv()
+        self.assertEqual(cvd_env[constants.ENV_CUTTLEFISH_INSTANCE], "2")
+        self.assertEqual(cvd_env[constants.ENV_CUTTLEFISH_CONFIG_FILE],
+                         "fake_config_path")
+
+    # pylint: disable=protected-access
+    def testIsProcessRunning(self):
+        """Test IsProcessRunning."""
+        process = "cvd_server"
+        self.Patch(utils, "CheckOutput",
+                   return_value="/bin/cvd_server -server_fd=4")
+        self.assertEqual(instance._IsProcessRunning(process), True)
+
+        self.Patch(utils, "CheckOutput", return_value="/bin/cvd start")
+        self.assertEqual(instance._IsProcessRunning(process), False)
 
     @mock.patch("acloud.list.instance.AdbTools")
     def testDeleteLocalInstance(self, mock_adb_tools):
@@ -119,6 +143,7 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
             'CUTTLEFISH_INSTANCE': '2',
             'HOME': '/tmp/acloud_cvd_temp/local-instance-2',
             'CUTTLEFISH_CONFIG_FILE': 'fake_config_path',
+            'ANDROID_SOONG_HOST_OUT': '',
         }
         mock_check_call.assert_called_with(
             'fake_cvd_tools_path/stop_cvd', stderr=subprocess.STDOUT,
@@ -329,15 +354,15 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
 
     def testGetLocalInstanceConfig(self):
         """Test GetLocalInstanceConfig."""
-        self.Patch(instance, "GetLocalInstanceRuntimeDir",
-                  return_value="ins_runtime_dir")
+        self.Patch(instance, "GetLocalInstanceHomeDir",
+                  return_value="ins_home")
         self.Patch(os.path, "isfile", return_value=False)
         instance_id = 1
         self.assertEqual(instance.GetLocalInstanceConfig(instance_id), None)
 
         # Test config in new folder path.
-        self.Patch(os.path, "isfile", side_effect=[False, True])
-        expected_result = "ins_runtime_dir/instances/cvd-1/cuttlefish_config.json"
+        self.Patch(os.path, "isfile", return_value=True)
+        expected_result = "ins_home/cuttlefish_assembly/cuttlefish_config.json"
         self.assertEqual(
             instance.GetLocalInstanceConfig(instance_id), expected_result)
 

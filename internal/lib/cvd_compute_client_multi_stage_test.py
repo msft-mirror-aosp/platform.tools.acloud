@@ -35,6 +35,7 @@ from acloud.internal.lib import utils
 from acloud.internal.lib.ssh import Ssh
 from acloud.internal.lib.ssh import IP
 from acloud.list import list as list_instances
+from acloud.setup import mkcert
 
 
 ExtraFile = collections.namedtuple("ExtraFile", ["source", "target"])
@@ -172,10 +173,11 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
     @mock.patch.object(gcompute_client.ComputeClient, "CreateInstance")
     @mock.patch.object(cvd_compute_client_multi_stage.CvdComputeClient, "_GetDiskArgs",
                        return_value=[{"fake_arg": "fake_value"}])
+    @mock.patch("acloud.internal.lib.cvd_compute_client_multi_stage.pull")
     @mock.patch("getpass.getuser", return_value="fake_user")
-    def testCreateInstance(self, _get_user, _get_disk_args, mock_create,
-                           _get_image, _compare_machine_size, mock_check_img,
-                           _mock_env):
+    def testCreateInstance(self, _get_user, mock_pull, _get_disk_args,
+                           mock_create, _get_image, _compare_machine_size,
+                           mock_check_img, _mock_env):
         """Test CreateInstance."""
         expected_metadata = dict()
         expected_metadata_local_image = dict()
@@ -185,6 +187,24 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         expected_disk_args = [{"fake_arg": "fake_value"}]
         fake_avd_spec = avd_spec.AVDSpec(self.args)
         fake_avd_spec._instance_name_to_reuse = None
+        expected_logs = {
+            self.INSTANCE: [
+                {
+                    "path": "/var/log/kern.log",
+                    "type": constants.LOG_TYPE_KERNEL_LOG,
+                    "name": "host_kernel.log"
+                },
+                {"path": "/kernel.log", "type": constants.LOG_TYPE_KERNEL_LOG},
+                {
+                    "path": "/logcat",
+                    "type": constants.LOG_TYPE_LOGCAT,
+                    "name": "full_gce_logcat"
+                },
+                {"path": "/launcher.log", "type": constants.LOG_TYPE_TEXT}
+            ]
+        }
+        mock_pull.GetAllLogFilePaths.return_value = [
+            "/kernel.log", "/logcat", "/launcher.log", "/access-kregistry"]
 
         created_subprocess = mock.MagicMock()
         created_subprocess.stdout = mock.MagicMock()
@@ -217,6 +237,8 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
             gpu=self.GPU,
             disk_type=None,
             disable_external_ip=False)
+        self.assertEqual(self.cvd_compute_client_multi_stage.all_logs,
+                         expected_logs)
 
         mock_check_img.return_value = True
         #test use local image in the remote instance.
@@ -286,30 +308,24 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
 
     @mock.patch.object(Ssh, "Run")
     @mock.patch.object(Ssh, "ScpPushFiles")
-    @mock.patch.object(utils, "AllocateLocalHostCert")
-    def testUpdateCertificate(self, mock_allocateca, mock_upload,
-                              mock_trustremote):
+    def testUpdateCertificate(self, mock_upload, mock_trustremote):
         """Test UpdateCertificate"""
-        self.Patch(os, "makedirs")
-        self.Patch(utils, "CheckOutput", return_value="rootca_path")
-        # mkcert is not exist
-        self.Patch(os.path, "exists", return_value=False)
+        # Certificate is not ready
+        self.Patch(mkcert, "AllocateLocalHostCert", return_value=False)
         self.cvd_compute_client_multi_stage.UpdateCertificate()
-        self.assertEqual(mock_allocateca.call_count, 0)
         self.assertEqual(mock_upload.call_count, 0)
         self.assertEqual(mock_trustremote.call_count, 0)
 
-        # mkcert is exist
-        self.Patch(os.path, "exists", return_value=True)
-        mkcert_install_dir = os.path.join(os.path.expanduser("~"),
-                                          constants.MKCERT_INSTALL_DIR)
+        # Certificate is ready
+        self.Patch(mkcert, "AllocateLocalHostCert", return_value=True)
+        local_cert_dir = os.path.join(os.path.expanduser("~"),
+                                      constants.SSL_DIR)
         self.cvd_compute_client_multi_stage.UpdateCertificate()
-        mock_allocateca.assert_called_once()
         mock_upload.assert_called_once_with(
-            ["rootca_path/rootCA.pem",
-             "%s/server.crt" % mkcert_install_dir,
-             "%s/server.key" % mkcert_install_dir,
-             "%s/mkcert" % mkcert_install_dir], constants.WEBRTC_CERTS_PATH)
+            ["%s/server.crt" % local_cert_dir,
+             "%s/server.key" % local_cert_dir,
+             "%s/%s.pem" % (local_cert_dir, constants.SSL_CA_NAME)],
+            constants.WEBRTC_CERTS_PATH)
         mock_trustremote.assert_called_once()
 
     def testGetBootTimeout(self):

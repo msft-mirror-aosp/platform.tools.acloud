@@ -34,7 +34,10 @@ from acloud.public import report
 
 logger = logging.getLogger(__name__)
 
-_FIND_LOG_FILE_CMD = "find -L %s -type f" % constants.REMOTE_LOG_FOLDER
+# REMOTE_LOG_FOLDER and the log files can be symbolic links. The -H flag makes
+# the command skip the links except REMOTE_LOG_FOLDER. The returned logs are
+# unique.
+_FIND_LOG_FILE_CMD = "find -H %s -type f" % constants.REMOTE_LOG_FOLDER
 # Black list for log files.
 _KERNEL = "kernel"
 _IMG_FILE_EXTENSION = ".img"
