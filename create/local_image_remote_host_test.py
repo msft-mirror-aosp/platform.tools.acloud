@@ -25,7 +25,7 @@ from acloud.internal import constants
 from acloud.internal.lib import driver_test_lib
 from acloud.internal.lib import utils
 from acloud.public.actions import common_operations
-from acloud.public.actions import remote_instance_cf_device_factory
+from acloud.public.actions import remote_host_cf_device_factory
 
 class LocalImageRemoteHostTest(driver_test_lib.BaseDriverTest):
     """Test LocalImageRemoteHost method."""
@@ -46,12 +46,11 @@ class LocalImageRemoteHostTest(driver_test_lib.BaseDriverTest):
         spec.image_source = constants.IMAGE_SRC_LOCAL
         spec.connect_vnc = False
         self.Patch(avd_spec, "AVDSpec", return_value=spec)
-        self.Patch(remote_instance_cf_device_factory,
-                   "RemoteInstanceDeviceFactory")
+        self.Patch(remote_host_cf_device_factory, "RemoteHostDeviceFactory")
         self.Patch(create_common, "GetCvdHostPackage")
         self.Patch(common_operations, "CreateDevices")
         create.Run(args)
-        remote_instance_cf_device_factory.RemoteInstanceDeviceFactory.assert_called_once()
+        remote_host_cf_device_factory.RemoteHostDeviceFactory.assert_called_once()
         common_operations.CreateDevices.assert_called_once()
 
         spec.connect_vnc = True

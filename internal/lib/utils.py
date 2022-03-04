@@ -888,6 +888,11 @@ def EstablishWebRTCSshTunnel(ip_addr, webrtc_local_port, rsa_key_file, ssh_user,
     """
     webrtc_server_port = GetWebRTCServerPort(
         ip_addr, rsa_key_file, ssh_user, extra_args_ssh_tunnel)
+
+    # TODO(b/209502647): design a better way to forward webrtc ports.
+    if extra_args_ssh_tunnel:
+        for webrtc_port in WEBRTC_PORTS_MAPPING:
+            ReleasePort(webrtc_port.local)
     port_mapping = (WEBRTC_PORTS_MAPPING +
                     [PortMapping(webrtc_local_port, webrtc_server_port)])
     try:
