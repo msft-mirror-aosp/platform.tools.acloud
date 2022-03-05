@@ -354,15 +354,15 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
 
     def testGetLocalInstanceConfig(self):
         """Test GetLocalInstanceConfig."""
-        self.Patch(instance, "GetLocalInstanceRuntimeDir",
-                  return_value="ins_runtime_dir")
+        self.Patch(instance, "GetLocalInstanceHomeDir",
+                  return_value="ins_home")
         self.Patch(os.path, "isfile", return_value=False)
         instance_id = 1
         self.assertEqual(instance.GetLocalInstanceConfig(instance_id), None)
 
         # Test config in new folder path.
-        self.Patch(os.path, "isfile", side_effect=[False, True])
-        expected_result = "ins_runtime_dir/instances/cvd-1/cuttlefish_config.json"
+        self.Patch(os.path, "isfile", return_value=True)
+        expected_result = "ins_home/cuttlefish_assembly/cuttlefish_config.json"
         self.assertEqual(
             instance.GetLocalInstanceConfig(instance_id), expected_result)
 
