@@ -58,6 +58,7 @@ _CVD_BIN = "cvd"
 _CVD_BIN_FOLDER = "host_bins/bin"
 _CVD_STATUS_BIN = "cvd_status"
 _CVD_SERVER = "cvd_server"
+_INSTANCE_ASSEMBLY_DIR = "cuttlefish_assembly"
 _LOCAL_INSTANCE_NAME_FORMAT = "local-instance-%(id)d"
 _LOCAL_INSTANCE_NAME_PATTERN = re.compile(r"^local-instance-(?P<id>\d+)$")
 _ACLOUDWEB_INSTANCE_START_STRING = "cf-"
@@ -132,15 +133,11 @@ def GetLocalInstanceConfig(local_instance_id):
     Return:
         String, path of cf runtime config.
     """
-    ins_runtime_dir = GetLocalInstanceRuntimeDir(local_instance_id)
-    cfg_dirs = [ins_runtime_dir]
-    cfg_dirs.append(_CVD_CONFIG_FOLDER % {
-        "cvd_runtime": ins_runtime_dir,
-        "id": local_instance_id})
-    for cfg_dir in cfg_dirs:
-        cfg_path = os.path.join(cfg_dir, constants.CUTTLEFISH_CONFIG_FILE)
-        if os.path.isfile(cfg_path):
-            return cfg_path
+    ins_assembly_dir = os.path.join(GetLocalInstanceHomeDir(local_instance_id),
+                                    _INSTANCE_ASSEMBLY_DIR)
+    cfg_path = os.path.join(ins_assembly_dir, constants.CUTTLEFISH_CONFIG_FILE)
+    if os.path.isfile(cfg_path):
+        return cfg_path
     return None
 
 
