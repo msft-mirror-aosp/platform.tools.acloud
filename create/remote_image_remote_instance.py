@@ -98,6 +98,10 @@ class RemoteImageRemoteInstance(base_avd_create.BaseAVDCreate):
                 avd_spec.remote_image[constants.BUILD_TARGET],
                 avd_spec.remote_image[constants.BUILD_ID],
                 avd_spec.remote_image[constants.BUILD_BRANCH],
+                avd_spec.system_build_info[constants.BUILD_TARGET],
+                avd_spec.system_build_info[constants.BUILD_ID],
+                avd_spec.kernel_build_info[constants.BUILD_TARGET],
+                avd_spec.kernel_build_info[constants.BUILD_ID],
                 avd_spec.cfg.oxygen_client,
                 avd_spec.cfg.oxygen_lease_args)
             session_id, server_url = self._GetDeviceInfoFromResponse(response)
