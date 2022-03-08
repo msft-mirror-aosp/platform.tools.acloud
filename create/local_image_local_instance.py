@@ -344,7 +344,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             "set --local-tool to an extracted CVD host package.")
 
     @staticmethod
-    def _FindMiscInfo(image_dir):
+    def FindMiscInfo(image_dir):
         """Find misc info in build output dir or extracted target files.
 
         Args:
@@ -369,7 +369,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             "Cannot find %s in %s." % (_MISC_INFO_FILE_NAME, image_dir))
 
     @staticmethod
-    def _FindImageDir(image_dir):
+    def FindImageDir(image_dir):
         """Find images in build output dir or extracted target files.
 
         Args:
@@ -419,8 +419,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         host_artifacts_path = self._FindCvdHostArtifactsPath(tool_dirs)
 
         if avd_spec.local_system_image:
-            misc_info_path = self._FindMiscInfo(image_dir)
-            image_dir = self._FindImageDir(image_dir)
+            misc_info_path = self.FindMiscInfo(image_dir)
+            image_dir = self.FindImageDir(image_dir)
             ota_tools_dir = os.path.abspath(
                 ota_tools.FindOtaToolsDir(tool_dirs))
             system_image_path = create_common.FindLocalImage(
