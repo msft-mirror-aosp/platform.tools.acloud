@@ -144,7 +144,7 @@ class CommonOperationsTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(
             _report.data,
             {"devices": [{
-                "ip": self.IP.external,
+                "ip": self.IP.external + ":6520",
                 "instance_name": self.INSTANCE,
                 "branch": self.BRANCH,
                 "build_id": self.BUILD_ID,
