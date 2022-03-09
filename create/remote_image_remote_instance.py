@@ -36,7 +36,6 @@ from acloud.public import report
 logger = logging.getLogger(__name__)
 _DEVICE = "device"
 _DEVICES = "devices"
-_DEVICE_KEY_MAPPING = {"serverUrl": "ip", "sessionId": "instance_name"}
 _LAUNCH_CVD_TIME = "launch_cvd_time"
 _RE_SESSION_ID = re.compile(r".*session_id:\"(?P<session_id>[^\"]+)")
 _RE_SERVER_URL = re.compile(r".*server_url:\"(?P<server_url>[^\"]+)")
@@ -153,21 +152,3 @@ class RemoteImageRemoteInstance(base_avd_create.BaseAVDCreate):
                 server_url = server_url_match.group("server_url")
                 break
         return session_id, server_url
-
-    @staticmethod
-    def _ReplaceDeviceDataKeys(device_data):
-        """Replace keys of device data from oxygen response.
-
-        To keep the device data using the same keys in Acloud report. Before
-        writing data to report, it needs to update the keys.
-
-        Values:
-            device_data: Dict of device data. e.g. {'sessionId': 'b01ead68',
-                                                    'serverUrl': '10.1.1.1'}
-        """
-        for key, val in _DEVICE_KEY_MAPPING.items():
-            if key in device_data:
-                device_data[val] = device_data[key]
-                del device_data[key]
-            else:
-                logger.debug("There is no '%s' data in response.", key)
