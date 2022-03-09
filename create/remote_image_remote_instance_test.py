@@ -132,13 +132,6 @@ class RemoteImageRemoteInstanceTest(driver_test_lib.BaseDriverTest):
                 MULTIPLE_LINES_LEASE_RESPONSE),
             (expect_session_id, expect_server_url))
 
-    def testReplaceDeviceDataKeys(self):
-        """test ReplaceDeviceDataKeys."""
-        device_data = {"sessionId": "fake_device", "serverUrl": "10.1.1.1"}
-        expected_result = {"instance_name": "fake_device", "ip": "10.1.1.1"}
-        self.remote_image_remote_instance._ReplaceDeviceDataKeys(device_data)
-        self.assertEqual(device_data, expected_result)
-
 
 if __name__ == '__main__':
     unittest.main()
