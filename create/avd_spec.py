@@ -229,6 +229,9 @@ class AVDSpec():
         if args.local_image is None:
             self._image_source = constants.IMAGE_SRC_REMOTE
             self._ProcessRemoteBuildArgs(args)
+            if args.local_system_image is not None:
+                self._local_system_image = self._GetLocalImagePath(
+                    args.local_system_image)
         else:
             self._image_source = constants.IMAGE_SRC_LOCAL
             self._ProcessLocalImageArgs(args)

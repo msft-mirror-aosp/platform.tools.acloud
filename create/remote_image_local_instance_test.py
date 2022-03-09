@@ -22,15 +22,18 @@ import subprocess
 from unittest import mock
 
 from acloud import errors
+from acloud.create import create_common
 from acloud.create import remote_image_local_instance
+from acloud.create import local_image_local_instance
 from acloud.internal.lib import android_build_client
 from acloud.internal.lib import auth
 from acloud.internal.lib import driver_test_lib
+from acloud.internal.lib import ota_tools
 from acloud.internal.lib import utils
 from acloud.setup import setup_common
 
 
-# pylint: disable=invalid-name, protected-access
+# pylint: disable=invalid-name, protected-access, no-member
 class RemoteImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
     """Test remote_image_local_instance methods."""
 
@@ -54,6 +57,7 @@ class RemoteImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
         """Test get image artifacts path."""
         mock_proc.return_value = "/unit/test"
         avd_spec = mock.MagicMock()
+        avd_spec.local_system_image = None
         # raise errors.NoCuttlefishCommonInstalled
         self.Patch(setup_common, "PackageInstalled", return_value=False)
         self.assertRaises(errors.NoCuttlefishCommonInstalled,
@@ -69,6 +73,38 @@ class RemoteImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
         mock_proc.assert_called_once_with(avd_spec)
         self.assertEqual(paths.image_dir, "/unit/test")
         self.assertEqual(paths.host_bins, "/unit/test")
+
+        # GSI
+        avd_spec.local_system_image = "/test_local_system_image_dir"
+        avd_spec.local_tool_dirs = "/test_local_tool_dirs"
+        avd_spec.cfg = None
+        avd_spec.remote_image = self._fake_remote_image
+        self.Patch(os, "makedirs")
+        self.Patch(create_common, "DownloadRemoteArtifact")
+        self.Patch(os.path, "exists", side_effect=[True, False])
+        self.Patch(create_common, "GetNonEmptyEnvVars")
+        self.Patch(local_image_local_instance.LocalImageLocalInstance,
+                   "FindMiscInfo", return_value="/mix_image_1234/MISC")
+        self.Patch(local_image_local_instance.LocalImageLocalInstance,
+                   "FindImageDir", return_value="/mix_image_1234/IMAGES")
+        self.Patch(ota_tools, "FindOtaToolsDir", return_value="/ota_tools_dir")
+        self.Patch(create_common, "FindLocalImage", return_value="/system_image_path")
+        paths = self.RemoteImageLocalInstance.GetImageArtifactsPath(avd_spec)
+        create_common.DownloadRemoteArtifact.assert_called_with(
+            avd_spec.cfg, "aosp_cf_x86_64_phone-userdebug", "1234",
+            "aosp_cf_x86_64_phone-target_files-1234.zip", "/unit/test/mix_image_1234",
+            decompress=True)
+        self.assertEqual(paths.image_dir, "/mix_image_1234/IMAGES")
+        self.assertEqual(paths.misc_info, "/mix_image_1234/MISC")
+        self.assertEqual(paths.host_bins, "/unit/test")
+        self.assertEqual(paths.ota_tools_dir, "/ota_tools_dir")
+        self.assertEqual(paths.system_image, "/system_image_path")
+        create_common.DownloadRemoteArtifact.reset_mock()
+
+        self.Patch(os.path, "exists", side_effect=[True, True])
+        self.RemoteImageLocalInstance.GetImageArtifactsPath(avd_spec)
+        create_common.DownloadRemoteArtifact.assert_not_called()
+
 
     @mock.patch.object(shutil, "rmtree")
     def testDownloadAndProcessImageFiles(self, mock_rmtree):
