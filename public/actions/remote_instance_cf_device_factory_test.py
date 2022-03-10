@@ -276,10 +276,13 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             fake_avd_spec,
             fake_image_name,
             fake_host_package_name)
+        compute_client = factory.GetComputeClient()
+        compute_client.LaunchCvd.return_value = {"instance": "failure"}
         factory.CreateInstance()
         mock_create_gce_instance.assert_called_once()
         mock_upload.assert_called_once()
-        factory.GetComputeClient().LaunchCvd.assert_called_once()
+        compute_client.LaunchCvd.assert_called_once()
+        self.assertEqual({"instance": "failure"}, factory.GetFailures())
 
     def testGetOpenWrtInfoDict(self):
         """Test GetOpenWrtInfoDict."""

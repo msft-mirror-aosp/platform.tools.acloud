@@ -129,6 +129,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         self._report_internal_ip = report_internal_ip
         self._gpu = gpu
         # Store all failures result when creating one or multiple instances.
+        # This attribute is only used by the deprecated create_cf command.
         self._all_failures = {}
         # Map from instance names to lists of report.LogFile.
         self._all_logs = {}
@@ -274,10 +275,11 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                             kernel_branch, kernel_build_target, bootloader_build_id,
                             bootloader_branch, bootloader_build_target,
                             ota_build_id, ota_branch, ota_build_target)
-            self.LaunchCvd(instance,
-                           blank_data_disk_size_gb=blank_data_disk_size_gb,
-                           boot_timeout_secs=self._boot_timeout_secs)
-
+            failures = self.LaunchCvd(
+                instance,
+                blank_data_disk_size_gb=blank_data_disk_size_gb,
+                boot_timeout_secs=self._boot_timeout_secs)
+            self._all_failures.update(failures)
             return instance
         except Exception as e:
             self._all_failures[instance] = e
@@ -448,7 +450,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                 error_msg = (
                     "WEBRTC is not supported in the current build. Please try VNC such "
                     "as '$acloud create --autoconnect vnc'")
-            self._all_failures[instance] = error_msg
             utils.PrintColorString(str(e), utils.TextColors.FAIL)
 
         self._FindLogFiles(instance,
