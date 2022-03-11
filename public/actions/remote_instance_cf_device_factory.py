@@ -59,11 +59,13 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             return instance
         try:
             self._ProcessArtifacts(self._avd_spec.image_source)
-            self._compute_client.LaunchCvd(
+            failures = self._compute_client.LaunchCvd(
                 instance,
                 self._avd_spec,
                 self._cfg.extra_data_disk_size_gb,
                 boot_timeout_secs=self._avd_spec.boot_timeout_secs)
+            for failing_instance, error_msg in failures.items():
+                self._SetFailures(failing_instance, error_msg)
         except Exception as e:
             self._SetFailures(instance, e)
 
@@ -94,7 +96,6 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
 
         if self._avd_spec.extra_files:
             self._compute_client.UploadExtraFiles(self._avd_spec.extra_files)
-
 
     def _FetchBuild(self, avd_spec):
         """Download CF artifacts from android build.
