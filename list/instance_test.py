@@ -113,6 +113,24 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
                          "fake_config_path")
 
     # pylint: disable=protected-access
+    def testParsingCvdFleetOutput(self):
+        """Test ParsingCvdFleetOutput."""
+        cvd_fleet_output = """WARNING: cvd_server client version does not match
+{
+"adb_serial" : "0.0.0.0:6520",
+"instance_name" : "cvd-1",
+}"""
+
+        expected_result = """{
+"adb_serial" : "0.0.0.0:6520",
+"instance_name" : "cvd-1",
+}"""
+
+        self.assertEqual(
+            instance.LocalInstance._ParsingCvdFleetOutput(cvd_fleet_output),
+            expected_result)
+
+    # pylint: disable=protected-access
     def testIsProcessRunning(self):
         """Test IsProcessRunning."""
         process = "cvd_server"

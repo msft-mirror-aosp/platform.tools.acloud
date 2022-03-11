@@ -77,6 +77,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
 
         mock_client_obj = factory.GetComputeClient()
         mock_client_obj.FormatRemoteHostInstanceName.return_value = "inst"
+        mock_client_obj.LaunchCvd.return_value = {"inst": "failure"}
 
         self.assertEqual("inst", factory.CreateInstance())
         mock_ssh.Ssh.assert_called_once()
@@ -91,6 +92,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             mock_avd_spec,
             mock_avd_spec.cfg.extra_data_disk_size_gb,
             boot_timeout_secs=mock_avd_spec.boot_timeout_secs)
+        self.assertEqual({"inst": "failure"}, factory.GetFailures())
 
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory."
                 "cvd_compute_client_multi_stage")
@@ -108,6 +110,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
 
         mock_client_obj = factory.GetComputeClient()
         mock_client_obj.FormatRemoteHostInstanceName.return_value = "inst"
+        mock_client_obj.LaunchCvd.return_value = {}
 
         self.assertEqual("inst", factory.CreateInstance())
         mock_ssh.Ssh.assert_called_once()
@@ -118,6 +121,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_cvd_utils.UploadCvdHostPackage.assert_called_with(
             mock.ANY,"/mock/cvd.tar.gz")
         mock_client_obj.LaunchCvd.assert_called()
+        self.assertFalse(factory.GetFailures())
 
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory."
                 "cvd_compute_client_multi_stage")
@@ -139,6 +143,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
 
         mock_client_obj = factory.GetComputeClient()
         mock_client_obj.FormatRemoteHostInstanceName.return_value = "inst"
+        mock_client_obj.LaunchCvd.return_value = {}
 
         self.assertEqual("inst", factory.CreateInstance())
         mock_ssh.Ssh.assert_called_once()
@@ -149,6 +154,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                          r"^tar -cf - --lzop -S -C \S+ super\.img \| "
                          r"/mock/ssh -- tar -xf - --lzop -S$")
         mock_client_obj.LaunchCvd.assert_called()
+        self.assertFalse(factory.GetFailures())
 
 
 if __name__ == "__main__":
