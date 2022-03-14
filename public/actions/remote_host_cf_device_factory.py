@@ -44,6 +44,7 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         avd_spec: AVDSpec object that tells us what we're going to create.
         local_image_artifact: A string, path to local image.
         cvd_host_package_artifact: A string, path to cvd host package.
+        all_failures: A dictionary mapping instance names to errors.
         compute_client: An object of cvd_compute_client.CvdComputeClient.
         ssh: An Ssh object.
     """
@@ -56,6 +57,7 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         self._avd_spec = avd_spec
         self._local_image_artifact = local_image_artifact
         self._cvd_host_package_artifact = cvd_host_package_artifact
+        self._all_failures = {}
         credentials = auth.CreateCredentials(avd_spec.cfg)
         compute_client = cvd_compute_client_multi_stage.CvdComputeClient(
             acloud_config=avd_spec.cfg,
@@ -74,11 +76,12 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         """
         instance = self._InitRemotehost()
         self._ProcessRemoteHostArtifacts()
-        self._compute_client.LaunchCvd(
+        failures = self._compute_client.LaunchCvd(
             instance,
             self._avd_spec,
             self._avd_spec.cfg.extra_data_disk_size_gb,
             boot_timeout_secs=self._avd_spec.boot_timeout_secs)
+        self._all_failures.update(failures)
         return instance
 
     def _InitRemotehost(self):
@@ -257,9 +260,9 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         Returns:
             A dictionary that contains all the failures.
             The key is the name of the instance that fails to boot,
-            and the value is an errors.DeviceBootError object.
+            and the value is a string or an errors.DeviceBootError object.
         """
-        return self._compute_client.all_failures
+        return self._all_failures
 
     def GetLogs(self):
         """Get all device logs.
