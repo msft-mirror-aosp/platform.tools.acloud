@@ -177,9 +177,18 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.Patch(glob, "glob", return_value=["fake.img"])
         # No specified local_image, image source is from remote
         self.args.local_image = None
+        self.args.local_system_image = None
         self.AvdSpec._ProcessImageArgs(self.args)
         self.assertEqual(self.AvdSpec._image_source, constants.IMAGE_SRC_REMOTE)
         self.assertEqual(self.AvdSpec._local_image_dir, None)
+        self.assertEqual(self.AvdSpec.local_system_image, None)
+
+        self.args.local_system_image = "/test_path/local_system_image"
+        fake_local_system_image = "/fake_path/fake_local_system_image_path"
+        self.Patch(self.AvdSpec, "_GetLocalImagePath",
+                   return_value=fake_local_system_image)
+        self.AvdSpec._ProcessImageArgs(self.args)
+        self.assertEqual(self.AvdSpec.local_system_image, fake_local_system_image)
 
         # Specified local_image with an arg for cf type
         self.Patch(os.path, "isfile", return_value=True)
