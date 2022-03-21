@@ -352,6 +352,9 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             if avd_spec.num_avds_per_instance > 1:
                 launch_cvd_args.append(
                     _NUM_AVDS_ARG % {"num_AVD": avd_spec.num_avds_per_instance})
+            if avd_spec.base_instance_num:
+                launch_cvd_args.append(
+                    "--base-instance-num=%s" % avd_spec.base_instance_num)
             if avd_spec.launch_args:
                 launch_cvd_args.append(avd_spec.launch_args)
         else:
@@ -431,6 +434,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             boot_timeout_secs or constants.DEFAULT_CF_BOOT_TIMEOUT)
         ssh_command = "./bin/launch_cvd -daemon " + " ".join(launch_cvd_args)
         try:
+            if avd_spec and avd_spec.base_instance_num:
+                self.ExtendReportData(constants.BASE_INSTANCE_NUM, avd_spec.base_instance_num)
             self.ExtendReportData(_LAUNCH_CVD_COMMAND, ssh_command)
             self._ssh.Run(ssh_command, boot_timeout_secs, retry=_NO_RETRY)
             self._UpdateOpenWrtStatus(avd_spec)
