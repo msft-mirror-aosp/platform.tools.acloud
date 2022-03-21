@@ -20,6 +20,8 @@ import os
 
 from acloud.internal import constants
 from acloud.internal.lib import ssh
+from acloud.public import report
+
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +80,29 @@ def UploadCvdHostPackage(ssh_obj, cvd_host_package):
     remote_cmd = f"tar -x -z -f - < {cvd_host_package}"
     logger.debug("remote_cmd:\n %s", remote_cmd)
     ssh_obj.Run(remote_cmd)
+
+
+def ConvertRemoteLogs(log_paths):
+    """Convert paths on a remote host or a GCE instance to log objects.
+
+    Args:
+        log_paths: A collection of strings, the remote paths to the logs.
+
+    Returns:
+        A list of report.LogFile objects.
+    """
+    logs = []
+    for log_path in log_paths:
+        log = report.LogFile(log_path, constants.LOG_TYPE_TEXT)
+        if log_path.endswith("kernel.log"):
+            log = report.LogFile(log_path, constants.LOG_TYPE_KERNEL_LOG)
+        elif log_path.endswith("logcat"):
+            log = report.LogFile(log_path, constants.LOG_TYPE_LOGCAT,
+                                 "full_gce_logcat")
+        elif not (log_path.endswith(".log") or log_path.endswith(".json")):
+            continue
+        logs.append(log)
+    return logs
 
 
 def GetRemoteBuildInfoDict(avd_spec):
