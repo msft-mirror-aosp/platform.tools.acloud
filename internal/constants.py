@@ -205,7 +205,7 @@ SSL_CA_NAME = "ACloud-webRTC-CA"
 SSL_TRUST_CA_DIR = "/usr/local/share/ca-certificates"
 
 # Remote Log
-REMOTE_LOG_FOLDER = f"/home/{GCE_USER}/cuttlefish_runtime"
+REMOTE_LOG_FOLDER = "cuttlefish_runtime"
 
 # Cheeps specific stuff.
 CHEEPS_BETTY_IMAGE = "betty_image"
