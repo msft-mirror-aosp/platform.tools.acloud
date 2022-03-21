@@ -22,7 +22,6 @@ import time
 import unittest
 
 from unittest import mock
-import six
 
 import apiclient
 
@@ -233,9 +232,10 @@ class AndroidBuildClientTest(driver_test_lib.BaseDriverTest):
             "}"
         )
         expected_arg = "-credential_source=fake_token"
-        self.Patch(six.moves.builtins, "open", mock.mock_open(read_data=certification))
-        cert_arg = self.client.GetFetchCertArg(cert_file_path)
-        self.assertEqual(expected_arg, cert_arg)
+        with mock.patch("builtins.open",
+                        mock.mock_open(read_data=certification)):
+            cert_arg = self.client.GetFetchCertArg(cert_file_path)
+            self.assertEqual(expected_arg, cert_arg)
 
     def testProcessBuild(self):
         """Test creating "cuttlefish build" strings."""
