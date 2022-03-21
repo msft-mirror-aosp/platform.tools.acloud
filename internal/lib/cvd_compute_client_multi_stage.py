@@ -49,8 +49,6 @@ from acloud.internal.lib import android_compute_client
 from acloud.internal.lib import gcompute_client
 from acloud.internal.lib import utils
 from acloud.internal.lib.ssh import Ssh
-from acloud.public import report
-from acloud.pull import pull
 from acloud.setup import mkcert
 
 
@@ -131,8 +129,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         # Store all failures result when creating one or multiple instances.
         # This attribute is only used by the deprecated create_cf command.
         self._all_failures = {}
-        # Map from instance names to lists of report.LogFile.
-        self._all_logs = {}
         self._extra_args_ssh_tunnel = acloud_config.extra_args_ssh_tunnel
         self._ssh = None
         self._ip = None
@@ -452,8 +448,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                     "as '$acloud create --autoconnect vnc'")
             utils.PrintColorString(str(e), utils.TextColors.FAIL)
 
-        self._FindLogFiles(instance,
-                           error_msg and avd_spec and not avd_spec.no_pull_log)
         self._execution_time[_LAUNCH_CVD] = round(time.time() - timestart, 2)
         return {instance: error_msg} if error_msg else {}
 
@@ -471,35 +465,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         boot_timeout_secs = timeout_secs - self._execution_time[_FETCH_ARTIFACT]
         logger.debug("Timeout for boot: %s secs", boot_timeout_secs)
         return boot_timeout_secs
-
-    def _FindLogFiles(self, instance, download):
-        """Find and pull all log files from instance.
-
-        Args:
-            instance: String, instance name.
-            download: Whether to download the files to a temporary directory
-                      and show messages to the user.
-        """
-        self._all_logs[instance] = [
-            report.LogFile("/var/log/kern.log", constants.LOG_TYPE_KERNEL_LOG,
-                           "host_kernel.log")]
-        log_files = pull.GetAllLogFilePaths(self._ssh)
-        for log_file in log_files:
-            log = report.LogFile(log_file, constants.LOG_TYPE_TEXT)
-            if log_file.endswith("kernel.log"):
-                log = report.LogFile(log_file, constants.LOG_TYPE_KERNEL_LOG)
-            elif log_file.endswith("logcat"):
-                log = report.LogFile(log_file, constants.LOG_TYPE_LOGCAT,
-                                     "full_gce_logcat")
-            elif not (log_file.endswith(".log") or log_file.endswith(".json")):
-                continue
-            self._all_logs[instance].append(log)
-
-        if not download:
-            return
-        error_log_folder = pull.GetDownloadLogFolder(instance)
-        pull.PullLogs(self._ssh, log_files, error_log_folder)
-        self.ExtendReportData(constants.ERROR_LOG_FOLDER, error_log_folder)
 
     @utils.TimeExecute(function_description="Reusing GCE instance")
     def _ReusingGceInstance(self, avd_spec):
@@ -751,11 +716,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
     def all_failures(self):
         """Return all_failures"""
         return self._all_failures
-
-    @property
-    def all_logs(self):
-        """Return all_logs"""
-        return self._all_logs
 
     @property
     def execution_time(self):
