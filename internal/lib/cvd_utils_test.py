@@ -17,6 +17,7 @@
 import unittest
 from unittest import mock
 
+from acloud.internal import constants
 from acloud.internal.lib import cvd_utils
 
 
@@ -68,6 +69,21 @@ class CvdUtilsTest(unittest.TestCase):
         mock_ssh = mock.Mock()
         cvd_utils.UploadCvdHostPackage(mock_ssh, "/mock/cvd.tar.gz")
         mock_ssh.Run.assert_called_with("tar -x -z -f - < /mock/cvd.tar.gz")
+
+    def testConvertRemoteLogs(self):
+        """Test ConvertRemoteLogs."""
+        logs = cvd_utils.ConvertRemoteLogs(
+            ["/kernel.log", "/logcat", "/launcher.log", "/access-kregistry"])
+        expected_logs = [
+            {"path": "/kernel.log", "type": constants.LOG_TYPE_KERNEL_LOG},
+            {
+                "path": "/logcat",
+                "type": constants.LOG_TYPE_LOGCAT,
+                "name": "full_gce_logcat"
+            },
+            {"path": "/launcher.log", "type": constants.LOG_TYPE_TEXT}
+        ]
+        self.assertEqual(expected_logs, logs)
 
     def testGetRemoteBuildInfoDict(self):
         """Test GetRemoteBuildInfoDict."""

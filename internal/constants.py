@@ -114,6 +114,7 @@ ADB_PORT = "adb_port"
 WEBRTC_PORT = "webrtc_port"
 DEVICE_SERIAL = "device_serial"
 LOGS = "logs"
+BASE_INSTANCE_NUM = "base_instance_num"
 # For cuttlefish remote instances
 CF_ADB_PORT = 6520
 CF_VNC_PORT = 6444
