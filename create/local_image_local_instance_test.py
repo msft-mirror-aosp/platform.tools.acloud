@@ -15,6 +15,7 @@
 # limitations under the License.
 """Tests for LocalImageLocalInstance."""
 
+import builtins
 import os
 import subprocess
 import tempfile
@@ -444,6 +445,7 @@ EOF"""
     @mock.patch.dict("os.environ", clear=True)
     def testLaunchCVD(self, mock_popen):
         """test _LaunchCvd should call subprocess.Popen with the env."""
+        self.Patch(builtins, "open", mock.mock_open())
         local_instance_id = 3
         launch_cvd_cmd = "launch_cvd"
         host_bins_path = "host_bins_path"
@@ -466,23 +468,15 @@ EOF"""
                                                    cvd_home_dir,
                                                    timeout)
 
-        mock_popen.assert_called_once_with(launch_cvd_cmd,
-                                           shell=True,
-                                           env=cvd_env,
-                                           stdout=subprocess.PIPE,
-                                           stderr=subprocess.PIPE,
-                                           text=True,
-                                           cwd=host_bins_path)
+        mock_popen.assert_called_once()
         mock_proc.communicate.assert_called_once_with(timeout=timeout)
 
     @mock.patch("acloud.create.local_image_local_instance.subprocess.Popen")
     def testLaunchCVDFailure(self, mock_popen):
         """test _LaunchCvd with subprocess errors."""
+        self.Patch(builtins, "open", mock.mock_open())
         mock_proc = mock.Mock(returncode=9)
         mock_popen.return_value = mock_proc
-        mock_proc.communicate.side_effect = [
-            ("stdout", "first line" + ("\n" * 10) + "last line\n")
-        ]
         with self.assertRaises(errors.LaunchCVDFail) as launch_cvd_failure:
             self.local_image_local_instance._LaunchCvd("launch_cvd",
                                                        3,
@@ -491,13 +485,12 @@ EOF"""
                                                        "cvd_home_dir",
                                                        100)
         self.assertIn("returned 9", str(launch_cvd_failure.exception))
-        self.assertNotIn("first line", str(launch_cvd_failure.exception))
-        self.assertIn("last line", str(launch_cvd_failure.exception))
 
     @mock.patch("acloud.create.local_image_local_instance.list_instance")
     @mock.patch("acloud.create.local_image_local_instance.subprocess.Popen")
     def testLaunchCVDTimeout(self, mock_popen, mock_list_instance):
         """test _LaunchCvd with subprocess timeout."""
+        self.Patch(builtins, "open", mock.mock_open())
         mock_proc = mock.Mock(returncode=255)
         mock_popen.return_value = mock_proc
         mock_proc.communicate.side_effect = [

@@ -101,6 +101,9 @@ _CMD_LAUNCH_CVD_NO_ADB_ARG = " -run_adb_connector=false"
 _CMD_LAUNCH_CVD_CONSOLE_ARG = " -console=true"
 _CONFIG_RE = re.compile(r"^config=(?P<config>.+)")
 _CONSOLE_NAME = "console"
+# Files to store the output when launching cvds.
+_STDOUT = "stdout"
+_STDERR = "stderr"
 _MAX_REPORTED_ERROR_LINES = 10
 
 # In accordance with the number of network interfaces in
@@ -661,29 +664,37 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         cvd_env[constants.ENV_ANDROID_HOST_OUT] = host_bins_path
         cvd_env[constants.ENV_CVD_HOME] = cvd_home_dir
         cvd_env[constants.ENV_CUTTLEFISH_INSTANCE] = str(local_instance_id)
+        stdout_file = os.path.join(cvd_home_dir, _STDOUT)
+        stderr_file = os.path.join(cvd_home_dir, _STDERR)
         # Check the result of launch_cvd command.
         # An exit code of 0 is equivalent to VIRTUAL_DEVICE_BOOT_COMPLETED
-        try:
-            proc = subprocess.Popen(cmd, shell=True, env=cvd_env,
-                                    stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE,
-                                    text=True, cwd=host_bins_path)
-            stdout, stderr = proc.communicate(timeout=timeout)
-            if proc.returncode == 0:
-                logger.info("launch_cvd stdout:\n%s", stdout)
-                logger.info("launch_cvd stderr:\n%s", stderr)
-                return
-            error_msg = "launch_cvd returned %d." % proc.returncode
-        except subprocess.TimeoutExpired:
-            self._StopCvd(local_instance_id, proc)
-            stdout, stderr = proc.communicate(timeout=5)
-            error_msg = "Device did not boot within %d secs." % timeout
+        with open(stdout_file, "w+") as f_stdout, open(stderr_file,
+                                                       "w+") as f_stderr:
+            try:
+                proc = subprocess.Popen(
+                    cmd, shell=True, env=cvd_env, stdout=f_stdout,
+                    stderr=f_stderr, text=True, cwd=host_bins_path)
+                proc.communicate(timeout=timeout)
+                f_stdout.seek(0)
+                f_stderr.seek(0)
+                if proc.returncode == 0:
+                    logger.info("launch_cvd stdout:\n%s", f_stdout.read())
+                    logger.info("launch_cvd stderr:\n%s", f_stderr.read())
+                    return
+                error_msg = "launch_cvd returned %d." % proc.returncode
+            except subprocess.TimeoutExpired:
+                self._StopCvd(local_instance_id, proc)
+                proc.communicate(timeout=5)
+                error_msg = "Device did not boot within %d secs." % timeout
 
-        logger.error("launch_cvd stdout:\n%s", stdout)
-        logger.error("launch_cvd stderr:\n%s", stderr)
-        split_stderr = stderr.splitlines()[-_MAX_REPORTED_ERROR_LINES:]
-        raise errors.LaunchCVDFail("%s Stderr:\n%s" %
-                                   (error_msg, "\n".join(split_stderr)))
+            f_stdout.seek(0)
+            f_stderr.seek(0)
+            stderr = f_stderr.read()
+            logger.error("launch_cvd stdout:\n%s", f_stdout.read())
+            logger.error("launch_cvd stderr:\n%s", stderr)
+            split_stderr = stderr.splitlines()[-_MAX_REPORTED_ERROR_LINES:]
+            raise errors.LaunchCVDFail(
+                "%s Stderr:\n%s" % (error_msg, "\n".join(split_stderr)))
 
     @staticmethod
     def _FindLogs(local_instance_id):
