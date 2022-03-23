@@ -230,12 +230,17 @@ class AVDSpec():
         if args.local_image is None:
             self._image_source = constants.IMAGE_SRC_REMOTE
             self._ProcessRemoteBuildArgs(args)
-            if args.local_system_image is not None:
-                self._local_system_image = self._GetLocalImagePath(
-                    args.local_system_image)
         else:
             self._image_source = constants.IMAGE_SRC_LOCAL
             self._ProcessLocalImageArgs(args)
+
+        if args.local_kernel_image is not None:
+            self._local_kernel_image = self._GetLocalImagePath(
+                args.local_kernel_image)
+
+        if args.local_system_image is not None:
+            self._local_system_image = self._GetLocalImagePath(
+                args.local_system_image)
 
         self.image_download_dir = (
             args.image_download_dir if args.image_download_dir
@@ -425,14 +430,6 @@ class AVDSpec():
             raise errors.CreateError(
                 "Local image doesn't support the AVD type: %s" % self._avd_type
             )
-
-        if args.local_kernel_image is not None:
-            self._local_kernel_image = self._GetLocalImagePath(
-                args.local_kernel_image)
-
-        if args.local_system_image is not None:
-            self._local_system_image = self._GetLocalImagePath(
-                args.local_system_image)
 
     @staticmethod
     def _GetGceLocalImagePath(local_image_dir):

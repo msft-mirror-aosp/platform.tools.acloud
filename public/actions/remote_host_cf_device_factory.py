@@ -80,12 +80,13 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             A string, representing instance name.
         """
         instance = self._InitRemotehost()
-        self._ProcessRemoteHostArtifacts()
+        image_args = self._ProcessRemoteHostArtifacts()
         failures = self._compute_client.LaunchCvd(
             instance,
             self._avd_spec,
             self._avd_spec.cfg.extra_data_disk_size_gb,
-            boot_timeout_secs=self._avd_spec.boot_timeout_secs)
+            boot_timeout_secs=self._avd_spec.boot_timeout_secs,
+            extra_args=image_args)
         self._all_failures.update(failures)
         self._FindLogFiles(
             instance, instance in failures and not self._avd_spec.no_pull_log)
@@ -137,6 +138,9 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         - If images source is remote, tool will download images from android
           build to local and unzip it then upload to remote host, because there
           is no permission to fetch build rom on the remote host.
+
+        Returns:
+            A list of strings, the launch_cvd arguments.
         """
         self._compute_client.SetStage(constants.STAGE_ARTIFACT)
         if self._avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
@@ -151,6 +155,8 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
                 self._UploadRemoteImageArtifacts(artifacts_path)
             finally:
                 shutil.rmtree(artifacts_path)
+
+        return cvd_utils.UploadExtraImages(self._ssh, self._avd_spec)
 
     @utils.TimeExecute(function_description="Downloading Android Build artifact")
     def _DownloadArtifacts(self, extract_path):

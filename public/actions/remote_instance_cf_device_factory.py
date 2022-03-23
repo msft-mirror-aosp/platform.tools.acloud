@@ -61,12 +61,13 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         if instance in self.GetFailures():
             return instance
         try:
-            self._ProcessArtifacts(self._avd_spec.image_source)
+            image_args = self._ProcessArtifacts(self._avd_spec.image_source)
             failures = self._compute_client.LaunchCvd(
                 instance,
                 self._avd_spec,
                 self._cfg.extra_data_disk_size_gb,
-                boot_timeout_secs=self._avd_spec.boot_timeout_secs)
+                boot_timeout_secs=self._avd_spec.boot_timeout_secs,
+                extra_args=image_args)
             for failing_instance, error_msg in failures.items():
                 self._SetFailures(failing_instance, error_msg)
         except Exception as e:
@@ -88,6 +89,9 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
 
         Args:
             image_source: String, the type of image source is remote or local.
+
+        Returns:
+            A list of strings, the launch_cvd arguments.
         """
         if image_source == constants.IMAGE_SRC_LOCAL:
             self._UploadLocalImageArtifacts(self._local_image_artifact,
@@ -102,6 +106,8 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
 
         if self._avd_spec.extra_files:
             self._compute_client.UploadExtraFiles(self._avd_spec.extra_files)
+
+        return cvd_utils.UploadExtraImages(self._ssh, self._avd_spec)
 
     def _FetchBuild(self, avd_spec):
         """Download CF artifacts from android build.

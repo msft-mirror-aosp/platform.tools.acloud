@@ -17,9 +17,12 @@
 import glob
 import logging
 import os
+import posixpath as remote_path
 
+from acloud import errors
 from acloud.internal import constants
 from acloud.internal.lib import ssh
+from acloud.internal.lib import utils
 from acloud.public import report
 
 
@@ -27,6 +30,12 @@ logger = logging.getLogger(__name__)
 
 # bootloader and kernel are files required to launch AVD.
 _ARTIFACT_FILES = ["*.img", "bootloader", "kernel"]
+_REMOTE_IMAGE_DIR = "acloud_cf"
+_BOOT_IMAGE_NAME = "boot.img"
+_VENDOR_BOOT_IMAGE_NAME = "vendor_boot.img"
+_REMOTE_BOOT_IMAGE_PATH = remote_path.join(_REMOTE_IMAGE_DIR, _BOOT_IMAGE_NAME)
+_REMOTE_VENDOR_BOOT_IMAGE_PATH = remote_path.join(
+    _REMOTE_IMAGE_DIR, _VENDOR_BOOT_IMAGE_NAME)
 
 
 def UploadImageZip(ssh_obj, image_zip):
@@ -80,6 +89,75 @@ def UploadCvdHostPackage(ssh_obj, cvd_host_package):
     remote_cmd = f"tar -x -z -f - < {cvd_host_package}"
     logger.debug("remote_cmd:\n %s", remote_cmd)
     ssh_obj.Run(remote_cmd)
+
+
+def _FindBootImages(search_path):
+    """Find boot and vendor_boot images in a path.
+
+    Args:
+        search_path: A path to an image file or an image directory.
+
+    Returns:
+        The boot image path and the vendor_boot image path. Each value can be
+        None if the path doesn't exist.
+    """
+    if os.path.isfile(search_path):
+        return search_path, None
+
+    paths = [os.path.join(search_path, name) for name in
+             (_BOOT_IMAGE_NAME, _VENDOR_BOOT_IMAGE_NAME)]
+    return [(path if os.path.isfile(path) else None) for path in paths]
+
+
+@utils.TimeExecute(function_description="Uploading local kernel images.")
+def _UploadKernelImages(ssh_obj, search_path):
+    """Find and upload kernel images to a remote host or a GCE instance.
+
+    Args:
+        ssh_obj: An Ssh object.
+        search_path: A path to an image file or an image directory.
+
+    Returns:
+        A list of strings, the launch_cvd arguments including the remote paths.
+
+    Raises:
+        errors.GetLocalImageError if search_path does not contain kernel
+        images.
+    """
+    # Assume that the caller cleaned up the remote home directory.
+    ssh_obj.Run("mkdir -p " + _REMOTE_IMAGE_DIR)
+
+    launch_cvd_args = []
+    boot_image_path, vendor_boot_image_path = _FindBootImages(search_path)
+    if boot_image_path:
+        ssh_obj.ScpPushFile(boot_image_path, _REMOTE_BOOT_IMAGE_PATH)
+        launch_cvd_args.extend(["-boot_image", _REMOTE_BOOT_IMAGE_PATH])
+        if vendor_boot_image_path:
+            ssh_obj.ScpPushFile(vendor_boot_image_path,
+                                _REMOTE_VENDOR_BOOT_IMAGE_PATH)
+            launch_cvd_args.extend(["-vendor_boot_image",
+                                    _REMOTE_VENDOR_BOOT_IMAGE_PATH])
+        return launch_cvd_args
+
+    raise errors.GetLocalImageError(f"No kernel images in {search_path}.")
+
+
+def UploadExtraImages(ssh_obj, avd_spec):
+    """Find and upload the images specified in avd_spec.
+
+    Args:
+        ssh_obj: An Ssh object.
+        avd_spec: An AvdSpec object containing extra image paths.
+
+    Returns:
+        A list of strings, the launch_cvd arguments including the remote paths.
+
+    Raises:
+        errors.GetLocalImageError if any specified image path does not exist.
+    """
+    if avd_spec.local_kernel_image:
+        return _UploadKernelImages(ssh_obj, avd_spec.local_kernel_image)
+    return []
 
 
 def ConvertRemoteLogs(log_paths):
