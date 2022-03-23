@@ -30,6 +30,8 @@ from acloud.internal.lib import cvd_utils
 from acloud.internal.lib import utils
 from acloud.internal.lib import ssh
 from acloud.public.actions import base_device_factory
+from acloud.pull import pull
+
 
 logger = logging.getLogger(__name__)
 _ALL_FILES = "*"
@@ -45,6 +47,8 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         local_image_artifact: A string, path to local image.
         cvd_host_package_artifact: A string, path to cvd host package.
         all_failures: A dictionary mapping instance names to errors.
+        all_logs: A dictionary mapping instance names to lists of
+                  report.LogFile.
         compute_client: An object of cvd_compute_client.CvdComputeClient.
         ssh: An Ssh object.
     """
@@ -58,6 +62,7 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         self._local_image_artifact = local_image_artifact
         self._cvd_host_package_artifact = cvd_host_package_artifact
         self._all_failures = {}
+        self._all_logs = {}
         credentials = auth.CreateCredentials(avd_spec.cfg)
         compute_client = cvd_compute_client_multi_stage.CvdComputeClient(
             acloud_config=avd_spec.cfg,
@@ -75,13 +80,16 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             A string, representing instance name.
         """
         instance = self._InitRemotehost()
-        self._ProcessRemoteHostArtifacts()
+        image_args = self._ProcessRemoteHostArtifacts()
         failures = self._compute_client.LaunchCvd(
             instance,
             self._avd_spec,
             self._avd_spec.cfg.extra_data_disk_size_gb,
-            boot_timeout_secs=self._avd_spec.boot_timeout_secs)
+            boot_timeout_secs=self._avd_spec.boot_timeout_secs,
+            extra_args=image_args)
         self._all_failures.update(failures)
+        self._FindLogFiles(
+            instance, instance in failures and not self._avd_spec.no_pull_log)
         return instance
 
     def _InitRemotehost(self):
@@ -130,6 +138,9 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         - If images source is remote, tool will download images from android
           build to local and unzip it then upload to remote host, because there
           is no permission to fetch build rom on the remote host.
+
+        Returns:
+            A list of strings, the launch_cvd arguments.
         """
         self._compute_client.SetStage(constants.STAGE_ARTIFACT)
         if self._avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
@@ -144,6 +155,8 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
                 self._UploadRemoteImageArtifacts(artifacts_path)
             finally:
                 shutil.rmtree(artifacts_path)
+
+        return cvd_utils.UploadExtraImages(self._ssh, self._avd_spec)
 
     @utils.TimeExecute(function_description="Downloading Android Build artifact")
     def _DownloadArtifacts(self, extract_path):
@@ -233,6 +246,22 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         logger.debug("cmd:\n %s", cmd)
         ssh.ShellCmdWithRetry(cmd)
 
+    def _FindLogFiles(self, instance, download):
+        """Find and pull all log files from instance.
+
+        Args:
+            instance: String, instance name.
+            download: Whether to download the files to a temporary directory
+                      and show messages to the user.
+        """
+        log_files = pull.GetAllLogFilePaths(self._ssh)
+        self._all_logs[instance] = cvd_utils.ConvertRemoteLogs(log_files)
+
+        if download:
+            error_log_folder = pull.PullLogs(self._ssh, log_files, instance)
+            self._compute_client.ExtendReportData(constants.ERROR_LOG_FOLDER,
+                                                  error_log_folder)
+
     def GetOpenWrtInfoDict(self):
         """Get openwrt info dictionary.
 
@@ -270,4 +299,4 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         Returns:
             A dictionary that maps instance names to lists of report.LogFile.
         """
-        return self._compute_client.all_logs
+        return self._all_logs

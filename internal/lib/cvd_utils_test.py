@@ -14,14 +14,24 @@
 
 """Tests for cvd_utils."""
 
+import os
+import tempfile
 import unittest
 from unittest import mock
 
+from acloud import errors
+from acloud.internal import constants
 from acloud.internal.lib import cvd_utils
 
 
 class CvdUtilsTest(unittest.TestCase):
     """Test the functions in cvd_utils."""
+
+    @staticmethod
+    def _CreateFile(path):
+        """Create an empty file."""
+        with open(path, "wb"):
+            pass
 
     @staticmethod
     def testUploadImageZip():
@@ -68,6 +78,50 @@ class CvdUtilsTest(unittest.TestCase):
         mock_ssh = mock.Mock()
         cvd_utils.UploadCvdHostPackage(mock_ssh, "/mock/cvd.tar.gz")
         mock_ssh.Run.assert_called_with("tar -x -z -f - < /mock/cvd.tar.gz")
+
+    def testUploadExtraImages(self):
+        """Test UploadExtraImages with boot images."""
+        mock_ssh = mock.Mock()
+        with tempfile.TemporaryDirectory(prefix="cvd_utils") as image_dir:
+            mock_avd_spec = mock.Mock(local_kernel_image=image_dir)
+            with self.assertRaises(errors.GetLocalImageError):
+                cvd_utils.UploadExtraImages(mock_ssh, mock_avd_spec)
+
+            boot_image_path = os.path.join(image_dir, "boot.img")
+            self._CreateFile(boot_image_path)
+            self._CreateFile(os.path.join(image_dir, "vendor_boot.img"))
+
+            mock_ssh.reset_mock()
+            mock_avd_spec.local_kernel_image = boot_image_path
+            args = cvd_utils.UploadExtraImages(mock_ssh, mock_avd_spec)
+            self.assertEqual(["-boot_image", "acloud_cf/boot.img"], args)
+            mock_ssh.Run.assert_called_once_with("mkdir -p acloud_cf")
+            mock_ssh.ScpPushFile.assert_called_once()
+
+            mock_ssh.reset_mock()
+            mock_avd_spec.local_kernel_image = image_dir
+            args = cvd_utils.UploadExtraImages(mock_ssh, mock_avd_spec)
+            self.assertEqual(
+                ["-boot_image", "acloud_cf/boot.img",
+                 "-vendor_boot_image", "acloud_cf/vendor_boot.img"],
+                args)
+            mock_ssh.Run.assert_called_once()
+            self.assertEqual(2, mock_ssh.ScpPushFile.call_count)
+
+    def testConvertRemoteLogs(self):
+        """Test ConvertRemoteLogs."""
+        logs = cvd_utils.ConvertRemoteLogs(
+            ["/kernel.log", "/logcat", "/launcher.log", "/access-kregistry"])
+        expected_logs = [
+            {"path": "/kernel.log", "type": constants.LOG_TYPE_KERNEL_LOG},
+            {
+                "path": "/logcat",
+                "type": constants.LOG_TYPE_LOGCAT,
+                "name": "full_gce_logcat"
+            },
+            {"path": "/launcher.log", "type": constants.LOG_TYPE_TEXT}
+        ]
+        self.assertEqual(expected_logs, logs)
 
     def testGetRemoteBuildInfoDict(self):
         """Test GetRemoteBuildInfoDict."""
