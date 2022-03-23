@@ -43,6 +43,7 @@ class PullTest(driver_test_lib.BaseDriverTest):
         # Multiple selected files case.
         selected_files = ["file1.log", "file2.log"]
         self.Patch(pull, "SelectLogFileToPull", return_value=selected_files)
+        self.Patch(pull, "GetDownloadLogFolder", return_value="fake_folder")
         self.Patch(pull, "PullLogs")
         self.Patch(pull, "DisplayLog")
         pull.PullFileFromInstance(cfg, instance)
@@ -54,18 +55,14 @@ class PullTest(driver_test_lib.BaseDriverTest):
         pull.PullFileFromInstance(cfg, instance)
         self.assertEqual(pull.DisplayLog.call_count, 1)
 
+    # pylint: disable=no-member
     def testPullLogs(self):
         """test PullLogs."""
-        self.Patch(tempfile, "gettempdir", return_value="/tmp")
-        self.Patch(os.path, "exists", return_value=False)
-        mock_makedirs = self.Patch(os, "makedirs")
         _ssh = mock.MagicMock()
         self.Patch(utils, "PrintColorString")
-
         log_files = ["file1.log", "file2.log"]
-        download_folder = pull.PullLogs(_ssh, log_files, "instance")
-        self.assertEqual(download_folder, "/tmp/instance")
-        mock_makedirs.assert_called_once_with("/tmp/instance")
+        download_folder = "/fake_folder"
+        pull.PullLogs(_ssh, log_files, download_folder)
         self.assertEqual(_ssh.ScpPullFile.call_count, 2)
         utils.PrintColorString.assert_called_once()
 
@@ -82,6 +79,14 @@ class PullTest(driver_test_lib.BaseDriverTest):
         expected_cmd = "tail -f -n +1 %s" % log_file
         mock_ssh_run.assert_has_calls([
             mock.call(expected_cmd, show_output=True)])
+
+    def testGetDownloadLogFolder(self):
+        """test GetDownloadLogFolder."""
+        self.Patch(tempfile, "gettempdir", return_value="/tmp")
+        self.Patch(os.path, "exists", return_value=True)
+        instance = "instance"
+        expected_path = "/tmp/instance"
+        self.assertEqual(pull.GetDownloadLogFolder(instance), expected_path)
 
     def testSelectLogFileToPull(self):
         """test choose log files from the remote instance."""
