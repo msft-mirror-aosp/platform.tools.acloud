@@ -82,6 +82,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_client_obj.LaunchCvd.return_value = {"inst": "failure"}
 
         logs = [{"path": "/log.txt"}]
+        mock_cvd_utils.UploadExtraImages.return_value = ["extra"]
         mock_cvd_utils.ConvertRemoteLogs.return_value = logs
 
         self.assertEqual("inst", factory.CreateInstance())
@@ -96,7 +97,8 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             "inst",
             mock_avd_spec,
             mock_avd_spec.cfg.extra_data_disk_size_gb,
-            boot_timeout_secs=mock_avd_spec.boot_timeout_secs)
+            boot_timeout_secs=mock_avd_spec.boot_timeout_secs,
+            extra_args=["extra"])
         mock_pull.GetAllLogFilePaths.assert_called_once()
         mock_pull.PullLogs.assert_called_once()
         self.assertEqual({"inst": "failure"}, factory.GetFailures())
@@ -139,12 +141,14 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                 "cvd_compute_client_multi_stage")
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory.ssh")
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory."
+                "cvd_utils")
+    @mock.patch("acloud.public.actions.remote_host_cf_device_factory."
                 "subprocess.check_call")
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory.glob")
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory.pull")
     def testCreateInstanceWithRemoteImages(self, mock_pull, mock_glob,
-                                           mock_check_call, mock_ssh,
-                                           _mock_client):
+                                           mock_check_call, _mock_cvd_utils,
+                                           mock_ssh, _mock_client):
         """Test CreateInstance with remote images."""
         mock_avd_spec = self._CreateMockAvdSpec()
         mock_avd_spec.image_source = constants.IMAGE_SRC_REMOTE
