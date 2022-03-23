@@ -22,6 +22,7 @@ import time
 import unittest
 
 from unittest import mock
+import six
 
 import apiclient
 
@@ -43,7 +44,7 @@ class AndroidBuildClientTest(driver_test_lib.BaseDriverTest):
 
     def setUp(self):
         """Set up test."""
-        super().setUp()
+        super(AndroidBuildClientTest, self).setUp()
         self.Patch(android_build_client.AndroidBuildClient,
                    "InitResourceHandle")
         self.client = android_build_client.AndroidBuildClient(mock.MagicMock())
@@ -175,9 +176,6 @@ class AndroidBuildClientTest(driver_test_lib.BaseDriverTest):
         kernel_build_id = "3456"
         kernel_build_branch = "kernel_branch"
         kernel_build_target = "kernel_target"
-        ota_build_id = "4567"
-        ota_build_branch = "ota_branch"
-        ota_build_target = "ota_target"
 
         # Test base image.
         expected_args = ["-default_build=1234/base_target"]
@@ -185,7 +183,7 @@ class AndroidBuildClientTest(driver_test_lib.BaseDriverTest):
             expected_args,
             self.client.GetFetchBuildArgs(
                 build_id, build_branch, build_target, None, None, None, None,
-                None, None, None, None, None, None, None, None))
+                None, None, None, None, None))
 
         # Test base image with system image.
         expected_args = ["-default_build=1234/base_target",
@@ -195,7 +193,7 @@ class AndroidBuildClientTest(driver_test_lib.BaseDriverTest):
             self.client.GetFetchBuildArgs(
                 build_id, build_branch, build_target, system_build_id,
                 system_build_branch, system_build_target, None, None, None,
-                None, None, None, None, None, None))
+                None, None, None))
 
         # Test base image with kernel image.
         expected_args = ["-default_build=1234/base_target",
@@ -205,17 +203,7 @@ class AndroidBuildClientTest(driver_test_lib.BaseDriverTest):
             self.client.GetFetchBuildArgs(
                 build_id, build_branch, build_target, None, None, None,
                 kernel_build_id, kernel_build_branch, kernel_build_target,
-                None, None, None, None, None, None))
-
-        # Test base image with otatools.
-        expected_args = ["-default_build=1234/base_target",
-                         "-otatools_build=4567/ota_target"]
-        self.assertEqual(
-            expected_args,
-            self.client.GetFetchBuildArgs(
-                build_id, build_branch, build_target, None, None, None,
-                None, None, None, None, None, None, ota_build_id,
-                ota_build_branch, ota_build_target))
+                None, None, None))
 
     def testGetFetchCertArg(self):
         """Test GetFetchCertArg."""
@@ -232,10 +220,9 @@ class AndroidBuildClientTest(driver_test_lib.BaseDriverTest):
             "}"
         )
         expected_arg = "-credential_source=fake_token"
-        with mock.patch("builtins.open",
-                        mock.mock_open(read_data=certification)):
-            cert_arg = self.client.GetFetchCertArg(cert_file_path)
-            self.assertEqual(expected_arg, cert_arg)
+        self.Patch(six.moves.builtins, "open", mock.mock_open(read_data=certification))
+        cert_arg = self.client.GetFetchCertArg(cert_file_path)
+        self.assertEqual(expected_arg, cert_arg)
 
     def testProcessBuild(self):
         """Test creating "cuttlefish build" strings."""

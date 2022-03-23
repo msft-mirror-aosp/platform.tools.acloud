@@ -152,43 +152,14 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(self.AvdSpec.local_image_dir, expected_image_dir)
         self.assertEqual(self.AvdSpec.local_system_image, expected_image_dir)
 
-    def testProcessAutoconnect(self):
-        """Test process autoconnect."""
-        self.AvdSpec._autoconnect = False
-        self.AvdSpec._ProcessAutoconnect()
-        self.assertEqual(self.AvdSpec._autoconnect, False)
-
-        self.AvdSpec._avd_type = constants.TYPE_CF
-        self.AvdSpec._autoconnect = "webrtc"
-        self.AvdSpec._ProcessAutoconnect()
-        self.assertEqual(self.AvdSpec._autoconnect, "webrtc")
-
-        self.AvdSpec._autoconnect = "vnc"
-        self.AvdSpec._ProcessAutoconnect()
-        self.assertEqual(self.AvdSpec._autoconnect, "vnc")
-
-        self.AvdSpec._avd_type = constants.TYPE_GF
-        self.AvdSpec._autoconnect = "webrtc"
-        self.AvdSpec._ProcessAutoconnect()
-        self.assertEqual(self.AvdSpec._autoconnect, "vnc")
-
     def testProcessImageArgs(self):
         """Test process image source."""
         self.Patch(glob, "glob", return_value=["fake.img"])
         # No specified local_image, image source is from remote
         self.args.local_image = None
-        self.args.local_system_image = None
         self.AvdSpec._ProcessImageArgs(self.args)
         self.assertEqual(self.AvdSpec._image_source, constants.IMAGE_SRC_REMOTE)
         self.assertEqual(self.AvdSpec._local_image_dir, None)
-        self.assertEqual(self.AvdSpec.local_system_image, None)
-
-        self.args.local_system_image = "/test_path/local_system_image"
-        fake_local_system_image = "/fake_path/fake_local_system_image_path"
-        self.Patch(self.AvdSpec, "_GetLocalImagePath",
-                   return_value=fake_local_system_image)
-        self.AvdSpec._ProcessImageArgs(self.args)
-        self.assertEqual(self.AvdSpec.local_system_image, fake_local_system_image)
 
         # Specified local_image with an arg for cf type
         self.Patch(os.path, "isfile", return_value=True)
@@ -362,7 +333,7 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(self.AvdSpec._GetFlavorFromString(img_path),
                          None)
 
-    # pylint: disable=protected-access,too-many-statements
+    # pylint: disable=protected-access
     def testProcessRemoteBuildArgs(self):
         """Test _ProcessRemoteBuildArgs."""
         self.args.branch = "git_master"
@@ -380,7 +351,7 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.assertTrue(self.AvdSpec.avd_type == "gce")
 
         # Verify auto-assigned avd_type if build_targe contains "_cf_".
-        self.args.build_target = "aosp_cf_x86_64_phone-userdebug"
+        self.args.build_target = "aosp_cf_x86_phone-userdebug"
         self.AvdSpec._ProcessRemoteBuildArgs(self.args)
         self.assertTrue(self.AvdSpec.avd_type == "cuttlefish")
 
@@ -398,35 +369,6 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.args.build_target = "aosp_sdk_phone_armv7-sdk"
         self.AvdSpec._ProcessRemoteBuildArgs(self.args)
         self.assertTrue(self.AvdSpec.avd_type == "goldfish")
-
-        # Verify extra build info.
-        self.args.system_branch = "system_branch"
-        self.args.system_build_target = "system_build_target"
-        self.args.system_build_id = "system_build_id"
-        self.args.ota_branch = "ota_branch"
-        self.args.ota_build_target = "ota_build_target"
-        self.args.ota_build_id = "ota_build_id"
-        self.args.kernel_branch = "kernel_branch"
-        self.args.kernel_build_target = "kernel_build_target"
-        self.args.kernel_build_id = "kernel_build_id"
-        self.args.kernel_artifact = "kernel_artifact"
-        self.AvdSpec._ProcessRemoteBuildArgs(self.args)
-        self.assertEqual(
-            {constants.BUILD_BRANCH: "system_branch",
-             constants.BUILD_TARGET: "system_build_target",
-             constants.BUILD_ID: "system_build_id"},
-            self.AvdSpec.system_build_info)
-        self.assertEqual(
-            {constants.BUILD_BRANCH: "kernel_branch",
-             constants.BUILD_TARGET: "kernel_build_target",
-             constants.BUILD_ID: "kernel_build_id",
-             constants.BUILD_ARTIFACT: "kernel_artifact"},
-            self.AvdSpec.kernel_build_info)
-        self.assertEqual(
-            {constants.BUILD_BRANCH: "ota_branch",
-             constants.BUILD_TARGET: "ota_build_target",
-             constants.BUILD_ID: "ota_build_id"},
-            self.AvdSpec.ota_build_info)
 
         # Verify auto-assigned avd_type if no match, default as cuttlefish.
         self.args.build_target = "mini_emulator_arm64-userdebug"
@@ -549,11 +491,6 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(self.AvdSpec.connect_adb, True)
         self.assertEqual(self.AvdSpec.connect_vnc, False)
         self.assertEqual(self.AvdSpec.connect_webrtc, True)
-
-        # Test stable host image name.
-        self.args.stable_host_image_name = "fake_host_image"
-        self.AvdSpec._ProcessMiscArgs(self.args)
-        self.assertEqual(self.AvdSpec.stable_host_image_name, "fake_host_image")
 
 
 if __name__ == "__main__":
