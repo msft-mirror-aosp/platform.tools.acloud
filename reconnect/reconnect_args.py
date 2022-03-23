@@ -16,8 +16,6 @@ r"""Reconnect args.
 Defines the reconnect arg parser that holds delete specific args.
 """
 
-from acloud.internal import constants
-
 CMD_RECONNECT = "reconnect"
 
 
@@ -52,10 +50,11 @@ def GetReconnectArgParser(subparser):
         "--autoconnect",
         type=str,
         nargs="?",
+        const=True,
         dest="autoconnect",
         required=False,
-        choices=[constants.INS_KEY_VNC, constants.INS_KEY_ADB,
-                 constants.INS_KEY_WEBRTC],
+        choices=[True, "adb"],
+        default=True,
         help="If need adb only, you can pass in 'adb' here.")
 
     return reconnect_parser

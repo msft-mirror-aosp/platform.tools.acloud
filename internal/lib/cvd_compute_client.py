@@ -81,7 +81,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             image_name: A string, the name of the GCE image.
             image_project: A string, name of the project where the image lives.
                            Assume the default project if None.
-            build_target: Target name, e.g. "aosp_cf_x86_64_phone-userdebug"
+            build_target: Target name, e.g. "aosp_cf_x86_phone-userdebug"
             branch: Branch name, e.g. "aosp-master"
             build_id: Build id, a string, e.g. "2263051", "P2804227"
             kernel_branch: Kernel branch name, e.g. "kernel-common-android-4.14"
@@ -178,7 +178,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             machine_type=self._machine_type,
             network=self._network,
             zone=self._zone,
-            disk_type=avd_spec.disk_type if avd_spec else None,
             extra_scopes=extra_scopes)
 
     def _GetLaunchCvdArgs(self, avd_spec):
