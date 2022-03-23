@@ -43,6 +43,7 @@ class CommonOperationsTest(driver_test_lib.BaseDriverTest):
     BRANCH = "fake-branch"
     BUILD_TARGET = "fake-target"
     BUILD_ID = "fake-build-id"
+    LOGS = [{"path": "/log", "type": "TEXT"}]
 
     # pylint: disable=protected-access
     def setUp(self):
@@ -77,6 +78,8 @@ class CommonOperationsTest(driver_test_lib.BaseDriverTest):
                                  "build_id": self.BUILD_ID,
                                  "build_target": self.BUILD_TARGET,
                                  "gcs_bucket_build_id": self.BUILD_ID})
+        self.Patch(self.device_factory, "GetLogs",
+                   return_value={self.INSTANCE: self.LOGS})
 
     @staticmethod
     def _CreateCfg():
@@ -116,6 +119,7 @@ class CommonOperationsTest(driver_test_lib.BaseDriverTest):
                 "build_id": self.BUILD_ID,
                 "build_target": self.BUILD_TARGET,
                 "gcs_bucket_build_id": self.BUILD_ID,
+                "logs": self.LOGS
             }]})
 
     def testCreateDevicesWithAdbPort(self):
@@ -140,7 +144,7 @@ class CommonOperationsTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(
             _report.data,
             {"devices": [{
-                "ip": self.IP.external,
+                "ip": self.IP.external + ":6520",
                 "instance_name": self.INSTANCE,
                 "branch": self.BRANCH,
                 "build_id": self.BUILD_ID,
@@ -149,6 +153,7 @@ class CommonOperationsTest(driver_test_lib.BaseDriverTest):
                 "vnc_port": 56789,
                 "build_target": self.BUILD_TARGET,
                 "gcs_bucket_build_id": self.BUILD_ID,
+                "logs": self.LOGS
             }]})
 
     def testCreateDevicesInternalIP(self):
@@ -169,6 +174,7 @@ class CommonOperationsTest(driver_test_lib.BaseDriverTest):
                 "build_id": self.BUILD_ID,
                 "build_target": self.BUILD_TARGET,
                 "gcs_bucket_build_id": self.BUILD_ID,
+                "logs": self.LOGS
             }]})
 
     def testCreateDevicesWithSshParameters(self):

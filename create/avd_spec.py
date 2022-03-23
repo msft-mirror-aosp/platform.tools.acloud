@@ -125,6 +125,7 @@ class AVDSpec():
         self._num_of_instances = None
         self._num_avds_per_instance = None
         self._no_pull_log = None
+        self._mkcert = None
         self._oxygen = None
         self._openwrt = None
         self._remote_image = None
@@ -140,7 +141,7 @@ class AVDSpec():
         self._host_ssh_private_key_path = None
         self._gpu = None
         self._disk_type = None
-        self._mkcert = None
+        self._base_instance_num = None
         self._stable_host_image_name = None
         # Create config instance for android_build_client to query build api.
         self._cfg = config.GetAcloudConfig(args)
@@ -232,6 +233,14 @@ class AVDSpec():
         else:
             self._image_source = constants.IMAGE_SRC_LOCAL
             self._ProcessLocalImageArgs(args)
+
+        if args.local_kernel_image is not None:
+            self._local_kernel_image = self._GetLocalImagePath(
+                args.local_kernel_image)
+
+        if args.local_system_image is not None:
+            self._local_system_image = self._GetLocalImagePath(
+                args.local_system_image)
 
         self.image_download_dir = (
             args.image_download_dir if args.image_download_dir
@@ -340,6 +349,7 @@ class AVDSpec():
         self._num_of_instances = args.num
         self._num_avds_per_instance = args.num_avds_per_instance
         self._no_pull_log = args.no_pull_log
+        self._mkcert = args.mkcert
         self._oxygen = args.oxygen
         self._openwrt = args.openwrt
         self._serial_log_file = args.serial_log_file
@@ -347,8 +357,8 @@ class AVDSpec():
         self._emulator_build_target = args.emulator_build_target
         self._gpu = args.gpu
         self._disk_type = (args.disk_type or self._cfg.disk_type)
+        self._base_instance_num = args.base_instance_num
         self._gce_metadata = create_common.ParseKeyValuePairArgs(args.gce_metadata)
-        self._mkcert = args.mkcert
         self._stable_host_image_name = (
             args.stable_host_image_name or self._cfg.stable_host_image_name)
 
@@ -420,14 +430,6 @@ class AVDSpec():
             raise errors.CreateError(
                 "Local image doesn't support the AVD type: %s" % self._avd_type
             )
-
-        if args.local_kernel_image is not None:
-            self._local_kernel_image = self._GetLocalImagePath(
-                args.local_kernel_image)
-
-        if args.local_system_image is not None:
-            self._local_system_image = self._GetLocalImagePath(
-                args.local_system_image)
 
     @staticmethod
     def _GetGceLocalImagePath(local_image_dir):
@@ -895,6 +897,11 @@ class AVDSpec():
         return self._disk_type
 
     @property
+    def base_instance_num(self):
+        """Return base instance num."""
+        return self._base_instance_num
+
+    @property
     def gpu(self):
         """Return gpu."""
         return self._gpu
@@ -991,6 +998,11 @@ class AVDSpec():
         return self._no_pull_log
 
     @property
+    def mkcert(self):
+        """Return mkcert."""
+        return self._mkcert
+
+    @property
     def gce_metadata(self):
         """Return gce_metadata."""
         return self._gce_metadata
@@ -1019,11 +1031,6 @@ class AVDSpec():
     def extra_files(self):
         """Return extra_files."""
         return self._extra_files
-
-    @property
-    def mkcert(self):
-        """Return mkcert."""
-        return self._mkcert
 
     @property
     def force_sync(self):

@@ -92,12 +92,8 @@ HW_ALIAS_DPI = "dpi"
 HW_ALIAS_MEMORY = "memory"
 HW_ALIAS_DISK = "disk"
 HW_PROPERTIES_CMD_EXAMPLE = (
-    " %s:2,%s:1280x700,%s:160,%s:2g,%s:2g" %
-    (HW_ALIAS_CPUS,
-     HW_ALIAS_RESOLUTION,
-     HW_ALIAS_DPI,
-     HW_ALIAS_MEMORY,
-     HW_ALIAS_DISK)
+    f" {HW_ALIAS_CPUS}:2,{HW_ALIAS_RESOLUTION}:1280x700,{HW_ALIAS_DPI}:160,"
+    f"{HW_ALIAS_MEMORY}:2g,{HW_ALIAS_DISK}:2g"
 )
 HW_PROPERTIES = [HW_ALIAS_CPUS, HW_ALIAS_RESOLUTION, HW_ALIAS_DPI,
                  HW_ALIAS_MEMORY, HW_ALIAS_DISK]
@@ -107,7 +103,7 @@ HW_Y_RES = "y_res"
 USER_ANSWER_YES = {"y", "yes", "Y"}
 
 # Cuttlefish groups
-LIST_CF_USER_GROUPS = ["kvm", "cvdnetwork"]
+LIST_CF_USER_GROUPS = ["kvm", "cvdnetwork", "render"]
 
 # Report keys
 IP = "ip"
@@ -118,6 +114,7 @@ ADB_PORT = "adb_port"
 WEBRTC_PORT = "webrtc_port"
 DEVICE_SERIAL = "device_serial"
 LOGS = "logs"
+BASE_INSTANCE_NUM = "base_instance_num"
 # For cuttlefish remote instances
 CF_ADB_PORT = 6520
 CF_VNC_PORT = 6444
@@ -204,10 +201,12 @@ WEBRTC_LOCAL_PORT = 8443
 WEBRTC_LOCAL_HOST = "localhost"
 WEBRTC_CERTS_PATH = "usr/share/webrtc/certs"
 WEBRTC_CERTS_FILES = ["server.crt", "server.key"]
-MKCERT_INSTALL_DIR = ".config/acloud/mkcert"
+SSL_DIR = ".config/acloud/mkcert"
+SSL_CA_NAME = "ACloud-webRTC-CA"
+SSL_TRUST_CA_DIR = "/usr/local/share/ca-certificates"
 
 # Remote Log
-REMOTE_LOG_FOLDER = "/home/%s/cuttlefish_runtime" % GCE_USER
+REMOTE_LOG_FOLDER = f"/home/{GCE_USER}/cuttlefish_runtime"
 
 # Cheeps specific stuff.
 CHEEPS_BETTY_IMAGE = "betty_image"
@@ -252,7 +251,9 @@ FETCH_CVD = "fetch_cvd"
 
 # For setup and cleanup
 # Packages "devscripts" and "equivs" are required for "mk-build-deps".
+# Packages from: https://android.googlesource.com/device/google/cuttlefish/
 AVD_REQUIRED_PKGS = [
-    "devscripts", "equivs", "libvirt-clients", "libvirt-daemon-system"]
+    "devscripts", "equivs", "libvirt-clients", "libvirt-daemon-system",
+    "config-package-dev", "golang"]
 BASE_REQUIRED_PKGS = ["ssvnc", "lzop", "python3-tk"]
 CUTTLEFISH_COMMOM_PKG = "cuttlefish-common"

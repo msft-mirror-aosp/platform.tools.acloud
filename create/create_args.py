@@ -75,13 +75,6 @@ def AddCommonCreateArgs(parser):
         required=False,
         help="Will not automatically create ssh tunnels forwarding adb & vnc "
              "when instance created.")
-    parser.add_argument(
-        "--mkcert",
-        action="store_true",
-        dest="mkcert",
-        required=False,
-        help="Install mkcert package on the host. It helps to create the "
-             "certification files for the WEB browser.")
     parser.set_defaults(autoconnect=constants.INS_KEY_WEBRTC)
     parser.add_argument(
         "--unlock",
@@ -289,6 +282,13 @@ def AddCommonCreateArgs(parser):
         required=False,
         default=None,
         help="Disable auto download logs when AVD booting up failed.")
+    parser.add_argument(
+        "--no-mkcert",
+        dest="mkcert",
+        action="store_false",
+        required=False,
+        default=True,
+        help="Disable mkcert setup process on the host.")
     # TODO(147335651): Add gpu in user config.
     # TODO(147335651): Support "--gpu" without giving any value.
     parser.add_argument(
@@ -436,6 +436,13 @@ def GetCreateArgParser(subparser):
         dest="adb_port",
         required=False,
         help="Specify port for adb forwarding.")
+    create_parser.add_argument(
+        "--base-instance-num",
+        type=int,
+        default=None,
+        dest="base_instance_num",
+        required=False,
+        help="'cuttlefish only' The instance number of the created device.")
     create_parser.add_argument(
         "--avd-type",
         type=str,
