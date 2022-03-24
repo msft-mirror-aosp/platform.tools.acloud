@@ -46,8 +46,6 @@ TODO:
 import logging
 import os
 
-import six
-
 from google.protobuf import text_format
 
 # pylint: disable=no-name-in-module,import-error
@@ -163,15 +161,15 @@ class AcloudConfig():
         self.ssh_public_key_path = usr_cfg.ssh_public_key_path
         self.storage_bucket_name = usr_cfg.storage_bucket_name
         self.metadata_variable = dict(
-            six.iteritems(internal_cfg.default_usr_cfg.metadata_variable))
+            internal_cfg.default_usr_cfg.metadata_variable.items())
         self.metadata_variable.update(usr_cfg.metadata_variable)
 
         self.device_resolution_map = dict(
-            six.iteritems(internal_cfg.device_resolution_map))
+            internal_cfg.device_resolution_map.items())
         self.device_default_orientation_map = dict(
-            six.iteritems(internal_cfg.device_default_orientation_map))
+            internal_cfg.device_default_orientation_map.items())
         self.no_project_access_msg_map = dict(
-            six.iteritems(internal_cfg.no_project_access_msg_map))
+            internal_cfg.no_project_access_msg_map.items())
         self.min_machine_size = internal_cfg.min_machine_size
         self.disk_image_name = internal_cfg.disk_image_name
         self.disk_image_mime_type = internal_cfg.disk_image_mime_type
@@ -179,9 +177,9 @@ class AcloudConfig():
         self.disk_raw_image_name = internal_cfg.disk_raw_image_name
         self.disk_raw_image_extension = internal_cfg.disk_raw_image_extension
         self.valid_branch_and_min_build_id = dict(
-            six.iteritems(internal_cfg.valid_branch_and_min_build_id))
+            internal_cfg.valid_branch_and_min_build_id.items())
         self.precreated_data_image_map = dict(
-            six.iteritems(internal_cfg.precreated_data_image))
+            internal_cfg.precreated_data_image.items())
         self.extra_data_disk_size_gb = (
             usr_cfg.extra_data_disk_size_gb or
             internal_cfg.default_usr_cfg.extra_data_disk_size_gb)
