@@ -107,16 +107,16 @@ class PullTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(pull.SelectLogFileToPull(_ssh), expected_result)
 
         # Test user provided file name exist.
-        log_files = ["/home/vsoc-01/cuttlefish_runtime/file1.log",
-                     "/home/vsoc-01/cuttlefish_runtime/file2.log"]
+        log_files = ["cuttlefish_runtime/file1.log",
+                     "cuttlefish_runtime/file2.log"]
         input_file = "file1.log"
         self.Patch(pull, "GetAllLogFilePaths", return_value=log_files)
-        expected_result = ["/home/vsoc-01/cuttlefish_runtime/file1.log"]
+        expected_result = ["cuttlefish_runtime/file1.log"]
         self.assertEqual(pull.SelectLogFileToPull(_ssh, input_file), expected_result)
 
         # Test user provided file name not exist.
-        log_files = ["/home/vsoc-01/cuttlefish_runtime/file1.log",
-                     "/home/vsoc-01/cuttlefish_runtime/file2.log"]
+        log_files = ["cuttlefish_runtime/file1.log",
+                     "cuttlefish_runtime/file2.log"]
         input_file = "not_exist.log"
         self.Patch(pull, "GetAllLogFilePaths", return_value=log_files)
         with self.assertRaises(errors.CheckPathError):
