@@ -37,6 +37,14 @@ _REMOTE_BOOT_IMAGE_PATH = remote_path.join(_REMOTE_IMAGE_DIR, _BOOT_IMAGE_NAME)
 _REMOTE_VENDOR_BOOT_IMAGE_PATH = remote_path.join(
     _REMOTE_IMAGE_DIR, _VENDOR_BOOT_IMAGE_NAME)
 
+HOST_KERNEL_LOG = report.LogFile(
+    "/var/log/kern.log", constants.LOG_TYPE_KERNEL_LOG, "host_kernel.log")
+TOMBSTONES = report.LogFile(
+    constants.REMOTE_LOG_FOLDER + "/tombstones", constants.LOG_TYPE_DIR,
+    "tombstones-zip")
+FETCHER_CONFIG_JSON = report.LogFile(
+    "fetcher_config.json", constants.LOG_TYPE_TEXT)
+
 
 def UploadImageZip(ssh_obj, image_zip):
     """Upload an image zip to a remote host and a GCE instance.
@@ -177,7 +185,8 @@ def ConvertRemoteLogs(log_paths):
         elif log_path.endswith("logcat"):
             log = report.LogFile(log_path, constants.LOG_TYPE_LOGCAT,
                                  "full_gce_logcat")
-        elif not (log_path.endswith(".log") or log_path.endswith(".json")):
+        elif not (log_path.endswith(".log") or
+                  log_path.endswith("cuttlefish_config.json")):
             continue
         logs.append(log)
     return logs
