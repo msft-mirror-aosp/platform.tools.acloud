@@ -58,6 +58,9 @@ _CVD_BIN = "cvd"
 _CVD_BIN_FOLDER = "host_bins/bin"
 _CVD_STATUS_BIN = "cvd_status"
 _CVD_SERVER = "cvd_server"
+_CVD_STOP_ERROR_KEYWORDS = "cvd_internal_stop E"
+# Default timeout 30 secs for cvd commands.
+_CVD_TIMEOUT = 30
 _INSTANCE_ASSEMBLY_DIR = "cuttlefish_assembly"
 _LOCAL_INSTANCE_NAME_FORMAT = "local-instance-%(id)d"
 _LOCAL_INSTANCE_NAME_PATTERN = re.compile(r"^local-instance-(?P<id>\d+)$")
@@ -537,10 +540,11 @@ class LocalInstance(Instance):
                                        env=self._GetCvdEnv(),
                                        stdout=subprocess.PIPE,
                                        stderr=subprocess.PIPE)
-            stdout, _ = process.communicate()
+            stdout, _ = process.communicate(timeout=_CVD_TIMEOUT)
             logger.debug("Output of cvd fleet: %s", stdout)
             return json.loads(self._ParsingCvdFleetOutput(stdout))
-        except (subprocess.CalledProcessError, json.JSONDecodeError) as error:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired,
+                json.JSONDecodeError) as error:
             logger.error("Failed to run 'cvd fleet': %s", str(error))
             return None
 
@@ -616,30 +620,51 @@ class LocalInstance(Instance):
             return False
 
     def Delete(self):
-        """Execute stop_cvd to stop local cuttlefish instance.
+        """Execute "cvd stop" to stop local cuttlefish instance.
 
-        - We should get the same host tool used to launch cvd to delete instance
-        , So get stop_cvd bin from the cvd runtime config.
-        - Add CUTTLEFISH_CONFIG_FILE env variable to tell stop_cvd which cvd
-        need to be deleted.
+        - We should get the same host tool used to delete instance.
+        - Add CUTTLEFISH_CONFIG_FILE env variable to tell cvd which cvd need to
+          be deleted.
         - Stop adb since local instance use the fixed adb port and could be
          reused again soon.
         """
-        stop_cvd_cmd = os.path.join(self.cf_runtime_cfg.cvd_tools_path,
-                                    constants.CMD_STOP_CVD)
+        ins_home_dir = GetLocalInstanceHomeDir(self._local_instance_id)
+        cvd_tool = os.path.join(ins_home_dir, _CVD_BIN_FOLDER, _CVD_BIN)
+        stop_cvd_cmd = f"{cvd_tool} stop"
         logger.debug("Running cmd[%s] to delete local cvd", stop_cvd_cmd)
         if not self.instance_dir:
             logger.error("instance_dir is null!! instance[%d] might not be"
                          " deleted", self._local_instance_id)
-        subprocess.check_call(
-            utils.AddUserGroupsToCmd(stop_cvd_cmd,
-                                     constants.LIST_CF_USER_GROUPS),
-            stderr=subprocess.STDOUT, shell=True, env=self._GetCvdEnv())
+        try:
+            output = subprocess.check_output(
+                utils.AddUserGroupsToCmd(stop_cvd_cmd,
+                                         constants.LIST_CF_USER_GROUPS),
+                stderr=subprocess.STDOUT, shell=True, env=self._GetCvdEnv(),
+                text=True, timeout=_CVD_TIMEOUT)
+            # TODO: Remove workaround of stop_cvd when 'cvd stop' is stable.
+            if _CVD_STOP_ERROR_KEYWORDS in output:
+                logger.debug("Fail to stop cvd: %s", output)
+                self._ExecuteStopCvd(os.path.join(ins_home_dir, _CVD_BIN_FOLDER))
+        except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as e:
+            logger.debug("'cvd stop' error: %s", str(e))
+            self._ExecuteStopCvd(os.path.join(ins_home_dir, _CVD_BIN_FOLDER))
 
         adb_cmd = AdbTools(self.adb_port)
         # When relaunch a local instance, we need to pass in retry=True to make
         # sure adb device is completely gone since it will use the same adb port
         adb_cmd.DisconnectAdb(retry=True)
+
+    def _ExecuteStopCvd(self, dir_path):
+        """Execute "stop_cvd" to stop local cuttlefish instance.
+
+        Args:
+            bin_dir: String, directory path of "stop_cvd".
+        """
+        stop_cvd_cmd = os.path.join(dir_path, constants.CMD_STOP_CVD)
+        subprocess.check_call(
+            utils.AddUserGroupsToCmd(
+                stop_cvd_cmd, constants.LIST_CF_USER_GROUPS),
+            stderr=subprocess.STDOUT, shell=True, env=self._GetCvdEnv())
 
     def GetLock(self):
         """Return the LocalInstanceLock for this object."""

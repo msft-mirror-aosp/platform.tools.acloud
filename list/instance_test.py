@@ -106,6 +106,7 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         """Test GetCvdEnv."""
         self.Patch(cvd_runtime_config, "CvdRuntimeConfig",
                    return_value=self._MockCvdRuntimeConfig())
+        self.Patch(instance, "_IsProcessRunning", return_value=False)
         local_instance = instance.LocalInstance("fake_config_path")
         cvd_env = local_instance._GetCvdEnv()
         self.assertEqual(cvd_env[constants.ENV_CUTTLEFISH_INSTANCE], "2")
@@ -143,7 +144,7 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
 
     @mock.patch("acloud.list.instance.AdbTools")
     def testDeleteLocalInstance(self, mock_adb_tools):
-        """Test executing stop_cvd command."""
+        """Test executing 'cvd stop' command."""
         self.Patch(cvd_runtime_config, "CvdRuntimeConfig",
                    return_value=self._MockCvdRuntimeConfig())
         mock_adb_tools_object = mock.Mock(device_information={})
@@ -151,21 +152,30 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         mock_adb_tools.return_value = mock_adb_tools_object
         self.Patch(utils, "AddUserGroupsToCmd",
                    side_effect=lambda cmd, groups: cmd)
+        self.Patch(instance.LocalInstance, "GetDevidInfoFromCvdFleet",
+                   return_value=None)
         mock_check_call = self.Patch(subprocess, "check_call")
+        mock_check_output = self.Patch(
+            subprocess, "check_output",
+            return_value="cvd_internal_stop E stop cvd failed")
 
         local_instance = instance.LocalInstance("fake_config_path")
         with mock.patch.dict("acloud.list.instance.os.environ", clear=True):
             local_instance.Delete()
 
         expected_env = {
-            'CUTTLEFISH_INSTANCE': '2',
-            'HOME': '/tmp/acloud_cvd_temp/local-instance-2',
-            'CUTTLEFISH_CONFIG_FILE': 'fake_config_path',
-            'ANDROID_SOONG_HOST_OUT': '',
+            "CUTTLEFISH_INSTANCE": "2",
+            "HOME": "/tmp/acloud_cvd_temp/local-instance-2",
+            "CUTTLEFISH_CONFIG_FILE": "fake_config_path",
+            "ANDROID_SOONG_HOST_OUT": "",
         }
+        mock_check_output.assert_called_with(
+            "/tmp/acloud_cvd_temp/local-instance-2/host_bins/bin/cvd stop",
+            stderr=subprocess.STDOUT, shell=True, env=expected_env, text=True,
+            timeout=instance._CVD_TIMEOUT)
         mock_check_call.assert_called_with(
-            'fake_cvd_tools_path/stop_cvd', stderr=subprocess.STDOUT,
-            shell=True, env=expected_env)
+            "/tmp/acloud_cvd_temp/local-instance-2/host_bins/bin/stop_cvd",
+            stderr=subprocess.STDOUT, shell=True, env=expected_env)
         mock_adb_tools_object.DisconnectAdb.assert_called()
 
     @mock.patch("acloud.list.instance.tempfile")
