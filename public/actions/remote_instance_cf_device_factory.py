@@ -19,7 +19,6 @@ import logging
 
 from acloud.internal import constants
 from acloud.internal.lib import cvd_utils
-from acloud.internal.lib import utils
 from acloud.public.actions import gce_device_factory
 from acloud.pull import pull
 
@@ -90,9 +89,10 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             A list of strings, the launch_cvd arguments.
         """
         if self._avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
-            self._UploadLocalImageArtifacts(self._local_image_artifact,
-                                            self._cvd_host_package_artifact,
-                                            self._avd_spec.local_image_dir)
+            cvd_utils.UploadArtifacts(
+                self._ssh,
+                self._local_image_artifact or self._avd_spec.local_image_dir,
+                self._cvd_host_package_artifact)
         elif self._avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
             self._compute_client.UpdateFetchCvd()
             self._FetchBuild(self._avd_spec)
@@ -127,26 +127,6 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             avd_spec.ota_build_info[constants.BUILD_ID],
             avd_spec.ota_build_info[constants.BUILD_BRANCH],
             avd_spec.ota_build_info[constants.BUILD_TARGET])
-
-    @utils.TimeExecute(function_description="Processing and uploading local images")
-    def _UploadLocalImageArtifacts(self,
-                                   local_image_zip,
-                                   cvd_host_package_artifact,
-                                   images_dir):
-        """Upload local images and avd local host package to instance.
-
-        Args:
-            local_image_zip: String, path to zip of local images which
-                             build from 'm dist'.
-            cvd_host_package_artifact: String, path to cvd host package.
-            images_dir: String, directory of local images which build
-                        from 'm'.
-        """
-        if local_image_zip:
-            cvd_utils.UploadImageZip(self._ssh, local_image_zip)
-        else:
-            cvd_utils.UploadImageDir(self._ssh, images_dir)
-        cvd_utils.UploadCvdHostPackage(self._ssh, cvd_host_package_artifact)
 
     def _FindLogFiles(self, instance, download):
         """Find and pull all log files from instance.
