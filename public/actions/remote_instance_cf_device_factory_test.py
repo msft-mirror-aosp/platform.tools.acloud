@@ -75,7 +75,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             avd_spec_local_img,
             fake_image_name,
             fake_host_package_name)
-        factory_local_img._ProcessArtifacts(constants.IMAGE_SRC_LOCAL)
+        factory_local_img._ProcessArtifacts()
         mock_upload.assert_called_once()
         # cf default autoconnect webrtc and should upload certificates
         mock_uploadca.assert_called_once()
@@ -89,7 +89,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             avd_spec_local_img,
             fake_image_name,
             fake_host_package_name)
-        factory_local_img._ProcessArtifacts(constants.IMAGE_SRC_LOCAL)
+        factory_local_img._ProcessArtifacts()
         mock_uploadca.assert_not_called()
 
         # Test image source type is remote.
@@ -107,7 +107,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.Patch(cvd_compute_client_multi_stage.CvdComputeClient, "UpdateFetchCvd")
         factory_remote_img = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
             avd_spec_remote_img)
-        factory_remote_img._ProcessArtifacts(constants.IMAGE_SRC_REMOTE)
+        factory_remote_img._ProcessArtifacts()
         mock_download.assert_called_once()
 
     # pylint: disable=protected-access
@@ -270,7 +270,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                 "cvd_utils")
     def testLocalImageCreateInstance(self, mock_cvd_utils, mock_pull,
                                      mock_upload, mock_create_gce_instance):
-        """Test local image with create instance."""
+        """Test CreateInstance with local images."""
         self.Patch(
             cvd_compute_client_multi_stage,
             "CvdComputeClient",
@@ -303,7 +303,40 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_pull.GetAllLogFilePaths.assert_called_once()
         mock_pull.PullLogs.assert_called_once()
         self.assertEqual({"instance": "failure"}, factory.GetFailures())
-        self.assertEqual(2, len(factory.GetLogs().get("instance")))
+        self.assertEqual(3, len(factory.GetLogs().get("instance")))
+
+    @mock.patch.object(remote_instance_cf_device_factory.RemoteInstanceDeviceFactory,
+                       "_CreateGceInstance")
+    @mock.patch("acloud.public.actions.remote_instance_cf_device_factory.pull")
+    @mock.patch("acloud.public.actions.remote_instance_cf_device_factory."
+                "cvd_utils")
+    def testRemoteImageCreateInstance(self, mock_cvd_utils, mock_pull,
+                                      mock_create_gce_instance):
+        """Test CreateInstance with remote images."""
+        self.Patch(
+            cvd_compute_client_multi_stage,
+            "CvdComputeClient",
+            return_value=mock.MagicMock())
+        mock_create_gce_instance.return_value = "instance"
+        fake_avd_spec = mock.MagicMock()
+        fake_avd_spec.image_source = constants.IMAGE_SRC_REMOTE
+        fake_avd_spec.host_user = None
+        fake_avd_spec.no_pull_log = True
+
+        mock_cvd_utils.ConvertRemoteLogs.return_value = [{"path": "/logcat"}]
+        mock_cvd_utils.UploadExtraImages.return_value = []
+
+        factory = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
+            fake_avd_spec)
+        compute_client = factory.GetComputeClient()
+        compute_client.LaunchCvd.return_value = {}
+        factory.CreateInstance()
+
+        compute_client.FetchBuild.assert_called_once()
+        mock_pull.GetAllLogFilePaths.assert_called_once()
+        mock_pull.PullLogs.assert_not_called()
+        self.assertFalse(factory.GetFailures())
+        self.assertEqual(4, len(factory.GetLogs().get("instance")))
 
     def testGetOpenWrtInfoDict(self):
         """Test GetOpenWrtInfoDict."""

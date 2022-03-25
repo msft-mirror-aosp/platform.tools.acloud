@@ -216,6 +216,7 @@ ERROR_LOG_FOLDER = "error_log_folder"
 
 # Type of "logs" entries in report.
 # The values must be consistent with LogDataType in TradeFed.
+LOG_TYPE_DIR = "DIR"
 LOG_TYPE_KERNEL_LOG = "KERNEL_LOG"
 LOG_TYPE_LOGCAT = "LOGCAT"
 LOG_TYPE_TEXT = "TEXT"
