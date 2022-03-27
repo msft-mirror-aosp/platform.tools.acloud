@@ -111,45 +111,28 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.Patch(os.path, "isfile",
                    side_effect=lambda path: path == expected_image_file)
 
-        # Specified --local-kernel-image and --local-system-image with dirs.
-        self.args.local_image = expected_image_dir
+        # Specified --local-*-image with dirs.
         self.args.local_kernel_image = expected_image_dir
         self.args.local_system_image = expected_image_dir
-        self.AvdSpec._avd_type = constants.TYPE_CF
-        self.AvdSpec._instance_type = constants.INSTANCE_TYPE_LOCAL
-        with mock.patch("acloud.create.avd_spec.utils."
-                        "GetBuildEnvironmentVariable",
-                        return_value="cf_x86_phone"):
-            self.AvdSpec._ProcessLocalImageArgs(self.args)
-        self.assertEqual(self.AvdSpec.local_image_dir, expected_image_dir)
+        self.AvdSpec._ProcessImageArgs(self.args)
         self.assertEqual(self.AvdSpec.local_kernel_image, expected_image_dir)
         self.assertEqual(self.AvdSpec.local_system_image, expected_image_dir)
 
-        # Specified --local-kernel-image, and --local-system-image with files.
-        self.args.local_image = expected_image_dir
+        # Specified --local-*-image with files.
         self.args.local_kernel_image = expected_image_file
         self.args.local_system_image = expected_image_file
-        self.AvdSpec._avd_type = constants.TYPE_CF
-        self.AvdSpec._instance_type = constants.INSTANCE_TYPE_LOCAL
-        with mock.patch("acloud.create.avd_spec.utils."
-                        "GetBuildEnvironmentVariable",
-                        return_value="cf_x86_phone"):
-            self.AvdSpec._ProcessLocalImageArgs(self.args)
-        self.assertEqual(self.AvdSpec.local_image_dir, expected_image_dir)
+        self.AvdSpec._ProcessImageArgs(self.args)
         self.assertEqual(self.AvdSpec.local_kernel_image, expected_image_file)
         self.assertEqual(self.AvdSpec.local_system_image, expected_image_file)
 
-        # Specified --avd-type=goldfish, --local_image, and
-        # --local-system-image without args
-        self.args.local_image = constants.FIND_IN_BUILD_ENV
+        # Specified --local-*-image without args.
+        self.args.local_kernel_image = constants.FIND_IN_BUILD_ENV
         self.args.local_system_image = constants.FIND_IN_BUILD_ENV
-        self.AvdSpec._avd_type = constants.TYPE_GF
-        self.AvdSpec._instance_type = constants.INSTANCE_TYPE_LOCAL
         with mock.patch("acloud.create.avd_spec.utils."
                         "GetBuildEnvironmentVariable",
                         return_value=expected_image_dir):
-            self.AvdSpec._ProcessLocalImageArgs(self.args)
-        self.assertEqual(self.AvdSpec.local_image_dir, expected_image_dir)
+            self.AvdSpec._ProcessImageArgs(self.args)
+        self.assertEqual(self.AvdSpec.local_kernel_image, expected_image_dir)
         self.assertEqual(self.AvdSpec.local_system_image, expected_image_dir)
 
     def testProcessAutoconnect(self):
@@ -176,19 +159,11 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         """Test process image source."""
         self.Patch(glob, "glob", return_value=["fake.img"])
         # No specified local_image, image source is from remote
-        self.args.local_image = None
-        self.args.local_system_image = None
         self.AvdSpec._ProcessImageArgs(self.args)
         self.assertEqual(self.AvdSpec._image_source, constants.IMAGE_SRC_REMOTE)
         self.assertEqual(self.AvdSpec._local_image_dir, None)
+        self.assertEqual(self.AvdSpec.local_kernel_image, None)
         self.assertEqual(self.AvdSpec.local_system_image, None)
-
-        self.args.local_system_image = "/test_path/local_system_image"
-        fake_local_system_image = "/fake_path/fake_local_system_image_path"
-        self.Patch(self.AvdSpec, "_GetLocalImagePath",
-                   return_value=fake_local_system_image)
-        self.AvdSpec._ProcessImageArgs(self.args)
-        self.assertEqual(self.AvdSpec.local_system_image, fake_local_system_image)
 
         # Specified local_image with an arg for cf type
         self.Patch(os.path, "isfile", return_value=True)
