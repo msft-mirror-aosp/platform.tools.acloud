@@ -206,7 +206,7 @@ SSL_CA_NAME = "ACloud-webRTC-CA"
 SSL_TRUST_CA_DIR = "/usr/local/share/ca-certificates"
 
 # Remote Log
-REMOTE_LOG_FOLDER = f"/home/{GCE_USER}/cuttlefish_runtime"
+REMOTE_LOG_FOLDER = "cuttlefish_runtime"
 
 # Cheeps specific stuff.
 CHEEPS_BETTY_IMAGE = "betty_image"
@@ -216,6 +216,7 @@ ERROR_LOG_FOLDER = "error_log_folder"
 
 # Type of "logs" entries in report.
 # The values must be consistent with LogDataType in TradeFed.
+LOG_TYPE_DIR = "DIR"
 LOG_TYPE_KERNEL_LOG = "KERNEL_LOG"
 LOG_TYPE_LOGCAT = "LOGCAT"
 LOG_TYPE_TEXT = "TEXT"
