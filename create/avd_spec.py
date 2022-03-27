@@ -141,6 +141,7 @@ class AVDSpec():
         self._host_ssh_private_key_path = None
         self._gpu = None
         self._disk_type = None
+        self._base_instance_num = None
         self._stable_host_image_name = None
         # Create config instance for android_build_client to query build api.
         self._cfg = config.GetAcloudConfig(args)
@@ -229,12 +230,17 @@ class AVDSpec():
         if args.local_image is None:
             self._image_source = constants.IMAGE_SRC_REMOTE
             self._ProcessRemoteBuildArgs(args)
-            if args.local_system_image is not None:
-                self._local_system_image = self._GetLocalImagePath(
-                    args.local_system_image)
         else:
             self._image_source = constants.IMAGE_SRC_LOCAL
             self._ProcessLocalImageArgs(args)
+
+        if args.local_kernel_image is not None:
+            self._local_kernel_image = self._GetLocalImagePath(
+                args.local_kernel_image)
+
+        if args.local_system_image is not None:
+            self._local_system_image = self._GetLocalImagePath(
+                args.local_system_image)
 
         self.image_download_dir = (
             args.image_download_dir if args.image_download_dir
@@ -351,6 +357,7 @@ class AVDSpec():
         self._emulator_build_target = args.emulator_build_target
         self._gpu = args.gpu
         self._disk_type = (args.disk_type or self._cfg.disk_type)
+        self._base_instance_num = args.base_instance_num
         self._gce_metadata = create_common.ParseKeyValuePairArgs(args.gce_metadata)
         self._stable_host_image_name = (
             args.stable_host_image_name or self._cfg.stable_host_image_name)
@@ -423,14 +430,6 @@ class AVDSpec():
             raise errors.CreateError(
                 "Local image doesn't support the AVD type: %s" % self._avd_type
             )
-
-        if args.local_kernel_image is not None:
-            self._local_kernel_image = self._GetLocalImagePath(
-                args.local_kernel_image)
-
-        if args.local_system_image is not None:
-            self._local_system_image = self._GetLocalImagePath(
-                args.local_system_image)
 
     @staticmethod
     def _GetGceLocalImagePath(local_image_dir):
@@ -896,6 +895,11 @@ class AVDSpec():
     def disk_type(self):
         """Return disk type."""
         return self._disk_type
+
+    @property
+    def base_instance_num(self):
+        """Return base instance num."""
+        return self._base_instance_num
 
     @property
     def gpu(self):

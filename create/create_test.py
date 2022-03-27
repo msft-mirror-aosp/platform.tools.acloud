@@ -32,7 +32,7 @@ from acloud.setup import host_setup_runner
 from acloud.setup import setup
 
 
-# pylint: disable=invalid-name,protected-access
+# pylint: disable=invalid-name,protected-access,too-many-statements
 class CreateTest(driver_test_lib.BaseDriverTest):
     """Test create functions."""
 
@@ -96,6 +96,9 @@ class CreateTest(driver_test_lib.BaseDriverTest):
         self.Patch(host_setup_runner.LocalCAHostSetup,
                    "ShouldRun",
                    return_value=False)
+        self.Patch(host_setup_runner.CuttlefishHostSetup,
+                   "ShouldRun",
+                   return_value=False)
         self.Patch(config, "AcloudConfigManager")
         self.Patch(config.AcloudConfigManager, "Load")
         self.Patch(setup, "Run")
@@ -123,13 +126,18 @@ class CreateTest(driver_test_lib.BaseDriverTest):
                    "ShouldRun")
         self.Patch(host_setup_runner.AvdPkgInstaller,
                    "ShouldRun")
+        self.Patch(host_setup_runner.CuttlefishHostSetup,
+                   "ShouldRun")
         args.local_instance = None
         args.local_image = None
         create._CheckForSetup(args)
         self.assertEqual(gcp_setup_runner.GcpTaskRunner.ShouldRun.call_count, 1)
         self.assertEqual(host_setup_runner.AvdPkgInstaller.ShouldRun.call_count, 0)
+        self.assertEqual(
+            host_setup_runner.CuttlefishHostSetup.ShouldRun.call_count, 0)
         gcp_setup_runner.GcpTaskRunner.ShouldRun.reset_mock()
         host_setup_runner.AvdPkgInstaller.ShouldRun.reset_mock()
+        host_setup_runner.CuttlefishHostSetup.ShouldRun.reset_mock()
 
         # Test with remote instance local image case.
         args.local_instance = None
@@ -137,8 +145,11 @@ class CreateTest(driver_test_lib.BaseDriverTest):
         create._CheckForSetup(args)
         self.assertEqual(gcp_setup_runner.GcpTaskRunner.ShouldRun.call_count, 1)
         self.assertEqual(host_setup_runner.AvdPkgInstaller.ShouldRun.call_count, 0)
+        self.assertEqual(
+            host_setup_runner.CuttlefishHostSetup.ShouldRun.call_count, 0)
         gcp_setup_runner.GcpTaskRunner.ShouldRun.reset_mock()
         host_setup_runner.AvdPkgInstaller.ShouldRun.reset_mock()
+        host_setup_runner.CuttlefishHostSetup.ShouldRun.reset_mock()
 
         # Test with local instance remote image case.
         args.local_instance = 0
@@ -146,8 +157,11 @@ class CreateTest(driver_test_lib.BaseDriverTest):
         create._CheckForSetup(args)
         self.assertEqual(gcp_setup_runner.GcpTaskRunner.ShouldRun.call_count, 1)
         self.assertEqual(host_setup_runner.AvdPkgInstaller.ShouldRun.call_count, 1)
+        self.assertEqual(
+            host_setup_runner.CuttlefishHostSetup.ShouldRun.call_count, 1)
         gcp_setup_runner.GcpTaskRunner.ShouldRun.reset_mock()
         host_setup_runner.AvdPkgInstaller.ShouldRun.reset_mock()
+        host_setup_runner.CuttlefishHostSetup.ShouldRun.reset_mock()
 
         # Test with local instance local image case.
         args.local_instance = 0
@@ -155,8 +169,11 @@ class CreateTest(driver_test_lib.BaseDriverTest):
         create._CheckForSetup(args)
         self.assertEqual(gcp_setup_runner.GcpTaskRunner.ShouldRun.call_count, 0)
         self.assertEqual(host_setup_runner.AvdPkgInstaller.ShouldRun.call_count, 1)
+        self.assertEqual(
+            host_setup_runner.CuttlefishHostSetup.ShouldRun.call_count, 1)
         gcp_setup_runner.GcpTaskRunner.ShouldRun.reset_mock()
         host_setup_runner.AvdPkgInstaller.ShouldRun.reset_mock()
+        host_setup_runner.CuttlefishHostSetup.ShouldRun.reset_mock()
 
     # pylint: disable=no-member
     def testRun(self):
