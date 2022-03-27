@@ -82,12 +82,13 @@ if sys.version_info.major == 2:
                                                 sys.version_info.micro))
     sys.exit(1)
 
-# This is a workaround to put '/usr/lib/python3.X' ahead of googleapiclient of
-# build system path list to fix python3 issue of http.client(b/144743252)
-# that googleapiclient existed http.py conflict with python3 build-in lib.
-# Using embedded_launcher(b/135639220) perhaps work whereas it didn't solve yet.
-if sys.version_info.major == 3:
-    sys.path.insert(0, os.path.dirname(sysconfig.get_paths()['purelib']))
+# (b/219847353) Move googleapiclient to the last position of sys.path when
+#  existed.
+for lib in sys.path:
+    if 'googleapiclient' in lib:
+        sys.path.remove(lib)
+        sys.path.append(lib)
+        break
 
 # By Default silence root logger's stream handler since 3p lib may initial
 # root logger no matter what level we're using. The acloud logger behavior will
