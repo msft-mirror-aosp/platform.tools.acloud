@@ -254,8 +254,9 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             download: Whether to download the files to a temporary directory
                       and show messages to the user.
         """
+        self._all_logs[instance] = [cvd_utils.TOMBSTONES]
         log_files = pull.GetAllLogFilePaths(self._ssh)
-        self._all_logs[instance] = cvd_utils.ConvertRemoteLogs(log_files)
+        self._all_logs[instance].extend(cvd_utils.ConvertRemoteLogs(log_files))
 
         if download:
             error_log_folder = pull.PullLogs(self._ssh, log_files, instance)
