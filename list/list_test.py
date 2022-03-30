@@ -202,6 +202,8 @@ class ListTest(driver_test_lib.BaseDriverTest):
         )
         self.Patch(cvd_runtime_config, "CvdRuntimeConfig",
                    return_value=cf_config)
+        self.Patch(instance.LocalInstance, "GetDevidInfoFromCvdFleet",
+                   return_value=None)
 
         ins = instance.LocalInstance("fake_cf_path")
         list_instance.PrintInstancesDetails([ins], verbose=True)
