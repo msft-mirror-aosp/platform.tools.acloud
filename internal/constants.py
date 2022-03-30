@@ -133,6 +133,7 @@ FVP_ADB_PORT = 5555
 MAX_PORT = 65535
 
 COMMAND_PS = ["ps", "aux"]
+CMD_CVD = "cvd"
 CMD_LAUNCH_CVD = "launch_cvd"
 CMD_PGREP = "pgrep"
 CMD_STOP_CVD = "stop_cvd"
