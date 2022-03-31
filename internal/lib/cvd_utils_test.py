@@ -28,10 +28,10 @@ class CvdUtilsTest(unittest.TestCase):
     """Test the functions in cvd_utils."""
 
     @staticmethod
-    def _CreateFile(path):
-        """Create an empty file."""
-        with open(path, "wb"):
-            pass
+    def _CreateFile(path, data=b""):
+        """Create and write binary data to a file."""
+        with open(path, "wb") as file_obj:
+            file_obj.write(data)
 
     @staticmethod
     def testUploadImageZip():
@@ -79,20 +79,15 @@ class CvdUtilsTest(unittest.TestCase):
         cvd_utils.UploadCvdHostPackage(mock_ssh, "/mock/cvd.tar.gz")
         mock_ssh.Run.assert_called_with("tar -x -z -f - < /mock/cvd.tar.gz")
 
-    def testUploadExtraImages(self):
+    def testUploadBootImages(self):
         """Test UploadExtraImages with boot images."""
         mock_ssh = mock.Mock()
         with tempfile.TemporaryDirectory(prefix="cvd_utils") as image_dir:
-            mock_avd_spec = mock.Mock(local_kernel_image=image_dir)
-            with self.assertRaises(errors.GetLocalImageError):
-                cvd_utils.UploadExtraImages(mock_ssh, mock_avd_spec)
-
             boot_image_path = os.path.join(image_dir, "boot.img")
-            self._CreateFile(boot_image_path)
+            self._CreateFile(boot_image_path, b"ANDROID!test")
             self._CreateFile(os.path.join(image_dir, "vendor_boot.img"))
 
-            mock_ssh.reset_mock()
-            mock_avd_spec.local_kernel_image = boot_image_path
+            mock_avd_spec = mock.Mock(local_kernel_image=boot_image_path)
             args = cvd_utils.UploadExtraImages(mock_ssh, mock_avd_spec)
             self.assertEqual(["-boot_image", "acloud_cf/boot.img"], args)
             mock_ssh.Run.assert_called_once_with("mkdir -p acloud_cf")
@@ -104,6 +99,28 @@ class CvdUtilsTest(unittest.TestCase):
             self.assertEqual(
                 ["-boot_image", "acloud_cf/boot.img",
                  "-vendor_boot_image", "acloud_cf/vendor_boot.img"],
+                args)
+            mock_ssh.Run.assert_called_once()
+            self.assertEqual(2, mock_ssh.ScpPushFile.call_count)
+
+    def testUploadKernelImages(self):
+        """Test UploadExtraImages with kernel images."""
+        mock_ssh = mock.Mock()
+        with tempfile.TemporaryDirectory(prefix="cvd_utils") as image_dir:
+            kernel_image_path = os.path.join(image_dir, "Image")
+            self._CreateFile(kernel_image_path)
+            self._CreateFile(os.path.join(image_dir, "initramfs.img"))
+
+            mock_avd_spec = mock.Mock(local_kernel_image=kernel_image_path)
+            with self.assertRaises(errors.GetLocalImageError):
+                cvd_utils.UploadExtraImages(mock_ssh, mock_avd_spec)
+
+            mock_ssh.reset_mock()
+            mock_avd_spec.local_kernel_image = image_dir
+            args = cvd_utils.UploadExtraImages(mock_ssh, mock_avd_spec)
+            self.assertEqual(
+                ["-kernel_path", "acloud_cf/kernel",
+                 "-initramfs_path", "acloud_cf/initramfs.img"],
                 args)
             mock_ssh.Run.assert_called_once()
             self.assertEqual(2, mock_ssh.ScpPushFile.call_count)

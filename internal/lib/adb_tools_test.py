@@ -17,7 +17,6 @@ import subprocess
 import unittest
 
 from unittest import mock
-from six import b
 
 from acloud import errors
 from acloud.internal.lib import adb_tools
@@ -26,16 +25,16 @@ from acloud.internal.lib import driver_test_lib
 
 class AdbToolsTest(driver_test_lib.BaseDriverTest):
     """Test adb functions."""
-    DEVICE_ALIVE = b("List of devices attached\n"
-                     "127.0.0.1:48451 device product:aosp_cf_x86_phone "
-                     "model:Cuttlefish_x86_phone device:vsoc_x86 "
-                     "transport_id:98")
-    DEVICE_OFFLINE = b("List of devices attached\n"
-                       "127.0.0.1:48451 offline")
-    DEVICE_STATE_ONLY = b("List of devices attached\n"
-                          "127.0.0.1:48451\toffline\n"
-                          "emulator-5554\tdevice\n")
-    DEVICE_NONE = b("List of devices attached")
+    DEVICE_ALIVE = ("List of devices attached\n"
+                    "127.0.0.1:48451 device product:aosp_cf_x86_phone "
+                    "model:Cuttlefish_x86_phone device:vsoc_x86 "
+                    "transport_id:98").encode()
+    DEVICE_OFFLINE = ("List of devices attached\n"
+                      "127.0.0.1:48451 offline").encode()
+    DEVICE_STATE_ONLY = ("List of devices attached\n"
+                         "127.0.0.1:48451\toffline\n"
+                         "emulator-5554\tdevice\n").encode()
+    DEVICE_NONE = b"List of devices attached"
 
     def setUp(self):
         """Patch the path to adb."""
