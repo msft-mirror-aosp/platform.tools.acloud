@@ -540,6 +540,12 @@ def GetCreateArgParser(subparser):
         help="'cuttlefish only' Create OpenWrt device when launching cuttlefish "
         "device.")
     create_parser.add_argument(
+        "--use-launch_cvd",
+        action="store_true",
+        dest="use_launch_cvd",
+        required=False,
+        help="'cuttlefish only' Use launch_cvd to create cuttlefish devices.")
+    create_parser.add_argument(
         "--host",
         type=str,
         dest="remote_host",

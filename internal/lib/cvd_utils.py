@@ -33,9 +33,17 @@ _ARTIFACT_FILES = ["*.img", "bootloader", "kernel"]
 _REMOTE_IMAGE_DIR = "acloud_cf"
 _BOOT_IMAGE_NAME = "boot.img"
 _VENDOR_BOOT_IMAGE_NAME = "vendor_boot.img"
+_KERNEL_IMAGE_NAMES = ("kernel", "bzImage", "Image")
+_INITRAMFS_IMAGE_NAME = "initramfs.img"
 _REMOTE_BOOT_IMAGE_PATH = remote_path.join(_REMOTE_IMAGE_DIR, _BOOT_IMAGE_NAME)
 _REMOTE_VENDOR_BOOT_IMAGE_PATH = remote_path.join(
     _REMOTE_IMAGE_DIR, _VENDOR_BOOT_IMAGE_NAME)
+_REMOTE_KERNEL_IMAGE_PATH = remote_path.join(
+    _REMOTE_IMAGE_DIR, _KERNEL_IMAGE_NAMES[0])
+_REMOTE_INITRAMFS_IMAGE_PATH = remote_path.join(
+    _REMOTE_IMAGE_DIR, _INITRAMFS_IMAGE_NAME)
+
+_ANDROID_BOOT_IMAGE_MAGIC = b"ANDROID!"
 
 HOST_KERNEL_LOG = report.LogFile(
     "/var/log/kern.log", constants.LOG_TYPE_KERNEL_LOG, "host_kernel.log")
@@ -99,6 +107,21 @@ def UploadCvdHostPackage(ssh_obj, cvd_host_package):
     ssh_obj.Run(remote_cmd)
 
 
+def _IsBootImage(image_path):
+    """Check if a file is an Android boot image by reading the magic bytes.
+
+    Args:
+        image_path: The file path.
+
+    Returns:
+        A boolean, whether the file is a boot image.
+    """
+    if not os.path.isfile(image_path):
+        return False
+    with open(image_path, "rb") as image_file:
+        return image_file.read(8) == _ANDROID_BOOT_IMAGE_MAGIC
+
+
 def _FindBootImages(search_path):
     """Find boot and vendor_boot images in a path.
 
@@ -109,12 +132,33 @@ def _FindBootImages(search_path):
         The boot image path and the vendor_boot image path. Each value can be
         None if the path doesn't exist.
     """
-    if os.path.isfile(search_path):
+    if _IsBootImage(search_path):
         return search_path, None
 
     paths = [os.path.join(search_path, name) for name in
              (_BOOT_IMAGE_NAME, _VENDOR_BOOT_IMAGE_NAME)]
     return [(path if os.path.isfile(path) else None) for path in paths]
+
+
+def _FindKernelImages(search_path):
+    """Find kernel and initramfs images in a path.
+
+    Args:
+        search_path: A path to an image directory.
+
+    Returns:
+        The kernel image path and the initramfs image path. Each value can be
+        None if the path doesn't exist.
+    """
+    paths = [os.path.join(search_path, name) for name in _KERNEL_IMAGE_NAMES]
+    kernel_image_path = next((path for path in paths if os.path.isfile(path)),
+                             None)
+
+    initramfs_image_path = os.path.join(search_path, _INITRAMFS_IMAGE_NAME)
+    if not os.path.isfile(initramfs_image_path):
+        initramfs_image_path = None
+
+    return kernel_image_path, initramfs_image_path
 
 
 @utils.TimeExecute(function_description="Uploading local kernel images.")
@@ -135,11 +179,10 @@ def _UploadKernelImages(ssh_obj, search_path):
     # Assume that the caller cleaned up the remote home directory.
     ssh_obj.Run("mkdir -p " + _REMOTE_IMAGE_DIR)
 
-    launch_cvd_args = []
     boot_image_path, vendor_boot_image_path = _FindBootImages(search_path)
     if boot_image_path:
         ssh_obj.ScpPushFile(boot_image_path, _REMOTE_BOOT_IMAGE_PATH)
-        launch_cvd_args.extend(["-boot_image", _REMOTE_BOOT_IMAGE_PATH])
+        launch_cvd_args = ["-boot_image", _REMOTE_BOOT_IMAGE_PATH]
         if vendor_boot_image_path:
             ssh_obj.ScpPushFile(vendor_boot_image_path,
                                 _REMOTE_VENDOR_BOOT_IMAGE_PATH)
@@ -147,7 +190,15 @@ def _UploadKernelImages(ssh_obj, search_path):
                                     _REMOTE_VENDOR_BOOT_IMAGE_PATH])
         return launch_cvd_args
 
-    raise errors.GetLocalImageError(f"No kernel images in {search_path}.")
+    kernel_image_path, initramfs_image_path = _FindKernelImages(search_path)
+    if kernel_image_path and initramfs_image_path:
+        ssh_obj.ScpPushFile(kernel_image_path, _REMOTE_KERNEL_IMAGE_PATH)
+        ssh_obj.ScpPushFile(initramfs_image_path, _REMOTE_INITRAMFS_IMAGE_PATH)
+        return ["-kernel_path", _REMOTE_KERNEL_IMAGE_PATH,
+                "-initramfs_path", _REMOTE_INITRAMFS_IMAGE_PATH]
+
+    raise errors.GetLocalImageError(
+        f"{search_path} is not a boot image or a directory containing images.")
 
 
 def UploadExtraImages(ssh_obj, avd_spec):
