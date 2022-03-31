@@ -143,6 +143,7 @@ class AVDSpec():
         self._disk_type = None
         self._base_instance_num = None
         self._stable_host_image_name = None
+        self._use_launch_cvd = None
         # Create config instance for android_build_client to query build api.
         self._cfg = config.GetAcloudConfig(args)
         # Reporting args.
@@ -352,6 +353,7 @@ class AVDSpec():
         self._mkcert = args.mkcert
         self._oxygen = args.oxygen
         self._openwrt = args.openwrt
+        self._use_launch_cvd = args.use_launch_cvd
         self._serial_log_file = args.serial_log_file
         self._emulator_build_id = args.emulator_build_id
         self._emulator_build_target = args.emulator_build_target
@@ -1016,6 +1018,11 @@ class AVDSpec():
     def openwrt(self):
         """Return openwrt."""
         return self._openwrt
+
+    @property
+    def use_launch_cvd(self):
+        """Return use_launch_cvd."""
+        return self._use_launch_cvd
 
     @property
     def launch_args(self):
