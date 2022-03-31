@@ -125,7 +125,7 @@ def GetLocalInstanceIdByName(name):
     return None
 
 
-def GetLocalInstanceConfig(local_instance_id):
+def GetLocalInstanceConfigPath(local_instance_id):
     """Get the path of instance config.
 
     Args:
@@ -136,7 +136,19 @@ def GetLocalInstanceConfig(local_instance_id):
     """
     ins_assembly_dir = os.path.join(GetLocalInstanceHomeDir(local_instance_id),
                                     _INSTANCE_ASSEMBLY_DIR)
-    cfg_path = os.path.join(ins_assembly_dir, constants.CUTTLEFISH_CONFIG_FILE)
+    return os.path.join(ins_assembly_dir, constants.CUTTLEFISH_CONFIG_FILE)
+
+
+def GetLocalInstanceConfig(local_instance_id):
+    """Get the path of existed config from local instance.
+
+    Args:
+        local_instance_id: Integer of instance id.
+
+    Return:
+        String, path of cf runtime config. None for config not exist.
+    """
+    cfg_path = GetLocalInstanceConfigPath(local_instance_id)
     if os.path.isfile(cfg_path):
         return cfg_path
     return None
