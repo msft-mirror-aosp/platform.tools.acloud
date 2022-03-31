@@ -604,6 +604,8 @@ class AVDSpec():
 
         self._remote_image[constants.CHEEPS_BETTY_IMAGE] = (
             args.cheeps_betty_image or self._cfg.betty_image)
+        self._remote_image[constants.CHEEPS_FEATURES] = ','.join(
+            args.cheeps_features)
 
         # Process system image, kernel image, bootloader, and otatools.
         self._system_build_info = {constants.BUILD_ID: args.system_build_id,
