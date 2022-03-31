@@ -70,6 +70,7 @@ _RE_SSH_TUNNEL_PATTERN = (r"((.*\s*-L\s)(?P<%s>\d+):127.0.0.1:%s)"
                           r"((.*\s*-L\s)(?P<%s>\d+):127.0.0.1:%s)"
                           r"(.+%s)")
 _RE_TIMEZONE = re.compile(r"^(?P<time>[0-9\-\.:T]*)(?P<timezone>[+-]\d+:\d+)$")
+_RE_DEVICE_INFO = re.compile(r"(?s).*(?P<device_info>[{][\s\w\W]+})")
 
 _COMMAND_PS_LAUNCH_CVD = ["ps", "-wweo", "lstart,cmd"]
 _RE_RUN_CVD = re.compile(r"(?P<date_str>^[^/]+)(.*run_cvd)")
@@ -124,7 +125,7 @@ def GetLocalInstanceIdByName(name):
     return None
 
 
-def GetLocalInstanceConfig(local_instance_id):
+def GetLocalInstanceConfigPath(local_instance_id):
     """Get the path of instance config.
 
     Args:
@@ -135,7 +136,19 @@ def GetLocalInstanceConfig(local_instance_id):
     """
     ins_assembly_dir = os.path.join(GetLocalInstanceHomeDir(local_instance_id),
                                     _INSTANCE_ASSEMBLY_DIR)
-    cfg_path = os.path.join(ins_assembly_dir, constants.CUTTLEFISH_CONFIG_FILE)
+    return os.path.join(ins_assembly_dir, constants.CUTTLEFISH_CONFIG_FILE)
+
+
+def GetLocalInstanceConfig(local_instance_id):
+    """Get the path of existed config from local instance.
+
+    Args:
+        local_instance_id: Integer of instance id.
+
+    Return:
+        String, path of cf runtime config. None for config not exist.
+    """
+    cfg_path = GetLocalInstanceConfigPath(local_instance_id)
     if os.path.isfile(cfg_path):
         return cfg_path
     return None
@@ -538,10 +551,35 @@ class LocalInstance(Instance):
                                        stderr=subprocess.PIPE)
             stdout, _ = process.communicate()
             logger.debug("Output of cvd fleet: %s", stdout)
-            return json.loads(stdout)
+            return json.loads(self._ParsingCvdFleetOutput(stdout))
         except (subprocess.CalledProcessError, json.JSONDecodeError) as error:
             logger.error("Failed to run 'cvd fleet': %s", str(error))
             return None
+
+    @staticmethod
+    def _ParsingCvdFleetOutput(output):
+        """Parsing the output of cvd fleet.
+
+        The output example:
+            WARNING: cvd_server client version (8245608) does not match.
+            {
+                "adb_serial" : "0.0.0.0:6520",
+                "assembly_dir" : "/home/cuttlefish_runtime/assembly",
+                "displays" : ["720 x 1280 ( 320 )"],
+                "instance_dir" : "/home/cuttlefish_runtime/instances/cvd-1",
+                "instance_name" : "cvd-1",
+                "status" : "Running",
+                "web_access" : "https://0.0.0.0:8443/client.html?deviceId=cvd-1",
+                "webrtc_port" : "8443"
+            }
+
+        Returns:
+            Parsed output filtered warning message.
+        """
+        device_match = _RE_DEVICE_INFO.match(output)
+        if device_match:
+            return device_match.group("device_info")
+        return ""
 
     def CvdStatus(self):
         """check if local instance is active.

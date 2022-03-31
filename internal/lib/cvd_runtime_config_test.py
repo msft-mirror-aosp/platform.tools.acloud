@@ -19,7 +19,6 @@ import os
 import unittest
 
 from unittest import mock
-import six
 
 from acloud import errors
 from acloud.internal.lib import cvd_runtime_config as cf_cfg
@@ -90,7 +89,7 @@ class CvdRuntimeconfigTest(driver_test_lib.BaseDriverTest):
                         }
         mock_open = mock.mock_open(read_data=self.CF_RUNTIME_CONFIG)
         cf_cfg_path = "/fake-path/local-instance-2/fake.config"
-        with mock.patch.object(six.moves.builtins, "open", mock_open):
+        with mock.patch("builtins.open", mock_open):
             fake_cvd_runtime_config = cf_cfg.CvdRuntimeConfig(cf_cfg_path)
             self.assertEqual(fake_cvd_runtime_config._config_dict, expected_dict)
             self.assertEqual(fake_cvd_runtime_config.enable_webrtc, None)

@@ -21,6 +21,7 @@ from acloud.internal import constants
 from acloud.internal.lib import cvd_utils
 from acloud.internal.lib import utils
 from acloud.public.actions import gce_device_factory
+from acloud.pull import pull
 
 
 logger = logging.getLogger(__name__)
@@ -44,6 +45,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
     def __init__(self, avd_spec, local_image_artifact=None,
                  cvd_host_package_artifact=None):
         super().__init__(avd_spec, local_image_artifact)
+        self._all_logs = {}
         self._cvd_host_package_artifact = cvd_host_package_artifact
 
     # pylint: disable=broad-except
@@ -58,18 +60,24 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         if instance in self.GetFailures():
             return instance
         try:
-            self._ProcessArtifacts(self._avd_spec.image_source)
-            self._compute_client.LaunchCvd(
+            image_args = self._ProcessArtifacts()
+            failures = self._compute_client.LaunchCvd(
                 instance,
                 self._avd_spec,
                 self._cfg.extra_data_disk_size_gb,
-                boot_timeout_secs=self._avd_spec.boot_timeout_secs)
+                boot_timeout_secs=self._avd_spec.boot_timeout_secs,
+                extra_args=image_args)
+            for failing_instance, error_msg in failures.items():
+                self._SetFailures(failing_instance, error_msg)
         except Exception as e:
             self._SetFailures(instance, e)
 
+        self._FindLogFiles(
+            instance,
+            instance in self.GetFailures() and not self._avd_spec.no_pull_log)
         return instance
 
-    def _ProcessArtifacts(self, image_source):
+    def _ProcessArtifacts(self):
         """Process artifacts.
 
         - If images source is local, tool will upload images from local site to
@@ -78,14 +86,14 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
           build to remote instance. Before download images, we have to update
           fetch_cvd to remote instance.
 
-        Args:
-            image_source: String, the type of image source is remote or local.
+        Returns:
+            A list of strings, the launch_cvd arguments.
         """
-        if image_source == constants.IMAGE_SRC_LOCAL:
+        if self._avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
             self._UploadLocalImageArtifacts(self._local_image_artifact,
                                             self._cvd_host_package_artifact,
                                             self._avd_spec.local_image_dir)
-        elif image_source == constants.IMAGE_SRC_REMOTE:
+        elif self._avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
             self._compute_client.UpdateFetchCvd()
             self._FetchBuild(self._avd_spec)
 
@@ -95,6 +103,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         if self._avd_spec.extra_files:
             self._compute_client.UploadExtraFiles(self._avd_spec.extra_files)
 
+        return cvd_utils.UploadExtraImages(self._ssh, self._avd_spec)
 
     def _FetchBuild(self, avd_spec):
         """Download CF artifacts from android build.
@@ -139,6 +148,25 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             cvd_utils.UploadImageDir(self._ssh, images_dir)
         cvd_utils.UploadCvdHostPackage(self._ssh, cvd_host_package_artifact)
 
+    def _FindLogFiles(self, instance, download):
+        """Find and pull all log files from instance.
+
+        Args:
+            instance: String, instance name.
+            download: Whether to download the files to a temporary directory
+                      and show messages to the user.
+        """
+        self._all_logs[instance] = [cvd_utils.TOMBSTONES,
+                                    cvd_utils.HOST_KERNEL_LOG]
+        if self._avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
+            self._all_logs[instance].append(cvd_utils.FETCHER_CONFIG_JSON)
+        log_files = pull.GetAllLogFilePaths(self._ssh)
+        self._all_logs[instance].extend(cvd_utils.ConvertRemoteLogs(log_files))
+        if download:
+            error_log_folder = pull.PullLogs(self._ssh, log_files, instance)
+            self._compute_client.ExtendReportData(constants.ERROR_LOG_FOLDER,
+                                                  error_log_folder)
+
     def GetOpenWrtInfoDict(self):
         """Get openwrt info dictionary.
 
@@ -166,4 +194,4 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         Returns:
             A dictionary that maps instance names to lists of report.LogFile.
         """
-        return self._compute_client.all_logs
+        return self._all_logs
