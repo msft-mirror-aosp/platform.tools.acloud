@@ -17,9 +17,6 @@ import logging
 import os
 import tempfile
 
-from six import b
-
-
 from acloud import errors
 from acloud.internal.lib import utils
 
@@ -166,18 +163,18 @@ class OtaTools:
             if split_line[0] == "dynamic_partition_list":
                 partition_names = split_line[1].split()
             elif split_line[0] == "lpmake":
-                output_file.write(b("lpmake=%s\n" % lpmake_path))
+                output_file.write("lpmake=%s\n" % lpmake_path)
                 continue
             elif split_line[0].endswith("_image"):
                 continue
-            output_file.write(b(line))
+            output_file.write(line)
 
         if not partition_names:
             logger.w("No dynamic partition list in misc info.")
 
         for partition_name in partition_names:
-            output_file.write(b("%s_image=%s\n" %
-                                (partition_name, get_image(partition_name))))
+            output_file.write("%s_image=%s\n" %
+                              (partition_name, get_image(partition_name)))
 
     @utils.TimeExecute(function_description="Build super image")
     @utils.TimeoutException(_BUILD_SUPER_IMAGE_TIMEOUT_SECS)
@@ -199,7 +196,7 @@ class OtaTools:
             with open(misc_info_path, "r") as misc_info:
                 with tempfile.NamedTemporaryFile(
                         prefix="misc_info_", suffix=".txt",
-                        delete=False) as new_misc_info:
+                        delete=False, mode="w") as new_misc_info:
                     new_misc_info_path = new_misc_info.name
                     self._RewriteMiscInfo(new_misc_info, misc_info, lpmake,
                                           get_image)
@@ -247,11 +244,11 @@ class OtaTools:
         for line in input_file:
             split_line = line.split()
             if len(split_line) == 3:
-                output_file.write(b("%s %s %s\n" % (get_image(split_line[1]),
-                                                    split_line[1],
-                                                    split_line[2])))
+                output_file.write("%s %s %s\n" % (get_image(split_line[1]),
+                                                  split_line[1],
+                                                  split_line[2]))
             else:
-                output_file.write(b(line))
+                output_file.write(line)
 
     @utils.TimeExecute(function_description="Make combined image")
     @utils.TimeoutException(_MK_COMBINED_IMG_TIMEOUT_SECS)
@@ -274,7 +271,7 @@ class OtaTools:
             with open(system_qemu_config_path, "r") as config:
                 with tempfile.NamedTemporaryFile(
                         prefix="system-qemu-config_", suffix=".txt",
-                        delete=False) as new_config:
+                        delete=False, mode="w") as new_config:
                     new_config_path = new_config.name
                     self._RewriteSystemQemuConfig(new_config, config,
                                                   get_image)
