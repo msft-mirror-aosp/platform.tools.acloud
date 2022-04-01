@@ -90,11 +90,8 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.assertEqual("inst", factory.CreateInstance())
         mock_ssh.Ssh.assert_called_once()
         mock_client_obj.InitRemoteHost.assert_called_once()
-        mock_cvd_utils.UploadImageZip.assert_not_called()
-        mock_cvd_utils.UploadImageDir.assert_called_with(
-            mock.ANY, "/mock/img")
-        mock_cvd_utils.UploadCvdHostPackage.assert_called_with(
-            mock.ANY, "/mock/cvd.tar.gz")
+        mock_cvd_utils.UploadArtifacts.assert_called_with(
+            mock.ANY, "/mock/img", "/mock/cvd.tar.gz")
         mock_client_obj.LaunchCvd.assert_called_with(
             "inst",
             mock_avd_spec,
@@ -128,11 +125,8 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.assertEqual("inst", factory.CreateInstance())
         mock_ssh.Ssh.assert_called_once()
         mock_client_obj.InitRemoteHost.assert_called_once()
-        mock_cvd_utils.UploadImageZip.assert_called_with(
-            mock.ANY, "/mock/img.zip")
-        mock_cvd_utils.UploadImageDir.assert_not_called()
-        mock_cvd_utils.UploadCvdHostPackage.assert_called_with(
-            mock.ANY, "/mock/cvd.tar.gz")
+        mock_cvd_utils.UploadArtifacts.assert_called_with(
+            mock.ANY, "/mock/img.zip", "/mock/cvd.tar.gz")
         mock_client_obj.LaunchCvd.assert_called()
         mock_pull.GetAllLogFilePaths.assert_called_once()
         mock_pull.PullLogs.assert_not_called()
