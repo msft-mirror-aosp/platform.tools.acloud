@@ -22,7 +22,6 @@ import subprocess
 import unittest
 
 from unittest import mock
-from six import b
 
 # pylint: disable=import-error
 import dateutil.parser
@@ -38,12 +37,12 @@ from acloud.list import instance
 
 class InstanceTest(driver_test_lib.BaseDriverTest):
     """Test instance."""
-    PS_SSH_TUNNEL = b("/fake_ps_1 --fake arg \n"
-                      "/fake_ps_2 --fake arg \n"
-                      "/usr/bin/ssh -i ~/.ssh/acloud_rsa "
-                      "-o UserKnownHostsFile=/dev/null "
-                      "-o StrictHostKeyChecking=no -L 54321:127.0.0.1:6520 "
-                      "-L 12345:127.0.0.1:6444 -N -f -l user 1.1.1.1")
+    PS_SSH_TUNNEL = ("/fake_ps_1 --fake arg \n"
+                     "/fake_ps_2 --fake arg \n"
+                     "/usr/bin/ssh -i ~/.ssh/acloud_rsa "
+                     "-o UserKnownHostsFile=/dev/null "
+                     "-o StrictHostKeyChecking=no -L 54321:127.0.0.1:6520 "
+                     "-L 12345:127.0.0.1:6444 -N -f -l user 1.1.1.1").encode()
     GCE_INSTANCE = {
         constants.INS_KEY_NAME: "fake_ins_name",
         constants.INS_KEY_CREATETIME: "fake_create_time",
@@ -269,6 +268,8 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
             instance.RemoteInstance,
             "GetAdbVncPortFromSSHTunnel",
             return_value=forwarded_ports(vnc_port=fake_vnc, adb_port=fake_adb))
+        self.Patch(utils, "GetWebrtcPortFromSSHTunnel",
+                   return_value="fake_webrtc_port")
         self.Patch(instance, "_GetElapsedTime", return_value="fake_time")
         self.Patch(AdbTools, "IsAdbConnected", return_value=True)
 
