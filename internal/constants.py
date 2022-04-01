@@ -209,10 +209,6 @@ SSL_TRUST_CA_DIR = "/usr/local/share/ca-certificates"
 # Remote Log
 REMOTE_LOG_FOLDER = "cuttlefish_runtime"
 
-# Cheeps specific stuff.
-CHEEPS_BETTY_IMAGE = "betty_image"
-CHEEPS_FEATURES = "cheeps_features"
-
 # Key name in report
 ERROR_LOG_FOLDER = "error_log_folder"
 
