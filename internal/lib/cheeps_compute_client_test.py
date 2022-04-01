@@ -45,6 +45,7 @@ class CheepsComputeClientTest(driver_test_lib.BaseDriverTest):
     USER = "test_user"
     PASSWORD = "test_password"
     CHEEPS_BETTY_IMAGE = 'abcasdf'
+    CHEEPS_FEATURES = 'a,b,c'
 
     def _GetFakeConfig(self):
         """Create a fake configuration object.
@@ -88,6 +89,7 @@ class CheepsComputeClientTest(driver_test_lib.BaseDriverTest):
             'android_build_target': self.ANDROID_BUILD_TARGET,
             'avd_type': "cheeps",
             'betty_image': self.CHEEPS_BETTY_IMAGE,
+            'cheeps_features': self.CHEEPS_FEATURES,
             'cvd_01_dpi': str(self.DPI),
             'cvd_01_x_res': str(self.X_RES),
             'cvd_01_y_res': str(self.Y_RES),
@@ -110,6 +112,7 @@ class CheepsComputeClientTest(driver_test_lib.BaseDriverTest):
             constants.BUILD_ID: self.ANDROID_BUILD_ID,
             constants.BUILD_TARGET: self.ANDROID_BUILD_TARGET,
             constants.CHEEPS_BETTY_IMAGE: self.CHEEPS_BETTY_IMAGE,
+            constants.CHEEPS_FEATURES: self.CHEEPS_FEATURES,
         }
 
         self.cheeps_compute_client.CreateInstance(
@@ -136,6 +139,7 @@ class CheepsComputeClientTest(driver_test_lib.BaseDriverTest):
             'android_build_target': self.ANDROID_BUILD_TARGET,
             'avd_type': "cheeps",
             'betty_image': None,
+            'cheeps_features': None,
             'cvd_01_dpi': str(self.DPI),
             'cvd_01_x_res': str(self.X_RES),
             'cvd_01_y_res': str(self.Y_RES),
@@ -157,6 +161,7 @@ class CheepsComputeClientTest(driver_test_lib.BaseDriverTest):
             constants.BUILD_ID: self.ANDROID_BUILD_ID,
             constants.BUILD_TARGET: self.ANDROID_BUILD_TARGET,
             constants.CHEEPS_BETTY_IMAGE: None,
+            constants.CHEEPS_FEATURES: None,
         }
 
         self.cheeps_compute_client.CreateInstance(
