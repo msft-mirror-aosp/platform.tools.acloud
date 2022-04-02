@@ -52,11 +52,9 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                        "UpdateCertificate")
     @mock.patch.object(remote_instance_cf_device_factory.RemoteInstanceDeviceFactory,
                        "_FetchBuild")
-    @mock.patch.object(remote_instance_cf_device_factory.RemoteInstanceDeviceFactory,
-                       "_UploadLocalImageArtifacts")
     @mock.patch("acloud.public.actions.remote_instance_cf_device_factory."
                 "cvd_utils")
-    def testProcessArtifacts(self, mock_cvd_utils, mock_upload, mock_download,
+    def testProcessArtifacts(self, mock_cvd_utils, mock_download,
                              mock_uploadca):
         """test ProcessArtifacts."""
         # Test image source type is local.
@@ -76,10 +74,11 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             fake_image_name,
             fake_host_package_name)
         factory_local_img._ProcessArtifacts()
-        mock_upload.assert_called_once()
         # cf default autoconnect webrtc and should upload certificates
         mock_uploadca.assert_called_once()
         mock_uploadca.reset_mock()
+        mock_cvd_utils.UploadArtifacts.assert_called_once_with(
+            mock.ANY, fake_image_name, fake_host_package_name)
         mock_cvd_utils.UploadExtraImages.assert_called_once()
 
         # given autoconnect to vnc should not upload certificates
@@ -220,56 +219,13 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         factory.GetBuildInfoDict()
         mock_cvd_utils.GetRemoteBuildInfoDict.assert_called()
 
-    @staticmethod
-    @mock.patch("acloud.public.actions.remote_instance_cf_device_factory."
-                "cvd_utils")
-    def testUploadArtifacts(mock_cvd_utils):
-        """Test UploadArtifacts."""
-        fake_host_package = "/fake/host_package.tar.gz"
-        fake_image = "/fake/aosp_cf_x86_phone-img-eng.username.zip"
-        fake_local_image_dir = "/fake_image"
-        args = mock.MagicMock()
-        # Test local image extract from image zip case.
-        args.config_file = ""
-        args.avd_type = constants.TYPE_CF
-        args.flavor = "phone"
-        args.local_image = "fake_local_image"
-        args.local_system_image = None
-        args.adb_port = None
-        args.launch_args = None
-        avd_spec_local_image = avd_spec.AVDSpec(args)
-        factory = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
-            avd_spec_local_image,
-            fake_image,
-            fake_host_package)
-        factory._UploadLocalImageArtifacts(fake_image,
-                                           fake_host_package,
-                                           None)
-        mock_cvd_utils.UploadImageZip.assert_called_with(mock.ANY, fake_image)
-        mock_cvd_utils.UploadImageDir.assert_not_called()
-        mock_cvd_utils.UploadCvdHostPackage.assert_called_with(
-            mock.ANY, fake_host_package)
-
-        # Test local image get from local folder case.
-        mock_cvd_utils.reset_mock()
-        factory._UploadLocalImageArtifacts(None,
-                                           fake_host_package,
-                                           fake_local_image_dir)
-        mock_cvd_utils.UploadImageZip.assert_not_called()
-        mock_cvd_utils.UploadImageDir.assert_called_with(
-            mock.ANY, fake_local_image_dir)
-        mock_cvd_utils.UploadCvdHostPackage.assert_called_with(
-            mock.ANY, fake_host_package)
-
     @mock.patch.object(remote_instance_cf_device_factory.RemoteInstanceDeviceFactory,
                        "_CreateGceInstance")
-    @mock.patch.object(remote_instance_cf_device_factory.RemoteInstanceDeviceFactory,
-                       "_UploadLocalImageArtifacts")
     @mock.patch("acloud.public.actions.remote_instance_cf_device_factory.pull")
     @mock.patch("acloud.public.actions.remote_instance_cf_device_factory."
                 "cvd_utils")
     def testLocalImageCreateInstance(self, mock_cvd_utils, mock_pull,
-                                     mock_upload, mock_create_gce_instance):
+                                     mock_create_gce_instance):
         """Test CreateInstance with local images."""
         self.Patch(
             cvd_compute_client_multi_stage,
@@ -295,7 +251,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         compute_client.LaunchCvd.return_value = {"instance": "failure"}
         factory.CreateInstance()
         mock_create_gce_instance.assert_called_once()
-        mock_upload.assert_called_once()
+        mock_cvd_utils.UploadArtifacts.assert_called_once()
         compute_client.LaunchCvd.assert_called_once()
         self.assertEqual(
             ["-boot_image", "/boot/img"],

@@ -49,6 +49,12 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.args.launch_args = None
         self.Patch(list_instances, "ChooseOneRemoteInstance", return_value=mock.MagicMock())
         self.Patch(list_instances, "GetInstancesFromInstanceNames", return_value=mock.MagicMock())
+
+        # Setup mock Acloud config for usage in tests.
+        self.mock_config = mock.MagicMock()
+        self.mock_config.launch_args = None
+        self.Patch(config, 'GetAcloudConfig', return_value=self.mock_config)
+
         self.AvdSpec = avd_spec.AVDSpec(self.args)
 
     # pylint: disable=protected-access
@@ -411,32 +417,6 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.AvdSpec._ProcessRemoteBuildArgs(self.args)
         self.assertTrue(self.AvdSpec.avd_type == "cuttlefish")
 
-        # Setup acloud config with betty_image spec
-        cfg = mock.MagicMock()
-        cfg.betty_image = 'foobarbaz'
-        cfg.launch_args = None
-        self.Patch(config, 'GetAcloudConfig', return_value=cfg)
-        self.AvdSpec = avd_spec.AVDSpec(self.args)
-        # --betty-image from cmdline should override config
-        self.args.cheeps_betty_image = 'abcdefg'
-        self.AvdSpec._ProcessRemoteBuildArgs(self.args)
-        self.assertEqual(
-            self.AvdSpec.remote_image[constants.CHEEPS_BETTY_IMAGE],
-            self.args.cheeps_betty_image)
-        # acloud config value is used otherwise
-        self.args.cheeps_betty_image = None
-        self.AvdSpec._ProcessRemoteBuildArgs(self.args)
-        self.assertEqual(
-            self.AvdSpec.remote_image[constants.CHEEPS_BETTY_IMAGE],
-            cfg.betty_image)
-
-        # Verify cheeps_features is assigned from args.
-        self.args.cheeps_features = ['a', 'b', 'c']
-        self.AvdSpec._ProcessRemoteBuildArgs(self.args)
-        self.assertEqual(
-            self.AvdSpec.remote_image[constants.CHEEPS_FEATURES],
-            'a,b,c')
-
     def testEscapeAnsi(self):
         """Test EscapeAnsi."""
         test_string = "\033[1;32;40m Manifest branch:"
@@ -535,6 +515,22 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.args.stable_host_image_name = "fake_host_image"
         self.AvdSpec._ProcessMiscArgs(self.args)
         self.assertEqual(self.AvdSpec.stable_host_image_name, "fake_host_image")
+
+        # Setup acloud config with betty_image spec
+        self.mock_config.betty_image = 'from-config'
+        # --betty-image from cmdline should override config
+        self.args.cheeps_betty_image = 'from-cmdline'
+        self.AvdSpec._ProcessMiscArgs(self.args)
+        self.assertEqual(self.AvdSpec.cheeps_betty_image, 'from-cmdline')
+        # acloud config value is used otherwise
+        self.args.cheeps_betty_image = None
+        self.AvdSpec._ProcessMiscArgs(self.args)
+        self.assertEqual(self.AvdSpec.cheeps_betty_image, 'from-config')
+
+        # Verify cheeps_features is assigned from args.
+        self.args.cheeps_features = ['a', 'b', 'c']
+        self.AvdSpec._ProcessMiscArgs(self.args)
+        self.assertEqual(self.args.cheeps_features, ['a', 'b', 'c'])
 
 
 if __name__ == "__main__":
