@@ -34,32 +34,39 @@ class CvdUtilsTest(unittest.TestCase):
             file_obj.write(data)
 
     @staticmethod
-    def testUploadImageZip():
-        """Test UploadImageZip."""
+    @mock.patch("acloud.internal.lib.cvd_utils.os.path.isdir",
+                return_value=False)
+    def testUploadImageZip(_mock_isdir):
+        """Test UploadArtifacts with image zip."""
         mock_ssh = mock.Mock()
-        cvd_utils.UploadImageZip(mock_ssh, "/mock/img.zip")
-        mock_ssh.Run.assert_called_with("/usr/bin/install_zip.sh . < "
-                                        "/mock/img.zip")
+        cvd_utils.UploadArtifacts(mock_ssh, "/mock/img.zip", "/mock/cvd.tgz")
+        mock_ssh.Run.assert_any_call("/usr/bin/install_zip.sh . < "
+                                     "/mock/img.zip")
+        mock_ssh.Run.assert_any_call("tar -x -z -f - < /mock/cvd.tgz")
 
     @staticmethod
     @mock.patch("acloud.internal.lib.cvd_utils.glob")
+    @mock.patch("acloud.internal.lib.cvd_utils.os.path.isdir",
+                return_value=True)
     @mock.patch("acloud.internal.lib.cvd_utils.ssh.ShellCmdWithRetry")
-    def testUploadImageDir(mock_shell, mock_glob):
-        """Test UploadImageDir."""
+    def testUploadImageDir(mock_shell, _mock_isdir, mock_glob):
+        """Test UploadArtifacts with image directory."""
         mock_ssh = mock.Mock()
         mock_ssh.GetBaseCmd.return_value = "/mock/ssh"
-        expected_cmd = ("tar -cf - --lzop -S -C /mock/image_dir "
-                        "super.img bootloader kernel android-info.txt | "
-                        "/mock/ssh -- tar -xf - --lzop -S")
+        expected_shell_cmd = ("tar -cf - --lzop -S -C /mock/dir "
+                              "super.img bootloader kernel android-info.txt | "
+                              "/mock/ssh -- tar -xf - --lzop -S")
+        expected_ssh_cmd = "tar -x -z -f - < /mock/cvd.tgz"
 
         # Test with required_images file.
         mock_open = mock.mock_open(read_data="super.img\nbootloader\nkernel")
         with mock.patch("acloud.internal.lib.cvd_utils.open", mock_open):
-            cvd_utils.UploadImageDir(mock_ssh, "/mock/image_dir")
-        mock_open.assert_called_with("/mock/image_dir/required_images", "r",
+            cvd_utils.UploadArtifacts(mock_ssh, "/mock/dir", "/mock/cvd.tgz")
+        mock_open.assert_called_with("/mock/dir/required_images", "r",
                                      encoding="utf-8")
         mock_glob.glob.assert_not_called()
-        mock_shell.assert_called_with(expected_cmd)
+        mock_shell.assert_called_with(expected_shell_cmd)
+        mock_ssh.Run.assert_called_with(expected_ssh_cmd)
 
         # Test with glob.
         mock_ssh.reset_mock()
@@ -68,16 +75,10 @@ class CvdUtilsTest(unittest.TestCase):
             lambda path: [path.replace("*", "super")])
         with mock.patch("acloud.internal.lib.cvd_utils.open",
                         side_effect=IOError("file does not exist")):
-            cvd_utils.UploadImageDir(mock_ssh, "/mock/image_dir")
+            cvd_utils.UploadArtifacts(mock_ssh, "/mock/dir", "/mock/cvd.tgz")
         mock_glob.glob.assert_called()
-        mock_shell.assert_called_with(expected_cmd)
-
-    @staticmethod
-    def testUploadCvdHostPackage():
-        """Test UploadCvdHostPackage."""
-        mock_ssh = mock.Mock()
-        cvd_utils.UploadCvdHostPackage(mock_ssh, "/mock/cvd.tar.gz")
-        mock_ssh.Run.assert_called_with("tar -x -z -f - < /mock/cvd.tar.gz")
+        mock_shell.assert_called_with(expected_shell_cmd)
+        mock_ssh.Run.assert_called_with(expected_ssh_cmd)
 
     def testUploadBootImages(self):
         """Test UploadExtraImages with boot images."""

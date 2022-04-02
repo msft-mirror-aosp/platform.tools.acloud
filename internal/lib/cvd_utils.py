@@ -54,7 +54,7 @@ FETCHER_CONFIG_JSON = report.LogFile(
     "fetcher_config.json", constants.LOG_TYPE_TEXT)
 
 
-def UploadImageZip(ssh_obj, image_zip):
+def _UploadImageZip(ssh_obj, image_zip):
     """Upload an image zip to a remote host and a GCE instance.
 
     Args:
@@ -66,7 +66,7 @@ def UploadImageZip(ssh_obj, image_zip):
     ssh_obj.Run(remote_cmd)
 
 
-def UploadImageDir(ssh_obj, image_dir):
+def _UploadImageDir(ssh_obj, image_dir):
     """Upload an image directory to a remote host or a GCE instance.
 
     The images are compressed for faster upload.
@@ -95,16 +95,33 @@ def UploadImageDir(ssh_obj, image_dir):
     ssh.ShellCmdWithRetry(cmd)
 
 
-def UploadCvdHostPackage(ssh_obj, cvd_host_package):
-    """Upload and a CVD host package to a remote host or a GCE instance.
+def _UploadCvdHostPackage(ssh_obj, cvd_host_package):
+    """Upload a CVD host package to a remote host or a GCE instance.
 
     Args:
         ssh_obj: An Ssh object.
-        cvd_host_package: The path tot the CVD host package.
+        cvd_host_package: The path to the CVD host package.
     """
     remote_cmd = f"tar -x -z -f - < {cvd_host_package}"
     logger.debug("remote_cmd:\n %s", remote_cmd)
     ssh_obj.Run(remote_cmd)
+
+
+@utils.TimeExecute(function_description="Processing and uploading local images")
+def UploadArtifacts(ssh_obj, image_path, cvd_host_package):
+    """Upload images and a CVD host package to a remote host or a GCE instance.
+
+    Args:
+        ssh_obj: An Ssh object.
+        image_path: A string, the path to the image zip built by `m dist` or
+                    the directory containing the images built by `m`.
+        cvd_host_package: A string, the path to the CVD host package in gzip.
+    """
+    if os.path.isdir(image_path):
+        _UploadImageDir(ssh_obj, image_path)
+    else:
+        _UploadImageZip(ssh_obj, image_path)
+    _UploadCvdHostPackage(ssh_obj, cvd_host_package)
 
 
 def _IsBootImage(image_path):
