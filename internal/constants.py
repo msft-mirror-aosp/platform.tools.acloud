@@ -133,6 +133,7 @@ FVP_ADB_PORT = 5555
 MAX_PORT = 65535
 
 COMMAND_PS = ["ps", "aux"]
+CMD_CVD = "cvd"
 CMD_LAUNCH_CVD = "launch_cvd"
 CMD_PGREP = "pgrep"
 CMD_STOP_CVD = "stop_cvd"
@@ -207,9 +208,6 @@ SSL_TRUST_CA_DIR = "/usr/local/share/ca-certificates"
 
 # Remote Log
 REMOTE_LOG_FOLDER = "cuttlefish_runtime"
-
-# Cheeps specific stuff.
-CHEEPS_BETTY_IMAGE = "betty_image"
 
 # Key name in report
 ERROR_LOG_FOLDER = "error_log_folder"
