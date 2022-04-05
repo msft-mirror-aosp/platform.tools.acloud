@@ -80,12 +80,13 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             A string, representing instance name.
         """
         instance = self._InitRemotehost()
-        self._ProcessRemoteHostArtifacts()
+        image_args = self._ProcessRemoteHostArtifacts()
         failures = self._compute_client.LaunchCvd(
             instance,
             self._avd_spec,
             self._avd_spec.cfg.extra_data_disk_size_gb,
-            boot_timeout_secs=self._avd_spec.boot_timeout_secs)
+            boot_timeout_secs=self._avd_spec.boot_timeout_secs,
+            extra_args=image_args)
         self._all_failures.update(failures)
         self._FindLogFiles(
             instance, instance in failures and not self._avd_spec.no_pull_log)
@@ -137,12 +138,16 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         - If images source is remote, tool will download images from android
           build to local and unzip it then upload to remote host, because there
           is no permission to fetch build rom on the remote host.
+
+        Returns:
+            A list of strings, the launch_cvd arguments.
         """
         self._compute_client.SetStage(constants.STAGE_ARTIFACT)
         if self._avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
-            self._UploadLocalImageArtifacts(
-                self._local_image_artifact, self._cvd_host_package_artifact,
-                self._avd_spec.local_image_dir)
+            cvd_utils.UploadArtifacts(
+                self._ssh,
+                self._local_image_artifact or self._avd_spec.local_image_dir,
+                self._cvd_host_package_artifact)
         else:
             try:
                 artifacts_path = tempfile.mkdtemp()
@@ -151,6 +156,8 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
                 self._UploadRemoteImageArtifacts(artifacts_path)
             finally:
                 shutil.rmtree(artifacts_path)
+
+        return cvd_utils.UploadExtraImages(self._ssh, self._avd_spec)
 
     @utils.TimeExecute(function_description="Downloading Android Build artifact")
     def _DownloadArtifacts(self, extract_path):
@@ -200,26 +207,6 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         except subprocess.CalledProcessError as e:
             raise errors.GetRemoteImageError(f"Fails to download images: {e}")
 
-    @utils.TimeExecute(function_description="Processing and uploading local images")
-    def _UploadLocalImageArtifacts(self,
-                                   local_image_zip,
-                                   cvd_host_package_artifact,
-                                   images_dir):
-        """Upload local images and avd local host package to instance.
-
-        Args:
-            local_image_zip: String, path to zip of local images which
-                             build from 'm dist'.
-            cvd_host_package_artifact: String, path to cvd host package.
-            images_dir: String, directory of local images which build
-                        from 'm'.
-        """
-        if local_image_zip:
-            cvd_utils.UploadImageZip(self._ssh, local_image_zip)
-        else:
-            cvd_utils.UploadImageDir(self._ssh, images_dir)
-        cvd_utils.UploadCvdHostPackage(self._ssh, cvd_host_package_artifact)
-
     @utils.TimeExecute(function_description="Uploading remote image artifacts")
     def _UploadRemoteImageArtifacts(self, images_dir):
         """Upload remote image artifacts to instance.
@@ -248,8 +235,9 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             download: Whether to download the files to a temporary directory
                       and show messages to the user.
         """
+        self._all_logs[instance] = [cvd_utils.TOMBSTONES]
         log_files = pull.GetAllLogFilePaths(self._ssh)
-        self._all_logs[instance] = cvd_utils.ConvertRemoteLogs(log_files)
+        self._all_logs[instance].extend(cvd_utils.ConvertRemoteLogs(log_files))
 
         if download:
             error_log_folder = pull.PullLogs(self._ssh, log_files, instance)
