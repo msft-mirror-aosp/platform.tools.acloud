@@ -85,6 +85,7 @@ _MISC_INFO_FILE_NAME = "misc_info.txt"
 _TARGET_FILES_IMAGES_DIR_NAME = "IMAGES"
 _TARGET_FILES_META_DIR_NAME = "META"
 _MIXED_SUPER_IMAGE_NAME = "mixed_super.img"
+_CMD_CVD_START = " start"
 _CMD_LAUNCH_CVD_ARGS = (
     " -daemon -config=%s -system_image_dir %s -instance_dir %s "
     "-undefok=report_anonymous_usage_stats,config "
@@ -101,6 +102,9 @@ _CMD_LAUNCH_CVD_NO_ADB_ARG = " -run_adb_connector=false"
 _CMD_LAUNCH_CVD_CONSOLE_ARG = " -console=true"
 _CONFIG_RE = re.compile(r"^config=(?P<config>.+)")
 _CONSOLE_NAME = "console"
+# Files to store the output when launching cvds.
+_STDOUT = "stdout"
+_STDERR = "stderr"
 _MAX_REPORTED_ERROR_LINES = 10
 
 # In accordance with the number of network interfaces in
@@ -232,8 +236,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         runtime_dir = instance.GetLocalInstanceRuntimeDir(local_instance_id)
         # TODO(b/168171781): cvd_status of list/delete via the symbolic.
         self.PrepareLocalCvdToolsLink(cvd_home_dir, artifact_paths.host_bins)
-        launch_cvd_path = os.path.join(artifact_paths.host_bins, "bin",
-                                       constants.CMD_LAUNCH_CVD)
+        cvd_path = os.path.join(artifact_paths.host_bins, "bin",
+                                       constants.CMD_CVD)
         if avd_spec.mkcert and avd_spec.connect_webrtc:
             self._TrustCertificatesForWebRTC(artifact_paths.host_artifacts)
 
@@ -242,7 +246,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             hw_property = avd_spec.hw_property
         config = self._GetConfigFromAndroidInfo(
             os.path.join(artifact_paths.image_dir, constants.ANDROID_INFO_FILE))
-        cmd = self.PrepareLaunchCVDCmd(launch_cvd_path,
+        cmd = self.PrepareLaunchCVDCmd(cvd_path,
                                        hw_property,
                                        avd_spec.connect_adb,
                                        artifact_paths.image_dir,
@@ -253,7 +257,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                                        artifact_paths.boot_image,
                                        avd_spec.launch_args,
                                        config or avd_spec.flavor,
-                                       avd_spec.openwrt)
+                                       avd_spec.openwrt,
+                                       avd_spec.use_launch_cvd)
 
         result_report = report.Report(command="create")
         instance_name = instance.GetLocalInstanceName(local_instance_id)
@@ -485,17 +490,18 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         return None
 
     @staticmethod
-    def PrepareLaunchCVDCmd(launch_cvd_path, hw_property, connect_adb,
+    def PrepareLaunchCVDCmd(cvd_path, hw_property, connect_adb,
                             image_dir, runtime_dir, connect_webrtc,
                             connect_vnc, super_image_path, boot_image_path,
-                            launch_args, config, openwrt=False):
+                            launch_args, config, openwrt=False,
+                            use_launch_cvd=False):
         """Prepare launch_cvd command.
 
         Create the launch_cvd commands with all the required args and add
         in the user groups to it if necessary.
 
         Args:
-            launch_cvd_path: String of launch_cvd path.
+            cvd_path: String of cvd path.
             hw_property: dict object of hw property.
             image_dir: String of local images path.
             connect_adb: Boolean flag that enables adb_connector.
@@ -507,11 +513,16 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             launch_args: String of launch args.
             config: String of config name.
             openwrt: Boolean of enable OpenWrt devices.
+            use_launch_cvd: Boolean of using launch_cvd for old build cases.
 
         Returns:
-            String, launch_cvd cmd.
+            String, cvd start cmd.
         """
-        launch_cvd_w_args = launch_cvd_path + _CMD_LAUNCH_CVD_ARGS % (
+        start_cvd_cmd = cvd_path + _CMD_CVD_START
+        if use_launch_cvd:
+            bin_dir = os.path.dirname(cvd_path)
+            start_cvd_cmd = os.path.join(bin_dir, constants.CMD_LAUNCH_CVD)
+        launch_cvd_w_args = start_cvd_cmd + _CMD_LAUNCH_CVD_ARGS % (
             config, image_dir, runtime_dir)
         if hw_property:
             launch_cvd_w_args = launch_cvd_w_args + _CMD_LAUNCH_CVD_HW_ARGS % (
@@ -661,29 +672,39 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         cvd_env[constants.ENV_ANDROID_HOST_OUT] = host_bins_path
         cvd_env[constants.ENV_CVD_HOME] = cvd_home_dir
         cvd_env[constants.ENV_CUTTLEFISH_INSTANCE] = str(local_instance_id)
+        cvd_env[constants.ENV_CUTTLEFISH_CONFIG_FILE] = (
+            instance.GetLocalInstanceConfigPath(local_instance_id))
+        stdout_file = os.path.join(cvd_home_dir, _STDOUT)
+        stderr_file = os.path.join(cvd_home_dir, _STDERR)
         # Check the result of launch_cvd command.
         # An exit code of 0 is equivalent to VIRTUAL_DEVICE_BOOT_COMPLETED
-        try:
-            proc = subprocess.Popen(cmd, shell=True, env=cvd_env,
-                                    stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE,
-                                    text=True, cwd=host_bins_path)
-            stdout, stderr = proc.communicate(timeout=timeout)
-            if proc.returncode == 0:
-                logger.info("launch_cvd stdout:\n%s", stdout)
-                logger.info("launch_cvd stderr:\n%s", stderr)
-                return
-            error_msg = "launch_cvd returned %d." % proc.returncode
-        except subprocess.TimeoutExpired:
-            self._StopCvd(local_instance_id, proc)
-            stdout, stderr = proc.communicate(timeout=5)
-            error_msg = "Device did not boot within %d secs." % timeout
+        with open(stdout_file, "w+") as f_stdout, open(stderr_file,
+                                                       "w+") as f_stderr:
+            try:
+                proc = subprocess.Popen(
+                    cmd, shell=True, env=cvd_env, stdout=f_stdout,
+                    stderr=f_stderr, text=True, cwd=host_bins_path)
+                proc.communicate(timeout=timeout)
+                f_stdout.seek(0)
+                f_stderr.seek(0)
+                if proc.returncode == 0:
+                    logger.info("launch_cvd stdout:\n%s", f_stdout.read())
+                    logger.info("launch_cvd stderr:\n%s", f_stderr.read())
+                    return
+                error_msg = "launch_cvd returned %d." % proc.returncode
+            except subprocess.TimeoutExpired:
+                self._StopCvd(local_instance_id, proc)
+                proc.communicate(timeout=5)
+                error_msg = "Device did not boot within %d secs." % timeout
 
-        logger.error("launch_cvd stdout:\n%s", stdout)
-        logger.error("launch_cvd stderr:\n%s", stderr)
-        split_stderr = stderr.splitlines()[-_MAX_REPORTED_ERROR_LINES:]
-        raise errors.LaunchCVDFail("%s Stderr:\n%s" %
-                                   (error_msg, "\n".join(split_stderr)))
+            f_stdout.seek(0)
+            f_stderr.seek(0)
+            stderr = f_stderr.read()
+            logger.error("launch_cvd stdout:\n%s", f_stdout.read())
+            logger.error("launch_cvd stderr:\n%s", stderr)
+            split_stderr = stderr.splitlines()[-_MAX_REPORTED_ERROR_LINES:]
+            raise errors.LaunchCVDFail(
+                "%s Stderr:\n%s" % (error_msg, "\n".join(split_stderr)))
 
     @staticmethod
     def _FindLogs(local_instance_id):
