@@ -33,8 +33,6 @@ import logging
 import os
 import re
 
-import six
-
 from acloud import errors
 from acloud.internal import constants
 from acloud.internal.lib import base_cloud_client
@@ -1050,14 +1048,14 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
         # Initialize return values
         failed = []
         error_msgs = []
-        for resource_name, (_, error) in six.iteritems(results):
+        for resource_name, (_, error) in results.items():
             if error is not None:
                 failed.append(resource_name)
                 error_msgs.append(str(error))
         done = []
         # Wait for the executing operations to finish.
         logger.info("Waiting for executing operations")
-        for resource_name in six.iterkeys(requests):
+        for resource_name in requests.keys():
             operation, _ = results[resource_name]
             if operation:
                 try:
@@ -1312,7 +1310,7 @@ class ComputeClient(base_cloud_client.BaseCloudApiClient):
             metadata_list = [{
                 _METADATA_KEY: key,
                 _METADATA_KEY_VALUE: val
-            } for key, val in six.iteritems(metadata)]
+            } for key, val in metadata.items()]
             body[_METADATA] = {_ITEMS: metadata_list}
         logger.info("Creating instance: project %s, zone %s, body:%s",
                     self._project, zone, body)
