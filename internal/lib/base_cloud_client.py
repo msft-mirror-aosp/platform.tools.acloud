@@ -17,17 +17,18 @@
 
 BasicCloudApiCliend does basic setup for a cloud API.
 """
+import httplib
 import logging
 import socket
 import ssl
 
 import six
-from six.moves import http_client
 
 # pylint: disable=import-error
-import httplib2
 from apiclient import errors as gerrors
 from apiclient.discovery import build
+import apiclient.http
+import httplib2
 from oauth2client import client
 
 from acloud import errors
@@ -37,7 +38,7 @@ from acloud.internal.lib import utils
 logger = logging.getLogger(__name__)
 
 
-class BaseCloudApiClient():
+class BaseCloudApiClient(object):
     """A class that does basic setup for a cloud API."""
 
     # To be overriden by subclasses.
@@ -57,7 +58,7 @@ class BaseCloudApiClient():
         502,  # Bad Gateway
         503,  # Service Unavailable
     ]
-    RETRIABLE_ERRORS = (http_client.HTTPException, httplib2.HttpLib2Error,
+    RETRIABLE_ERRORS = (httplib.HTTPException, httplib2.HttpLib2Error,
                         socket.error, ssl.SSLError)
     RETRIABLE_AUTH_ERRORS = (client.AccessTokenRefreshError, )
 
@@ -245,7 +246,7 @@ class BaseCloudApiClient():
         def _CallBack(request_id, response, exception):
             results[request_id] = (response, self._TranslateError(exception))
 
-        batch = self._service.new_batch_http_request()
+        batch = apiclient.http.BatchHttpRequest()
         for request_id, request in six.iteritems(requests):
             batch.add(
                 request=request, callback=_CallBack, request_id=request_id)

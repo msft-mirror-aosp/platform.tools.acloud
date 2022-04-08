@@ -15,8 +15,7 @@
 # limitations under the License.
 """Tests for android_compute_client."""
 import unittest
-
-from unittest import mock
+import mock
 
 from acloud import errors
 from acloud.internal.lib import android_compute_client

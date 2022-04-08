@@ -14,8 +14,7 @@
 """Tests for create."""
 
 import unittest
-
-from unittest import mock
+import mock
 
 from acloud import errors
 from acloud.create import create_args
@@ -27,17 +26,15 @@ def _CreateArgs():
     """set default pass in arguments."""
     mock_args = mock.MagicMock(
         flavor=None,
-        num=1,
+        num=None,
         adb_port=None,
         hw_property=None,
         stable_cheeps_host_image_name=None,
         stable_cheeps_host_image_project=None,
         username=None,
         password=None,
-        cheeps_betty_image=None,
-        local_image=None,
-        local_kernel_image=None,
-        local_system_image=None,
+        local_image="",
+        local_system_image="",
         system_branch=None,
         system_build_id=None,
         system_build_target=None,

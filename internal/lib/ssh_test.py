@@ -18,10 +18,7 @@
 
 import subprocess
 import unittest
-import threading
-import time
-
-from unittest import mock
+import mock
 
 from acloud import errors
 from acloud.internal import constants
@@ -43,7 +40,7 @@ class SshTest(driver_test_lib.BaseDriverTest):
         super(SshTest, self).setUp()
         self.created_subprocess = mock.MagicMock()
         self.created_subprocess.stdout = mock.MagicMock()
-        self.created_subprocess.stdout.readline = mock.MagicMock(return_value=b"")
+        self.created_subprocess.stdout.readline = mock.MagicMock(return_value='')
         self.created_subprocess.poll = mock.MagicMock(return_value=0)
         self.created_subprocess.returncode = 0
         self.created_subprocess.communicate = mock.MagicMock(return_value=
@@ -51,7 +48,6 @@ class SshTest(driver_test_lib.BaseDriverTest):
 
     def testSSHExecuteWithRetry(self):
         """test SSHExecuteWithRetry method."""
-        self.Patch(time, "sleep")
         self.Patch(subprocess, "Popen",
                    side_effect=subprocess.CalledProcessError(
                        None, "ssh command fail."))
@@ -92,8 +88,7 @@ class SshTest(driver_test_lib.BaseDriverTest):
                                             shell=True,
                                             stderr=-2,
                                             stdin=None,
-                                            stdout=-1,
-                                            universal_newlines=True)
+                                            stdout=-1)
 
     def testSshRunCmdwithExtraArgs(self):
         """test ssh rum command with extra command."""
@@ -111,8 +106,7 @@ class SshTest(driver_test_lib.BaseDriverTest):
                                             shell=True,
                                             stderr=-2,
                                             stdin=None,
-                                            stdout=-1,
-                                            universal_newlines=True)
+                                            stdout=-1)
 
     def testScpPullFileCmd(self):
         """Test scp pull file command."""
@@ -125,8 +119,7 @@ class SshTest(driver_test_lib.BaseDriverTest):
                                             shell=True,
                                             stderr=-2,
                                             stdin=None,
-                                            stdout=-1,
-                                            universal_newlines=True)
+                                            stdout=-1)
 
     def testScpPullFileCmdwithExtraArgs(self):
         """Test scp pull file command."""
@@ -144,8 +137,7 @@ class SshTest(driver_test_lib.BaseDriverTest):
                                             shell=True,
                                             stderr=-2,
                                             stdin=None,
-                                            stdout=-1,
-                                            universal_newlines=True)
+                                            stdout=-1)
 
     def testScpPushFileCmd(self):
         """Test scp push file command."""
@@ -158,8 +150,7 @@ class SshTest(driver_test_lib.BaseDriverTest):
                                             shell=True,
                                             stderr=-2,
                                             stdin=None,
-                                            stdout=-1,
-                                            universal_newlines=True)
+                                            stdout=-1)
 
     def testScpPushFileCmdwithExtraArgs(self):
         """Test scp pull file command."""
@@ -177,8 +168,7 @@ class SshTest(driver_test_lib.BaseDriverTest):
                                             shell=True,
                                             stderr=-2,
                                             stdin=None,
-                                            stdout=-1,
-                                            universal_newlines=True)
+                                            stdout=-1)
 
     # pylint: disable=protected-access
     def testIPAddress(self):
@@ -215,58 +205,9 @@ class SshTest(driver_test_lib.BaseDriverTest):
         self.assertRaises(errors.DeviceConnectionError,
                           ssh_object.WaitForSsh,
                           timeout=1,
+                          sleep_for_retry=1,
                           max_retry=1)
 
-    def testSshCallWait(self):
-        """Test SshCallWait."""
-        self.Patch(subprocess, "Popen", return_value=self.created_subprocess)
-        self.Patch(threading, "Timer")
-        fake_cmd = "fake command"
-        ssh._SshCallWait(fake_cmd)
-        threading.Timer.assert_not_called()
-
-    def testSshCallWaitTimeout(self):
-        """Test SshCallWait with timeout."""
-        self.Patch(subprocess, "Popen", return_value=self.created_subprocess)
-        self.Patch(threading, "Timer")
-        fake_cmd = "fake command"
-        fake_timeout = 30
-        ssh._SshCallWait(fake_cmd, fake_timeout)
-        threading.Timer.assert_called_once()
-
-    def testSshCall(self):
-        """Test _SshCall."""
-        self.Patch(subprocess, "Popen", return_value=self.created_subprocess)
-        self.Patch(threading, "Timer")
-        fake_cmd = "fake command"
-        ssh._SshCall(fake_cmd)
-        threading.Timer.assert_not_called()
-
-    def testSshCallTimeout(self):
-        """Test SshCallWait with timeout."""
-        self.Patch(subprocess, "Popen", return_value=self.created_subprocess)
-        self.Patch(threading, "Timer")
-        fake_cmd = "fake command"
-        fake_timeout = 30
-        ssh._SshCall(fake_cmd, fake_timeout)
-        threading.Timer.assert_called_once()
-
-    def testSshLogOutput(self):
-        """Test _SshCall."""
-        self.Patch(subprocess, "Popen", return_value=self.created_subprocess)
-        self.Patch(threading, "Timer")
-        fake_cmd = "fake command"
-        ssh._SshLogOutput(fake_cmd)
-        threading.Timer.assert_not_called()
-
-    def testSshLogOutputTimeout(self):
-        """Test SshCallWait with timeout."""
-        self.Patch(subprocess, "Popen", return_value=self.created_subprocess)
-        self.Patch(threading, "Timer")
-        fake_cmd = "fake command"
-        fake_timeout = 30
-        ssh._SshLogOutput(fake_cmd, fake_timeout)
-        threading.Timer.assert_called_once()
 
 if __name__ == "__main__":
     unittest.main()

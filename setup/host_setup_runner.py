@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 # Packages "devscripts" and "equivs" are required for "mk-build-deps".
 _AVD_REQUIRED_PKGS = [
     "devscripts", "equivs", "libvirt-clients", "libvirt-daemon-system"]
-_BASE_REQUIRED_PKGS = ["ssvnc", "lzop", "python3-tk"]
+_BASE_REQUIRED_PKGS = ["ssvnc", "lzop"]
 _CUTTLEFISH_COMMOM_PKG = "cuttlefish-common"
 _CF_COMMOM_FOLDER = "cf-common"
 _LIST_OF_MODULES = ["kvm_intel", "kvm"]
@@ -83,8 +83,9 @@ class BasePkgInstaller(base_task_runner.BaseTaskRunner):
              if not setup_common.PackageInstalled(pkg)])
 
         if not utils.GetUserAnswerYes("\nStart to install package(s):\n%s"
-                                      "\nEnter 'y' to continue, otherwise N or "
-                                      "enter to exit: " % cmd):
+                                      "\nPress 'y' to continue or anything "
+                                      "else to do it myself and run acloud "
+                                      "again[y/N]: " % cmd):
             sys.exit(constants.EXIT_BY_USER)
 
         setup_common.CheckCmdOutput(_UPDATE_APT_GET_CMD, shell=True)
@@ -144,8 +145,9 @@ class CuttlefishCommonPkgInstaller(base_task_runner.BaseTaskRunner):
                         for sub_cmd in _INSTALL_CUTTLEFISH_COMMOM_CMD)
 
         if not utils.GetUserAnswerYes("\nStart to install cuttlefish-common :\n%s"
-                                      "\nEnter 'y' to continue, otherwise N or "
-                                      "enter to exit: " % cmd):
+                                      "\nPress 'y' to continue or anything "
+                                      "else to do it myself and run acloud "
+                                      "again[y/N]: " % cmd):
             sys.exit(constants.EXIT_BY_USER)
         try:
             setup_common.CheckCmdOutput(cmd, shell=True)
@@ -225,6 +227,6 @@ class CuttlefishHostSetup(base_task_runner.BaseTaskRunner):
             True if user answer yes.
         """
         answer_client = utils.InteractWithQuestion(
-            "\nEnter 'y' to continue, otherwise N or enter to exit: ",
+            "\nPress 'y' to continue or anything else to do it myself[y/N]: ",
             utils.TextColors.WARNING)
         return answer_client in constants.USER_ANSWER_YES

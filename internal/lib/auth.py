@@ -32,7 +32,7 @@ service account*               | oauth2 + private key
   non-google-owned service account can not access Android Build API.
   Only local build artifact can be used.
 
-* Google-owned service account, if used, needs to be allowed by
+* Google-owned service account, if used, needs to be whitelisted by
   Android Build team so that acloud can access build api.
 """
 
@@ -86,20 +86,14 @@ def _CreateOauthServiceAccountCreds(email, private_key_path, scopes):
             " error message: %s" % (private_key_path, str(e)))
     return credentials
 
-
 # pylint: disable=invalid-name
-def _CreateOauthServiceAccountCredsWithJsonKey(json_private_key_path, scopes,
-                                               creds_cache_file, user_agent):
+def _CreateOauthServiceAccountCredsWithJsonKey(json_private_key_path, scopes):
     """Create credentials with a normal service account from json key file.
 
     Args:
         json_private_key_path: Path to the service account json key file.
         scopes: string, multiple scopes should be saperated by space.
                         Api scopes to request for the oauth token.
-        creds_cache_file: String, file name for the credential cache.
-                          e.g. .acloud_oauth2.dat
-                          Will be created at home folder.
-        user_agent: String, the user agent for the credential, e.g. "acloud"
 
     Returns:
         An oauth2client.OAuth2Credentials instance.
@@ -108,23 +102,17 @@ def _CreateOauthServiceAccountCredsWithJsonKey(json_private_key_path, scopes,
         errors.AuthenticationError: if failed to authenticate.
     """
     try:
-        credentials = oauth2_service_account.ServiceAccountCredentials.from_json_keyfile_name(
-            json_private_key_path, scopes=scopes)
-        storage = multistore_file.get_credential_storage(
-            filename=os.path.abspath(creds_cache_file),
-            client_id=credentials.client_id,
-            user_agent=user_agent,
-            scope=scopes)
-        credentials.set_store(storage)
+        return (
+            oauth2_service_account.ServiceAccountCredentials
+            .from_json_keyfile_name(
+                json_private_key_path, scopes=scopes))
     except EnvironmentError as e:
         raise errors.AuthenticationError(
             "Could not authenticate using json private key file (%s) "
             " error message: %s" % (json_private_key_path, str(e)))
 
-    return credentials
 
-
-class RunFlowFlags():
+class RunFlowFlags(object):
     """Flags for oauth2client.tools.run_flow."""
 
     def __init__(self, browser_auth):
@@ -185,8 +173,6 @@ def _CreateOauthUserCreds(creds_cache_file, client_id, client_secret,
         scope=scopes)
     credentials = storage.get()
     if credentials is not None:
-        if not credentials.access_token_expired and not credentials.invalid:
-            return credentials
         try:
             credentials.refresh(httplib2.Http())
         except oauth2_client.AccessTokenRefreshError:
@@ -211,24 +197,18 @@ def CreateCredentials(acloud_config, scopes=_ALL_SCOPES):
     Returns:
         An oauth2client.OAuth2Credentials instance.
     """
-    if os.path.isabs(acloud_config.creds_cache_file):
-        creds_cache_file = acloud_config.creds_cache_file
-    else:
-        creds_cache_file = os.path.join(HOME_FOLDER,
-                                        acloud_config.creds_cache_file)
-
     if acloud_config.service_account_json_private_key_path:
         return _CreateOauthServiceAccountCredsWithJsonKey(
             acloud_config.service_account_json_private_key_path,
-            scopes=scopes,
-            creds_cache_file=creds_cache_file,
-            user_agent=acloud_config.user_agent)
-    if acloud_config.service_account_private_key_path:
+            scopes=scopes)
+    elif acloud_config.service_account_private_key_path:
         return _CreateOauthServiceAccountCreds(
             acloud_config.service_account_name,
             acloud_config.service_account_private_key_path,
             scopes=scopes)
 
+    creds_cache_file = os.path.join(HOME_FOLDER,
+                                    acloud_config.creds_cache_file)
     return _CreateOauthUserCreds(
         creds_cache_file=creds_cache_file,
         client_id=acloud_config.client_id,

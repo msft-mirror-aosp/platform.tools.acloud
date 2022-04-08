@@ -16,8 +16,7 @@ import unittest
 
 import os
 import tempfile
-
-from unittest import mock
+import mock
 
 from acloud import errors
 from acloud.internal import constants

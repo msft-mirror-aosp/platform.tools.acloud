@@ -30,18 +30,14 @@ LOGCAT_SERIAL_PORT = 2
 
 # Remote image parameters
 BUILD_TARGET = "build_target"
-BUILD_BRANCH = "branch"
+BUILD_BRANCH = "build_branch"
 BUILD_ID = "build_id"
-
-# Special value of local image parameters
-FIND_IN_BUILD_ENV = ""
 
 # AVD types
 TYPE_CHEEPS = "cheeps"
 TYPE_CF = "cuttlefish"
 TYPE_GCE = "gce"
 TYPE_GF = "goldfish"
-TYPE_FVP = "fvp"
 
 # Image types
 IMAGE_SRC_REMOTE = "remote_image"
@@ -61,15 +57,6 @@ INSTANCE_TYPE_REMOTE = "remote"
 INSTANCE_TYPE_LOCAL = "local"
 INSTANCE_TYPE_HOST = "host"
 
-# CF_AVD_BUILD_TARGET_MAPPING
-CF_X86_PATTERN = "cf_x86"
-CF_ARM_PATTERN = "cf_arm"
-CF_AVD_BUILD_TARGET_PATTERN_MAPPING = {
-    INSTANCE_TYPE_REMOTE: CF_X86_PATTERN,
-    INSTANCE_TYPE_LOCAL: CF_X86_PATTERN,
-    INSTANCE_TYPE_HOST: CF_ARM_PATTERN,
-}
-
 # Flavor types
 FLAVOR_PHONE = "phone"
 FLAVOR_AUTO = "auto"
@@ -78,10 +65,9 @@ FLAVOR_TV = "tv"
 FLAVOR_IOT = "iot"
 FLAVOR_TABLET = "tablet"
 FLAVOR_TABLET_3G = "tablet_3g"
-FLAVOR_FOLDABLE = "foldable"
 ALL_FLAVORS = [
     FLAVOR_PHONE, FLAVOR_AUTO, FLAVOR_WEAR, FLAVOR_TV, FLAVOR_IOT,
-    FLAVOR_TABLET, FLAVOR_TABLET_3G, FLAVOR_FOLDABLE
+    FLAVOR_TABLET, FLAVOR_TABLET_3G
 ]
 
 # HW Property
@@ -113,8 +99,6 @@ INSTANCE_NAME = "instance_name"
 GCE_USER = "vsoc-01"
 VNC_PORT = "vnc_port"
 ADB_PORT = "adb_port"
-WEBRTC_PORT = "webrtc_port"
-DEVICE_SERIAL = "device_serial"
 # For cuttlefish remote instances
 CF_ADB_PORT = 6520
 CF_VNC_PORT = 6444
@@ -127,10 +111,6 @@ GCE_VNC_PORT = 6444
 # For goldfish remote instances
 GF_ADB_PORT = 5555
 GF_VNC_PORT = 6444
-# For FVP remote instances (no VNC support)
-FVP_ADB_PORT = 5555
-# Maximum port number
-MAX_PORT = 65535
 
 COMMAND_PS = ["ps", "aux"]
 CMD_LAUNCH_CVD = "launch_cvd"
@@ -139,23 +119,17 @@ CMD_STOP_CVD = "stop_cvd"
 CMD_RUN_CVD = "run_cvd"
 ENV_ANDROID_BUILD_TOP = "ANDROID_BUILD_TOP"
 ENV_ANDROID_EMULATOR_PREBUILTS = "ANDROID_EMULATOR_PREBUILTS"
-# TODO(b/172535794): Remove the deprecated "ANDROID_HOST_OUT" by 2021Q4.
 ENV_ANDROID_HOST_OUT = "ANDROID_HOST_OUT"
 ENV_ANDROID_PRODUCT_OUT = "ANDROID_PRODUCT_OUT"
-ENV_ANDROID_SOONG_HOST_OUT = "ANDROID_SOONG_HOST_OUT"
 ENV_ANDROID_TMP = "ANDROID_TMP"
 ENV_BUILD_TARGET = "TARGET_PRODUCT"
 
-LOCALHOST = "0.0.0.0"
+LOCALHOST = "127.0.0.1"
 LOCALHOST_ADB_SERIAL = LOCALHOST + ":%d"
-REMOTE_INSTANCE_ADB_SERIAL = "127.0.0.1:%s"
 
 SSH_BIN = "ssh"
 SCP_BIN = "scp"
 ADB_BIN = "adb"
-# Default timeout, the unit is seconds.
-DEFAULT_SSH_TIMEOUT = 300
-DEFAULT_CF_BOOT_TIMEOUT = 450
 
 LABEL_CREATE_BY = "created_by"
 
@@ -174,6 +148,7 @@ INS_KEY_AVD_FLAVOR = "flavor"
 INS_KEY_IS_LOCAL = "remote"
 INS_KEY_ZONE = "zone"
 INS_STATUS_RUNNING = "RUNNING"
+LOCAL_INS_NAME = "local-instance"
 ENV_CUTTLEFISH_CONFIG_FILE = "CUTTLEFISH_CONFIG_FILE"
 ENV_CUTTLEFISH_INSTANCE = "CUTTLEFISH_INSTANCE"
 ENV_CVD_HOME = "HOME"
@@ -181,8 +156,6 @@ CUTTLEFISH_CONFIG_FILE = "cuttlefish_config.json"
 
 TEMP_ARTIFACTS_FOLDER = "acloud_image_artifacts"
 CVD_HOST_PACKAGE = "cvd-host_package.tar.gz"
-# cvd tools symbolic link name of local instance.
-CVD_TOOLS_LINK_NAME = "host_bins"
 TOOL_NAME = "acloud"
 # Exit code in metrics
 EXIT_SUCCESS = 0
@@ -193,26 +166,3 @@ EXIT_BY_ERROR = -99
 
 # For reuse gce instance
 SELECT_ONE_GCE_INSTANCE = "select_one_gce_instance"
-
-# Webrtc
-WEBRTC_LOCAL_PORT = 8443
-WEBRTC_LOCAL_HOST = "localhost"
-
-# Remote Log
-REMOTE_LOG_FOLDER = "/home/%s/cuttlefish_runtime" % GCE_USER
-
-# Cheeps specific stuff.
-CHEEPS_BETTY_IMAGE = "betty_image"
-
-# Key name in report
-ERROR_LOG_FOLDER = "error_log_folder"
-
-# Stages for create progress
-STAGE_INIT = 0
-STAGE_GCE = 1
-STAGE_SSH_CONNECT = 2
-STAGE_ARTIFACT = 3
-STAGE_BOOT_UP = 4
-
-# The name of download image tool.
-FETCH_CVD = "fetch_cvd"

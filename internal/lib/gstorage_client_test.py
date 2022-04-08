@@ -4,8 +4,7 @@ import io
 import time
 
 import unittest
-
-from unittest import mock
+import mock
 
 import apiclient
 

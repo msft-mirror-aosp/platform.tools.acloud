@@ -41,7 +41,7 @@ class HttpError(DriverError):
 
     def __init__(self, code, message):
         self.code = code
-        super().__init__(message)
+        super(HttpError, self).__init__(message)
 
     @staticmethod
     def CreateFromHttpError(http_error):
@@ -81,10 +81,6 @@ class AuthenticationError(DriverError):
 
 class DeviceBootError(DriverError):
     """To catch device boot errors."""
-
-
-class DownloadArtifactError(DriverError):
-    """To catch download artifact errors."""
 
 
 class NoSubnetwork(DriverError):
@@ -135,10 +131,6 @@ class NotSupportedPlatformError(SetupError):
     """Error related to user using a not supported os."""
 
 
-class NotSupportedFieldName(SetupError):
-    """Unsupported field name for user config."""
-
-
 class CreateError(Exception):
     """Base Create cmd exception."""
 
@@ -149,10 +141,6 @@ class GetAndroidBuildEnvVarError(CreateError):
 
 class CheckPathError(CreateError):
     """Path does not exist."""
-
-
-class CheckGCEZonesQuotaError(CreateError):
-    """There is no zone have enough quota."""
 
 
 class UnsupportedInstanceImageType(CreateError):
@@ -189,10 +177,6 @@ class InvalidHWPropertyError(CreateError):
 
 class GetLocalImageError(CreateError):
     """Can't find the local image."""
-
-
-class GetRemoteImageError(CreateError):
-    """An error to download the remote image."""
 
 
 class GetCvdLocalHostPackageError(CreateError):

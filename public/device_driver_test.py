@@ -19,8 +19,7 @@
 import uuid
 
 import unittest
-
-from unittest import mock
+import mock
 
 from acloud.internal.lib import auth
 from acloud.internal.lib import android_build_client

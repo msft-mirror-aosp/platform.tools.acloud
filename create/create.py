@@ -48,7 +48,6 @@ from acloud.setup import host_setup_runner
 
 _MAKE_CMD = "build/soong/soong_ui.bash"
 _MAKE_ARG = "--make-mode"
-_YES = "y"
 
 _CREATOR_CLASS_DICT = {
     # GCE types
@@ -77,9 +76,6 @@ _CREATOR_CLASS_DICT = {
         goldfish_remote_image_remote_instance.GoldfishRemoteImageRemoteInstance,
     (constants.TYPE_GF, constants.IMAGE_SRC_LOCAL, constants.INSTANCE_TYPE_LOCAL):
         goldfish_local_image_local_instance.GoldfishLocalImageLocalInstance,
-    # FVP types
-    (constants.TYPE_FVP, constants.IMAGE_SRC_LOCAL, constants.INSTANCE_TYPE_REMOTE):
-        local_image_remote_instance.LocalImageRemoteInstance,
 }
 
 
@@ -123,7 +119,7 @@ def _CheckForAutoconnect(args):
         return
 
     disable_autoconnect = False
-    answer = _YES if args.no_prompt else utils.InteractWithQuestion(
+    answer = utils.InteractWithQuestion(
         "adb is required for autoconnect, without it autoconnect will be "
         "disabled, would you like acloud to build it[y/N]? ")
     if answer in constants.USER_ANSWER_YES:
@@ -170,9 +166,8 @@ def _CheckForSetup(args):
     args.host = False
     args.host_base = False
     args.force = False
-    args.update_config = None
     # Remote image/instance requires the GCP config setup.
-    if args.local_instance is None or args.local_image is None:
+    if not args.local_instance or args.local_image == "":
         gcp_setup = gcp_setup_runner.GcpTaskRunner(args.config_file)
         if gcp_setup.ShouldRun():
             args.gcp_init = True
@@ -183,7 +178,7 @@ def _CheckForSetup(args):
     # The following local instance create will trigger this if statment and go
     # through the whole setup again even though it's already done because the
     # user groups aren't set until the user logs out and back in.
-    if args.local_instance is not None:
+    if args.local_instance:
         host_pkg_setup = host_setup_runner.AvdPkgInstaller()
         if host_pkg_setup.ShouldRun():
             args.host = True
