@@ -133,6 +133,7 @@ FVP_ADB_PORT = 5555
 MAX_PORT = 65535
 
 COMMAND_PS = ["ps", "aux"]
+CMD_CVD = "cvd"
 CMD_LAUNCH_CVD = "launch_cvd"
 CMD_PGREP = "pgrep"
 CMD_STOP_CVD = "stop_cvd"
@@ -206,16 +207,14 @@ SSL_CA_NAME = "ACloud-webRTC-CA"
 SSL_TRUST_CA_DIR = "/usr/local/share/ca-certificates"
 
 # Remote Log
-REMOTE_LOG_FOLDER = f"/home/{GCE_USER}/cuttlefish_runtime"
-
-# Cheeps specific stuff.
-CHEEPS_BETTY_IMAGE = "betty_image"
+REMOTE_LOG_FOLDER = "cuttlefish_runtime"
 
 # Key name in report
 ERROR_LOG_FOLDER = "error_log_folder"
 
 # Type of "logs" entries in report.
 # The values must be consistent with LogDataType in TradeFed.
+LOG_TYPE_DIR = "DIR"
 LOG_TYPE_KERNEL_LOG = "KERNEL_LOG"
 LOG_TYPE_LOGCAT = "LOGCAT"
 LOG_TYPE_TEXT = "TEXT"
