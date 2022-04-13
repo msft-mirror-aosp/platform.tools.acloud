@@ -81,7 +81,7 @@ class CvdUtilsTest(unittest.TestCase):
         mock_ssh.Run.assert_called_with(expected_ssh_cmd)
 
     def testUploadBootImages(self):
-        """Test UploadExtraImages with boot images."""
+        """Test FindBootImages and UploadExtraImages."""
         mock_ssh = mock.Mock()
         with tempfile.TemporaryDirectory(prefix="cvd_utils") as image_dir:
             boot_image_path = os.path.join(image_dir, "boot.img")
