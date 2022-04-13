@@ -152,11 +152,14 @@ class CreateCommonTest(driver_test_lib.BaseDriverTest):
         self.assertEqual("/dir/name",
                          create_common.FindLocalImage("/dir/", "name"))
 
+
+        self.assertIsNone(create_common.FindLocalImage("/dir", "not_exist",
+                                                       raise_error=False))
         with self.assertRaises(errors.GetLocalImageError):
             create_common.FindLocalImage("/dir", "not_exist")
 
         with self.assertRaises(errors.GetLocalImageError):
-            create_common.FindLocalImage("/dir", "name.?")
+            create_common.FindLocalImage("/dir", "name.?", raise_error=False)
 
     @mock.patch.object(utils, "Decompress")
     def testDownloadRemoteArtifact(self, mock_decompress):
