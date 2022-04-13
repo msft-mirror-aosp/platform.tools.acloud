@@ -146,7 +146,7 @@ def GetCvdHostPackage(package_path=None):
         '\n'.join(dirs_to_check))
 
 
-def FindLocalImage(path, default_name_pattern):
+def FindLocalImage(path, default_name_pattern, raise_error=True):
     """Find an image file in the given path.
 
     Args:
@@ -165,7 +165,9 @@ def FindLocalImage(path, default_name_pattern):
         names = [name for name in os.listdir(path) if
                  re.fullmatch(default_name_pattern, name)]
         if not names:
-            raise errors.GetLocalImageError("No image in %s." % path)
+            if raise_error:
+                raise errors.GetLocalImageError("No image in %s." % path)
+            return None
         if len(names) != 1:
             raise errors.GetLocalImageError("More than one image in %s: %s" %
                                             (path, " ".join(names)))
