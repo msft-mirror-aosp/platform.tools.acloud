@@ -53,6 +53,7 @@ _EMULATOR_VERSION_PATTERN = re.compile(r"require\s+version-emulator="
 _EMULATOR_ZIP_NAME_FORMAT = "sdk-repo-%(os)s-emulator-%(build_id)s.zip"
 _EMULATOR_BIN_DIR_NAMES = ("bin64", "qemu")
 _EMULATOR_BIN_NAME = "emulator"
+_SDK_REPO_EMULATOR_DIR_NAME = "emulator"
 # Remote paths
 _REMOTE_WORKING_DIR = "acloud_gf"
 _REMOTE_ARTIFACT_DIR = remote_path.join(_REMOTE_WORKING_DIR, "artifact")
@@ -367,12 +368,12 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         subdirectory. This class needs to find out the subdirectory name in
         order to construct the remote commands.
 
-        For example, in sdk-repo-*-emulator-*.zip, all files are in
-        "emulator/". The zip entries are:
+        For example, in a sdk-repo-linux-system-images-*.zip for arm64, all
+        files are in "arm64-v8a/". The zip entries are:
 
-        emulator/NOTICE.txt
-        emulator/emulator
-        emulator/lib64/libc++.so
+        arm64-v8a/NOTICE.txt
+        arm64-v8a/system.img
+        arm64-v8a/data/local.prop
         ...
 
         This method scans the entries and returns the common subdirectory name.
@@ -474,7 +475,7 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
             remote_path.join(_REMOTE_ARTIFACT_DIR,
                              os.path.basename(image_zip_path))))
         remote_emulator_subdir = remote_path.join(
-            _REMOTE_EMULATOR_DIR, self._GetSubdirNameInZip(emulator_zip_path))
+            _REMOTE_EMULATOR_DIR, _SDK_REPO_EMULATOR_DIR_NAME)
         remote_image_subdir = remote_path.join(
             _REMOTE_IMAGE_DIR, self._GetSubdirNameInZip(image_zip_path))
         # TODO(b/141898893): In Android build environment, emulator gets build
