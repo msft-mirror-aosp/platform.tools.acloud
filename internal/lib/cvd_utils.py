@@ -18,6 +18,7 @@ import glob
 import logging
 import os
 import posixpath as remote_path
+import subprocess
 
 from acloud import errors
 from acloud.create import create_common
@@ -250,6 +251,32 @@ def UploadExtraImages(ssh_obj, avd_spec):
     if avd_spec.local_kernel_image:
         return _UploadKernelImages(ssh_obj, avd_spec.local_kernel_image)
     return []
+
+
+def CleanUpRemoteCvd(ssh_obj, raise_error):
+    """Call stop_cvd and delete the files on a remote host or a GCE instance.
+
+    Args:
+        ssh_obj: An Ssh object.
+        raise_error: Whether to raise an error if the remote instance is not
+                     running.
+
+    Raises:
+        subprocess.CalledProcessError if any command fails.
+    """
+    stop_cvd_cmd = "./bin/stop_cvd"
+    if raise_error:
+        ssh_obj.Run(stop_cvd_cmd)
+    else:
+        try:
+            ssh_obj.Run(stop_cvd_cmd, retry=0)
+        except subprocess.CalledProcessError as e:
+            logger.debug(
+                "Failed to stop_cvd (possibly no running device): %s", e)
+
+    # This command deletes all files except hidden files under HOME.
+    # It does not raise an error if no files can be deleted.
+    ssh_obj.Run("'rm -rf ./*'")
 
 
 def ConvertRemoteLogs(log_paths):
