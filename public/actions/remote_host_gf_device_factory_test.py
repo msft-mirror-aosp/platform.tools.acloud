@@ -73,7 +73,7 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         "ANDROID_TMP=~/acloud_gf/instance "
         "ANDROID_BUILD_TOP=~/acloud_gf/instance ; "
         "touch acloud_gf/instance/kernel.log ; "
-        "nohup acloud_gf/emulator/x86_64/emulator -verbose "
+        "nohup acloud_gf/emulator/emulator/emulator -verbose "
         "-show-kernel -read-only -ports 5554,5555 -no-window "
         "-logcat-output acloud_gf/instance/logcat.txt "
         "-stdouterr-file acloud_gf/instance/kernel.log -gpu auto &'"
