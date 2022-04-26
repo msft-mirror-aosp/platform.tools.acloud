@@ -174,7 +174,7 @@ def FindBootImages(search_path):
     return boot_image_path, vendor_boot_image_path
 
 
-def _FindKernelImages(search_path):
+def FindKernelImages(search_path):
     """Find kernel and initramfs images in a path.
 
     Args:
@@ -224,7 +224,7 @@ def _UploadKernelImages(ssh_obj, search_path):
                                     _REMOTE_VENDOR_BOOT_IMAGE_PATH])
         return launch_cvd_args
 
-    kernel_image_path, initramfs_image_path = _FindKernelImages(search_path)
+    kernel_image_path, initramfs_image_path = FindKernelImages(search_path)
     if kernel_image_path and initramfs_image_path:
         ssh_obj.ScpPushFile(kernel_image_path, _REMOTE_KERNEL_IMAGE_PATH)
         ssh_obj.ScpPushFile(initramfs_image_path, _REMOTE_INITRAMFS_IMAGE_PATH)
