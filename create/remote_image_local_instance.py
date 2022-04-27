@@ -247,4 +247,5 @@ class RemoteImageLocalInstance(local_image_local_instance.LocalImageLocalInstanc
             misc_info=misc_info_path,
             ota_tools_dir=ota_tools_dir,
             system_image=system_image_path,
-            boot_image=None)
+            boot_image=None,
+            vendor_boot_image=None)

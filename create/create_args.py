@@ -540,6 +540,12 @@ def GetCreateArgParser(subparser):
         help="'cuttlefish only' Create OpenWrt device when launching cuttlefish "
         "device.")
     create_parser.add_argument(
+        "--use-launch_cvd",
+        action="store_true",
+        dest="use_launch_cvd",
+        required=False,
+        help="'cuttlefish only' Use launch_cvd to create cuttlefish devices.")
+    create_parser.add_argument(
         "--host",
         type=str,
         dest="remote_host",
@@ -652,6 +658,14 @@ def GetCreateArgParser(subparser):
         help=("'cheeps only' The L1 betty version to use. Only makes sense "
               "when launching a controller image with "
               "stable-cheeps-host-image"))
+    create_parser.add_argument(
+        "--cheeps-feature",
+        type=str,
+        dest="cheeps_features",
+        required=False,
+        action="append",
+        default=[],
+        help=("'cheeps only' Cheeps feature to enable. Can be repeated."))
 
     AddCommonCreateArgs(create_parser)
     return create_parser
@@ -846,11 +860,13 @@ def VerifyArgs(args):
                          args.stable_cheeps_host_image_project,
                          args.username,
                          args.password,
-                         args.cheeps_betty_image]
+                         args.cheeps_betty_image,
+                         args.cheeps_features]
     if args.avd_type != constants.TYPE_CHEEPS and any(cheeps_only_flags):
         raise errors.UnsupportedCreateArgs(
-            "--stable-cheeps-*, --betty-image, --username and --password are "
-            "only valid with avd_type == %s" % constants.TYPE_CHEEPS)
+            "--stable-cheeps-*, --betty-image, --cheeps-feature, --username "
+            "and --password are only valid with avd_type == %s"
+            % constants.TYPE_CHEEPS)
     if (args.username or args.password) and not (args.username and args.password):
         raise ValueError("--username and --password must both be set")
     if not args.autoconnect and args.unlock_screen:
