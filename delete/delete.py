@@ -25,12 +25,12 @@ import subprocess
 
 from acloud import errors
 from acloud.internal import constants
-from acloud.internal.lib import auth
 from acloud.internal.lib import cvd_compute_client_multi_stage
+from acloud.internal.lib import cvd_utils
 from acloud.internal.lib import emulator_console
 from acloud.internal.lib import goldfish_remote_host_client
 from acloud.internal.lib import oxygen_client
-from acloud.internal.lib import ssh as ssh_object
+from acloud.internal.lib import ssh
 from acloud.internal.lib import utils
 from acloud.list import list as list_instances
 from acloud.public import config
@@ -279,17 +279,13 @@ def CleanUpRemoteHost(cfg, remote_host, host_user,
     Returns:
         delete_report.
     """
-    credentials = auth.CreateCredentials(cfg)
-    compute_client = cvd_compute_client_multi_stage.CvdComputeClient(
-        acloud_config=cfg,
-        oauth2_credentials=credentials)
-    ssh = ssh_object.Ssh(
-        ip=ssh_object.IP(ip=remote_host),
+    ssh_obj = ssh.Ssh(
+        ip=ssh.IP(ip=remote_host),
         user=host_user,
         ssh_private_key_path=(
             host_ssh_private_key_path or cfg.ssh_private_key_path))
     try:
-        compute_client.InitRemoteHost(ssh, remote_host, host_user)
+        cvd_utils.CleanUpRemoteCvd(ssh_obj, raise_error=True)
         delete_report.SetStatus(report.Status.SUCCESS)
         device_driver.AddDeletionResultToReport(
             delete_report, [remote_host], failed=[],
