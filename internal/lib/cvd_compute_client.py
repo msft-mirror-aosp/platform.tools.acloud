@@ -56,7 +56,7 @@ _METADATA_TO_UNSET = ["cvd_01_launch",
                       "cvd_01_fetch_kernel_bid",
                       "cvd_01_fetch_kernel_build_target"]
 
-
+# TODO(228405515): Delete CvdComputeClient class.
 class CvdComputeClient(android_compute_client.AndroidComputeClient):
     """Client that manages Anadroid Virtual Device."""
 

@@ -81,18 +81,17 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_client_obj.FormatRemoteHostInstanceName.return_value = "inst"
         mock_client_obj.LaunchCvd.return_value = {"inst": "failure"}
 
-        logs = [{"path": "/log.txt"}]
+        log = {"path": "/log.txt"}
+        tombstones = {"path": "/tombstones"}
+        mock_cvd_utils.TOMBSTONES = tombstones
         mock_cvd_utils.UploadExtraImages.return_value = ["extra"]
-        mock_cvd_utils.ConvertRemoteLogs.return_value = logs
+        mock_cvd_utils.ConvertRemoteLogs.return_value = [log]
 
         self.assertEqual("inst", factory.CreateInstance())
         mock_ssh.Ssh.assert_called_once()
         mock_client_obj.InitRemoteHost.assert_called_once()
-        mock_cvd_utils.UploadImageZip.assert_not_called()
-        mock_cvd_utils.UploadImageDir.assert_called_with(
-            mock.ANY, "/mock/img")
-        mock_cvd_utils.UploadCvdHostPackage.assert_called_with(
-            mock.ANY, "/mock/cvd.tar.gz")
+        mock_cvd_utils.UploadArtifacts.assert_called_with(
+            mock.ANY, "/mock/img", "/mock/cvd.tar.gz")
         mock_client_obj.LaunchCvd.assert_called_with(
             "inst",
             mock_avd_spec,
@@ -102,7 +101,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_pull.GetAllLogFilePaths.assert_called_once()
         mock_pull.PullLogs.assert_called_once()
         self.assertEqual({"inst": "failure"}, factory.GetFailures())
-        self.assertEqual({"inst": logs}, factory.GetLogs())
+        self.assertEqual({"inst": [tombstones, log]}, factory.GetLogs())
 
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory."
                 "cvd_compute_client_multi_stage")
@@ -126,16 +125,13 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.assertEqual("inst", factory.CreateInstance())
         mock_ssh.Ssh.assert_called_once()
         mock_client_obj.InitRemoteHost.assert_called_once()
-        mock_cvd_utils.UploadImageZip.assert_called_with(
-            mock.ANY, "/mock/img.zip")
-        mock_cvd_utils.UploadImageDir.assert_not_called()
-        mock_cvd_utils.UploadCvdHostPackage.assert_called_with(
-            mock.ANY, "/mock/cvd.tar.gz")
+        mock_cvd_utils.UploadArtifacts.assert_called_with(
+            mock.ANY, "/mock/img.zip", "/mock/cvd.tar.gz")
         mock_client_obj.LaunchCvd.assert_called()
         mock_pull.GetAllLogFilePaths.assert_called_once()
         mock_pull.PullLogs.assert_not_called()
         self.assertFalse(factory.GetFailures())
-        self.assertTrue(factory.GetLogs())
+        self.assertEqual(1, len(factory.GetLogs()["inst"]))
 
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory."
                 "cvd_compute_client_multi_stage")
@@ -175,7 +171,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_pull.GetAllLogFilePaths.assert_called_once()
         mock_pull.PullLogs.assert_not_called()
         self.assertFalse(factory.GetFailures())
-        self.assertTrue(factory.GetLogs())
+        self.assertEqual(1, len(factory.GetLogs()["inst"]))
 
 
 if __name__ == "__main__":

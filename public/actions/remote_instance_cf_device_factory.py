@@ -19,9 +19,7 @@ import logging
 
 from acloud.internal import constants
 from acloud.internal.lib import cvd_utils
-from acloud.internal.lib import utils
 from acloud.public.actions import gce_device_factory
-from acloud.public import report
 from acloud.pull import pull
 
 
@@ -61,7 +59,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         if instance in self.GetFailures():
             return instance
         try:
-            image_args = self._ProcessArtifacts(self._avd_spec.image_source)
+            image_args = self._ProcessArtifacts()
             failures = self._compute_client.LaunchCvd(
                 instance,
                 self._avd_spec,
@@ -78,7 +76,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             instance in self.GetFailures() and not self._avd_spec.no_pull_log)
         return instance
 
-    def _ProcessArtifacts(self, image_source):
+    def _ProcessArtifacts(self):
         """Process artifacts.
 
         - If images source is local, tool will upload images from local site to
@@ -87,17 +85,15 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
           build to remote instance. Before download images, we have to update
           fetch_cvd to remote instance.
 
-        Args:
-            image_source: String, the type of image source is remote or local.
-
         Returns:
             A list of strings, the launch_cvd arguments.
         """
-        if image_source == constants.IMAGE_SRC_LOCAL:
-            self._UploadLocalImageArtifacts(self._local_image_artifact,
-                                            self._cvd_host_package_artifact,
-                                            self._avd_spec.local_image_dir)
-        elif image_source == constants.IMAGE_SRC_REMOTE:
+        if self._avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
+            cvd_utils.UploadArtifacts(
+                self._ssh,
+                self._local_image_artifact or self._avd_spec.local_image_dir,
+                self._cvd_host_package_artifact)
+        elif self._avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
             self._compute_client.UpdateFetchCvd()
             self._FetchBuild(self._avd_spec)
 
@@ -132,26 +128,6 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             avd_spec.ota_build_info[constants.BUILD_BRANCH],
             avd_spec.ota_build_info[constants.BUILD_TARGET])
 
-    @utils.TimeExecute(function_description="Processing and uploading local images")
-    def _UploadLocalImageArtifacts(self,
-                                   local_image_zip,
-                                   cvd_host_package_artifact,
-                                   images_dir):
-        """Upload local images and avd local host package to instance.
-
-        Args:
-            local_image_zip: String, path to zip of local images which
-                             build from 'm dist'.
-            cvd_host_package_artifact: String, path to cvd host package.
-            images_dir: String, directory of local images which build
-                        from 'm'.
-        """
-        if local_image_zip:
-            cvd_utils.UploadImageZip(self._ssh, local_image_zip)
-        else:
-            cvd_utils.UploadImageDir(self._ssh, images_dir)
-        cvd_utils.UploadCvdHostPackage(self._ssh, cvd_host_package_artifact)
-
     def _FindLogFiles(self, instance, download):
         """Find and pull all log files from instance.
 
@@ -160,10 +136,11 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             download: Whether to download the files to a temporary directory
                       and show messages to the user.
         """
+        self._all_logs[instance] = [cvd_utils.TOMBSTONES,
+                                    cvd_utils.HOST_KERNEL_LOG]
+        if self._avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
+            self._all_logs[instance].append(cvd_utils.FETCHER_CONFIG_JSON)
         log_files = pull.GetAllLogFilePaths(self._ssh)
-        self._all_logs[instance] = [
-            report.LogFile("/var/log/kern.log", constants.LOG_TYPE_KERNEL_LOG,
-                           "host_kernel.log")]
         self._all_logs[instance].extend(cvd_utils.ConvertRemoteLogs(log_files))
         if download:
             error_log_folder = pull.PullLogs(self._ssh, log_files, instance)
