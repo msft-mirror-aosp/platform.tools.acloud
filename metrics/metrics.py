@@ -17,6 +17,7 @@ import logging
 
 from acloud.internal import constants
 _NO_METRICS = "--no-metrics"
+_NO_METRICS_COMMANDS = ["delete"]
 
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,8 @@ def LogUsage(argv):
         True if start event is sent and need to pair with end event.
     """
     if _NO_METRICS in argv:
+        return False
+    if len(argv) > 0 and argv[0] in _NO_METRICS_COMMANDS:
         return False
 
     try:
