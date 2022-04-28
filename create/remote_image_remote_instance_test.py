@@ -91,6 +91,12 @@ class RemoteImageRemoteInstanceTest(driver_test_lib.BaseDriverTest):
         avd_spec.remote_image = {constants.BUILD_TARGET: "fake_target",
                                  constants.BUILD_ID: "fake_id",
                                  constants.BUILD_BRANCH: "fake_branch"}
+        avd_spec.system_build_info = {constants.BUILD_TARGET: "fake_target",
+                                      constants.BUILD_ID: "fake_id",
+                                      constants.BUILD_BRANCH: "fake_branch"}
+        avd_spec.kernel_build_info = {constants.BUILD_TARGET: "fake_target",
+                                      constants.BUILD_ID: "fake_id",
+                                      constants.BUILD_BRANCH: "fake_branch"}
         response_fail = "Lease device fail."
         self.Patch(oxygen_client.OxygenClient, "LeaseDevice",
                    side_effect=[ONE_LINE_LEASE_RESPONSE, response_fail])
@@ -109,6 +115,12 @@ class RemoteImageRemoteInstanceTest(driver_test_lib.BaseDriverTest):
         avd_spec.remote_image = {constants.BUILD_TARGET: "fake_target",
                                  constants.BUILD_ID: "fake_id",
                                  constants.BUILD_BRANCH: "fake_branch"}
+        avd_spec.system_build_info = {constants.BUILD_TARGET: "fake_target",
+                                      constants.BUILD_ID: "fake_id",
+                                      constants.BUILD_BRANCH: "fake_branch"}
+        avd_spec.kernel_build_info = {constants.BUILD_TARGET: "fake_target",
+                                      constants.BUILD_ID: "fake_id",
+                                      constants.BUILD_BRANCH: "fake_branch"}
         response_fail = "Lease device fail."
         self.Patch(oxygen_client.OxygenClient, "LeaseDevice",
                    side_effect=[LEASE_FAILURE_RESPONSE, response_fail])
@@ -131,13 +143,6 @@ class RemoteImageRemoteInstanceTest(driver_test_lib.BaseDriverTest):
             self.remote_image_remote_instance._GetDeviceInfoFromResponse(
                 MULTIPLE_LINES_LEASE_RESPONSE),
             (expect_session_id, expect_server_url))
-
-    def testReplaceDeviceDataKeys(self):
-        """test ReplaceDeviceDataKeys."""
-        device_data = {"sessionId": "fake_device", "serverUrl": "10.1.1.1"}
-        expected_result = {"instance_name": "fake_device", "ip": "10.1.1.1"}
-        self.remote_image_remote_instance._ReplaceDeviceDataKeys(device_data)
-        self.assertEqual(device_data, expected_result)
 
 
 if __name__ == '__main__':

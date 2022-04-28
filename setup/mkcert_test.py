@@ -35,7 +35,11 @@ class MkcertTest(driver_test_lib.BaseDriverTest):
         self.Patch(mkcert, "UnInstall")
         self.Patch(utils, "Popen")
         self.Patch(shutil, "rmtree")
+        self.Patch(os, "stat")
+        self.Patch(os, "chmod")
+        os.stat().st_mode = 33188
         mkcert.Install()
+        os.chmod.assert_not_called()
         shutil.rmtree.assert_not_called()
         mkcert.UnInstall.assert_not_called()
         self.assertEqual(4, utils.Popen.call_count)
@@ -43,7 +47,9 @@ class MkcertTest(driver_test_lib.BaseDriverTest):
 
         self.Patch(os.path, "isdir", return_value=True)
         self.Patch(os.path, "exists", return_value=True)
+        os.stat().st_mode = 33184
         mkcert.Install()
+        os.chmod.assert_called_once()
         shutil.rmtree.assert_called_once()
         mkcert.UnInstall.assert_called_once()
         self.assertEqual(4, utils.Popen.call_count)
