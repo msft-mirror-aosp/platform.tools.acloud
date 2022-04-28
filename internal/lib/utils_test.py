@@ -29,7 +29,6 @@ import webbrowser
 import unittest
 
 from unittest import mock
-import six
 
 from acloud import errors
 from acloud.internal.lib import driver_test_lib
@@ -191,7 +190,7 @@ class UtilsTest(driver_test_lib.BaseDriverTest):
         mock_open = mock.mock_open(read_data=public_key)
         self.Patch(subprocess, "check_output")
         self.Patch(os, "rename")
-        with mock.patch.object(six.moves.builtins, "open", mock_open):
+        with mock.patch("builtins.open", mock_open):
             utils.CreateSshKeyPairIfNotExist(private_key, public_key)
         self.assertEqual(subprocess.check_output.call_count, 1)  #pylint: disable=no-member
         subprocess.check_output.assert_called_with(  #pylint: disable=no-member
@@ -262,7 +261,7 @@ class UtilsTest(driver_test_lib.BaseDriverTest):
                 mock.call(16)
             ])
 
-    @mock.patch.object(six.moves, "input")
+    @mock.patch("builtins.input")
     def testGetAnswerFromList(self, mock_raw_input):
         """Test GetAnswerFromList."""
         answer_list = ["image1.zip", "image2.zip", "image3.zip"]
@@ -561,6 +560,14 @@ class UtilsTest(driver_test_lib.BaseDriverTest):
             utils.SetDirectoryTreeExecutable(temp_dir)
             self.assertEqual(os.stat(file_path).st_mode & 0o777, 0o755)
 
+    def testSetCvdPort(self):
+        """test base_instance_num."""
+        utils.SetCvdPorts(2)
+        self.assertEqual(utils.GetCvdPorts().adb_port, 6521)
+        self.assertEqual(utils.GetCvdPorts().vnc_port, 6445)
+        utils.SetCvdPorts(None)
+
+
     @mock.patch.object(utils, "PrintColorString")
     def testPrintDeviceSummary(self, mock_print):
         """test PrintDeviceSummary."""
@@ -580,7 +587,7 @@ class UtilsTest(driver_test_lib.BaseDriverTest):
                          "screen_command": "fake_screen_cmd"},],}
         mock_print.reset_mock()
         utils.PrintDeviceSummary(fake_report)
-        self.assertEqual(mock_print.call_count, 11)
+        self.assertEqual(mock_print.call_count, 13)
 
         # Test for fail case
         fake_report.data = {

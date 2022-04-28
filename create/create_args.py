@@ -75,13 +75,6 @@ def AddCommonCreateArgs(parser):
         required=False,
         help="Will not automatically create ssh tunnels forwarding adb & vnc "
              "when instance created.")
-    parser.add_argument(
-        "--mkcert",
-        action="store_true",
-        dest="mkcert",
-        required=False,
-        help="Install mkcert package on the host. It helps to create the "
-             "certification files for the WEB browser.")
     parser.set_defaults(autoconnect=constants.INS_KEY_WEBRTC)
     parser.add_argument(
         "--unlock",
@@ -289,6 +282,13 @@ def AddCommonCreateArgs(parser):
         required=False,
         default=None,
         help="Disable auto download logs when AVD booting up failed.")
+    parser.add_argument(
+        "--no-mkcert",
+        dest="mkcert",
+        action="store_false",
+        required=False,
+        default=True,
+        help="Disable mkcert setup process on the host.")
     # TODO(147335651): Add gpu in user config.
     # TODO(147335651): Support "--gpu" without giving any value.
     parser.add_argument(
@@ -437,6 +437,13 @@ def GetCreateArgParser(subparser):
         required=False,
         help="Specify port for adb forwarding.")
     create_parser.add_argument(
+        "--base-instance-num",
+        type=int,
+        default=None,
+        dest="base_instance_num",
+        required=False,
+        help="'cuttlefish only' The instance number of the created device.")
+    create_parser.add_argument(
         "--avd-type",
         type=str,
         dest="avd_type",
@@ -532,6 +539,12 @@ def GetCreateArgParser(subparser):
         required=False,
         help="'cuttlefish only' Create OpenWrt device when launching cuttlefish "
         "device.")
+    create_parser.add_argument(
+        "--use-launch_cvd",
+        action="store_true",
+        dest="use_launch_cvd",
+        required=False,
+        help="'cuttlefish only' Use launch_cvd to create cuttlefish devices.")
     create_parser.add_argument(
         "--host",
         type=str,
@@ -645,6 +658,14 @@ def GetCreateArgParser(subparser):
         help=("'cheeps only' The L1 betty version to use. Only makes sense "
               "when launching a controller image with "
               "stable-cheeps-host-image"))
+    create_parser.add_argument(
+        "--cheeps-feature",
+        type=str,
+        dest="cheeps_features",
+        required=False,
+        action="append",
+        default=[],
+        help=("'cheeps only' Cheeps feature to enable. Can be repeated."))
 
     AddCommonCreateArgs(create_parser)
     return create_parser
@@ -839,11 +860,13 @@ def VerifyArgs(args):
                          args.stable_cheeps_host_image_project,
                          args.username,
                          args.password,
-                         args.cheeps_betty_image]
+                         args.cheeps_betty_image,
+                         args.cheeps_features]
     if args.avd_type != constants.TYPE_CHEEPS and any(cheeps_only_flags):
         raise errors.UnsupportedCreateArgs(
-            "--stable-cheeps-*, --betty-image, --username and --password are "
-            "only valid with avd_type == %s" % constants.TYPE_CHEEPS)
+            "--stable-cheeps-*, --betty-image, --cheeps-feature, --username "
+            "and --password are only valid with avd_type == %s"
+            % constants.TYPE_CHEEPS)
     if (args.username or args.password) and not (args.username and args.password):
         raise ValueError("--username and --password must both be set")
     if not args.autoconnect and args.unlock_screen:

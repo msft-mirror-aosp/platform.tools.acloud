@@ -40,8 +40,6 @@ import uuid
 import webbrowser
 import zipfile
 
-import six
-
 from acloud import errors
 from acloud.internal import constants
 
@@ -76,11 +74,6 @@ PortMapping = collections.namedtuple("PortMapping", ["local", "target"])
 WEBRTC_PORTS_MAPPING = [PortMapping(15550, 15550),
                         PortMapping(15551, 15551),
                         PortMapping(15552, 15552)]
-# Use mkcert to generate a localhost certificates for webrtc
-_MKCERT_LOCAL_CERT_CMD = ("%(local_ca_dir)s/mkcert "
-                          "-key-file %(local_ca_dir)s/server.key "
-                          "-cert-file %(local_ca_dir)s/server.crt "
-                          "localhost 0.0.0.0 ::1")
 _RE_GROUP_WEBRTC = "local_webrtc_port"
 _RE_WEBRTC_SSH_TUNNEL_PATTERN = (
     r"((.*-L\s)(?P<local_webrtc_port>\d+):127.0.0.1:%s)(.+%s)")
@@ -88,6 +81,7 @@ _ADB_CONNECT_ARGS = "connect 127.0.0.1:%(adb_port)d"
 # Store the ports that vnc/adb are forwarded to, both are integers.
 ForwardedPorts = collections.namedtuple("ForwardedPorts", [constants.VNC_PORT,
                                                            constants.ADB_PORT])
+
 AVD_PORT_DICT = {
     constants.TYPE_GCE: ForwardedPorts(constants.GCE_VNC_PORT,
                                        constants.GCE_ADB_PORT),
@@ -334,7 +328,7 @@ def MakeTarFile(src_dict, dest):
     """
     logger.info("Compressing %s into %s.", src_dict.keys(), dest)
     with tarfile.open(dest, "w:gz") as tar:
-        for src, arcname in six.iteritems(src_dict):
+        for src, arcname in src_dict.items():
             tar.add(src, arcname=arcname)
 
 def CreateSshKeyPairIfNotExist(private_key_path, public_key_path):
@@ -431,7 +425,7 @@ def VerifyRsaPubKey(rsa):
 
     key_type, data, _ = elements
     try:
-        binary_data = base64.decodebytes(six.b(data))
+        binary_data = base64.decodebytes(data.encode())
         # number of bytes of int type
         int_length = 4
         # binary_data is like "7ssh-key..." in a binary format.
@@ -441,7 +435,7 @@ def VerifyRsaPubKey(rsa):
         # We will verify that the rsa conforms to this format.
         # ">I" in the following line means "big-endian unsigned integer".
         type_length = struct.unpack(">I", binary_data[:int_length])[0]
-        if binary_data[int_length:int_length + type_length] != six.b(key_type):
+        if binary_data[int_length:int_length + type_length] != key_type.encode():
             raise errors.DriverError("rsa key is invalid: %s" % rsa)
     except (struct.error, binascii.Error) as e:
         raise errors.DriverError(
@@ -518,7 +512,7 @@ def InteractWithQuestion(question, colors=TextColors.WARNING):
     Returns:
         String, input from user.
     """
-    return str(six.moves.input(colors + question + TextColors.ENDC).strip())
+    return str(input(colors + question + TextColors.ENDC).strip())
 
 
 def GetUserAnswerYes(question):
@@ -606,7 +600,7 @@ class BatchHttpRequestExecutor:
         self._final_results.update(results)
         # Clear pending_requests
         self._pending_requests.clear()
-        for request_id, result in six.iteritems(results):
+        for request_id, result in results.items():
             exception = result[1]
             if exception is not None and self._ShoudRetry(exception):
                 # If this is a retriable exception, put it in pending_requests
@@ -892,6 +886,11 @@ def EstablishWebRTCSshTunnel(ip_addr, webrtc_local_port, rsa_key_file, ssh_user,
     """
     webrtc_server_port = GetWebRTCServerPort(
         ip_addr, rsa_key_file, ssh_user, extra_args_ssh_tunnel)
+
+    # TODO(b/209502647): design a better way to forward webrtc ports.
+    if extra_args_ssh_tunnel:
+        for webrtc_port in WEBRTC_PORTS_MAPPING:
+            ReleasePort(webrtc_port.local)
     port_mapping = (WEBRTC_PORTS_MAPPING +
                     [PortMapping(webrtc_local_port, webrtc_server_port)])
     try:
@@ -942,24 +941,6 @@ def GetWebRTCServerPort(ip_addr, rsa_key_file, ssh_user,
     except subprocess.CalledProcessError as e:
         logger.debug("Failed to list processes: %s", e)
     return _PORT_1443
-
-
-def AllocateLocalHostCert(local_ca_dir):
-    """Allocate certificates of localhost by mkcert.
-
-    This will generate certificates by mkcert to trust webrtc frontend
-    if one of the required certificates do not exist.
-
-    Args:
-        local_ca_dir: String, a fixed path to store the certificates.
-    """
-    if not os.path.isdir(local_ca_dir):
-        os.makedirs(local_ca_dir)
-    cmd_mkcert = _MKCERT_LOCAL_CERT_CMD % {"local_ca_dir": local_ca_dir}
-    for cert_file_name in constants.WEBRTC_CERTS_FILES:
-        if not os.path.exists(os.path.join(local_ca_dir, cert_file_name)):
-            CheckOutput(cmd_mkcert, shell=True)
-            break
 
 
 def GetWebrtcPortFromSSHTunnel(ip):
@@ -1054,7 +1035,7 @@ def GetAnswerFromList(answer_list, enable_choose_all=False):
 
     while True:
         try:
-            choice = six.moves.input("Enter your choice[0-%d]: " % max_choice)
+            choice = input("Enter your choice[0-%d]: " % max_choice)
             choice = int(choice)
         except ValueError:
             print("'%s' is not a valid integer.", choice)
@@ -1095,12 +1076,6 @@ def LaunchBrowserFromReport(report):
     Args:
         report: Report object, that stores and generates report.
     """
-    if not os.path.exists(os.path.join(os.path.expanduser("~"),
-                                       constants.MKCERT_INSTALL_DIR, "mkcert")):
-        PrintColorString("(Since the certificate is self-signed, Chrome will "
-                         "mark it as an insecure website. keep going.)",
-                         TextColors.WARNING)
-
     for device in report.data.get("devices", []):
         if device.get("ip"):
             LaunchBrowser(constants.WEBRTC_LOCAL_HOST,
@@ -1197,19 +1172,20 @@ def PrintDeviceSummary(report):
         instance_ip = device.get("ip")
         instance_details = "" if not instance_name else "(%s[%s])" % (
             instance_name, instance_ip)
-        PrintColorString(" - device serial: %s %s" % (adb_serial,
-                                                      instance_details))
+        PrintColorString(f" - device serial: {adb_serial} {instance_details}")
         PrintColorString("\n")
         PrintColorString("Note: To ensure Tradefed uses this AVD, please run:")
         PrintColorString("\texport ANDROID_SERIAL=%s" % adb_serial)
         ssh_command = device.get("ssh_command")
-        screen_command = device.get("screen_command")
-        # Display OpenWrt device info.
-        if ssh_command and screen_command:
+        if ssh_command:
             PrintColorString("\n")
-            PrintColorString("Note: To connect to the OpenWrt device, please run:")
-            PrintColorString("\tssh command: %s" % ssh_command)
-            PrintColorString("\tscreen command: %s" % screen_command)
+            PrintColorString("Note: To ssh connect to the device, please run:")
+            PrintColorString(f"\tssh command: {ssh_command}")
+        screen_command = device.get("screen_command")
+        if screen_command:
+            PrintColorString("\n")
+            PrintColorString("Note: To access the console, please run:")
+            PrintColorString(f"\tscreen command: {screen_command}")
 
     # TODO(b/117245508): Help user to delete instance if it got created.
     if report.errors:
@@ -1493,11 +1469,9 @@ def GetDictItems(namedtuple_object):
         namedtuple_object: namedtuple object.
 
     Returns:
-        collections.namedtuple.__dict__.items() when using python2.
         collections.namedtuple._asdict().items() when using python3.
     """
-    return (namedtuple_object.__dict__.items() if six.PY2
-            else namedtuple_object._asdict().items())
+    return namedtuple_object._asdict().items()
 
 
 def CleanupSSVncviewer(vnc_port):
@@ -1526,6 +1500,47 @@ def CheckOutput(cmd, **kwargs):
     return subprocess.check_output(cmd, **kwargs).decode()
 
 
+def Popen(*command, **popen_args):
+    """Execute subprocess.Popen command and log the output.
+
+    This method waits for the process to terminate. It kills the process
+    if it's interrupted due to timeout.
+
+    Args:
+        command: Strings, the command.
+        popen_kwargs: The arguments to be passed to subprocess.Popen.
+
+    Raises:
+        errors.SubprocessFail if the process returns non-zero.
+    """
+    proc = None
+    try:
+        logger.info("Execute %s", command)
+        popen_args["stdin"] = subprocess.PIPE
+        popen_args["stdout"] = subprocess.PIPE
+        popen_args["stderr"] = subprocess.PIPE
+
+        # Some OTA tools are Python scripts in different versions. The
+        # PYTHONPATH for acloud may be incompatible with the tools.
+        if "env" not in popen_args and "PYTHONPATH" in os.environ:
+            popen_env = os.environ.copy()
+            del popen_env["PYTHONPATH"]
+            popen_args["env"] = popen_env
+
+        proc = subprocess.Popen(command, **popen_args)
+        stdout, stderr = proc.communicate()
+        logger.info("%s stdout: %s", command[0], stdout)
+        logger.info("%s stderr: %s", command[0], stderr)
+
+        if proc.returncode != 0:
+            raise errors.SubprocessFail("%s returned %d." %
+                                        (command[0], proc.returncode))
+    finally:
+        if proc and proc.poll() is None:
+            logger.info("Kill %s", command[0])
+            proc.kill()
+
+
 def SetExecutable(path):
     """Grant the persmission to execute a file.
 
@@ -1552,3 +1567,26 @@ def SetDirectoryTreeExecutable(dir_path):
     for parent_dir, _, file_names in os.walk(dir_path):
         for name in file_names:
             SetExecutable(os.path.join(parent_dir, name))
+
+
+def GetCvdPorts():
+    """Get CVD ports
+
+
+    Returns:
+        ForwardedPorts: vnc port and adb port.
+    """
+    return AVD_PORT_DICT[constants.TYPE_CF]
+
+
+def SetCvdPorts(base_instance_num):
+    """Adjust ports by base_instance_num.
+
+    Args:
+        base_instance_num: int, cuttlefish base_instance_num.
+    """
+    offset = (base_instance_num or 1) - 1
+    AVD_PORT_DICT[constants.TYPE_CF] = ForwardedPorts(
+        constants.CF_VNC_PORT + offset, constants.CF_ADB_PORT + offset)
+
+    # TODO: adjust WebRTC ports

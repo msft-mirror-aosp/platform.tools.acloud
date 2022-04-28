@@ -177,7 +177,7 @@ def _CheckForSetup(args):
     args.host_base = False
     args.force = False
     args.update_config = None
-    args.host_mkcert = False
+    args.host_local_ca = False
     # Remote image/instance requires the GCP config setup.
     if args.local_instance is None or args.local_image is None:
         gcp_setup = gcp_setup_runner.GcpTaskRunner(args.config_file)
@@ -197,11 +197,16 @@ def _CheckForSetup(args):
             args.host = True
             logger.debug("Auto-detect to install host packages.")
 
+        user_groups_setup = host_setup_runner.CuttlefishHostSetup()
+        if user_groups_setup.ShouldRun():
+            args.host = True
+            logger.debug("Auto-detect to setup user groups.")
+
     if args.mkcert and args.autoconnect == constants.INS_KEY_WEBRTC:
-        mkcert_pkg_setup = host_setup_runner.MkcertPkgInstaller()
-        if mkcert_pkg_setup.ShouldRun():
-            args.host_mkcert = True
-            logger.debug("Auto-detect to install mkcert.")
+        local_ca_setup = host_setup_runner.LocalCAHostSetup()
+        if local_ca_setup.ShouldRun():
+            args.host_local_ca = True
+            logger.debug("Auto-detect to setup local CA.")
 
     # Install base packages if we haven't already.
     host_base_setup = host_setup_runner.HostBasePkgInstaller()
@@ -210,7 +215,7 @@ def _CheckForSetup(args):
         logger.debug("Auto-detect to install host_base packages.")
 
     run_setup = any([
-        args.force, args.gcp_init, args.host, args.host_base, args.host_mkcert])
+        args.force, args.gcp_init, args.host, args.host_base, args.host_local_ca])
 
     if run_setup:
         answer = utils.InteractWithQuestion("Missing necessary acloud setup, "

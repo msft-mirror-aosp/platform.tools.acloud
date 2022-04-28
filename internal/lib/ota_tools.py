@@ -15,11 +15,7 @@
 
 import logging
 import os
-import subprocess
 import tempfile
-
-from six import b
-
 
 from acloud import errors
 from acloud.internal.lib import utils
@@ -133,47 +129,6 @@ class OtaTools:
         return path
 
     @staticmethod
-    def _ExecuteCommand(*command, **popen_args):
-        """Execute a command and log the output.
-
-        This method waits for the process to terminate. It kills the process
-        if it's interrupted due to timeout.
-
-        Args:
-            command: Strings, the command.
-            popen_kwargs: The arguments to be passed to subprocess.Popen.
-
-        Raises:
-            errors.SubprocessFail if the process returns non-zero.
-        """
-        proc = None
-        try:
-            logger.info("Execute %s", command)
-            popen_args["stdin"] = subprocess.PIPE
-            popen_args["stdout"] = subprocess.PIPE
-            popen_args["stderr"] = subprocess.PIPE
-
-            # Some OTA tools are Python scripts in different versions. The
-            # PYTHONPATH for acloud may be incompatible with the tools.
-            if "env" not in popen_args and "PYTHONPATH" in os.environ:
-                popen_env = os.environ.copy()
-                del popen_env["PYTHONPATH"]
-                popen_args["env"] = popen_env
-
-            proc = subprocess.Popen(command, **popen_args)
-            stdout, stderr = proc.communicate()
-            logger.info("%s stdout: %s", command[0], stdout)
-            logger.info("%s stderr: %s", command[0], stderr)
-
-            if proc.returncode != 0:
-                raise errors.SubprocessFail("%s returned %d." %
-                                            (command[0], proc.returncode))
-        finally:
-            if proc and proc.poll() is None:
-                logger.info("Kill %s", command[0])
-                proc.kill()
-
-    @staticmethod
     def _RewriteMiscInfo(output_file, input_file, lpmake_path, get_image):
         """Rewrite lpmake and image paths in misc_info.txt.
 
@@ -208,18 +163,18 @@ class OtaTools:
             if split_line[0] == "dynamic_partition_list":
                 partition_names = split_line[1].split()
             elif split_line[0] == "lpmake":
-                output_file.write(b("lpmake=%s\n" % lpmake_path))
+                output_file.write("lpmake=%s\n" % lpmake_path)
                 continue
             elif split_line[0].endswith("_image"):
                 continue
-            output_file.write(b(line))
+            output_file.write(line)
 
         if not partition_names:
             logger.w("No dynamic partition list in misc info.")
 
         for partition_name in partition_names:
-            output_file.write(b("%s_image=%s\n" %
-                                (partition_name, get_image(partition_name))))
+            output_file.write("%s_image=%s\n" %
+                              (partition_name, get_image(partition_name)))
 
     @utils.TimeExecute(function_description="Build super image")
     @utils.TimeoutException(_BUILD_SUPER_IMAGE_TIMEOUT_SECS)
@@ -241,13 +196,12 @@ class OtaTools:
             with open(misc_info_path, "r") as misc_info:
                 with tempfile.NamedTemporaryFile(
                         prefix="misc_info_", suffix=".txt",
-                        delete=False) as new_misc_info:
+                        delete=False, mode="w") as new_misc_info:
                     new_misc_info_path = new_misc_info.name
                     self._RewriteMiscInfo(new_misc_info, misc_info, lpmake,
                                           get_image)
 
-            self._ExecuteCommand(build_super_image, new_misc_info_path,
-                                 output_path)
+            utils.Popen(build_super_image, new_misc_info_path, output_path)
         finally:
             if new_misc_info_path:
                 os.remove(new_misc_info_path)
@@ -261,10 +215,10 @@ class OtaTools:
             output_path: The path to the output vbmeta image.
         """
         avbtool = self._GetBinary(_AVBTOOL)
-        self._ExecuteCommand(avbtool, "make_vbmeta_image",
-                             "--flag", "2",
-                             "--padding_size", "4096",
-                             "--output", output_path)
+        utils.Popen(avbtool, "make_vbmeta_image",
+                    "--flag", "2",
+                    "--padding_size", "4096",
+                    "--output", output_path)
 
     @staticmethod
     def _RewriteSystemQemuConfig(output_file, input_file, get_image):
@@ -290,11 +244,11 @@ class OtaTools:
         for line in input_file:
             split_line = line.split()
             if len(split_line) == 3:
-                output_file.write(b("%s %s %s\n" % (get_image(split_line[1]),
-                                                    split_line[1],
-                                                    split_line[2])))
+                output_file.write("%s %s %s\n" % (get_image(split_line[1]),
+                                                  split_line[1],
+                                                  split_line[2]))
             else:
-                output_file.write(b(line))
+                output_file.write(line)
 
     @utils.TimeExecute(function_description="Make combined image")
     @utils.TimeoutException(_MK_COMBINED_IMG_TIMEOUT_SECS)
@@ -317,16 +271,16 @@ class OtaTools:
             with open(system_qemu_config_path, "r") as config:
                 with tempfile.NamedTemporaryFile(
                         prefix="system-qemu-config_", suffix=".txt",
-                        delete=False) as new_config:
+                        delete=False, mode="w") as new_config:
                     new_config_path = new_config.name
                     self._RewriteSystemQemuConfig(new_config, config,
                                                   get_image)
 
             mk_combined_img_env = {"SGDISK": sgdisk, "SIMG2IMG": simg2img}
-            self._ExecuteCommand(mk_combined_img,
-                                 "-i", new_config_path,
-                                 "-o", output_path,
-                                 env=mk_combined_img_env)
+            utils.Popen(mk_combined_img,
+                        "-i", new_config_path,
+                        "-o", output_path,
+                        env=mk_combined_img_env)
         finally:
             if new_config_path:
                 os.remove(new_config_path)
@@ -341,6 +295,6 @@ class OtaTools:
             boot_img: The path to the boot image.
         """
         unpack_bootimg = self._GetBinary(_UNPACK_BOOTIMG)
-        self._ExecuteCommand(unpack_bootimg,
-                             "--out", out_dir,
-                             "--boot_img", boot_img)
+        utils.Popen(unpack_bootimg,
+                    "--out", out_dir,
+                    "--boot_img", boot_img)

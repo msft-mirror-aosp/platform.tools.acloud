@@ -70,9 +70,7 @@ Try $acloud [cmd] --help for further details.
 from __future__ import print_function
 import argparse
 import logging
-import os
 import sys
-import sysconfig
 import traceback
 
 if sys.version_info.major == 2:
@@ -82,12 +80,13 @@ if sys.version_info.major == 2:
                                                 sys.version_info.micro))
     sys.exit(1)
 
-# This is a workaround to put '/usr/lib/python3.X' ahead of googleapiclient of
-# build system path list to fix python3 issue of http.client(b/144743252)
-# that googleapiclient existed http.py conflict with python3 build-in lib.
-# Using embedded_launcher(b/135639220) perhaps work whereas it didn't solve yet.
-if sys.version_info.major == 3:
-    sys.path.insert(0, os.path.dirname(sysconfig.get_paths()['purelib']))
+# (b/219847353) Move googleapiclient to the last position of sys.path when
+#  existed.
+for lib in sys.path:
+    if 'googleapiclient' in lib:
+        sys.path.remove(lib)
+        sys.path.append(lib)
+        break
 
 # By Default silence root logger's stream handler since 3p lib may initial
 # root logger no matter what level we're using. The acloud logger behavior will
@@ -115,7 +114,6 @@ from acloud.powerwash import powerwash_args
 from acloud.public import acloud_common
 from acloud.public import config
 from acloud.public import report
-from acloud.public.actions import create_cuttlefish_action
 from acloud.public.actions import create_goldfish_action
 from acloud.pull import pull
 from acloud.pull import pull_args
@@ -134,12 +132,10 @@ NO_ERROR_MESSAGE = ""
 PROG = "acloud"
 
 # Commands
-CMD_CREATE_CUTTLEFISH = "create_cf"
 CMD_CREATE_GOLDFISH = "create_gf"
 
 # Config requires fields.
 _CREATE_REQUIRE_FIELDS = ["project", "zone", "machine_type"]
-_CREATE_CF_REQUIRE_FIELDS = ["resolution"]
 # show contact info to user.
 _CONTACT_INFO = ("If you have any question or need acloud team support, "
                  "please feel free to contact us by email at "
@@ -176,13 +172,6 @@ def _ParseArgs(args):
         '%(prog)s ' + config.GetVersion()))
     subparsers = parser.add_subparsers(metavar="{" + usage + "}")
     subparser_list = []
-
-    # Command "create_cf", create cuttlefish instances
-    create_cf_parser = subparsers.add_parser(CMD_CREATE_CUTTLEFISH)
-    create_cf_parser.required = False
-    create_cf_parser.set_defaults(which=CMD_CREATE_CUTTLEFISH)
-    create_args.AddCommonCreateArgs(create_cf_parser)
-    subparser_list.append(create_cf_parser)
 
     # Command "create_gf", create goldfish instances
     # In order to create a goldfish device we need the following parameters:
@@ -280,10 +269,6 @@ def _VerifyArgs(parsed_args):
         create_args.VerifyArgs(parsed_args)
     if parsed_args.which == setup_args.CMD_SETUP:
         setup_args.VerifyArgs(parsed_args)
-    if parsed_args.which == CMD_CREATE_CUTTLEFISH:
-        if not parsed_args.build_id and not parsed_args.branch:
-            raise errors.CommandArgError(
-                "Must specify --build_id or --branch")
     if parsed_args.which == CMD_CREATE_GOLDFISH:
         if not parsed_args.emulator_build_id and not parsed_args.build_id and (
                 not parsed_args.emulator_branch and not parsed_args.branch):
@@ -299,9 +284,7 @@ def _VerifyArgs(parsed_args):
                 "--system-* args are not supported for AVD type: %s"
                 % constants.TYPE_GF)
 
-    if parsed_args.which in [
-            create_args.CMD_CREATE, CMD_CREATE_CUTTLEFISH, CMD_CREATE_GOLDFISH
-    ]:
+    if parsed_args.which in [create_args.CMD_CREATE, CMD_CREATE_GOLDFISH]:
         if (parsed_args.serial_log_file
                 and not parsed_args.serial_log_file.endswith(".tar.gz")):
             raise errors.CommandArgError(
@@ -321,8 +304,6 @@ def _ParsingConfig(args, cfg):
     missing_fields = []
     if args.which == create_args.CMD_CREATE and args.local_instance is None:
         missing_fields = cfg.GetMissingFields(_CREATE_REQUIRE_FIELDS)
-    if args.which == CMD_CREATE_CUTTLEFISH:
-        missing_fields.extend(cfg.GetMissingFields(_CREATE_CF_REQUIRE_FIELDS))
     if missing_fields:
         return (
             "Config file (%s) missing required fields: %s, please add these "
@@ -420,28 +401,6 @@ def main(argv=None):
             constants.ACLOUD_UNKNOWN_ARGS_ERROR)
     elif args.which == create_args.CMD_CREATE:
         reporter = create.Run(args)
-    elif args.which == CMD_CREATE_CUTTLEFISH:
-        reporter = create_cuttlefish_action.CreateDevices(
-            cfg=cfg,
-            build_target=args.build_target,
-            build_id=args.build_id,
-            branch=args.branch,
-            kernel_build_id=args.kernel_build_id,
-            kernel_branch=args.kernel_branch,
-            kernel_build_target=args.kernel_build_target,
-            system_branch=args.system_branch,
-            system_build_id=args.system_build_id,
-            system_build_target=args.system_build_target,
-            bootloader_branch=args.bootloader_branch,
-            bootloader_build_id=args.bootloader_build_id,
-            bootloader_build_target=args.bootloader_build_target,
-            gpu=args.gpu,
-            num=args.num,
-            serial_log_file=args.serial_log_file,
-            autoconnect=args.autoconnect,
-            report_internal_ip=args.report_internal_ip,
-            boot_timeout_secs=args.boot_timeout_secs,
-            ins_timeout_secs=args.ins_timeout_secs)
     elif args.which == CMD_CREATE_GOLDFISH:
         reporter = create_goldfish_action.CreateDevices(
             cfg=cfg,
