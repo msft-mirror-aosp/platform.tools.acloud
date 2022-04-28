@@ -157,6 +157,8 @@ class AVDSpec():
         self._stable_cheeps_host_image_project = None
         self._username = None
         self._password = None
+        self._cheeps_betty_image = None
+        self._cheeps_features = None
 
         # The maximum time in seconds used to wait for the AVD to boot.
         self._boot_timeout_secs = None
@@ -368,6 +370,9 @@ class AVDSpec():
         self._stable_cheeps_host_image_project = args.stable_cheeps_host_image_project
         self._username = args.username
         self._password = args.password
+        self._cheeps_betty_image = (
+            args.cheeps_betty_image or self._cfg.betty_image)
+        self._cheeps_features = args.cheeps_features
 
         self._boot_timeout_secs = args.boot_timeout_secs
         self._ins_timeout_secs = args.ins_timeout_secs
@@ -601,9 +606,6 @@ class AVDSpec():
             self._remote_image[constants.BUILD_ID] = build_client.GetLKGB(
                 self._remote_image[constants.BUILD_TARGET],
                 self._remote_image[constants.BUILD_BRANCH])
-
-        self._remote_image[constants.CHEEPS_BETTY_IMAGE] = (
-            args.cheeps_betty_image or self._cfg.betty_image)
 
         # Process system image, kernel image, bootloader, and otatools.
         self._system_build_info = {constants.BUILD_ID: args.system_build_id,
@@ -948,6 +950,16 @@ class AVDSpec():
     def password(self):
         """Return password."""
         return self._password
+
+    @property
+    def cheeps_betty_image(self):
+        """Return cheeps_betty_image."""
+        return self._cheeps_betty_image
+
+    @property
+    def cheeps_features(self):
+        """Return cheeps_features."""
+        return self._cheeps_features
 
     @property
     def boot_timeout_secs(self):

@@ -208,17 +208,14 @@ class DeleteTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(delete_report.status, "FAIL")
         self.assertEqual(len(delete_report.errors), 1)
 
-    @mock.patch.object(delete, "auth")
-    @mock.patch.object(delete, "cvd_compute_client_multi_stage")
-    @mock.patch.object(delete, "ssh_object")
-    def testCleanUpRemoteHost(self, mock_ssh, mock_client, mock_auth):
+    @mock.patch.object(delete, "ssh")
+    @mock.patch.object(delete, "cvd_utils")
+    def testCleanUpRemoteHost(self, mock_cvd_utils, mock_ssh):
         """Test CleanUpRemoteHost."""
         mock_ssh_ip = mock.Mock()
         mock_ssh.IP.return_value = mock_ssh_ip
         mock_ssh_obj = mock.Mock()
         mock_ssh.Ssh.return_value = mock_ssh_obj
-        mock_client_obj = mock.Mock()
-        mock_client.CvdComputeClient.return_value = mock_client_obj
         cfg_attrs = {"ssh_private_key_path": "cfg_key_path"}
         mock_cfg = mock.Mock(spec_set=list(cfg_attrs.keys()), **cfg_attrs)
         delete_report = report.Report(command="delete")
@@ -230,8 +227,8 @@ class DeleteTest(driver_test_lib.BaseDriverTest):
             ip=mock_ssh_ip,
             user="vsoc-01",
             ssh_private_key_path="cfg_key_path")
-        mock_client_obj.InitRemoteHost.assert_called_with(
-            mock_ssh_obj, "192.0.2.1", "vsoc-01")
+        mock_cvd_utils.CleanUpRemoteCvd.assert_called_with(mock_ssh_obj,
+                                                           raise_error=True)
         self.assertEqual(delete_report.status, "SUCCESS")
         self.assertEqual(delete_report.data, {
             "deleted": [
@@ -244,8 +241,8 @@ class DeleteTest(driver_test_lib.BaseDriverTest):
 
         mock_ssh_ip.reset_mock()
         mock_ssh_obj.reset_mock()
-        mock_client_obj.InitRemoteHost.reset_mock()
-        mock_client_obj.InitRemoteHost.side_effect = (
+        mock_cvd_utils.reset_mock()
+        mock_cvd_utils.CleanUpRemoteCvd.side_effect = (
             subprocess.CalledProcessError(cmd="test", returncode=1))
         delete_report = report.Report(command="delete")
 
@@ -256,8 +253,8 @@ class DeleteTest(driver_test_lib.BaseDriverTest):
             ip=mock_ssh_ip,
             user="user",
             ssh_private_key_path="key_path")
-        mock_client_obj.InitRemoteHost.assert_called_with(
-            mock_ssh_obj, "192.0.2.2", "user")
+        mock_cvd_utils.CleanUpRemoteCvd.assert_called_with(mock_ssh_obj,
+                                                           raise_error=True)
         self.assertEqual(delete_report.status, "FAIL")
         self.assertEqual(len(delete_report.errors), 1)
 
