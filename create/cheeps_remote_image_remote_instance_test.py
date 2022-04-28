@@ -25,6 +25,7 @@ class CheepsRemoteImageRemoteInstanceTest(driver_test_lib.BaseDriverTest):
     CHEEPS_HOST_IMAGE_PROJECT = "fake-stable-host-image-project"
     ANDROID_BUILD_ID = 12345
     ANDROID_BUILD_TARGET = "fake-target"
+    DEFAULT_ADB_PORT = 9222
 
     def setUp(self):
         """Set up the test."""
@@ -96,7 +97,7 @@ class CheepsRemoteImageRemoteInstanceTest(driver_test_lib.BaseDriverTest):
             "devices": [{
                 "build_id": self.ANDROID_BUILD_ID,
                 "instance_name": self.INSTANCE,
-                "ip": self.IP.external,
+                "ip": self.IP.external + ":" + str(self.DEFAULT_ADB_PORT),
             },],
         })
         self.assertEqual(report.command, "create_cheeps")
