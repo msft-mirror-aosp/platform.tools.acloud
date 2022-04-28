@@ -33,11 +33,15 @@ class MetricsTest(driver_test_lib.BaseDriverTest):
         """Test LogUsage."""
         self.Patch(atest_utils, "print_data_collection_notice")
         self.Patch(metrics_utils, "send_start_event")
-        argv = ["acloud", "create"]
+        argv = ["create", "--local-instance"]
         self.assertTrue(metrics.LogUsage(argv))
 
         # Test arguments with "--no-metrics"
-        argv = ["acloud", "create", "--no-metrics"]
+        argv = ["create", "--no-metrics"]
+        self.assertFalse(metrics.LogUsage(argv))
+
+        # Don't collect metrics for "delete" command.
+        argv = ["delete", "--all"]
         self.assertFalse(metrics.LogUsage(argv))
 
     def testLogExitEvent(self):
