@@ -24,7 +24,7 @@ from acloud.create import create_common
 from acloud.internal import constants
 from acloud.internal.lib import utils
 from acloud.public.actions import common_operations
-from acloud.public.actions import remote_instance_cf_device_factory
+from acloud.public.actions import remote_host_cf_device_factory
 
 
 class LocalImageRemoteHost(base_avd_create.BaseAVDCreate):
@@ -42,7 +42,7 @@ class LocalImageRemoteHost(base_avd_create.BaseAVDCreate):
         Returns:
             A Report instance.
         """
-        device_factory = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
+        device_factory = remote_host_cf_device_factory.RemoteHostDeviceFactory(
             avd_spec,
             avd_spec.local_image_artifact,
             create_common.GetCvdHostPackage(avd_spec.cvd_host_package))
