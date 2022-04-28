@@ -15,6 +15,7 @@
 """Tests for cvd_utils."""
 
 import os
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -81,7 +82,7 @@ class CvdUtilsTest(unittest.TestCase):
         mock_ssh.Run.assert_called_with(expected_ssh_cmd)
 
     def testUploadBootImages(self):
-        """Test UploadExtraImages with boot images."""
+        """Test FindBootImages and UploadExtraImages."""
         mock_ssh = mock.Mock()
         with tempfile.TemporaryDirectory(prefix="cvd_utils") as image_dir:
             boot_image_path = os.path.join(image_dir, "boot.img")
@@ -125,6 +126,28 @@ class CvdUtilsTest(unittest.TestCase):
                 args)
             mock_ssh.Run.assert_called_once()
             self.assertEqual(2, mock_ssh.ScpPushFile.call_count)
+
+
+    def testCleanUpRemoteCvd(self):
+        """Test CleanUpRemoteCvd."""
+        mock_ssh = mock.Mock()
+        cvd_utils.CleanUpRemoteCvd(mock_ssh, raise_error=True)
+        mock_ssh.Run.assert_any_call("./bin/stop_cvd")
+        mock_ssh.Run.assert_any_call("'rm -rf ./*'")
+
+        mock_ssh.reset_mock()
+        mock_ssh.Run.side_effect = [
+            subprocess.CalledProcessError(cmd="should raise", returncode=1)]
+        with self.assertRaises(subprocess.CalledProcessError):
+            cvd_utils.CleanUpRemoteCvd(mock_ssh, raise_error=True)
+
+        mock_ssh.reset_mock()
+        mock_ssh.Run.side_effect = [
+            subprocess.CalledProcessError(cmd="should ignore", returncode=1),
+            None]
+        cvd_utils.CleanUpRemoteCvd(mock_ssh, raise_error=False)
+        mock_ssh.Run.assert_any_call("./bin/stop_cvd", retry=0)
+        mock_ssh.Run.assert_any_call("'rm -rf ./*'")
 
     def testConvertRemoteLogs(self):
         """Test ConvertRemoteLogs."""
