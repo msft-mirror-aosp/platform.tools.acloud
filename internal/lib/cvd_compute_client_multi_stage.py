@@ -46,10 +46,10 @@ from acloud import errors
 from acloud.internal import constants
 from acloud.internal.lib import android_build_client
 from acloud.internal.lib import android_compute_client
+from acloud.internal.lib import cvd_utils
 from acloud.internal.lib import gcompute_client
 from acloud.internal.lib import utils
 from acloud.internal.lib.ssh import Ssh
-from acloud.pull import pull
 from acloud.setup import mkcert
 
 
@@ -80,7 +80,7 @@ _NO_RETRY = 0
 _LAUNCH_CVD_COMMAND = "launch_cvd_command"
 _CONFIG_RE = re.compile(r"^config=(?P<config>.+)")
 _TRUST_REMOTE_INSTANCE_COMMAND = (
-    f"\"sudo cp ~/{constants.WEBRTC_CERTS_PATH}/{constants.SSL_CA_NAME}.pem "
+    f"\"sudo cp -p ~/{constants.WEBRTC_CERTS_PATH}/{constants.SSL_CA_NAME}.pem "
     f"{constants.SSL_TRUST_CA_DIR}/{constants.SSL_CA_NAME}.crt;"
     "sudo update-ca-certificates;\"")
 # Remote host instance name
@@ -128,7 +128,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         self._report_internal_ip = report_internal_ip
         self._gpu = gpu
         # Store all failures result when creating one or multiple instances.
-        self._all_failures = dict()
+        # This attribute is only used by the deprecated create_cf command.
+        self._all_failures = {}
         self._extra_args_ssh_tunnel = acloud_config.extra_args_ssh_tunnel
         self._ssh = None
         self._ip = None
@@ -185,8 +186,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         self._ip = ip
         self._user = user
         self._ssh.WaitForSsh(timeout=self._ins_timeout_secs)
-        self.StopCvd()
-        self.CleanUp()
+        cvd_utils.CleanUpRemoteCvd(self._ssh, raise_error=False)
 
     # TODO(171376263): Refactor CreateInstance() args with avd_spec.
     # pylint: disable=arguments-differ,too-many-locals,broad-except
@@ -259,8 +259,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             self._ssh.WaitForSsh(timeout=self._ins_timeout_secs)
             if avd_spec:
                 if avd_spec.instance_name_to_reuse:
-                    self.StopCvd()
-                    self.CleanUp()
+                    cvd_utils.CleanUpRemoteCvd(self._ssh, raise_error=False)
                 return instance
 
             # TODO: Remove following code after create_cf deprecated.
@@ -271,10 +270,12 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                             kernel_branch, kernel_build_target, bootloader_build_id,
                             bootloader_branch, bootloader_build_target,
                             ota_build_id, ota_branch, ota_build_target)
-            self.LaunchCvd(instance,
-                           blank_data_disk_size_gb=blank_data_disk_size_gb,
-                           boot_timeout_secs=self._boot_timeout_secs)
-
+            failures = self.LaunchCvd(
+                instance,
+                blank_data_disk_size_gb=blank_data_disk_size_gb,
+                boot_timeout_secs=self._boot_timeout_secs,
+                extra_args=[])
+            self._all_failures.update(failures)
             return instance
         except Exception as e:
             self._all_failures[instance] = e
@@ -351,6 +352,9 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             if avd_spec.num_avds_per_instance > 1:
                 launch_cvd_args.append(
                     _NUM_AVDS_ARG % {"num_AVD": avd_spec.num_avds_per_instance})
+            if avd_spec.base_instance_num:
+                launch_cvd_args.append(
+                    "--base-instance-num=%s" % avd_spec.base_instance_num)
             if avd_spec.launch_args:
                 launch_cvd_args.append(avd_spec.launch_args)
         else:
@@ -369,39 +373,13 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         launch_cvd_args.append(_AGREEMENT_PROMPT_ARG)
         return launch_cvd_args
 
-    # pylint: disable=broad-except
-    def StopCvd(self):
-        """Stop CVD.
-
-        If stop_cvd fails, assume that it's because there was no previously
-        running device.
-        """
-        ssh_command = "./bin/stop_cvd"
-        try:
-            self._ssh.Run(ssh_command)
-        except Exception as e:
-            logger.debug("Failed to stop_cvd (possibly no running device): %s", e)
-
-    def CleanUp(self):
-        """Clean up the files/folders on the existing instance.
-
-        If previous AVD have these files/folders, reusing the instance may have
-        side effects if not cleaned. The path in the instance is /home/vsoc-01/*
-        if the GCE user is vsoc-01.
-        """
-
-        ssh_command = "'/bin/rm -rf /home/%s/*'" % self._user
-        try:
-            self._ssh.Run(ssh_command)
-        except subprocess.CalledProcessError as e:
-            logger.debug("Failed to clean up the files/folders: %s", e)
-
     @utils.TimeExecute(function_description="Launching AVD(s) and waiting for boot up",
                        result_evaluator=utils.BootEvaluator)
     def LaunchCvd(self, instance, avd_spec=None,
                   blank_data_disk_size_gb=None,
                   decompress_kernel=None,
-                  boot_timeout_secs=None):
+                  boot_timeout_secs=None,
+                  extra_args=()):
         """Launch CVD.
 
         Launch AVD with launch_cvd. If the process is failed, acloud would show
@@ -414,6 +392,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             decompress_kernel: Boolean, if true decompress the kernel.
             boot_timeout_secs: Integer, the maximum time to wait for the
                                command to respond.
+            extra_args: Collection of strings, the extra arguments generated by
+                        acloud. e.g., remote image paths.
 
         Returns:
            dict of faliures, return this dict for BootEvaluator to handle
@@ -422,14 +402,16 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         self.SetStage(constants.STAGE_BOOT_UP)
         timestart = time.time()
         error_msg = ""
-        launch_cvd_args = self._GetLaunchCvdArgs(avd_spec,
-                                                 blank_data_disk_size_gb,
-                                                 decompress_kernel,
-                                                 instance)
+        launch_cvd_args = list(extra_args)
+        launch_cvd_args.extend(
+            self._GetLaunchCvdArgs(avd_spec, blank_data_disk_size_gb,
+                                   decompress_kernel, instance))
         boot_timeout_secs = self._GetBootTimeout(
             boot_timeout_secs or constants.DEFAULT_CF_BOOT_TIMEOUT)
         ssh_command = "./bin/launch_cvd -daemon " + " ".join(launch_cvd_args)
         try:
+            if avd_spec and avd_spec.base_instance_num:
+                self.ExtendReportData(constants.BASE_INSTANCE_NUM, avd_spec.base_instance_num)
             self.ExtendReportData(_LAUNCH_CVD_COMMAND, ssh_command)
             self._ssh.Run(ssh_command, boot_timeout_secs, retry=_NO_RETRY)
             self._UpdateOpenWrtStatus(avd_spec)
@@ -445,10 +427,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                 error_msg = (
                     "WEBRTC is not supported in the current build. Please try VNC such "
                     "as '$acloud create --autoconnect vnc'")
-            self._all_failures[instance] = error_msg
             utils.PrintColorString(str(e), utils.TextColors.FAIL)
-            if avd_spec and not avd_spec.no_pull_log:
-                self._PullAllLogFiles(instance)
 
         self._execution_time[_LAUNCH_CVD] = round(time.time() - timestart, 2)
         return {instance: error_msg} if error_msg else {}
@@ -467,20 +446,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         boot_timeout_secs = timeout_secs - self._execution_time[_FETCH_ARTIFACT]
         logger.debug("Timeout for boot: %s secs", boot_timeout_secs)
         return boot_timeout_secs
-
-    def _PullAllLogFiles(self, instance):
-        """Pull all log files from instance.
-
-        1. Download log files to temp folder.
-        2. Show messages about the download folder for users.
-
-        Args:
-            instance: String, instance name.
-        """
-        log_files = pull.GetAllLogFilePaths(self._ssh)
-        error_log_folder = pull.GetDownloadLogFolder(instance)
-        pull.PullLogs(self._ssh, log_files, error_log_folder)
-        self.ExtendReportData(constants.ERROR_LOG_FOLDER, error_log_folder)
 
     @utils.TimeExecute(function_description="Reusing GCE instance")
     def _ReusingGceInstance(self, avd_spec):

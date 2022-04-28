@@ -22,6 +22,7 @@ import logging
 import os
 import platform
 import shutil
+import stat
 
 from acloud.internal import constants
 from acloud.internal.lib import utils
@@ -52,7 +53,7 @@ _CA_CMD = (f"openssl req -new -x509 -days 9999 -newkey rsa:2048 "
            f"-subj \"{_CA_SUBJ}\" -addext \"{_CA_EXT}\"")
 
 # Trust the Root SSL Certificate.
-_TRUST_CA_COPY_CMD = f"sudo cp {_CA_CRT_PATH} {_TRUST_CA_PATH}"
+_TRUST_CA_COPY_CMD = f"sudo cp -p {_CA_CRT_PATH} {_TRUST_CA_PATH}"
 _UPDATE_TRUST_CA_CMD = "sudo update-ca-certificates"
 _TRUST_CHROME_CMD = (
     "certutil -d sql:$HOME/.pki/nssdb -A -t TC "
@@ -90,6 +91,9 @@ def Install():
         UnInstall()
 
     utils.Popen(_CA_CMD, shell=True)
+    # The rootCA.pem file should grant READ permission to others.
+    if not os.stat(_CA_CRT_PATH).st_mode & stat.S_IROTH:
+        os.chmod(_CA_CRT_PATH, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
     utils.Popen(_TRUST_CA_COPY_CMD, shell=True)
     utils.Popen(_UPDATE_TRUST_CA_CMD, shell=True)
     utils.Popen(_TRUST_CHROME_CMD, shell=True)
@@ -130,6 +134,9 @@ def IsRootCAReady():
             logger.debug("Root SSL Certificate: %s, does not exist",
                          cert_file_name)
             return False
+    # TODO: this check can be delete when the mkcert mechanism is stable.
+    if not os.stat(_TRUST_CA_PATH).st_mode & stat.S_IROTH:
+        return False
 
     if not filecmp.cmp(_CA_CRT_PATH, _TRUST_CA_PATH):
         logger.debug("The trusted CA %s file is not the same with %s ",
