@@ -604,7 +604,7 @@ def GetCreateArgParser(subparser):
     # Arguments for goldfish type.
     create_parser.add_argument(
         "--emulator-build-id",
-        type=int,
+        type=str,
         dest="emulator_build_id",
         required=False,
         help="'goldfish only' Emulator build ID used to run the images. "
