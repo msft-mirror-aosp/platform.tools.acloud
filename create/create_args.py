@@ -402,6 +402,13 @@ def AddCommonCreateArgs(parser):
         dest="bootloader_build_target",
         help=argparse.SUPPRESS,
         required=False)
+    parser.add_argument(
+        "--remote-fetch",
+        action="store_true",
+        dest="remote_fetch",
+        required=False,
+        default=None,
+        help="'cuttlefish only' Fetch artifacts in remote host.")
 
 
 def GetCreateArgParser(subparser):
