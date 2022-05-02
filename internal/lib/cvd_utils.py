@@ -18,8 +18,10 @@ import glob
 import logging
 import os
 import posixpath as remote_path
+import subprocess
 
 from acloud import errors
+from acloud.create import create_common
 from acloud.internal import constants
 from acloud.internal.lib import ssh
 from acloud.internal.lib import utils
@@ -31,11 +33,17 @@ logger = logging.getLogger(__name__)
 # bootloader and kernel are files required to launch AVD.
 _ARTIFACT_FILES = ["*.img", "bootloader", "kernel"]
 _REMOTE_IMAGE_DIR = "acloud_cf"
-_BOOT_IMAGE_NAME = "boot.img"
+# The boot image name pattern corresponds to the use cases:
+# - In a cuttlefish build environment, ANDROID_PRODUCT_OUT conatins boot.img
+#   and boot-debug.img. The former is the default boot image. The latter is not
+#   useful for cuttlefish.
+# - In an officially released GKI (Generic Kernel Image) package, the image
+#   name is boot-<kernel version>.img.
+_BOOT_IMAGE_NAME_PATTERN = r"boot(-[\d.]+)?\.img"
 _VENDOR_BOOT_IMAGE_NAME = "vendor_boot.img"
 _KERNEL_IMAGE_NAMES = ("kernel", "bzImage", "Image")
 _INITRAMFS_IMAGE_NAME = "initramfs.img"
-_REMOTE_BOOT_IMAGE_PATH = remote_path.join(_REMOTE_IMAGE_DIR, _BOOT_IMAGE_NAME)
+_REMOTE_BOOT_IMAGE_PATH = remote_path.join(_REMOTE_IMAGE_DIR, "boot.img")
 _REMOTE_VENDOR_BOOT_IMAGE_PATH = remote_path.join(
     _REMOTE_IMAGE_DIR, _VENDOR_BOOT_IMAGE_NAME)
 _REMOTE_KERNEL_IMAGE_PATH = remote_path.join(
@@ -139,7 +147,7 @@ def _IsBootImage(image_path):
         return image_file.read(8) == _ANDROID_BOOT_IMAGE_MAGIC
 
 
-def _FindBootImages(search_path):
+def FindBootImages(search_path):
     """Find boot and vendor_boot images in a path.
 
     Args:
@@ -148,13 +156,22 @@ def _FindBootImages(search_path):
     Returns:
         The boot image path and the vendor_boot image path. Each value can be
         None if the path doesn't exist.
-    """
-    if _IsBootImage(search_path):
-        return search_path, None
 
-    paths = [os.path.join(search_path, name) for name in
-             (_BOOT_IMAGE_NAME, _VENDOR_BOOT_IMAGE_NAME)]
-    return [(path if os.path.isfile(path) else None) for path in paths]
+    Raises:
+        errors.GetLocalImageError if search_path contains more than one boot
+        image or the file format is not correct.
+    """
+    boot_image_path = create_common.FindLocalImage(
+        search_path, _BOOT_IMAGE_NAME_PATTERN, raise_error=False)
+    if boot_image_path and not _IsBootImage(boot_image_path):
+        raise errors.GetLocalImageError(
+            f"{boot_image_path} is not a boot image.")
+
+    vendor_boot_image_path = os.path.join(search_path, _VENDOR_BOOT_IMAGE_NAME)
+    if not os.path.isfile(vendor_boot_image_path):
+        vendor_boot_image_path = None
+
+    return boot_image_path, vendor_boot_image_path
 
 
 def _FindKernelImages(search_path):
@@ -196,7 +213,7 @@ def _UploadKernelImages(ssh_obj, search_path):
     # Assume that the caller cleaned up the remote home directory.
     ssh_obj.Run("mkdir -p " + _REMOTE_IMAGE_DIR)
 
-    boot_image_path, vendor_boot_image_path = _FindBootImages(search_path)
+    boot_image_path, vendor_boot_image_path = FindBootImages(search_path)
     if boot_image_path:
         ssh_obj.ScpPushFile(boot_image_path, _REMOTE_BOOT_IMAGE_PATH)
         launch_cvd_args = ["-boot_image", _REMOTE_BOOT_IMAGE_PATH]
@@ -234,6 +251,32 @@ def UploadExtraImages(ssh_obj, avd_spec):
     if avd_spec.local_kernel_image:
         return _UploadKernelImages(ssh_obj, avd_spec.local_kernel_image)
     return []
+
+
+def CleanUpRemoteCvd(ssh_obj, raise_error):
+    """Call stop_cvd and delete the files on a remote host or a GCE instance.
+
+    Args:
+        ssh_obj: An Ssh object.
+        raise_error: Whether to raise an error if the remote instance is not
+                     running.
+
+    Raises:
+        subprocess.CalledProcessError if any command fails.
+    """
+    stop_cvd_cmd = "./bin/stop_cvd"
+    if raise_error:
+        ssh_obj.Run(stop_cvd_cmd)
+    else:
+        try:
+            ssh_obj.Run(stop_cvd_cmd, retry=0)
+        except subprocess.CalledProcessError as e:
+            logger.debug(
+                "Failed to stop_cvd (possibly no running device): %s", e)
+
+    # This command deletes all files except hidden files under HOME.
+    # It does not raise an error if no files can be deleted.
+    ssh_obj.Run("'rm -rf ./*'")
 
 
 def ConvertRemoteLogs(log_paths):
