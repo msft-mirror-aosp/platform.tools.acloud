@@ -67,16 +67,17 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         "gpu": "auto",
     }
     _LOGS = [{"path": "acloud_gf/instance/kernel.log", "type": "KERNEL_LOG"},
+             {"path": "acloud_gf/instance/emu_stderr.txt", "type": "TEXT"},
              {"path": "acloud_gf/instance/logcat.txt", "type": "LOGCAT"}]
     _SSH_COMMAND = (
         "'export ANDROID_PRODUCT_OUT=~/acloud_gf/image/x86_64 "
         "ANDROID_TMP=~/acloud_gf/instance "
         "ANDROID_BUILD_TOP=~/acloud_gf/instance ; "
-        "touch acloud_gf/instance/kernel.log ; "
         "nohup acloud_gf/emulator/emulator/emulator -verbose "
         "-show-kernel -read-only -ports 5554,5555 -no-window "
-        "-logcat-output acloud_gf/instance/logcat.txt "
-        "-stdouterr-file acloud_gf/instance/kernel.log -gpu auto &'"
+        "-logcat-output acloud_gf/instance/logcat.txt -gpu auto "
+        "1> acloud_gf/instance/kernel.log "
+        "2> acloud_gf/instance/emu_stderr.txt &'"
     )
 
     def setUp(self):
