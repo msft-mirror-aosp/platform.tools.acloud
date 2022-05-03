@@ -149,6 +149,8 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
 
         self.assertEqual(self._X86_64_INSTANCE_NAME, instance_name)
         self.assertEqual(self._X86_64_BUILD_INFO, factory.GetBuildInfoDict())
+        self.assertEqual([5555], factory.GetAdbPorts())
+        self.assertEqual([None], factory.GetVncPorts())
         self.assertEqual({}, factory.GetFailures())
         self.assertEqual({instance_name: self._LOGS}, factory.GetLogs())
         # Artifacts.
@@ -203,6 +205,8 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
 
         self.assertEqual(self._ARM64_INSTANCE_NAME, instance_name)
         self.assertEqual(self._ARM64_BUILD_INFO, factory.GetBuildInfoDict())
+        self.assertEqual([5557], factory.GetAdbPorts())
+        self.assertEqual([None], factory.GetVncPorts())
         self.assertEqual({}, factory.GetFailures())
 
     @mock.patch("acloud.public.actions.remote_host_gf_device_factory."
@@ -238,6 +242,8 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
 
         self.assertEqual(self._X86_64_INSTANCE_NAME, instance_name)
         self.assertEqual(self._X86_64_BUILD_INFO, factory.GetBuildInfoDict())
+        self.assertEqual([5555], factory.GetAdbPorts())
+        self.assertEqual([None], factory.GetVncPorts())
         self.assertEqual({}, factory.GetFailures())
 
     @mock.patch("acloud.public.actions.remote_host_gf_device_factory."
@@ -276,6 +282,8 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
 
         self.assertEqual(self._X86_64_INSTANCE_NAME, instance_name)
         self.assertEqual(self._X86_64_BUILD_INFO, factory.GetBuildInfoDict())
+        self.assertEqual([5555], factory.GetAdbPorts())
+        self.assertEqual([None], factory.GetVncPorts())
         self.assertEqual({}, factory.GetFailures())
 
     def testCreateInstanceError(self):
