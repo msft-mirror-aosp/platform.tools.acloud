@@ -63,7 +63,8 @@ _REMOTE_RAMDISK_PATH = remote_path.join(_REMOTE_WORKING_DIR, "mixed_ramdisk")
 _REMOTE_EMULATOR_DIR = remote_path.join(_REMOTE_WORKING_DIR, "emulator")
 _REMOTE_INSTANCE_DIR = remote_path.join(_REMOTE_WORKING_DIR, "instance")
 _REMOTE_LOGCAT_PATH = os.path.join(_REMOTE_INSTANCE_DIR, "logcat.txt")
-_REMOTE_STDOUTERR_PATH = os.path.join(_REMOTE_INSTANCE_DIR, "kernel.log")
+_REMOTE_STDOUT_PATH = os.path.join(_REMOTE_INSTANCE_DIR, "kernel.log")
+_REMOTE_STDERR_PATH = os.path.join(_REMOTE_INSTANCE_DIR, "emu_stderr.txt")
 # Runtime parameters
 _EMULATOR_DEFAULT_CONSOLE_PORT = 5554
 _DEFAULT_BOOT_TIMEOUT_SECS = 150
@@ -129,8 +130,8 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
             _EMULATOR_DEFAULT_CONSOLE_PORT,
             self._avd_spec.remote_image)
         self._logs[instance_name] = [
-            report.LogFile(_REMOTE_STDOUTERR_PATH,
-                           constants.LOG_TYPE_KERNEL_LOG),
+            report.LogFile(_REMOTE_STDOUT_PATH, constants.LOG_TYPE_KERNEL_LOG),
+            report.LogFile(_REMOTE_STDERR_PATH, constants.LOG_TYPE_TEXT),
             report.LogFile(_REMOTE_LOGCAT_PATH, constants.LOG_TYPE_LOGCAT)]
         try:
             self._StartEmulator(remote_paths)
@@ -570,8 +571,7 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
                "-read-only", "-ports",
                str(_EMULATOR_DEFAULT_CONSOLE_PORT) + "," + str(adb_port),
                "-no-window",
-               "-logcat-output", _REMOTE_LOGCAT_PATH,
-               "-stdouterr-file", _REMOTE_STDOUTERR_PATH]
+               "-logcat-output", _REMOTE_LOGCAT_PATH]
 
         if remote_paths.kernel:
             cmd.extend(("-kernel", remote_paths.kernel))
@@ -587,12 +587,13 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
             cmd.extend(("-qemu", "-append",
                         "androidboot.verifiedbootstate=orange"))
 
-        # Emulator doesn't create -stdouterr-file automatically.
+        # Emulator does not support -stdouterr-file on macOS.
         self._ssh.Run(
-            "'export {env} ; touch {stdouterr} ; {cmd} &'".format(
+            "'export {env} ; {cmd} 1> {stdout} 2> {stderr} &'".format(
                 env=" ".join(k + "=~/" + v for k, v in env.items()),
-                stdouterr=_REMOTE_STDOUTERR_PATH,
-                cmd=" ".join(cmd)))
+                cmd=" ".join(cmd),
+                stdout=_REMOTE_STDOUT_PATH,
+                stderr=_REMOTE_STDERR_PATH))
 
     @utils.TimeExecute(function_description="Wait for emulator")
     def _WaitForEmulator(self):

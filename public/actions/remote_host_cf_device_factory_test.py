@@ -60,6 +60,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                          boot_timeout_secs=100,
                          gpu="auto",
                          no_pull_log=False,
+                         remote_fetch=False,
                          cfg=mock_cfg)
 
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory."
