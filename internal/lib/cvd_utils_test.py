@@ -106,7 +106,7 @@ class CvdUtilsTest(unittest.TestCase):
             self.assertEqual(2, mock_ssh.ScpPushFile.call_count)
 
     def testUploadKernelImages(self):
-        """Test UploadExtraImages with kernel images."""
+        """Test FindKernelImages and UploadExtraImages."""
         mock_ssh = mock.Mock()
         with tempfile.TemporaryDirectory(prefix="cvd_utils") as image_dir:
             kernel_image_path = os.path.join(image_dir, "Image")
@@ -126,7 +126,6 @@ class CvdUtilsTest(unittest.TestCase):
                 args)
             mock_ssh.Run.assert_called_once()
             self.assertEqual(2, mock_ssh.ScpPushFile.call_count)
-
 
     def testCleanUpRemoteCvd(self):
         """Test CleanUpRemoteCvd."""
