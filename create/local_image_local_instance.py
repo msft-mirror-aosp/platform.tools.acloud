@@ -92,6 +92,8 @@ _CMD_LAUNCH_CVD_VNC_ARG = " -start_vnc_server=true"
 _CMD_LAUNCH_CVD_SUPER_IMAGE_ARG = " -super_image=%s"
 _CMD_LAUNCH_CVD_BOOT_IMAGE_ARG = " -boot_image=%s"
 _CMD_LAUNCH_CVD_VENDOR_BOOT_IMAGE_ARG = " -vendor_boot_image=%s"
+_CMD_LAUNCH_CVD_KERNEL_IMAGE_ARG = " -kernel_path=%s"
+_CMD_LAUNCH_CVD_INITRAMFS_IMAGE_ARG = " -initramfs_path=%s"
 _CMD_LAUNCH_CVD_NO_ADB_ARG = " -run_adb_connector=false"
 # Connect the OpenWrt device via console file.
 _CMD_LAUNCH_CVD_CONSOLE_ARG = " -console=true"
@@ -122,7 +124,8 @@ _CONFIRM_RELAUNCH = ("\nCuttlefish AVD[id:%d] is already running. \n"
 ArtifactPaths = collections.namedtuple(
     "ArtifactPaths",
     ["image_dir", "host_bins", "host_artifacts", "misc_info", "ota_tools_dir",
-     "system_image", "boot_image", "vendor_boot_image"])
+     "system_image", "boot_image", "vendor_boot_image", "kernel_image",
+     "initramfs_image"])
 
 
 class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
@@ -387,6 +390,42 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         raise errors.GetLocalImageError(
             "Cannot find images in %s." % image_dir)
 
+    @staticmethod
+    def _FindBootOrKernelImages(image_path):
+        """Find boot, vendor_boot, kernel, and initramfs images in a path.
+
+        This method expects image_path to be:
+        - A generic boot image or its parent directory. The image name is
+          boot-*.img. The directory does not contain vendor_boot.img.
+        - An output directory of a cuttlefish build. It contains boot.img and
+          vendor_boot.img.
+        - An output directory of a kernel build. It contains a kernel image and
+          initramfs.img.
+
+        Args:
+            image_path: A path to an image file or an image directory.
+
+        Returns:
+            A tuple of strings, the paths to boot, vendor_boot, kernel, and
+            initramfs images. Each value can be None.
+
+        Raises:
+            errors.GetLocalImageError if image_path does not contain boot or
+            kernel images.
+        """
+        boot_image_path, vendor_boot_image_path = cvd_utils.FindBootImages(
+            image_path)
+        if boot_image_path:
+            return boot_image_path, vendor_boot_image_path, None, None
+
+        kernel_image_path, initramfs_image_path = cvd_utils.FindKernelImages(
+            image_path)
+        if kernel_image_path and initramfs_image_path:
+            return None, None, kernel_image_path, initramfs_image_path
+
+        raise errors.GetLocalImageError(f"{image_path} is not a boot image or "
+                                        f"a directory containing images.")
+
     def GetImageArtifactsPath(self, avd_spec):
         """Get image artifacts path.
 
@@ -427,11 +466,18 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             system_image_path = None
 
         if avd_spec.local_kernel_image:
-            boot_image_path, vendor_boot_image_path = cvd_utils.FindBootImages(
-                avd_spec.local_kernel_image)
+            (
+                boot_image_path,
+                vendor_boot_image_path,
+                kernel_image_path,
+                initramfs_image_path,
+            ) = self._FindBootOrKernelImages(
+                os.path.abspath(avd_spec.local_kernel_image))
         else:
             boot_image_path = None
             vendor_boot_image_path = None
+            kernel_image_path = None
+            initramfs_image_path = None
 
         return ArtifactPaths(image_dir, host_bins_path,
                              host_artifacts=host_artifacts_path,
@@ -439,7 +485,9 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                              ota_tools_dir=ota_tools_dir,
                              system_image=system_image_path,
                              boot_image=boot_image_path,
-                             vendor_boot_image=vendor_boot_image_path)
+                             vendor_boot_image=vendor_boot_image_path,
+                             kernel_image=kernel_image_path,
+                             initramfs_image=initramfs_image_path)
 
     @staticmethod
     def _MixSuperImage(output_dir, artifact_paths):
@@ -482,6 +530,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                     return config_match.group("config")
         return None
 
+    # pylint: disable=too-many-branches
     @staticmethod
     def PrepareLaunchCVDCmd(hw_property, connect_adb, artifact_paths,
                             runtime_dir, connect_webrtc, connect_vnc,
@@ -546,6 +595,16 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             launch_cvd_w_args = (launch_cvd_w_args +
                                  _CMD_LAUNCH_CVD_VENDOR_BOOT_IMAGE_ARG %
                                  artifact_paths.vendor_boot_image)
+
+        if artifact_paths.kernel_image:
+            launch_cvd_w_args = (launch_cvd_w_args +
+                                 _CMD_LAUNCH_CVD_KERNEL_IMAGE_ARG %
+                                 artifact_paths.kernel_image)
+
+        if artifact_paths.initramfs_image:
+            launch_cvd_w_args = (launch_cvd_w_args +
+                                 _CMD_LAUNCH_CVD_INITRAMFS_IMAGE_ARG %
+                                 artifact_paths.initramfs_image)
 
         if openwrt:
             launch_cvd_w_args = launch_cvd_w_args + _CMD_LAUNCH_CVD_CONSOLE_ARG
