@@ -22,7 +22,6 @@ import subprocess
 import unittest
 
 from unittest import mock
-from six import b
 
 # pylint: disable=import-error
 import dateutil.parser
@@ -38,12 +37,12 @@ from acloud.list import instance
 
 class InstanceTest(driver_test_lib.BaseDriverTest):
     """Test instance."""
-    PS_SSH_TUNNEL = b("/fake_ps_1 --fake arg \n"
-                      "/fake_ps_2 --fake arg \n"
-                      "/usr/bin/ssh -i ~/.ssh/acloud_rsa "
-                      "-o UserKnownHostsFile=/dev/null "
-                      "-o StrictHostKeyChecking=no -L 54321:127.0.0.1:6520 "
-                      "-L 12345:127.0.0.1:6444 -N -f -l user 1.1.1.1")
+    PS_SSH_TUNNEL = ("/fake_ps_1 --fake arg \n"
+                     "/fake_ps_2 --fake arg \n"
+                     "/usr/bin/ssh -i ~/.ssh/acloud_rsa "
+                     "-o UserKnownHostsFile=/dev/null "
+                     "-o StrictHostKeyChecking=no -L 54321:127.0.0.1:6520 "
+                     "-L 12345:127.0.0.1:6444 -N -f -l user 1.1.1.1").encode()
     GCE_INSTANCE = {
         constants.INS_KEY_NAME: "fake_ins_name",
         constants.INS_KEY_CREATETIME: "fake_create_time",
@@ -106,11 +105,30 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         """Test GetCvdEnv."""
         self.Patch(cvd_runtime_config, "CvdRuntimeConfig",
                    return_value=self._MockCvdRuntimeConfig())
+        self.Patch(instance, "_IsProcessRunning", return_value=False)
         local_instance = instance.LocalInstance("fake_config_path")
         cvd_env = local_instance._GetCvdEnv()
         self.assertEqual(cvd_env[constants.ENV_CUTTLEFISH_INSTANCE], "2")
         self.assertEqual(cvd_env[constants.ENV_CUTTLEFISH_CONFIG_FILE],
                          "fake_config_path")
+
+    # pylint: disable=protected-access
+    def testParsingCvdFleetOutput(self):
+        """Test ParsingCvdFleetOutput."""
+        cvd_fleet_output = """WARNING: cvd_server client version does not match
+{
+"adb_serial" : "0.0.0.0:6520",
+"instance_name" : "cvd-1",
+}"""
+
+        expected_result = """{
+"adb_serial" : "0.0.0.0:6520",
+"instance_name" : "cvd-1",
+}"""
+
+        self.assertEqual(
+            instance.LocalInstance._ParsingCvdFleetOutput(cvd_fleet_output),
+            expected_result)
 
     # pylint: disable=protected-access
     def testIsProcessRunning(self):
@@ -125,7 +143,7 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
 
     @mock.patch("acloud.list.instance.AdbTools")
     def testDeleteLocalInstance(self, mock_adb_tools):
-        """Test executing stop_cvd command."""
+        """Test executing 'cvd stop' command."""
         self.Patch(cvd_runtime_config, "CvdRuntimeConfig",
                    return_value=self._MockCvdRuntimeConfig())
         mock_adb_tools_object = mock.Mock(device_information={})
@@ -133,21 +151,30 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         mock_adb_tools.return_value = mock_adb_tools_object
         self.Patch(utils, "AddUserGroupsToCmd",
                    side_effect=lambda cmd, groups: cmd)
+        self.Patch(instance.LocalInstance, "GetDevidInfoFromCvdFleet",
+                   return_value=None)
         mock_check_call = self.Patch(subprocess, "check_call")
+        mock_check_output = self.Patch(
+            subprocess, "check_output",
+            return_value="cvd_internal_stop E stop cvd failed")
 
         local_instance = instance.LocalInstance("fake_config_path")
         with mock.patch.dict("acloud.list.instance.os.environ", clear=True):
             local_instance.Delete()
 
         expected_env = {
-            'CUTTLEFISH_INSTANCE': '2',
-            'HOME': '/tmp/acloud_cvd_temp/local-instance-2',
-            'CUTTLEFISH_CONFIG_FILE': 'fake_config_path',
-            'ANDROID_SOONG_HOST_OUT': '',
+            "CUTTLEFISH_INSTANCE": "2",
+            "HOME": "/tmp/acloud_cvd_temp/local-instance-2",
+            "CUTTLEFISH_CONFIG_FILE": "fake_config_path",
+            "ANDROID_SOONG_HOST_OUT": "",
         }
+        mock_check_output.assert_called_with(
+            "/tmp/acloud_cvd_temp/local-instance-2/host_bins/bin/cvd stop",
+            stderr=subprocess.STDOUT, shell=True, env=expected_env, text=True,
+            timeout=instance._CVD_TIMEOUT)
         mock_check_call.assert_called_with(
-            'fake_cvd_tools_path/stop_cvd', stderr=subprocess.STDOUT,
-            shell=True, env=expected_env)
+            "/tmp/acloud_cvd_temp/local-instance-2/host_bins/bin/stop_cvd",
+            stderr=subprocess.STDOUT, shell=True, env=expected_env)
         mock_adb_tools_object.DisconnectAdb.assert_called()
 
     @mock.patch("acloud.list.instance.tempfile")
@@ -251,6 +278,8 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
             instance.RemoteInstance,
             "GetAdbVncPortFromSSHTunnel",
             return_value=forwarded_ports(vnc_port=fake_vnc, adb_port=fake_adb))
+        self.Patch(utils, "GetWebrtcPortFromSSHTunnel",
+                   return_value="fake_webrtc_port")
         self.Patch(instance, "_GetElapsedTime", return_value="fake_time")
         self.Patch(AdbTools, "IsAdbConnected", return_value=True)
 

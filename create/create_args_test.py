@@ -36,6 +36,7 @@ def _CreateArgs():
         username=None,
         password=None,
         cheeps_betty_image=None,
+        cheeps_features=[],
         local_image=None,
         local_kernel_image=None,
         local_system_image=None,
@@ -72,7 +73,7 @@ class CreateArgsTest(driver_test_lib.BaseDriverTest):
         """test goldfish arguments."""
         # emulator_build_id with wrong avd_type.
         mock_args = _CreateArgs()
-        mock_args.emulator_build_id = 123456
+        mock_args.emulator_build_id = "123456"
         self.assertRaises(errors.UnsupportedCreateArgs,
                           create_args.VerifyArgs, mock_args)
         # Valid emulator_build_id.
