@@ -39,6 +39,7 @@ class GCEDeviceFactory(base_device_factory.BaseDeviceFactory):
         self._cfg = avd_spec.cfg
         self._local_image_artifact = local_image_artifact
         self._report_internal_ip = avd_spec.report_internal_ip
+        self._all_failures = {}
         self.credentials = auth.CreateCredentials(avd_spec.cfg)
         # Control compute_client with enable_multi_stage
         compute_client = cvd_compute_client_multi_stage.CvdComputeClient(
@@ -102,9 +103,9 @@ class GCEDeviceFactory(base_device_factory.BaseDeviceFactory):
         Returns:
             A dictionary that contains all the failures.
             The key is the name of the instance that fails to boot,
-            and the value is an errors.DeviceBootError object.
+            and the value is a string or an errors.DeviceBootError object.
         """
-        return self._compute_client.all_failures
+        return self._all_failures
 
     def _SetFailures(self, instance, error_msg):
         """Set failures from this device.
@@ -115,4 +116,4 @@ class GCEDeviceFactory(base_device_factory.BaseDeviceFactory):
             instance: String of instance name.
             error_msg: String of error message.
         """
-        self._compute_client.all_failures[instance] = error_msg
+        self._all_failures[instance] = error_msg
