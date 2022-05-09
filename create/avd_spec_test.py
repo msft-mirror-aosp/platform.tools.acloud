@@ -49,6 +49,12 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.args.launch_args = None
         self.Patch(list_instances, "ChooseOneRemoteInstance", return_value=mock.MagicMock())
         self.Patch(list_instances, "GetInstancesFromInstanceNames", return_value=mock.MagicMock())
+
+        # Setup mock Acloud config for usage in tests.
+        self.mock_config = mock.MagicMock()
+        self.mock_config.launch_args = None
+        self.Patch(config, 'GetAcloudConfig', return_value=self.mock_config)
+
         self.AvdSpec = avd_spec.AVDSpec(self.args)
 
     # pylint: disable=protected-access
@@ -111,45 +117,28 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.Patch(os.path, "isfile",
                    side_effect=lambda path: path == expected_image_file)
 
-        # Specified --local-kernel-image and --local-system-image with dirs.
-        self.args.local_image = expected_image_dir
+        # Specified --local-*-image with dirs.
         self.args.local_kernel_image = expected_image_dir
         self.args.local_system_image = expected_image_dir
-        self.AvdSpec._avd_type = constants.TYPE_CF
-        self.AvdSpec._instance_type = constants.INSTANCE_TYPE_LOCAL
-        with mock.patch("acloud.create.avd_spec.utils."
-                        "GetBuildEnvironmentVariable",
-                        return_value="cf_x86_phone"):
-            self.AvdSpec._ProcessLocalImageArgs(self.args)
-        self.assertEqual(self.AvdSpec.local_image_dir, expected_image_dir)
+        self.AvdSpec._ProcessImageArgs(self.args)
         self.assertEqual(self.AvdSpec.local_kernel_image, expected_image_dir)
         self.assertEqual(self.AvdSpec.local_system_image, expected_image_dir)
 
-        # Specified --local-kernel-image, and --local-system-image with files.
-        self.args.local_image = expected_image_dir
+        # Specified --local-*-image with files.
         self.args.local_kernel_image = expected_image_file
         self.args.local_system_image = expected_image_file
-        self.AvdSpec._avd_type = constants.TYPE_CF
-        self.AvdSpec._instance_type = constants.INSTANCE_TYPE_LOCAL
-        with mock.patch("acloud.create.avd_spec.utils."
-                        "GetBuildEnvironmentVariable",
-                        return_value="cf_x86_phone"):
-            self.AvdSpec._ProcessLocalImageArgs(self.args)
-        self.assertEqual(self.AvdSpec.local_image_dir, expected_image_dir)
+        self.AvdSpec._ProcessImageArgs(self.args)
         self.assertEqual(self.AvdSpec.local_kernel_image, expected_image_file)
         self.assertEqual(self.AvdSpec.local_system_image, expected_image_file)
 
-        # Specified --avd-type=goldfish, --local_image, and
-        # --local-system-image without args
-        self.args.local_image = constants.FIND_IN_BUILD_ENV
+        # Specified --local-*-image without args.
+        self.args.local_kernel_image = constants.FIND_IN_BUILD_ENV
         self.args.local_system_image = constants.FIND_IN_BUILD_ENV
-        self.AvdSpec._avd_type = constants.TYPE_GF
-        self.AvdSpec._instance_type = constants.INSTANCE_TYPE_LOCAL
         with mock.patch("acloud.create.avd_spec.utils."
                         "GetBuildEnvironmentVariable",
                         return_value=expected_image_dir):
-            self.AvdSpec._ProcessLocalImageArgs(self.args)
-        self.assertEqual(self.AvdSpec.local_image_dir, expected_image_dir)
+            self.AvdSpec._ProcessImageArgs(self.args)
+        self.assertEqual(self.AvdSpec.local_kernel_image, expected_image_dir)
         self.assertEqual(self.AvdSpec.local_system_image, expected_image_dir)
 
     def testProcessAutoconnect(self):
@@ -176,10 +165,11 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         """Test process image source."""
         self.Patch(glob, "glob", return_value=["fake.img"])
         # No specified local_image, image source is from remote
-        self.args.local_image = None
         self.AvdSpec._ProcessImageArgs(self.args)
         self.assertEqual(self.AvdSpec._image_source, constants.IMAGE_SRC_REMOTE)
         self.assertEqual(self.AvdSpec._local_image_dir, None)
+        self.assertEqual(self.AvdSpec.local_kernel_image, None)
+        self.assertEqual(self.AvdSpec.local_system_image, None)
 
         # Specified local_image with an arg for cf type
         self.Patch(os.path, "isfile", return_value=True)
@@ -427,26 +417,6 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.AvdSpec._ProcessRemoteBuildArgs(self.args)
         self.assertTrue(self.AvdSpec.avd_type == "cuttlefish")
 
-        # Setup acloud config with betty_image spec
-        cfg = mock.MagicMock()
-        cfg.betty_image = 'foobarbaz'
-        cfg.launch_args = None
-        self.Patch(config, 'GetAcloudConfig', return_value=cfg)
-        self.AvdSpec = avd_spec.AVDSpec(self.args)
-        # --betty-image from cmdline should override config
-        self.args.cheeps_betty_image = 'abcdefg'
-        self.AvdSpec._ProcessRemoteBuildArgs(self.args)
-        self.assertEqual(
-            self.AvdSpec.remote_image[constants.CHEEPS_BETTY_IMAGE],
-            self.args.cheeps_betty_image)
-        # acloud config value is used otherwise
-        self.args.cheeps_betty_image = None
-        self.AvdSpec._ProcessRemoteBuildArgs(self.args)
-        self.assertEqual(
-            self.AvdSpec.remote_image[constants.CHEEPS_BETTY_IMAGE],
-            cfg.betty_image)
-
-
     def testEscapeAnsi(self):
         """Test EscapeAnsi."""
         test_string = "\033[1;32;40m Manifest branch:"
@@ -545,6 +515,22 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.args.stable_host_image_name = "fake_host_image"
         self.AvdSpec._ProcessMiscArgs(self.args)
         self.assertEqual(self.AvdSpec.stable_host_image_name, "fake_host_image")
+
+        # Setup acloud config with betty_image spec
+        self.mock_config.betty_image = 'from-config'
+        # --betty-image from cmdline should override config
+        self.args.cheeps_betty_image = 'from-cmdline'
+        self.AvdSpec._ProcessMiscArgs(self.args)
+        self.assertEqual(self.AvdSpec.cheeps_betty_image, 'from-cmdline')
+        # acloud config value is used otherwise
+        self.args.cheeps_betty_image = None
+        self.AvdSpec._ProcessMiscArgs(self.args)
+        self.assertEqual(self.AvdSpec.cheeps_betty_image, 'from-config')
+
+        # Verify cheeps_features is assigned from args.
+        self.args.cheeps_features = ['a', 'b', 'c']
+        self.AvdSpec._ProcessMiscArgs(self.args)
+        self.assertEqual(self.args.cheeps_features, ['a', 'b', 'c'])
 
 
 if __name__ == "__main__":
