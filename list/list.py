@@ -149,12 +149,13 @@ def _GetLocalCuttlefishInstances(id_cfg_pairs):
         try:
             if not os.path.isfile(cfg_path):
                 continue
-            ins = instance.LocalInstance(cfg_path)
-            if ins.CvdStatus():
-                local_instance_list.append(ins)
-            else:
-                logger.info("Cvd runtime config is found at %s but instance "
-                            "%d is not active.", cfg_path, ins_id)
+            instances = instance.GetCuttleFishLocalInstances(cfg_path)
+            for ins in instances:
+                if ins.CvdStatus():
+                    local_instance_list.append(ins)
+                else:
+                    logger.info("Cvd runtime config is found at %s but instance "
+                                "%d is not active.", cfg_path, ins_id)
         finally:
             ins_lock.Unlock()
     return local_instance_list
