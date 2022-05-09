@@ -115,6 +115,8 @@ class CvdRuntimeConfig():
                                                              raw_data)
         self._x_res = self._config_dict.get(_CFG_KEY_X_RES)
         self._y_res = self._config_dict.get(_CFG_KEY_Y_RES)
+        self._instances = self._config_dict.get(_CFG_KEY_INSTANCES)
+        self._instance_ids = self._instances.keys()
         self._dpi = self._config_dict.get(_CFG_KEY_DPI)
         crosvm_bin = self._config_dict.get(_CFG_KEY_CROSVM_BINARY)
         self._cvd_tools_path = (os.path.dirname(crosvm_bin)
@@ -131,8 +133,7 @@ class CvdRuntimeConfig():
             _CFG_KEY_VIRTUAL_DISK_PATHS)
         self._enable_webrtc = self._config_dict.get(_CFG_KEY_ENABLE_WEBRTC)
         if not self._instance_dir:
-            ins_cfg = self._config_dict.get(_CFG_KEY_INSTANCES)
-            ins_dict = ins_cfg.get(self._instance_id)
+            ins_dict = self._instances.get(self._instance_id)
             if not ins_dict:
                 raise errors.ConfigError("instances[%s] property does not exist"
                                          " in: %s" %
@@ -228,6 +229,16 @@ class CvdRuntimeConfig():
     def instance_id(self):
         """Return _instance_id"""
         return self._instance_id
+
+    @property
+    def instance_ids(self):
+        """Return _instance_ids"""
+        return self._instance_ids
+
+    @property
+    def instances(self):
+        """Return _instances"""
+        return self._instances
 
     @property
     def enable_webrtc(self):
