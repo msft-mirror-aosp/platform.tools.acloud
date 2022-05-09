@@ -117,6 +117,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.args.avd_type = constants.TYPE_CF
         self.args.flavor = "phone"
         self.args.adb_port = None
+        self.args.base_instance_num = None
         self.args.hw_property = "cpu:2,resolution:1080x1920,dpi:240,memory:4g,disk:10g"
         self.args.num_avds_per_instance = 2
         self.args.remote_host = False
@@ -173,11 +174,10 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
     @mock.patch.object(gcompute_client.ComputeClient, "CreateInstance")
     @mock.patch.object(cvd_compute_client_multi_stage.CvdComputeClient, "_GetDiskArgs",
                        return_value=[{"fake_arg": "fake_value"}])
-    @mock.patch("acloud.internal.lib.cvd_compute_client_multi_stage.pull")
     @mock.patch("getpass.getuser", return_value="fake_user")
-    def testCreateInstance(self, _get_user, mock_pull, _get_disk_args,
-                           mock_create, _get_image, _compare_machine_size,
-                           mock_check_img, _mock_env):
+    def testCreateInstance(self, _get_user, _get_disk_args, mock_create,
+                           _get_image, _compare_machine_size, mock_check_img,
+                           _mock_env):
         """Test CreateInstance."""
         expected_metadata = dict()
         expected_metadata_local_image = dict()
@@ -187,24 +187,6 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         expected_disk_args = [{"fake_arg": "fake_value"}]
         fake_avd_spec = avd_spec.AVDSpec(self.args)
         fake_avd_spec._instance_name_to_reuse = None
-        expected_logs = {
-            self.INSTANCE: [
-                {
-                    "path": "/var/log/kern.log",
-                    "type": constants.LOG_TYPE_KERNEL_LOG,
-                    "name": "host_kernel.log"
-                },
-                {"path": "/kernel.log", "type": constants.LOG_TYPE_KERNEL_LOG},
-                {
-                    "path": "/logcat",
-                    "type": constants.LOG_TYPE_LOGCAT,
-                    "name": "full_gce_logcat"
-                },
-                {"path": "/launcher.log", "type": constants.LOG_TYPE_TEXT}
-            ]
-        }
-        mock_pull.GetAllLogFilePaths.return_value = [
-            "/kernel.log", "/logcat", "/launcher.log"]
 
         created_subprocess = mock.MagicMock()
         created_subprocess.stdout = mock.MagicMock()
@@ -237,8 +219,6 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
             gpu=self.GPU,
             disk_type=None,
             disable_external_ip=False)
-        self.assertEqual(self.cvd_compute_client_multi_stage.all_logs,
-                         expected_logs)
 
         mock_check_img.return_value = True
         #test use local image in the remote instance.
