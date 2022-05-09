@@ -482,11 +482,12 @@ def GetCreateArgParser(subparser):
         dest="local_kernel_image",
         nargs="?",
         required=False,
-        help="Use the locally built kernel image for the AVD. Look for "
-        "boot.img or boot-*.img if the argument is a directory. Look for the "
-        "image in $ANDROID_PRODUCT_OUT if no argument is provided. e.g., "
-        "--local-kernel-image, --local-kernel-image /path/to/dir, or "
-        "--local-kernel-image /path/to/img")
+        help="Use the locally built kernel and ramdisk for the AVD. Look "
+        "for boot.img, vendor_boot.img, kernel, initramfs.img, etc. if the "
+        "argument is a directory. Look for the images in $ANDROID_PRODUCT_OUT "
+        "if no argument is provided. e.g., --local-kernel-image, "
+        "--local-kernel-image /path/to/dir, or --local-kernel-image "
+        "/path/to/boot.img")
     create_parser.add_argument(
         "--local-system-image",
         const=constants.FIND_IN_BUILD_ENV,
