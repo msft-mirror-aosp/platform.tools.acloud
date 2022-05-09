@@ -74,6 +74,7 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
             adb_ip_port="127.0.0.1:6521",
             cvd_tools_path="fake_cvd_tools_path",
             config_path="fake_config_path",
+            instances={},
         )
 
     @mock.patch("acloud.list.instance.AdbTools")
@@ -427,6 +428,14 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
 
         ins_webrtc = instance.Instance(name, fullname, display, ip)
         self.assertEqual(ins_webrtc._GetAutoConnect(), None)
+
+    @mock.patch("acloud.list.instance.LocalInstance")
+    def testGetCuttleFishLocalInstances(self, mock_local_instance):
+        """Test GetCuttleFishLocalInstances."""
+        self.Patch(cvd_runtime_config, "CvdRuntimeConfig",
+                   return_value=mock.MagicMock(instance_ids=["2", "3"]))
+        instance.GetCuttleFishLocalInstances("fake_config_path")
+        self.assertEqual(mock_local_instance.call_count, 2)
 
 
 if __name__ == "__main__":
