@@ -35,7 +35,7 @@ import re
 import subprocess
 import tempfile
 
-# pylint: disable=import-error
+# pylint: disable=import-error,too-many-lines
 import dateutil.parser
 import dateutil.tz
 
@@ -61,6 +61,9 @@ _CVD_SERVER = "cvd_server"
 _CVD_STOP_ERROR_KEYWORDS = "cvd_internal_stop E"
 # Default timeout 30 secs for cvd commands.
 _CVD_TIMEOUT = 30
+# Keywords read from runtime config or "cvd fleet".
+_ADB_HOST_PORT = "adb_host_port"
+_DISPLAYS = "displays"
 _INSTANCE_ASSEMBLY_DIR = "cuttlefish_assembly"
 _LOCAL_INSTANCE_NAME_FORMAT = "local-instance-%(id)d"
 _LOCAL_INSTANCE_NAME_PATTERN = re.compile(r"^local-instance-(?P<id>\d+)$")
@@ -250,6 +253,22 @@ def GetLocalInstanceLogDir(local_instance_id):
     log_dir = _CVD_LOG_FOLDER % {"cvd_runtime": runtime_dir,
                                  "id": local_instance_id}
     return log_dir if os.path.isdir(log_dir) else runtime_dir
+
+
+def GetCuttleFishLocalInstances(cf_config_path):
+    """Get all instances information from cf runtime config.
+
+    Args:
+        cf_config_path: String, path to the cf runtime config.
+
+    Returns:
+        List of LocalInstance object.
+    """
+    cf_runtime_cfg = cvd_runtime_config.CvdRuntimeConfig(cf_config_path)
+    local_instances = []
+    for ins_id in cf_runtime_cfg.instance_ids:
+        local_instances.append(LocalInstance(cf_config_path, ins_id))
+    return local_instances
 
 
 def _GetCurrentLocalTime():
@@ -470,16 +489,20 @@ class Instance(object):
 
 class LocalInstance(Instance):
     """Class to store data of local cuttlefish instance."""
-    def __init__(self, cf_config_path):
+    def __init__(self, cf_config_path, ins_id=None):
         """Initialize a localInstance object.
 
         Args:
             cf_config_path: String, path to the cf runtime config.
+            ins_id: Integer, the id to specify the instance information.
         """
         self._cf_runtime_cfg = cvd_runtime_config.CvdRuntimeConfig(cf_config_path)
         self._instance_dir = self._cf_runtime_cfg.instance_dir
         self._virtual_disk_paths = self._cf_runtime_cfg.virtual_disk_paths
-        self._local_instance_id = int(self._cf_runtime_cfg.instance_id)
+        self._local_instance_id = int(ins_id or self._cf_runtime_cfg.instance_id)
+
+        ins_info = self._cf_runtime_cfg.instances.get(ins_id, {})
+        adb_port = ins_info.get(_ADB_HOST_PORT) or self._cf_runtime_cfg.adb_port
         display = _DISPLAY_STRING % {"x_res": self._cf_runtime_cfg.x_res,
                                      "y_res": self._cf_runtime_cfg.y_res,
                                      "dpi": self._cf_runtime_cfg.dpi}
@@ -487,15 +510,15 @@ class LocalInstance(Instance):
         # cuttlefish_config.json so far.
         name = GetLocalInstanceName(self._local_instance_id)
         fullname = (_FULL_NAME_STRING %
-                    {"device_serial": "0.0.0.0:%s" % self._cf_runtime_cfg.adb_port,
+                    {"device_serial": "0.0.0.0:%s" % adb_port,
                      "instance_name": name,
                      "elapsed_time": None})
-        adb_device = AdbTools(device_serial="0.0.0.0:%s" % self._cf_runtime_cfg.adb_port)
+        adb_device = AdbTools(device_serial="0.0.0.0:%s" % adb_port)
         webrtc_port = local_image_local_instance.LocalImageLocalInstance.GetWebrtcSigServerPort(
             self._local_instance_id)
         cvd_fleet_info = self.GetDevidInfoFromCvdFleet()
         if cvd_fleet_info:
-            display = cvd_fleet_info.get("displays")
+            display = cvd_fleet_info.get(_DISPLAYS)
 
         device_information = None
         if adb_device.IsAdbConnected():
@@ -504,7 +527,7 @@ class LocalInstance(Instance):
         super().__init__(
             name=name, fullname=fullname, display=display, ip="0.0.0.0",
             status=constants.INS_STATUS_RUNNING,
-            adb_port=self._cf_runtime_cfg.adb_port,
+            adb_port=adb_port,
             vnc_port=self._cf_runtime_cfg.vnc_port,
             createtime=None, elapsed_time=None, avd_type=constants.TYPE_CF,
             is_local=True, device_information=device_information,

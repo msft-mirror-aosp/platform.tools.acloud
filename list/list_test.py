@@ -161,7 +161,8 @@ class ListTest(driver_test_lib.BaseDriverTest):
 
         local_ins = mock.MagicMock()
         local_ins.CvdStatus.return_value = True
-        self.Patch(instance, "LocalInstance", return_value=local_ins)
+        self.Patch(instance, "GetCuttleFishLocalInstances",
+                   return_value=[local_ins])
 
         ins_list = list_instance._GetLocalCuttlefishInstances(id_cfg_pairs)
         self.assertEqual(2, len(ins_list))
