@@ -51,8 +51,6 @@ from acloud.internal.lib.gcompute_client import GetInstanceIP
 logger = logging.getLogger(__name__)
 
 _ACLOUD_CVD_TEMP = os.path.join(tempfile.gettempdir(), "acloud_cvd_temp")
-_CVD_CONFIG_FOLDER = "%(cvd_runtime)s/instances/cvd-%(id)d"
-_CVD_LOG_FOLDER = _CVD_CONFIG_FOLDER + "/logs"
 _CVD_RUNTIME_FOLDER_NAME = "cuttlefish_runtime"
 _CVD_BIN = "cvd"
 _CVD_BIN_FOLDER = "host_bins/bin"
@@ -227,37 +225,6 @@ def GetLocalInstanceRuntimeDir(local_instance_id):
     """
     return os.path.join(GetLocalInstanceHomeDir(local_instance_id),
                         _CVD_RUNTIME_FOLDER_NAME)
-
-
-def GetLocalInstanceLogDir(local_instance_id):
-    """Get local instance log directory.
-
-    Cuttlefish log directories are different between versions:
-
-    In Android 10, the logs are in `<runtime_dir>`.
-
-    In Android 11, the logs are in `<runtime_dir>.<id>`.
-    `<runtime_dir>` is a symbolic link to `<runtime_dir>.<id>`.
-
-    In the latest version, the logs are in
-    `<runtime_dir>/instances/cvd-<id>/logs`.
-    `<runtime_dir>_runtime` and `<runtime_dir>.<id>` are symbolic links to
-    `<runtime_dir>/instances/cvd-<id>`.
-
-    This method looks for `<runtime_dir>/instances/cvd-<id>/logs` which is the
-    latest known location. If it doesn't exist, this method returns
-    `<runtime_dir>` which is compatible with the old versions.
-
-    Args:
-        local_instance_id: Integer of instance id.
-
-    Returns:
-        The path to the log directory.
-    """
-    runtime_dir = GetLocalInstanceRuntimeDir(local_instance_id)
-    log_dir = _CVD_LOG_FOLDER % {"cvd_runtime": runtime_dir,
-                                 "id": local_instance_id}
-    return log_dir if os.path.isdir(log_dir) else runtime_dir
 
 
 def GetCuttleFishLocalInstances(cf_config_path):
