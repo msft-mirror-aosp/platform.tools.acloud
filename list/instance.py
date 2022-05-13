@@ -57,13 +57,15 @@ _CVD_RUNTIME_FOLDER_NAME = "cuttlefish_runtime"
 _CVD_BIN = "cvd"
 _CVD_BIN_FOLDER = "host_bins/bin"
 _CVD_STATUS_BIN = "cvd_status"
-_CVD_SERVER = "cvd_server"
 _CVD_STOP_ERROR_KEYWORDS = "cvd_internal_stop E"
 # Default timeout 30 secs for cvd commands.
 _CVD_TIMEOUT = 30
-# Keywords read from runtime config or "cvd fleet".
+# Keywords read from runtime config.
 _ADB_HOST_PORT = "adb_host_port"
+# Keywords read from the output of "cvd status".
 _DISPLAYS = "displays"
+_WEBRTC_PORT = "webrtc_port"
+_ADB_SERIAL = "adb_serial"
 _INSTANCE_ASSEMBLY_DIR = "cuttlefish_assembly"
 _LOCAL_INSTANCE_NAME_FORMAT = "local-instance-%(id)d"
 _LOCAL_INSTANCE_NAME_PATTERN = re.compile(r"^local-instance-(?P<id>\d+)$")
@@ -503,23 +505,26 @@ class LocalInstance(Instance):
 
         ins_info = self._cf_runtime_cfg.instances.get(ins_id, {})
         adb_port = ins_info.get(_ADB_HOST_PORT) or self._cf_runtime_cfg.adb_port
+        adb_serial = f"0.0.0.0:{adb_port}"
         display = _DISPLAY_STRING % {"x_res": self._cf_runtime_cfg.x_res,
                                      "y_res": self._cf_runtime_cfg.y_res,
                                      "dpi": self._cf_runtime_cfg.dpi}
         # TODO(143063678), there's no createtime info in
         # cuttlefish_config.json so far.
-        name = GetLocalInstanceName(self._local_instance_id)
-        fullname = (_FULL_NAME_STRING %
-                    {"device_serial": "0.0.0.0:%s" % adb_port,
-                     "instance_name": name,
-                     "elapsed_time": None})
-        adb_device = AdbTools(device_serial="0.0.0.0:%s" % adb_port)
         webrtc_port = local_image_local_instance.LocalImageLocalInstance.GetWebrtcSigServerPort(
             self._local_instance_id)
-        cvd_fleet_info = self.GetDevidInfoFromCvdFleet()
-        if cvd_fleet_info:
-            display = cvd_fleet_info.get(_DISPLAYS)
+        cvd_status_info = self._GetDevidInfoFromCvdStatus()
+        if cvd_status_info:
+            display = cvd_status_info.get(_DISPLAYS)
+            webrtc_port = cvd_status_info.get(_WEBRTC_PORT)
+            adb_serial = cvd_status_info.get(_ADB_SERIAL)
 
+        name = GetLocalInstanceName(self._local_instance_id)
+        fullname = (_FULL_NAME_STRING %
+                    {"device_serial": adb_serial,
+                     "instance_name": name,
+                     "elapsed_time": None})
+        adb_device = AdbTools(device_serial=adb_serial)
         device_information = None
         if adb_device.IsAdbConnected():
             device_information = adb_device.device_information
@@ -552,35 +557,33 @@ class LocalInstance(Instance):
         cvd_env[constants.ENV_CUTTLEFISH_INSTANCE] = str(self._local_instance_id)
         return cvd_env
 
-    def GetDevidInfoFromCvdFleet(self):
-        """Get device information from 'cvd fleet'.
+    def _GetDevidInfoFromCvdStatus(self):
+        """Get device information from 'cvd status'.
 
-        Execute 'cvd fleet' cmd to get device information.
+        Execute 'cvd status --print --all_instances' cmd to get devices
+        information.
 
         Returns
-            Output of 'cvd fleet'. None for fail to run 'cvd fleet'.
+            Output of 'cvd status'. None for fail to run 'cvd status'.
         """
         ins_home_dir = GetLocalInstanceHomeDir(self._local_instance_id)
         try:
             cvd_tool = os.path.join(ins_home_dir, _CVD_BIN_FOLDER, _CVD_BIN)
-            cvd_fleet_cmd = f"{cvd_tool} fleet"
+            cvd_status_cmd = f"{cvd_tool} status --print --all_instances"
             if not os.path.exists(cvd_tool):
                 logger.warning("Cvd tools path doesn't exist:%s", cvd_tool)
                 return None
-            if not _IsProcessRunning(_CVD_SERVER):
-                logger.warning("The %s is not active.", _CVD_SERVER)
-                return None
-            logger.debug("Running cmd [%s] to get device info.", cvd_fleet_cmd)
-            process = subprocess.Popen(cvd_fleet_cmd, shell=True, text=True,
+            logger.debug("Running cmd [%s] to get device info.", cvd_status_cmd)
+            process = subprocess.Popen(cvd_status_cmd, shell=True, text=True,
                                        env=self._GetCvdEnv(),
                                        stdout=subprocess.PIPE,
                                        stderr=subprocess.PIPE)
             stdout, _ = process.communicate(timeout=_CVD_TIMEOUT)
-            logger.debug("Output of cvd fleet: %s", stdout)
+            logger.debug("Output of cvd status: %s", stdout)
             return json.loads(self._ParsingCvdFleetOutput(stdout))
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired,
                 json.JSONDecodeError) as error:
-            logger.error("Failed to run 'cvd fleet': %s", str(error))
+            logger.error("Failed to run 'cvd status': %s", str(error))
             return None
 
     @staticmethod
