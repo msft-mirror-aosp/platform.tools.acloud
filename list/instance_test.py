@@ -85,7 +85,7 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         mock_adb_tools.return_value = mock_adb_tools_object
         self.Patch(cvd_runtime_config, "CvdRuntimeConfig",
                    return_value=self._MockCvdRuntimeConfig())
-        self.Patch(instance.LocalInstance, "GetDevidInfoFromCvdFleet",
+        self.Patch(instance.LocalInstance, "_GetDevidInfoFromCvdStatus",
                    return_value=None)
         local_instance = instance.LocalInstance("fake_config_path")
 
@@ -152,7 +152,7 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         mock_adb_tools.return_value = mock_adb_tools_object
         self.Patch(utils, "AddUserGroupsToCmd",
                    side_effect=lambda cmd, groups: cmd)
-        self.Patch(instance.LocalInstance, "GetDevidInfoFromCvdFleet",
+        self.Patch(instance.LocalInstance, "_GetDevidInfoFromCvdStatus",
                    return_value=None)
         mock_check_call = self.Patch(subprocess, "check_call")
         mock_check_output = self.Patch(
