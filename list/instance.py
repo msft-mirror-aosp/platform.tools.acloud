@@ -82,6 +82,9 @@ _RE_DEVICE_INFO = re.compile(r"(?s).*(?P<device_info>[{][\s\w\W]+})")
 
 _COMMAND_PS_LAUNCH_CVD = ["ps", "-wweo", "lstart,cmd"]
 _RE_RUN_CVD = re.compile(r"(?P<date_str>^[^/]+)(.*run_cvd)")
+_X_RES = "x_res"
+_Y_RES = "y_res"
+_DPI = "dpi"
 _DISPLAY_STRING = "%(x_res)sx%(y_res)s (%(dpi)s)"
 _RE_ZONE = re.compile(r".+/zones/(?P<zone>.+)$")
 _LOCAL_ZONE = "local"
@@ -506,9 +509,11 @@ class LocalInstance(Instance):
         ins_info = self._cf_runtime_cfg.instances.get(ins_id, {})
         adb_port = ins_info.get(_ADB_HOST_PORT) or self._cf_runtime_cfg.adb_port
         adb_serial = f"0.0.0.0:{adb_port}"
-        display = _DISPLAY_STRING % {"x_res": self._cf_runtime_cfg.x_res,
-                                     "y_res": self._cf_runtime_cfg.y_res,
-                                     "dpi": self._cf_runtime_cfg.dpi}
+        display = []
+        for display_config in self._cf_runtime_cfg.display_configs:
+            display.append(_DISPLAY_STRING % {"x_res": display_config.get(_X_RES),
+                                              "y_res": display_config.get(_Y_RES),
+                                              "dpi": display_config.get(_DPI)})
         # TODO(143063678), there's no createtime info in
         # cuttlefish_config.json so far.
         webrtc_port = local_image_local_instance.LocalImageLocalInstance.GetWebrtcSigServerPort(

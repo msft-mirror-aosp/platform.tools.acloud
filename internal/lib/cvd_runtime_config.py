@@ -20,9 +20,7 @@ import re
 from acloud import errors
 
 _CFG_KEY_CROSVM_BINARY = "crosvm_binary"
-_CFG_KEY_X_RES = "x_res"
-_CFG_KEY_Y_RES = "y_res"
-_CFG_KEY_DPI = "dpi"
+_CFG_KEY_DISPLAY_CONFIGS = "display_configs"
 _CFG_KEY_VIRTUAL_DISK_PATHS = "virtual_disk_paths"
 _CFG_KEY_INSTANCES = "instances"
 _CFG_KEY_ADB_IP_PORT = "adb_ip_and_port"
@@ -64,6 +62,14 @@ class CvdRuntimeConfig():
     {
     "memory_mb" : 4096,
     "cpus" : 2,
+    "display_configs" :
+    [
+        {
+            "dpi" : 160,
+            "x_res" : 1280,
+            "y_res" : 700
+        }
+    ],
     "dpi" : 320,
     "virtual_disk_paths" :
         [
@@ -113,11 +119,9 @@ class CvdRuntimeConfig():
             config_path)
         self._config_dict = self._GetCuttlefishRuntimeConfig(config_path,
                                                              raw_data)
-        self._x_res = self._config_dict.get(_CFG_KEY_X_RES)
-        self._y_res = self._config_dict.get(_CFG_KEY_Y_RES)
         self._instances = self._config_dict.get(_CFG_KEY_INSTANCES)
         self._instance_ids = self._instances.keys()
-        self._dpi = self._config_dict.get(_CFG_KEY_DPI)
+        self._display_configs = self._config_dict.get(_CFG_KEY_DISPLAY_CONFIGS)
         crosvm_bin = self._config_dict.get(_CFG_KEY_CROSVM_BINARY)
         self._cvd_tools_path = (os.path.dirname(crosvm_bin)
                                 if crosvm_bin else None)
@@ -181,19 +185,9 @@ class CvdRuntimeConfig():
         return self._cvd_tools_path
 
     @property
-    def x_res(self):
-        """Return x_res."""
-        return self._x_res
-
-    @property
-    def y_res(self):
-        """Return y_res."""
-        return self._y_res
-
-    @property
-    def dpi(self):
-        """Return dpi."""
-        return self._dpi
+    def display_configs(self):
+        """Return display_configs."""
+        return self._display_configs
 
     @property
     def adb_ip_port(self):
