@@ -65,9 +65,7 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         """Create a mock CvdRuntimeConfig."""
         return mock.MagicMock(
             instance_id=2,
-            x_res=1080,
-            y_res=1920,
-            dpi=480,
+            display_configs=[{'dpi': 480, 'x_res': 1080, 'y_res': 1920}],
             instance_dir="fake_instance_dir",
             adb_port=6521,
             vnc_port=6445,
@@ -91,7 +89,7 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
 
         self.assertEqual("local-instance-2", local_instance.name)
         self.assertEqual(True, local_instance.islocal)
-        self.assertEqual("1080x1920 (480)", local_instance.display)
+        self.assertEqual(["1080x1920 (480)"], local_instance.display)
         expected_full_name = ("device serial: 0.0.0.0:%s (%s) elapsed time: %s"
                               % ("6521",
                                  "local-instance-2",
