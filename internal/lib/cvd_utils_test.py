@@ -34,6 +34,18 @@ class CvdUtilsTest(unittest.TestCase):
         with open(path, "wb") as file_obj:
             file_obj.write(data)
 
+    def testGetAdbPorts(self):
+        """Test GetAdbPorts."""
+        self.assertEqual([6520], cvd_utils.GetAdbPorts(None, None))
+        self.assertEqual([6520], cvd_utils.GetAdbPorts(1, 1))
+        self.assertEqual([6521, 6522], cvd_utils.GetAdbPorts(2, 2))
+
+    def testGetVncPorts(self):
+        """Test GetVncPorts."""
+        self.assertEqual([6444], cvd_utils.GetVncPorts(None, None))
+        self.assertEqual([6444], cvd_utils.GetVncPorts(1, 1))
+        self.assertEqual([6445, 6446], cvd_utils.GetVncPorts(2, 2))
+
     @staticmethod
     @mock.patch("acloud.internal.lib.cvd_utils.os.path.isdir",
                 return_value=False)
