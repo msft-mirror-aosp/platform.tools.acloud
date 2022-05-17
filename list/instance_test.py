@@ -65,15 +65,15 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         """Create a mock CvdRuntimeConfig."""
         return mock.MagicMock(
             instance_id=2,
-            x_res=1080,
-            y_res=1920,
-            dpi=480,
+            display_configs=[{'dpi': 480, 'x_res': 1080, 'y_res': 1920}],
             instance_dir="fake_instance_dir",
             adb_port=6521,
             vnc_port=6445,
             adb_ip_port="127.0.0.1:6521",
             cvd_tools_path="fake_cvd_tools_path",
             config_path="fake_config_path",
+            instances={},
+            root_dir="/tmp/acloud_cvd_temp/local-instance-2/cuttlefish_runtime"
         )
 
     @mock.patch("acloud.list.instance.AdbTools")
@@ -84,13 +84,13 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         mock_adb_tools.return_value = mock_adb_tools_object
         self.Patch(cvd_runtime_config, "CvdRuntimeConfig",
                    return_value=self._MockCvdRuntimeConfig())
-        self.Patch(instance.LocalInstance, "GetDevidInfoFromCvdFleet",
+        self.Patch(instance.LocalInstance, "_GetDevidInfoFromCvdStatus",
                    return_value=None)
         local_instance = instance.LocalInstance("fake_config_path")
 
         self.assertEqual("local-instance-2", local_instance.name)
         self.assertEqual(True, local_instance.islocal)
-        self.assertEqual("1080x1920 (480)", local_instance.display)
+        self.assertEqual(["1080x1920 (480)"], local_instance.display)
         expected_full_name = ("device serial: 0.0.0.0:%s (%s) elapsed time: %s"
                               % ("6521",
                                  "local-instance-2",
@@ -151,7 +151,7 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         mock_adb_tools.return_value = mock_adb_tools_object
         self.Patch(utils, "AddUserGroupsToCmd",
                    side_effect=lambda cmd, groups: cmd)
-        self.Patch(instance.LocalInstance, "GetDevidInfoFromCvdFleet",
+        self.Patch(instance.LocalInstance, "_GetDevidInfoFromCvdStatus",
                    return_value=None)
         mock_check_call = self.Patch(subprocess, "check_call")
         mock_check_output = self.Patch(
@@ -427,6 +427,14 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
 
         ins_webrtc = instance.Instance(name, fullname, display, ip)
         self.assertEqual(ins_webrtc._GetAutoConnect(), None)
+
+    @mock.patch("acloud.list.instance.LocalInstance")
+    def testGetCuttleFishLocalInstances(self, mock_local_instance):
+        """Test GetCuttleFishLocalInstances."""
+        self.Patch(cvd_runtime_config, "CvdRuntimeConfig",
+                   return_value=mock.MagicMock(instance_ids=["2", "3"]))
+        instance.GetCuttleFishLocalInstances("fake_config_path")
+        self.assertEqual(mock_local_instance.call_count, 2)
 
 
 if __name__ == "__main__":

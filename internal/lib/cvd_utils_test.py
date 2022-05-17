@@ -34,6 +34,18 @@ class CvdUtilsTest(unittest.TestCase):
         with open(path, "wb") as file_obj:
             file_obj.write(data)
 
+    def testGetAdbPorts(self):
+        """Test GetAdbPorts."""
+        self.assertEqual([6520], cvd_utils.GetAdbPorts(None, None))
+        self.assertEqual([6520], cvd_utils.GetAdbPorts(1, 1))
+        self.assertEqual([6521, 6522], cvd_utils.GetAdbPorts(2, 2))
+
+    def testGetVncPorts(self):
+        """Test GetVncPorts."""
+        self.assertEqual([6444], cvd_utils.GetVncPorts(None, None))
+        self.assertEqual([6444], cvd_utils.GetVncPorts(1, 1))
+        self.assertEqual([6445, 6446], cvd_utils.GetVncPorts(2, 2))
+
     @staticmethod
     @mock.patch("acloud.internal.lib.cvd_utils.os.path.isdir",
                 return_value=False)
@@ -106,7 +118,7 @@ class CvdUtilsTest(unittest.TestCase):
             self.assertEqual(2, mock_ssh.ScpPushFile.call_count)
 
     def testUploadKernelImages(self):
-        """Test UploadExtraImages with kernel images."""
+        """Test FindKernelImages and UploadExtraImages."""
         mock_ssh = mock.Mock()
         with tempfile.TemporaryDirectory(prefix="cvd_utils") as image_dir:
             kernel_image_path = os.path.join(image_dir, "Image")
@@ -126,7 +138,6 @@ class CvdUtilsTest(unittest.TestCase):
                 args)
             mock_ssh.Run.assert_called_once()
             self.assertEqual(2, mock_ssh.ScpPushFile.call_count)
-
 
     def testCleanUpRemoteCvd(self):
         """Test CleanUpRemoteCvd."""

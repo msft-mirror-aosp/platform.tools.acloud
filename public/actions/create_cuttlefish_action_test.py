@@ -27,7 +27,6 @@ from unittest import mock
 from acloud.internal.lib import android_build_client
 from acloud.internal.lib import android_compute_client
 from acloud.internal.lib import auth
-from acloud.internal.lib import cvd_compute_client
 from acloud.internal.lib import cvd_compute_client_multi_stage
 from acloud.internal.lib import driver_test_lib
 from acloud.internal.lib import ssh
@@ -68,10 +67,6 @@ class CreateCuttlefishActionTest(driver_test_lib.BaseDriverTest):
             return_value=self.build_client)
         self.compute_client = mock.MagicMock()
         self.compute_client.openwrt = False
-        self.Patch(
-            cvd_compute_client,
-            "CvdComputeClient",
-            return_value=self.compute_client)
         self.Patch(
             cvd_compute_client_multi_stage,
             "CvdComputeClient",

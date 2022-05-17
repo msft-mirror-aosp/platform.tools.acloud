@@ -402,6 +402,13 @@ def AddCommonCreateArgs(parser):
         dest="bootloader_build_target",
         help=argparse.SUPPRESS,
         required=False)
+    parser.add_argument(
+        "--remote-fetch",
+        action="store_true",
+        dest="remote_fetch",
+        required=False,
+        default=None,
+        help="'cuttlefish only' Fetch artifacts in remote host.")
 
 
 def GetCreateArgParser(subparser):
@@ -475,11 +482,12 @@ def GetCreateArgParser(subparser):
         dest="local_kernel_image",
         nargs="?",
         required=False,
-        help="Use the locally built kernel image for the AVD. Look for "
-        "boot.img or boot-*.img if the argument is a directory. Look for the "
-        "image in $ANDROID_PRODUCT_OUT if no argument is provided. e.g., "
-        "--local-kernel-image, --local-kernel-image /path/to/dir, or "
-        "--local-kernel-image /path/to/img")
+        help="Use the locally built kernel and ramdisk for the AVD. Look "
+        "for boot.img, vendor_boot.img, kernel, initramfs.img, etc. if the "
+        "argument is a directory. Look for the images in $ANDROID_PRODUCT_OUT "
+        "if no argument is provided. e.g., --local-kernel-image, "
+        "--local-kernel-image /path/to/dir, or --local-kernel-image "
+        "/path/to/boot.img")
     create_parser.add_argument(
         "--local-system-image",
         const=constants.FIND_IN_BUILD_ENV,
@@ -604,7 +612,7 @@ def GetCreateArgParser(subparser):
     # Arguments for goldfish type.
     create_parser.add_argument(
         "--emulator-build-id",
-        type=int,
+        type=str,
         dest="emulator_build_id",
         required=False,
         help="'goldfish only' Emulator build ID used to run the images. "

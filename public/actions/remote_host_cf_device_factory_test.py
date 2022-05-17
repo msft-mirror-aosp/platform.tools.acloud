@@ -60,6 +60,9 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                          boot_timeout_secs=100,
                          gpu="auto",
                          no_pull_log=False,
+                         remote_fetch=False,
+                         base_instance_num=None,
+                         num_avds_per_instance=None,
                          cfg=mock_cfg)
 
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory."
@@ -74,6 +77,8 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_avd_spec = self._CreateMockAvdSpec()
         mock_avd_spec.image_source = constants.IMAGE_SRC_LOCAL
         mock_avd_spec.local_image_dir = "/mock/img"
+        mock_avd_spec.base_instance_num = 2
+        mock_avd_spec.num_avds_per_instance = 3
         factory = remote_host_cf_device_factory.RemoteHostDeviceFactory(
             mock_avd_spec, cvd_host_package_artifact="/mock/cvd.tar.gz")
 
@@ -100,6 +105,10 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             extra_args=["extra"])
         mock_pull.GetAllLogFilePaths.assert_called_once()
         mock_pull.PullLogs.assert_called_once()
+        factory.GetAdbPorts()
+        mock_cvd_utils.GetAdbPorts.assert_called_with(2, 3)
+        factory.GetVncPorts()
+        mock_cvd_utils.GetVncPorts.assert_called_with(2, 3)
         self.assertEqual({"inst": "failure"}, factory.GetFailures())
         self.assertEqual({"inst": [tombstones, log]}, factory.GetLogs())
 
@@ -130,6 +139,10 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_client_obj.LaunchCvd.assert_called()
         mock_pull.GetAllLogFilePaths.assert_called_once()
         mock_pull.PullLogs.assert_not_called()
+        factory.GetAdbPorts()
+        mock_cvd_utils.GetAdbPorts.assert_called_with(None, None)
+        factory.GetVncPorts()
+        mock_cvd_utils.GetVncPorts.assert_called_with(None, None)
         self.assertFalse(factory.GetFailures())
         self.assertEqual(1, len(factory.GetLogs()["inst"]))
 
