@@ -25,6 +25,7 @@ _CFG_KEY_VIRTUAL_DISK_PATHS = "virtual_disk_paths"
 _CFG_KEY_INSTANCES = "instances"
 _CFG_KEY_ADB_IP_PORT = "adb_ip_and_port"
 _CFG_KEY_INSTANCE_DIR = "instance_dir"
+_CFG_KEY_ROOT_DIR = "root_dir"
 _CFG_KEY_VNC_PORT = "vnc_server_port"
 # The adb port field name changes from "host_port" to "adb_host_port".
 _CFG_KEY_ADB_PORT = "host_port"
@@ -122,6 +123,7 @@ class CvdRuntimeConfig():
         self._instances = self._config_dict.get(_CFG_KEY_INSTANCES)
         self._instance_ids = self._instances.keys()
         self._display_configs = self._config_dict.get(_CFG_KEY_DISPLAY_CONFIGS)
+        self._root_dir = self._config_dict.get(_CFG_KEY_ROOT_DIR)
         crosvm_bin = self._config_dict.get(_CFG_KEY_CROSVM_BINARY)
         self._cvd_tools_path = (os.path.dirname(crosvm_bin)
                                 if crosvm_bin else None)
@@ -198,6 +200,11 @@ class CvdRuntimeConfig():
     def instance_dir(self):
         """Return instance_dir."""
         return self._instance_dir
+
+    @property
+    def root_dir(self):
+        """Return root_dir."""
+        return self._root_dir
 
     @property
     def vnc_port(self):
