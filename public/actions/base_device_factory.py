@@ -50,6 +50,30 @@ class BaseDeviceFactory():
         return
 
     # pylint: disable=no-self-use
+    def GetAdbPorts(self):
+        """Get ADB ports of the created devices.
+
+        Subclasses should define this function if their ADB ports are not
+        constant.
+
+        Returns:
+            The port numbers as a list of integers.
+        """
+        return [None]
+
+    # pylint: disable=no-self-use
+    def GetVncPorts(self):
+        """Get VNC ports of the created devices.
+
+        Subclasses should define this function if they support VNC and their
+        VNC ports are not constant.
+
+        Returns:
+            The port numbers as a list of integers.
+        """
+        return [None]
+
+    # pylint: disable=no-self-use
     def GetBuildInfoDict(self):
         """Get build info dictionary.
 
