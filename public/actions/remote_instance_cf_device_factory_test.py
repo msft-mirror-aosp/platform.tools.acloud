@@ -236,6 +236,8 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         fake_avd_spec.image_source = constants.IMAGE_SRC_LOCAL
         fake_avd_spec._instance_name_to_reuse = None
         fake_avd_spec.no_pull_log = False
+        fake_avd_spec.base_instance_num = None
+        fake_avd_spec.num_avds_per_instance = None
 
         mock_cvd_utils.ConvertRemoteLogs.return_value = [{"path": "/logcat"}]
         mock_cvd_utils.UploadExtraImages.return_value = [
@@ -258,6 +260,11 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             compute_client.LaunchCvd.call_args[1].get("extra_args"))
         mock_pull.GetAllLogFilePaths.assert_called_once()
         mock_pull.PullLogs.assert_called_once()
+
+        factory.GetAdbPorts()
+        mock_cvd_utils.GetAdbPorts.assert_called_with(None, None)
+        factory.GetVncPorts()
+        mock_cvd_utils.GetVncPorts.assert_called_with(None, None)
         self.assertEqual({"instance": "failure"}, factory.GetFailures())
         self.assertEqual(3, len(factory.GetLogs().get("instance")))
 
@@ -278,6 +285,8 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         fake_avd_spec.image_source = constants.IMAGE_SRC_REMOTE
         fake_avd_spec.host_user = None
         fake_avd_spec.no_pull_log = True
+        fake_avd_spec.base_instance_num = 2
+        fake_avd_spec.num_avds_per_instance = 3
 
         mock_cvd_utils.ConvertRemoteLogs.return_value = [{"path": "/logcat"}]
         mock_cvd_utils.UploadExtraImages.return_value = []
@@ -291,6 +300,11 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         compute_client.FetchBuild.assert_called_once()
         mock_pull.GetAllLogFilePaths.assert_called_once()
         mock_pull.PullLogs.assert_not_called()
+
+        factory.GetAdbPorts()
+        mock_cvd_utils.GetAdbPorts.assert_called_with(2, 3)
+        factory.GetVncPorts()
+        mock_cvd_utils.GetVncPorts.assert_called_with(2, 3)
         self.assertFalse(factory.GetFailures())
         self.assertEqual(4, len(factory.GetLogs().get("instance")))
 

@@ -158,6 +158,24 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         return {"ssh_command": self._compute_client.GetSshConnectCmd(),
                 "screen_command": _SCREEN_CONSOLE_COMMAND}
 
+    def GetAdbPorts(self):
+        """Get ADB ports of the created devices.
+
+        Returns:
+            The port numbers as a list of integers.
+        """
+        return cvd_utils.GetAdbPorts(self._avd_spec.base_instance_num,
+                                     self._avd_spec.num_avds_per_instance)
+
+    def GetVncPorts(self):
+        """Get VNC ports of the created devices.
+
+        Returns:
+            The port numbers as a list of integers.
+        """
+        return cvd_utils.GetVncPorts(self._avd_spec.base_instance_num,
+                                     self._avd_spec.num_avds_per_instance)
+
     def GetBuildInfoDict(self):
         """Get build info dictionary.
 
