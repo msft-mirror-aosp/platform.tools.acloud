@@ -521,7 +521,7 @@ class LocalInstance(Instance):
         cvd_status_info = self._GetDevidInfoFromCvdStatus()
         if cvd_status_info:
             display = cvd_status_info.get(_DISPLAYS)
-            webrtc_port = cvd_status_info.get(_WEBRTC_PORT)
+            webrtc_port = int(cvd_status_info.get(_WEBRTC_PORT))
             adb_serial = cvd_status_info.get(_ADB_SERIAL)
 
         name = GetLocalInstanceName(self._local_instance_id)
