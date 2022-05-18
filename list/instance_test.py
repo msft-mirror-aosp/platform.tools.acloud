@@ -73,6 +73,7 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
             cvd_tools_path="fake_cvd_tools_path",
             config_path="fake_config_path",
             instances={},
+            root_dir="/tmp/acloud_cvd_temp/local-instance-2/cuttlefish_runtime"
         )
 
     @mock.patch("acloud.list.instance.AdbTools")
