@@ -62,6 +62,36 @@ FETCHER_CONFIG_JSON = report.LogFile(
     "fetcher_config.json", constants.LOG_TYPE_TEXT)
 
 
+def GetAdbPorts(base_instance_num, num_avds_per_instance):
+    """Get ADB ports of cuttlefish.
+
+    Args:
+        base_instance_num: An integer or None, the instance number of the first
+                           device.
+        num_avds_per_instance: An integer or None, the number of devices.
+
+    Returns:
+        The port numbers as a list of integers.
+    """
+    return [constants.CF_ADB_PORT + (base_instance_num or 1) - 1 + index
+            for index in range(num_avds_per_instance or 1)]
+
+
+def GetVncPorts(base_instance_num, num_avds_per_instance):
+    """Get VNC ports of cuttlefish.
+
+    Args:
+        base_instance_num: An integer or None, the instance number of the first
+                           device.
+        num_avds_per_instance: An integer or None, the number of devices.
+
+    Returns:
+        The port numbers as a list of integers.
+    """
+    return [constants.CF_VNC_PORT + (base_instance_num or 1) - 1 + index
+            for index in range(num_avds_per_instance or 1)]
+
+
 def _UploadImageZip(ssh_obj, image_zip):
     """Upload an image zip to a remote host and a GCE instance.
 

@@ -68,11 +68,8 @@ class CommonOperationsTest(driver_test_lib.BaseDriverTest):
             self.device_factory,
             "GetComputeClient",
             return_value=self.compute_client)
-        self.Patch(self.device_factory, "GetBuildInfoDict",
-                   return_value={"branch": self.BRANCH,
-                                 "build_id": self.BUILD_ID,
-                                 "build_target": self.BUILD_TARGET,
-                                 "gcs_bucket_build_id": self.BUILD_ID})
+        self.Patch(self.device_factory, "GetVncPorts", return_value=[6444])
+        self.Patch(self.device_factory, "GetAdbPorts", return_value=[6520])
         self.Patch(self.device_factory, "GetBuildInfoDict",
                    return_value={"branch": self.BRANCH,
                                  "build_id": self.BUILD_ID,
@@ -113,7 +110,7 @@ class CommonOperationsTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(
             _report.data,
             {"devices": [{
-                "ip": self.IP.external,
+                "ip": self.IP.external + ":6520",
                 "instance_name": self.INSTANCE,
                 "branch": self.BRANCH,
                 "build_id": self.BUILD_ID,
@@ -168,7 +165,7 @@ class CommonOperationsTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(
             _report.data,
             {"devices": [{
-                "ip": self.IP.internal,
+                "ip": self.IP.internal + ":6520",
                 "instance_name": self.INSTANCE,
                 "branch": self.BRANCH,
                 "build_id": self.BUILD_ID,

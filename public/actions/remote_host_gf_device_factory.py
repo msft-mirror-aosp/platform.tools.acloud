@@ -594,11 +594,9 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         env = {constants.ENV_ANDROID_PRODUCT_OUT: remote_paths.image_dir,
                constants.ENV_ANDROID_TMP: remote_runtime_dir,
                constants.ENV_ANDROID_BUILD_TOP: remote_runtime_dir}
-        console_port = self._GetConsolePort()
-        adb_port = console_port + 1
         cmd = ["nohup", remote_emulator_bin_path, "-verbose", "-show-kernel",
                "-read-only", "-ports",
-               str(console_port) + "," + str(adb_port),
+               str(self._GetConsolePort()) + "," + str(self.GetAdbPorts()[0]),
                "-no-window",
                "-logcat-output", self._GetInstancePath(_REMOTE_LOGCAT_PATH)]
 
@@ -663,6 +661,16 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         build_info_dict = {key: val for key, val in
                            self._avd_spec.remote_image.items() if val}
         return build_info_dict
+
+    def GetAdbPorts(self):
+        """Get ADB ports of the created devices.
+
+        This class does not support --num-avds-per-instance.
+
+        Returns:
+            The port numbers as a list of integers.
+        """
+        return [self._GetConsolePort() + 1]
 
     def GetFailures(self):
         """Get Failures from all devices.
