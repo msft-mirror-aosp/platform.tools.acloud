@@ -521,7 +521,7 @@ class LocalInstance(Instance):
         cvd_status_info = self._GetDevidInfoFromCvdStatus()
         if cvd_status_info:
             display = cvd_status_info.get(_DISPLAYS)
-            webrtc_port = cvd_status_info.get(_WEBRTC_PORT)
+            webrtc_port = int(cvd_status_info.get(_WEBRTC_PORT))
             adb_serial = cvd_status_info.get(_ADB_SERIAL)
 
         name = GetLocalInstanceName(self._local_instance_id)
@@ -558,23 +558,24 @@ class LocalInstance(Instance):
         cvd_env[constants.ENV_ANDROID_SOONG_HOST_OUT] = os.path.dirname(
             self._cf_runtime_cfg.cvd_tools_path)
         cvd_env[constants.ENV_CUTTLEFISH_CONFIG_FILE] = self._cf_runtime_cfg.config_path
-        cvd_env[constants.ENV_CVD_HOME] = GetLocalInstanceHomeDir(self._local_instance_id)
+        cvd_env[constants.ENV_CVD_HOME] = os.path.dirname(self._cf_runtime_cfg.root_dir)
         cvd_env[constants.ENV_CUTTLEFISH_INSTANCE] = str(self._local_instance_id)
         return cvd_env
 
     def _GetDevidInfoFromCvdStatus(self):
         """Get device information from 'cvd status'.
 
-        Execute 'cvd status --print --all_instances' cmd to get devices
+        Execute 'cvd status --print -instance_name=name' cmd to get devices
         information.
 
         Returns
             Output of 'cvd status'. None for fail to run 'cvd status'.
         """
-        ins_home_dir = GetLocalInstanceHomeDir(self._local_instance_id)
+        ins_home_dir = os.path.dirname(self._cf_runtime_cfg.root_dir)
         try:
             cvd_tool = os.path.join(ins_home_dir, _CVD_BIN_FOLDER, _CVD_BIN)
-            cvd_status_cmd = f"{cvd_tool} status --print --all_instances"
+            ins_name = f"cvd-{self._local_instance_id}"
+            cvd_status_cmd = f"{cvd_tool} status -print -instance_name={ins_name}"
             if not os.path.exists(cvd_tool):
                 logger.warning("Cvd tools path doesn't exist:%s", cvd_tool)
                 return None
@@ -589,7 +590,7 @@ class LocalInstance(Instance):
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired,
                 json.JSONDecodeError) as error:
             logger.error("Failed to run 'cvd status': %s", str(error))
-            return None
+        return None
 
     @staticmethod
     def _ParsingCvdFleetOutput(output):

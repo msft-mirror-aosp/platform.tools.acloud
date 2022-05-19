@@ -208,20 +208,6 @@ def _GetErrorType(error):
             return constants.GCE_QUOTA_ERROR
     return constants.ACLOUD_UNKNOWN_ERROR
 
-def _GetAdbPort(avd_type, base_instance_num):
-    """Get Adb port according to avd_type and device offset.
-
-    Args:
-        avd_type: String, the AVD type(cuttlefish, goldfish...).
-        base_instance_num: int, device offset.
-
-    Returns:
-        int, adb port.
-    """
-    if avd_type in utils.AVD_PORT_DICT:
-        return utils.AVD_PORT_DICT[avd_type].adb_port + base_instance_num - 1
-    return None
-
 # pylint: disable=too-many-locals,unused-argument,too-many-branches
 def CreateDevices(command, cfg, device_factory, num, avd_type,
                   report_internal_ip=False, autoconnect=False,
@@ -288,13 +274,12 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
         for device in device_pool.devices:
             ip = (device.ip.internal if report_internal_ip
                   else device.ip.external)
-            base_instance_num = 1
-            if constants.BASE_INSTANCE_NUM in device_pool._compute_client.dict_report:
-                base_instance_num = device_pool._compute_client.dict_report[constants.BASE_INSTANCE_NUM]
-            adb_port = _GetAdbPort(
-                avd_type,
-                base_instance_num
-            )
+            # TODO(b/154175542): Report multiple devices.
+            vnc_port = device_factory.GetVncPorts()[0]
+            adb_port = device_factory.GetAdbPorts()[0]
+            if not vnc_port and not adb_port:
+                vnc_port, adb_port = utils.AVD_PORT_DICT[avd_type]
+
             device_dict = {
                 "ip": ip + (":" + str(adb_port) if adb_port else ""),
                 "instance_name": device.instance_name
@@ -310,7 +295,7 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
                     ip_addr=ip,
                     rsa_key_file=(ssh_private_key_path or
                                   cfg.ssh_private_key_path),
-                    target_vnc_port=utils.AVD_PORT_DICT[avd_type].vnc_port,
+                    target_vnc_port=vnc_port,
                     target_adb_port=adb_port,
                     ssh_user=ssh_user,
                     client_adb_port=client_adb_port,
