@@ -90,7 +90,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         tombstones = {"path": "/tombstones"}
         mock_cvd_utils.TOMBSTONES = tombstones
         mock_cvd_utils.UploadExtraImages.return_value = ["extra"]
-        mock_cvd_utils.ConvertRemoteLogs.return_value = [log]
+        mock_cvd_utils.FindRemoteLogs.return_value = [log]
 
         self.assertEqual("inst", factory.CreateInstance())
         mock_ssh.Ssh.assert_called_once()
@@ -131,13 +131,16 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_client_obj.FormatRemoteHostInstanceName.return_value = "inst"
         mock_client_obj.LaunchCvd.return_value = {}
 
+        mock_cvd_utils.FindRemoteLogs.return_value = []
+
         self.assertEqual("inst", factory.CreateInstance())
         mock_ssh.Ssh.assert_called_once()
         mock_client_obj.InitRemoteHost.assert_called_once()
         mock_cvd_utils.UploadArtifacts.assert_called_with(
             mock.ANY, "/mock/img.zip", "/mock/cvd.tar.gz")
+
         mock_client_obj.LaunchCvd.assert_called()
-        mock_pull.GetAllLogFilePaths.assert_called_once()
+        mock_pull.GetAllLogFilePaths.assert_not_called()
         mock_pull.PullLogs.assert_not_called()
         factory.GetAdbPorts()
         mock_cvd_utils.GetAdbPorts.assert_called_with(None, None)
@@ -156,7 +159,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory.glob")
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory.pull")
     def testCreateInstanceWithRemoteImages(self, mock_pull, mock_glob,
-                                           mock_check_call, _mock_cvd_utils,
+                                           mock_check_call, mock_cvd_utils,
                                            mock_ssh, _mock_client):
         """Test CreateInstance with remote images."""
         mock_avd_spec = self._CreateMockAvdSpec()
@@ -167,6 +170,8 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_glob.glob.return_value = ["/mock/super.img"]
         factory = remote_host_cf_device_factory.RemoteHostDeviceFactory(
             mock_avd_spec)
+
+        mock_cvd_utils.FindRemoteLogs.return_value = []
 
         mock_client_obj = factory.GetComputeClient()
         mock_client_obj.FormatRemoteHostInstanceName.return_value = "inst"
@@ -181,7 +186,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                          r"^tar -cf - --lzop -S -C \S+ super\.img \| "
                          r"/mock/ssh -- tar -xf - --lzop -S$")
         mock_client_obj.LaunchCvd.assert_called()
-        mock_pull.GetAllLogFilePaths.assert_called_once()
+        mock_pull.GetAllLogFilePaths.assert_not_called()
         mock_pull.PullLogs.assert_not_called()
         self.assertFalse(factory.GetFailures())
         self.assertEqual(1, len(factory.GetLogs()["inst"]))

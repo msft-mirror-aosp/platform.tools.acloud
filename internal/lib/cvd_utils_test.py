@@ -160,10 +160,12 @@ class CvdUtilsTest(unittest.TestCase):
         mock_ssh.Run.assert_any_call("./bin/stop_cvd", retry=0)
         mock_ssh.Run.assert_any_call("'rm -rf ./*'")
 
-    def testConvertRemoteLogs(self):
-        """Test ConvertRemoteLogs."""
-        logs = cvd_utils.ConvertRemoteLogs(
-            ["/kernel.log", "/logcat", "/launcher.log", "/access-kregistry"])
+    @mock.patch("acloud.internal.lib.cvd_utils.utils")
+    def testFindRemoteLogs(self, mock_utils):
+        """Test FindRemoteLogs."""
+        mock_utils.FindRemoteFiles.return_value = [
+            "/kernel.log", "/logcat", "/launcher.log", "/access-kregistry"]
+        logs = cvd_utils.FindRemoteLogs(mock.Mock())
         expected_logs = [
             {"path": "/kernel.log", "type": constants.LOG_TYPE_KERNEL_LOG},
             {
