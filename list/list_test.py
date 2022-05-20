@@ -199,7 +199,8 @@ class ListTest(driver_test_lib.BaseDriverTest):
             y_res=728,
             dpi=240,
             instance_dir="fake_dir",
-            adb_ip_port="127.0.0.1:6520"
+            adb_ip_port="127.0.0.1:6520",
+            root_dir="root/cuttlefish_runtime"
         )
         self.Patch(cvd_runtime_config, "CvdRuntimeConfig",
                    return_value=cf_config)
