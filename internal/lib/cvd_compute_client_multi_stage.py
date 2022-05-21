@@ -46,6 +46,7 @@ from acloud import errors
 from acloud.internal import constants
 from acloud.internal.lib import android_build_client
 from acloud.internal.lib import android_compute_client
+from acloud.internal.lib import cvd_utils
 from acloud.internal.lib import gcompute_client
 from acloud.internal.lib import utils
 from acloud.internal.lib.ssh import Ssh
@@ -185,8 +186,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         self._ip = ip
         self._user = user
         self._ssh.WaitForSsh(timeout=self._ins_timeout_secs)
-        self.StopCvd()
-        self.CleanUp()
+        cvd_utils.CleanUpRemoteCvd(self._ssh, raise_error=False)
 
     # TODO(171376263): Refactor CreateInstance() args with avd_spec.
     # pylint: disable=arguments-differ,too-many-locals,broad-except
@@ -259,8 +259,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             self._ssh.WaitForSsh(timeout=self._ins_timeout_secs)
             if avd_spec:
                 if avd_spec.instance_name_to_reuse:
-                    self.StopCvd()
-                    self.CleanUp()
+                    cvd_utils.CleanUpRemoteCvd(self._ssh, raise_error=False)
                 return instance
 
             # TODO: Remove following code after create_cf deprecated.
@@ -373,33 +372,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         launch_cvd_args.append(_UNDEFOK_ARG)
         launch_cvd_args.append(_AGREEMENT_PROMPT_ARG)
         return launch_cvd_args
-
-    # pylint: disable=broad-except
-    def StopCvd(self):
-        """Stop CVD.
-
-        If stop_cvd fails, assume that it's because there was no previously
-        running device.
-        """
-        ssh_command = "./bin/stop_cvd"
-        try:
-            self._ssh.Run(ssh_command)
-        except Exception as e:
-            logger.debug("Failed to stop_cvd (possibly no running device): %s", e)
-
-    def CleanUp(self):
-        """Clean up the files/folders on the existing instance.
-
-        If previous AVD have these files/folders, reusing the instance may have
-        side effects if not cleaned. The path in the instance is /home/vsoc-01/*
-        if the GCE user is vsoc-01.
-        """
-
-        ssh_command = "'/bin/rm -rf /home/%s/*'" % self._user
-        try:
-            self._ssh.Run(ssh_command)
-        except subprocess.CalledProcessError as e:
-            logger.debug("Failed to clean up the files/folders: %s", e)
 
     @utils.TimeExecute(function_description="Launching AVD(s) and waiting for boot up",
                        result_evaluator=utils.BootEvaluator)
