@@ -248,6 +248,10 @@ ERROR_MSG_WEBRTC_NOT_SUPPORT = "unknown command line flag 'start_webrtc'"
 # The name of download image tool.
 FETCH_CVD = "fetch_cvd"
 
+# The name of credential source key json file, a copy of
+# cfg.service_account_json_private_key_path for remote host case.
+FETCH_CVD_CREDENTIAL_SOURCE = "credential_key.json"
+
 # For setup and cleanup
 # Packages "devscripts" and "equivs" are required for "mk-build-deps".
 # Packages from: https://android.googlesource.com/device/google/cuttlefish/
