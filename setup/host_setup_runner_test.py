@@ -74,6 +74,8 @@ lrw                    16384  1 aesni_intel"""
     def testRun(self):
         """Test Run."""
         self.Patch(CuttlefishHostSetup, "ShouldRun", return_value=True)
+        self.Patch(CuttlefishHostSetup, "_GetProcessorType",
+                   return_value="intel")
         self.Patch(utils, "InteractWithQuestion", return_value="y")
         self.Patch(setup_common, "CheckCmdOutput")
         self.CuttlefishHostSetup.Run()
