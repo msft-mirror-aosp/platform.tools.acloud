@@ -81,12 +81,13 @@ if sys.version_info.major == 2:
     sys.exit(1)
 
 # (b/219847353) Move googleapiclient to the last position of sys.path when
-#  existed.
+# existed.
 for lib in sys.path:
     if 'googleapiclient' in lib:
         sys.path.remove(lib)
         sys.path.append(lib)
-        break
+        # (b/233659281) Do not break when found googleapiclient because the
+        # module may appear twice when atest invokes acloud.
 
 # By Default silence root logger's stream handler since 3p lib may initial
 # root logger no matter what level we're using. The acloud logger behavior will
