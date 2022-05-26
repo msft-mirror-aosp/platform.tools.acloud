@@ -39,7 +39,16 @@ logger = logging.getLogger(__name__)
 
 _CF_COMMOM_FOLDER = "cf-common"
 
-_LIST_OF_MODULES = ["kvm_intel", "kvm"]
+_INTEL = "intel"
+_AMD = "amd"
+_KVM_INTEL = "kvm_intel"
+_KVM_AMD = "kvm_amd"
+_LIST_OF_INTEL_MODULES = [_KVM_INTEL, "kvm"]
+_LIST_OF_AMD_MODULES = [_KVM_AMD, "kvm"]
+_DICT_MODULES = {_INTEL: _LIST_OF_INTEL_MODULES, _AMD: _LIST_OF_AMD_MODULES}
+_INTEL_COMMANDS = ["sudo rmmod kvm_intel", "sudo modprobe kvm_intel"]
+_AMD_COMMANDS = ["sudo rmmod kvm_amd", "sudo modprobe kvm_amd"]
+_DICT_SETUP_CMDS = {_INTEL: _INTEL_COMMANDS, _AMD: _AMD_COMMANDS}
 _UPDATE_APT_GET_CMD = "sudo apt-get update"
 _INSTALL_CUTTLEFISH_COMMOM_CMD = [
     "git clone https://github.com/google/android-cuttlefish.git {git_folder}",
@@ -202,7 +211,21 @@ class CuttlefishHostSetup(base_task_runner.BaseTaskRunner):
             return False
 
         return not (utils.CheckUserInGroups(constants.LIST_CF_USER_GROUPS)
-                    and self._CheckLoadedModules(_LIST_OF_MODULES))
+                    and self._CheckLoadedModules(
+                        _DICT_MODULES.get(self._GetProcessorType())))
+
+    @staticmethod
+    def _GetProcessorType():
+        """Get the processor type.
+
+        Returns:
+            The processor type of the host. e.g. amd, intel.
+        """
+        lsmod_output = setup_common.CheckCmdOutput("lsmod", print_cmd=False)
+        current_modules = [r.split()[0] for r in lsmod_output.splitlines()]
+        if _KVM_AMD in current_modules:
+            return _AMD
+        return _INTEL
 
     @staticmethod
     def _CheckLoadedModules(module_list):
@@ -210,6 +233,7 @@ class CuttlefishHostSetup(base_task_runner.BaseTaskRunner):
 
         Args:
             module_list: The list of module name.
+
         Returns:
             True if all modules are in use.
         """
@@ -227,11 +251,8 @@ class CuttlefishHostSetup(base_task_runner.BaseTaskRunner):
         """Setup host environment for local cuttlefish instance support."""
         # TODO: provide --uid args to let user use prefered username
         username = getpass.getuser()
-        setup_cmds = [
-            "sudo rmmod kvm_intel",
-            "sudo rmmod kvm",
-            "sudo modprobe kvm",
-            "sudo modprobe kvm_intel"]
+        setup_cmds = ["sudo rmmod kvm", "sudo modprobe kvm"]
+        setup_cmds.extend(_DICT_SETUP_CMDS.get(self._GetProcessorType()))
         for group in constants.LIST_CF_USER_GROUPS:
             setup_cmds.append("sudo usermod -aG %s % s" % (group, username))
 
