@@ -505,6 +505,9 @@ class LocalInstance(Instance):
         self._instance_dir = self._cf_runtime_cfg.instance_dir
         self._virtual_disk_paths = self._cf_runtime_cfg.virtual_disk_paths
         self._local_instance_id = int(ins_id or self._cf_runtime_cfg.instance_id)
+        self._instance_home = GetLocalInstanceHomeDir(self._local_instance_id)
+        if self._cf_runtime_cfg.root_dir:
+            self._instance_home = os.path.dirname(self._cf_runtime_cfg.root_dir)
 
         ins_info = self._cf_runtime_cfg.instances.get(ins_id, {})
         adb_port = ins_info.get(_ADB_HOST_PORT) or self._cf_runtime_cfg.adb_port
@@ -521,7 +524,7 @@ class LocalInstance(Instance):
         cvd_status_info = self._GetDevidInfoFromCvdStatus()
         if cvd_status_info:
             display = cvd_status_info.get(_DISPLAYS)
-            webrtc_port = cvd_status_info.get(_WEBRTC_PORT)
+            webrtc_port = int(cvd_status_info.get(_WEBRTC_PORT))
             adb_serial = cvd_status_info.get(_ADB_SERIAL)
 
         name = GetLocalInstanceName(self._local_instance_id)
@@ -558,7 +561,7 @@ class LocalInstance(Instance):
         cvd_env[constants.ENV_ANDROID_SOONG_HOST_OUT] = os.path.dirname(
             self._cf_runtime_cfg.cvd_tools_path)
         cvd_env[constants.ENV_CUTTLEFISH_CONFIG_FILE] = self._cf_runtime_cfg.config_path
-        cvd_env[constants.ENV_CVD_HOME] = os.path.dirname(self._cf_runtime_cfg.root_dir)
+        cvd_env[constants.ENV_CVD_HOME] = self._instance_home
         cvd_env[constants.ENV_CUTTLEFISH_INSTANCE] = str(self._local_instance_id)
         return cvd_env
 
@@ -571,9 +574,8 @@ class LocalInstance(Instance):
         Returns
             Output of 'cvd status'. None for fail to run 'cvd status'.
         """
-        ins_home_dir = os.path.dirname(self._cf_runtime_cfg.root_dir)
         try:
-            cvd_tool = os.path.join(ins_home_dir, _CVD_BIN_FOLDER, _CVD_BIN)
+            cvd_tool = os.path.join(self._instance_home, _CVD_BIN_FOLDER, _CVD_BIN)
             ins_name = f"cvd-{self._local_instance_id}"
             cvd_status_cmd = f"{cvd_tool} status -print -instance_name={ins_name}"
             if not os.path.exists(cvd_tool):
