@@ -297,10 +297,9 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
                       and show messages to the user.
         """
         self._all_logs[instance] = [cvd_utils.TOMBSTONES]
-        log_files = pull.GetAllLogFilePaths(self._ssh)
-        self._all_logs[instance].extend(cvd_utils.ConvertRemoteLogs(log_files))
-
+        self._all_logs[instance].extend(cvd_utils.FindRemoteLogs(self._ssh))
         if download:
+            log_files = pull.GetAllLogFilePaths(self._ssh)
             error_log_folder = pull.PullLogs(self._ssh, log_files, instance)
             self._compute_client.ExtendReportData(constants.ERROR_LOG_FOLDER,
                                                   error_log_folder)

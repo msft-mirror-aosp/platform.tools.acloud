@@ -239,7 +239,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         fake_avd_spec.base_instance_num = None
         fake_avd_spec.num_avds_per_instance = None
 
-        mock_cvd_utils.ConvertRemoteLogs.return_value = [{"path": "/logcat"}]
+        mock_cvd_utils.FindRemoteLogs.return_value = [{"path": "/logcat"}]
         mock_cvd_utils.UploadExtraImages.return_value = [
             "-boot_image", "/boot/img"]
 
@@ -288,7 +288,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         fake_avd_spec.base_instance_num = 2
         fake_avd_spec.num_avds_per_instance = 3
 
-        mock_cvd_utils.ConvertRemoteLogs.return_value = [{"path": "/logcat"}]
+        mock_cvd_utils.FindRemoteLogs.return_value = [{"path": "/logcat"}]
         mock_cvd_utils.UploadExtraImages.return_value = []
 
         factory = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
@@ -298,7 +298,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         factory.CreateInstance()
 
         compute_client.FetchBuild.assert_called_once()
-        mock_pull.GetAllLogFilePaths.assert_called_once()
+        mock_pull.GetAllLogFilePaths.assert_not_called()
         mock_pull.PullLogs.assert_not_called()
 
         factory.GetAdbPorts()
