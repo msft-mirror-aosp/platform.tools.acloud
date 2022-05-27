@@ -140,9 +140,9 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
                                     cvd_utils.HOST_KERNEL_LOG]
         if self._avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
             self._all_logs[instance].append(cvd_utils.FETCHER_CONFIG_JSON)
-        log_files = pull.GetAllLogFilePaths(self._ssh)
-        self._all_logs[instance].extend(cvd_utils.ConvertRemoteLogs(log_files))
+        self._all_logs[instance].extend(cvd_utils.FindRemoteLogs(self._ssh))
         if download:
+            log_files = pull.GetAllLogFilePaths(self._ssh)
             error_log_folder = pull.PullLogs(self._ssh, log_files, instance)
             self._compute_client.ExtendReportData(constants.ERROR_LOG_FOLDER,
                                                   error_log_folder)
