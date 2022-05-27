@@ -122,17 +122,19 @@ class PullTest(driver_test_lib.BaseDriverTest):
         with self.assertRaises(errors.CheckPathError):
             pull.SelectLogFileToPull(_ssh, input_file)
 
-    def testFilterLogfiles(self):
-        """test filer log file from black list."""
+    def testGetAllLogFilePaths(self):
+        """test that GetAllLogFilePaths can filter logs."""
+        mock_find = self.Patch(utils, "FindRemoteFiles",
+                               return_value=["kernel.log", "logcat", "kernel"])
         # Filter out file name is "kernel".
-        files = ["kernel.log", "logcat", "kernel"]
         expected_result = ["kernel.log", "logcat"]
-        self.assertEqual(pull.FilterLogfiles(files), expected_result)
+        self.assertEqual(pull.GetAllLogFilePaths(mock.Mock()), expected_result)
 
         # Filter out file extension is ".img".
-        files = ["kernel.log", "system.img", "userdata.img", "launcher.log"]
+        mock_find.return_value = ["kernel.log", "system.img", "userdata.img",
+                                  "launcher.log"]
         expected_result = ["kernel.log", "launcher.log"]
-        self.assertEqual(pull.FilterLogfiles(files), expected_result)
+        self.assertEqual(pull.GetAllLogFilePaths(mock.Mock()), expected_result)
 
     @mock.patch.object(pull, "PullFileFromInstance")
     def testRun(self, mock_pull_file):
