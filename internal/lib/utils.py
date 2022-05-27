@@ -95,6 +95,9 @@ AVD_PORT_DICT = {
 }
 
 _VNC_BIN = "ssvnc"
+# search_dirs and the files can be symbolic links. The -H flag makes the
+# command skip the links except search_dirs. The returned files are unique.
+_CMD_FIND_FILES = "find -H %(search_dirs)s -type f"
 _CMD_KILL = ["pkill", "-9", "-f"]
 _CMD_SG = "sg "
 _CMD_START_VNC = "%(bin)s vnc://127.0.0.1:%(port)d"
@@ -1009,6 +1012,29 @@ def AutoConnect(ip_addr, rsa_key_file, target_vnc_port, target_adb_port,
 
     return ForwardedPorts(vnc_port=local_free_vnc_port,
                           adb_port=local_adb_port)
+
+
+def FindRemoteFiles(ssh_obj, search_dirs):
+    """Get all files, except symbolic links, under remote directories.
+
+    Args:
+        ssh_obj: An Ssh object.
+        search_dirs: A list of strings, the remote directories.
+
+    Returns:
+        A list of strings, the file paths.
+    """
+    if not search_dirs:
+        return []
+    ssh_cmd = (ssh_obj.GetBaseCmd(constants.SSH_BIN) + " " +
+               _CMD_FIND_FILES % {"search_dirs": " ".join(search_dirs)})
+    proc = subprocess.run(ssh_cmd, shell=True, capture_output=True,
+                          check=False)
+    if proc.stderr:
+        logger.debug("`%s` stderr: %s", ssh_cmd, proc.stderr.decode())
+    if proc.stdout:
+        return proc.stdout.decode().splitlines()
+    return []
 
 
 def GetAnswerFromList(answer_list, enable_choose_all=False):
