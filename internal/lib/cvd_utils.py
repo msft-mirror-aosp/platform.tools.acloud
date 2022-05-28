@@ -309,17 +309,18 @@ def CleanUpRemoteCvd(ssh_obj, raise_error):
     ssh_obj.Run("'rm -rf ./*'")
 
 
-def ConvertRemoteLogs(log_paths):
-    """Convert paths on a remote host or a GCE instance to log objects.
+def FindRemoteLogs(ssh_obj):
+    """Find log objects on a remote host or a GCE instance.
 
     Args:
-        log_paths: A collection of strings, the remote paths to the logs.
+        ssh_obj: An Ssh object.
 
     Returns:
         A list of report.LogFile objects.
     """
     logs = []
-    for log_path in log_paths:
+    for log_path in utils.FindRemoteFiles(ssh_obj,
+                                          [constants.REMOTE_LOG_FOLDER]):
         log = report.LogFile(log_path, constants.LOG_TYPE_TEXT)
         if log_path.endswith("kernel.log"):
             log = report.LogFile(log_path, constants.LOG_TYPE_KERNEL_LOG)
