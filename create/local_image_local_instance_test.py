@@ -75,6 +75,11 @@ sg group2
 bin/launch_cvd -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -start_vnc_server=true -console=true
 EOF"""
 
+    LAUNCH_CVD_CMD_WITH_NO_CVD = """sg group1 <<EOF
+sg group2
+bin/launch_cvd -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -start_vnc_server=true
+EOF"""
+
     _EXPECTED_DEVICES_IN_REPORT = [
         {
             "instance_name": "local-instance-1",
@@ -395,6 +400,7 @@ EOF"""
     def testPrepareLaunchCVDCmd(self, mock_usergroups):
         """test PrepareLaunchCVDCmd."""
         mock_usergroups.return_value = False
+        self.Patch(os.path, "isfile", return_value=True)
         hw_property = {"cpu": "fake", "x_res": "fake", "y_res": "fake",
                        "dpi":"fake", "memory": "fake", "disk": "fake"}
         constants.LIST_CF_USER_GROUPS = ["group1", "group2"]
@@ -467,6 +473,13 @@ EOF"""
             None, True, mock_artifact_paths, "fake_cvd_dir", False, True,
             None, None, "phone", openwrt=True, use_launch_cvd=True)
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_OPENWRT)
+
+        # Test with "cvd" doesn't exist
+        self.Patch(os.path, "isfile", return_value=False)
+        launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
+            None, True, mock_artifact_paths, "fake_cvd_dir", False, True,
+            None, None, "phone", openwrt=False, use_launch_cvd=False)
+        self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_NO_CVD)
 
     @mock.patch.object(utils, "GetUserAnswerYes")
     @mock.patch.object(list_instance, "GetActiveCVD")
