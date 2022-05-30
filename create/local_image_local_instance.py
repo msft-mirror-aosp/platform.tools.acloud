@@ -558,9 +558,9 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             String, cvd start cmd.
         """
         bin_dir = os.path.join(artifact_paths.host_bins, "bin")
-        start_cvd_cmd = (os.path.join(bin_dir, constants.CMD_CVD) +
-                         _CMD_CVD_START)
-        if use_launch_cvd:
+        cvd_path = os.path.join(bin_dir, constants.CMD_CVD)
+        start_cvd_cmd = cvd_path + _CMD_CVD_START
+        if use_launch_cvd or not os.path.isfile(cvd_path):
             start_cvd_cmd = os.path.join(bin_dir, constants.CMD_LAUNCH_CVD)
         launch_cvd_w_args = start_cvd_cmd + _CMD_LAUNCH_CVD_ARGS % (
             config, artifact_paths.image_dir, runtime_dir)
