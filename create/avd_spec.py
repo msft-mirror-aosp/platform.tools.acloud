@@ -145,6 +145,8 @@ class AVDSpec():
         self._stable_host_image_name = None
         self._use_launch_cvd = None
         self._remote_fetch = None
+        self._webrtc_device_id = None
+
         # Create config instance for android_build_client to query build api.
         self._cfg = config.GetAcloudConfig(args)
         # Reporting args.
@@ -380,6 +382,7 @@ class AVDSpec():
         self._launch_args = " ".join(
             list(filter(None, [self._cfg.launch_args, args.launch_args])))
         self._remote_fetch = args.remote_fetch
+        self._webrtc_device_id = args.webrtc_device_id
 
         if args.reuse_gce:
             if args.reuse_gce != constants.SELECT_ONE_GCE_INSTANCE:
@@ -1065,3 +1068,8 @@ class AVDSpec():
     def force_sync(self):
         """Return force_sync."""
         return self._force_sync
+
+    @property
+    def webrtc_device_id(self):
+        """Return webrtc_device_id."""
+        return self._webrtc_device_id
