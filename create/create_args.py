@@ -302,18 +302,21 @@ def AddCommonCreateArgs(parser):
         help="GPU accelerator to use if any. e.g. nvidia-tesla-k80. For local "
              "instances, this arg without assigning any value is to enable "
              "local gpu support.")
+    parser.add_argument(
+        "--num-avds-per-instance",
+        "--num-instances",
+        "--num_instances",
+        type=int,
+        dest="num_avds_per_instance",
+        required=False,
+        default=1,
+        help="'cuttlefish only' Create multiple cuttlefish AVDs in one local "
+             "instance.")
     # Hide following args for users, it is only used in infra.
     parser.add_argument(
         "--local-instance-dir",
         dest="local_instance_dir",
         required=False,
-        help=argparse.SUPPRESS)
-    parser.add_argument(
-        "--num-avds-per-instance",
-        type=int,
-        dest="num_avds_per_instance",
-        required=False,
-        default=1,
         help=argparse.SUPPRESS)
     parser.add_argument(
         "--oxygen",

@@ -80,6 +80,11 @@ sg group2
 bin/launch_cvd -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -start_vnc_server=true
 EOF"""
 
+    LAUNCH_CVD_CMD_WITH_INS_IDS = """sg group1 <<EOF
+sg group2
+bin/cvd start -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -start_vnc_server=true -instance_nums=1,2
+EOF"""
+
     _EXPECTED_DEVICES_IN_REPORT = [
         {
             "instance_name": "local-instance-1",
@@ -132,6 +137,7 @@ EOF"""
             None, None, None, None, None, None, None)
         mock_check_running_cvd.return_value = True
         mock_avd_spec = mock.Mock()
+        mock_avd_spec.num_avds_per_instance = 1
         mock_lock = mock.Mock()
         mock_lock.Unlock.return_value = False
         mock_lock_instance.return_value = (1, mock_lock)
@@ -162,6 +168,26 @@ EOF"""
         report = self.local_image_local_instance._CreateAVD(
             mock_avd_spec, no_prompts=True)
         self.assertEqual(report.errors, ["unit test"])
+
+    def testSelectAndLockInstances(self):
+        """test _SelectAndLockInstances."""
+        mock_avd_spec = mock.Mock(num_avds_per_instance=1)
+        mock_main_lock = mock.Mock()
+        self.Patch(local_image_local_instance.LocalImageLocalInstance,
+                   "_SelectAndLockInstance", return_value=(1, mock_main_lock))
+        ins_ids, ins_locks = self.local_image_local_instance._SelectAndLockInstances(
+            mock_avd_spec)
+        self.assertEqual([1], ins_ids)
+        self.assertEqual([mock_main_lock], ins_locks)
+
+        mock_avd_spec.num_avds_per_instance = 2
+        mock_second_lock = mock.Mock()
+        self.Patch(local_image_local_instance.LocalImageLocalInstance,
+                   "_SelectOneFreeInstance", return_value=(2, mock_second_lock))
+        ins_ids, ins_locks = self.local_image_local_instance._SelectAndLockInstances(
+            mock_avd_spec)
+        self.assertEqual([1,2], ins_ids)
+        self.assertEqual([mock_main_lock, mock_second_lock], ins_locks)
 
     def testSelectAndLockInstance(self):
         """test _SelectAndLockInstance."""
@@ -228,9 +254,10 @@ EOF"""
                    return_value=local_ins)
         self.Patch(os, "symlink")
 
+        ins_ids = [1]
         # Success
         report = self.local_image_local_instance._CreateInstance(
-            1, artifact_paths, mock_avd_spec, no_prompts=True)
+            ins_ids, artifact_paths, mock_avd_spec, no_prompts=True)
 
         self.assertEqual(report.data.get("devices"),
                          self._EXPECTED_DEVICES_IN_REPORT)
@@ -245,14 +272,14 @@ EOF"""
         # should not call _TrustCertificatesForWebRTC
         mock_avd_spec.connect_webrtc = False
         self.local_image_local_instance._CreateInstance(
-            1, artifact_paths, mock_avd_spec, no_prompts=True)
+            ins_ids, artifact_paths, mock_avd_spec, no_prompts=True)
         self.assertEqual(_mock_create_common.call_count, 0)
 
         # Failure
         mock_launch_cvd.side_effect = errors.LaunchCVDFail("unit test")
 
         report = self.local_image_local_instance._CreateInstance(
-            1, artifact_paths, mock_avd_spec, no_prompts=True)
+            ins_ids, artifact_paths, mock_avd_spec, no_prompts=True)
 
         self.assertEqual(report.data.get("devices_failing_boot"),
                          self._EXPECTED_DEVICES_IN_FAILED_REPORT)
@@ -473,6 +500,12 @@ EOF"""
             None, True, mock_artifact_paths, "fake_cvd_dir", False, True,
             None, None, "phone", openwrt=True, use_launch_cvd=True)
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_OPENWRT)
+
+        # Test with instance_ids
+        launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
+            None, True, mock_artifact_paths, "fake_cvd_dir", False, True,
+            None, None, "phone", instance_ids=[1,2])
+        self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_INS_IDS)
 
         # Test with "cvd" doesn't exist
         self.Patch(os.path, "isfile", return_value=False)
