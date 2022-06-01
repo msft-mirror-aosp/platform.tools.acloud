@@ -95,6 +95,7 @@ _CMD_LAUNCH_CVD_VENDOR_BOOT_IMAGE_ARG = " -vendor_boot_image=%s"
 _CMD_LAUNCH_CVD_KERNEL_IMAGE_ARG = " -kernel_path=%s"
 _CMD_LAUNCH_CVD_INITRAMFS_IMAGE_ARG = " -initramfs_path=%s"
 _CMD_LAUNCH_CVD_NO_ADB_ARG = " -run_adb_connector=false"
+_CMD_LAUNCH_CVD_INSTANCE_NUMS_ARG = " -instance_nums=%s"
 # Connect the OpenWrt device via console file.
 _CMD_LAUNCH_CVD_CONSOLE_ARG = " -console=true"
 _CONFIG_RE = re.compile(r"^config=(?P<config>.+)")
@@ -157,29 +158,50 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         artifact_paths = self.GetImageArtifactsPath(avd_spec)
 
         try:
-            ins_id, ins_lock = self._SelectAndLockInstance(avd_spec)
+            ins_ids, ins_locks = self._SelectAndLockInstances(avd_spec)
         except errors.CreateError as e:
             result_report.UpdateFailure(str(e))
             return result_report
 
         try:
-            if not self._CheckRunningCvd(ins_id, no_prompts):
-                # Mark as in-use so that it won't be auto-selected again.
-                ins_lock.SetInUse(True)
-                sys.exit(constants.EXIT_BY_USER)
+            for ins_id, ins_lock in zip(ins_ids, ins_locks):
+                if not self._CheckRunningCvd(ins_id, no_prompts):
+                    # Mark as in-use so that it won't be auto-selected again.
+                    ins_lock.SetInUse(True)
+                    sys.exit(constants.EXIT_BY_USER)
 
-            result_report = self._CreateInstance(ins_id, artifact_paths,
+            result_report = self._CreateInstance(ins_ids, artifact_paths,
                                                  avd_spec, no_prompts)
             # The infrastructure is able to delete the instance only if the
             # instance name is reported. This method changes the state to
             # in-use after creating the report.
-            ins_lock.SetInUse(True)
+            for ins_lock in ins_locks:
+                ins_lock.SetInUse(True)
             return result_report
         finally:
-            ins_lock.Unlock()
+            for ins_lock in ins_locks:
+                ins_lock.Unlock()
 
-    @staticmethod
-    def _SelectAndLockInstance(avd_spec):
+    def _SelectAndLockInstances(self, avd_spec):
+        """Select the ids and lock these instances.
+
+        Args:
+            avd_spec: AVCSpec for the device.
+
+        Returns:
+            The instance ids and the LocalInstanceLock that are locked.
+        """
+        main_id, main_lock = self._SelectAndLockInstance(avd_spec)
+        ins_ids = [main_id]
+        ins_locks = [main_lock]
+        for _ in range(2, avd_spec.num_avds_per_instance + 1):
+            ins_id, ins_lock = self._SelectOneFreeInstance()
+            ins_ids.append(ins_id)
+            ins_locks.append(ins_lock)
+        logger.info("Selected instance ids: %s", ins_ids)
+        return ins_ids, ins_locks
+
+    def _SelectAndLockInstance(self, avd_spec):
         """Select an id and lock the instance.
 
         Args:
@@ -199,21 +221,32 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                 return ins_id, ins_lock
             raise errors.CreateError("Instance %d is locked by another "
                                      "process." % ins_id)
+        return self._SelectOneFreeInstance()
 
+    @staticmethod
+    def _SelectOneFreeInstance():
+        """Select one free id and lock the instance.
+
+        Returns:
+            The instance id and the LocalInstanceLock that is locked by this
+            process.
+
+        Raises:
+            errors.CreateError if fails to select or lock the instance.
+        """
         for ins_id in range(1, _MAX_INSTANCE_ID + 1):
             ins_lock = instance.GetLocalInstanceLock(ins_id)
             if ins_lock.LockIfNotInUse(timeout_secs=0):
-                logger.info("Selected instance id: %d", ins_id)
                 return ins_id, ins_lock
         raise errors.CreateError(_INSTANCES_IN_USE_MSG)
 
     #pylint: disable=too-many-locals,too-many-statements
-    def _CreateInstance(self, local_instance_id, artifact_paths, avd_spec,
+    def _CreateInstance(self, instance_ids, artifact_paths, avd_spec,
                         no_prompts):
         """Create a CVD instance.
 
         Args:
-            local_instance_id: Integer of instance id.
+            instance_ids: List of integer of instance ids.
             artifact_paths: ArtifactPaths object.
             avd_spec: AVDSpec for the instance.
             no_prompts: Boolean, True to skip all prompts.
@@ -221,6 +254,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         Returns:
             A Report instance.
         """
+        local_instance_id = instance_ids[0]
         webrtc_port = self.GetWebrtcSigServerPort(local_instance_id)
         if avd_spec.connect_webrtc:
             utils.ReleasePort(webrtc_port)
@@ -252,7 +286,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                                        avd_spec.launch_args,
                                        config or avd_spec.flavor,
                                        avd_spec.openwrt,
-                                       avd_spec.use_launch_cvd)
+                                       avd_spec.use_launch_cvd,
+                                       instance_ids)
 
         result_report = report.Report(command="create")
         instance_name = instance.GetLocalInstanceName(local_instance_id)
@@ -535,7 +570,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
     def PrepareLaunchCVDCmd(hw_property, connect_adb, artifact_paths,
                             runtime_dir, connect_webrtc, connect_vnc,
                             super_image_path, launch_args, config,
-                            openwrt=False, use_launch_cvd=False):
+                            openwrt=False, use_launch_cvd=False,
+                            instance_ids=None):
         """Prepare launch_cvd command.
 
         Create the launch_cvd commands with all the required args and add
@@ -553,6 +589,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             config: String of config name.
             openwrt: Boolean of enable OpenWrt devices.
             use_launch_cvd: Boolean of using launch_cvd for old build cases.
+            instance_ids: List of integer of instance ids.
 
         Returns:
             String, cvd start cmd.
@@ -608,6 +645,11 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
 
         if openwrt:
             launch_cvd_w_args = launch_cvd_w_args + _CMD_LAUNCH_CVD_CONSOLE_ARG
+
+        if instance_ids and len(instance_ids) > 1:
+            launch_cvd_w_args = (
+                launch_cvd_w_args +
+                _CMD_LAUNCH_CVD_INSTANCE_NUMS_ARG % ",".join(map(str,instance_ids)))
 
         if launch_args:
             launch_cvd_w_args = launch_cvd_w_args + " " + launch_args
