@@ -53,11 +53,27 @@ _REMOTE_INITRAMFS_IMAGE_PATH = remote_path.join(
 
 _ANDROID_BOOT_IMAGE_MAGIC = b"ANDROID!"
 
+# Cuttlefish runtime directory is specified by `-instance_dir <runtime_dir>`.
+# Cuttlefish tools may create a symbolic link at the specified path.
+# The actual location of the runtime directory depends on the version:
+#
+# In Android 10, the directory is `<runtime_dir>`.
+#
+# In Android 11 and 12, the directory is `<runtime_dir>.<num>`.
+# `<runtime_dir>` is a symbolic link to the first device's directory.
+#
+# In the latest version, if `--instance-dir <runtime_dir>` is specified, the
+# directory is `<runtime_dir>/instances/cvd-<num>`.
+# `<runtime_dir>_runtime` and `<runtime_dir>.<num>` are symbolic links.
+#
+# If `--instance-dir <runtime_dir>` is not specified, the directory is
+# `~/cuttlefish/instances/cvd-<num>`.
+# `~/cuttlefish_runtime` and `~/cuttelfish_runtime.<num>` are symbolic links.
+_REMOTE_RUNTIME_DIR_FORMAT = remote_path.join(
+    "cuttlefish", "instances", "cvd-%(num)d")
+_REMOTE_LEGACY_RUNTIME_DIR_FORMAT = "cuttlefish_runtime.%(num)d"
 HOST_KERNEL_LOG = report.LogFile(
     "/var/log/kern.log", constants.LOG_TYPE_KERNEL_LOG, "host_kernel.log")
-TOMBSTONES = report.LogFile(
-    constants.REMOTE_LOG_FOLDER + "/tombstones", constants.LOG_TYPE_DIR,
-    "tombstones-zip")
 FETCHER_CONFIG_JSON = report.LogFile(
     "fetcher_config.json", constants.LOG_TYPE_TEXT)
 
@@ -309,28 +325,87 @@ def CleanUpRemoteCvd(ssh_obj, raise_error):
     ssh_obj.Run("'rm -rf ./*'")
 
 
-def FindRemoteLogs(ssh_obj):
+def _GetRemoteRuntimeDirs(ssh_obj, base_instance_num, num_avds_per_instance):
+    """Get cuttlefish runtime directories on a remote host or a GCE instance.
+
+    Args:
+        ssh_obj: An Ssh object.
+        base_instance_num: An integer, the instance number of the first device.
+        num_avds_per_instance: An integer, the number of devices.
+
+    Returns:
+        A list of strings, the paths to the runtime directories.
+    """
+    runtime_dir = _REMOTE_RUNTIME_DIR_FORMAT % {"num": base_instance_num}
+    try:
+        ssh_obj.Run(f"test -d {runtime_dir}", retry=0)
+        return [_REMOTE_RUNTIME_DIR_FORMAT % {"num": base_instance_num + num}
+                for num in range(num_avds_per_instance)]
+    except subprocess.CalledProcessError:
+        logger.debug("%s is not the runtime directory.", runtime_dir)
+
+    legacy_runtime_dirs = [constants.REMOTE_LOG_FOLDER]
+    legacy_runtime_dirs.extend(_REMOTE_LEGACY_RUNTIME_DIR_FORMAT %
+                               {"num": base_instance_num + num}
+                               for num in range(1, num_avds_per_instance))
+    return legacy_runtime_dirs
+
+
+def _GetRemoteTombstone(runtime_dir, name_suffix):
+    """Get log object for tombstones in a remote cuttlefish runtime directory.
+
+    Args:
+        runtime_dir: The path to the remote cuttlefish runtime directory.
+        name_suffix: The string appended to the log name. It is used to
+                     distinguish log files found in different runtime_dirs.
+
+    Returns:
+        A report.LogFile object.
+    """
+    return report.LogFile(remote_path.join(runtime_dir, "tombstones"),
+                          constants.LOG_TYPE_DIR,
+                          "tombstones-zip" + name_suffix)
+
+
+def FindRemoteLogs(ssh_obj, base_instance_num, num_avds_per_instance):
     """Find log objects on a remote host or a GCE instance.
 
     Args:
         ssh_obj: An Ssh object.
+        base_instance_num: An integer or None, the instance number of the first
+                           device.
+        num_avds_per_instance: An integer or None, the number of devices.
 
     Returns:
         A list of report.LogFile objects.
     """
+    runtime_dirs = _GetRemoteRuntimeDirs(
+        ssh_obj, (base_instance_num or 1), (num_avds_per_instance or 1))
     logs = []
-    for log_path in utils.FindRemoteFiles(ssh_obj,
-                                          [constants.REMOTE_LOG_FOLDER]):
-        log = report.LogFile(log_path, constants.LOG_TYPE_TEXT)
-        if log_path.endswith("kernel.log"):
-            log = report.LogFile(log_path, constants.LOG_TYPE_KERNEL_LOG)
-        elif log_path.endswith("logcat"):
-            log = report.LogFile(log_path, constants.LOG_TYPE_LOGCAT,
-                                 "full_gce_logcat")
-        elif not (log_path.endswith(".log") or
-                  log_path.endswith("cuttlefish_config.json")):
+    for log_path in utils.FindRemoteFiles(ssh_obj, runtime_dirs):
+        file_name = remote_path.basename(log_path)
+        base, ext = remote_path.splitext(file_name)
+        # The index of the runtime_dir containing log_path.
+        index_str = ""
+        for index, runtime_dir in enumerate(runtime_dirs):
+            if log_path.startswith(runtime_dir + remote_path.sep):
+                index_str = "." + str(index) if index else ""
+        log_name = base + index_str + ext
+        log_type = constants.LOG_TYPE_TEXT
+
+        if file_name == "kernel.log":
+            log_type = constants.LOG_TYPE_KERNEL_LOG
+        elif file_name == "logcat":
+            log_type = constants.LOG_TYPE_LOGCAT
+            log_name = "full_gce_logcat" + index_str
+        elif not (file_name.endswith(".log") or
+                  file_name == "cuttlefish_config.json"):
             continue
-        logs.append(log)
+        logs.append(report.LogFile(log_path, log_type, log_name))
+
+    logs.extend(_GetRemoteTombstone(runtime_dir,
+                                    ("." + str(index) if index else ""))
+                for index, runtime_dir in enumerate(runtime_dirs))
     return logs
 
 
