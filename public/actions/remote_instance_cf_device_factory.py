@@ -136,12 +136,17 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             download: Whether to download the files to a temporary directory
                       and show messages to the user.
         """
-        self._all_logs[instance] = [cvd_utils.TOMBSTONES,
-                                    cvd_utils.HOST_KERNEL_LOG]
+        logs = [cvd_utils.HOST_KERNEL_LOG]
         if self._avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
-            self._all_logs[instance].append(cvd_utils.FETCHER_CONFIG_JSON)
-        self._all_logs[instance].extend(cvd_utils.FindRemoteLogs(self._ssh))
+            logs.append(cvd_utils.FETCHER_CONFIG_JSON)
+        logs.extend(cvd_utils.FindRemoteLogs(
+            self._ssh,
+            self._avd_spec.base_instance_num,
+            self._avd_spec.num_avds_per_instance))
+        self._all_logs[instance] = logs
+
         if download:
+            # To avoid long download time, fetch from the first device only.
             log_files = pull.GetAllLogFilePaths(self._ssh)
             error_log_folder = pull.PullLogs(self._ssh, log_files, instance)
             self._compute_client.ExtendReportData(constants.ERROR_LOG_FOLDER,
