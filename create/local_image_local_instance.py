@@ -296,9 +296,9 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                             artifact_paths.host_artifacts,
                             cvd_home_dir, (avd_spec.boot_timeout_secs or
                                            constants.DEFAULT_CF_BOOT_TIMEOUT))
-            logs = self._FindLogs(local_instance_id)
+            logs = cvd_utils.FindLocalLogs(runtime_dir, local_instance_id)
         except errors.LaunchCVDFail as launch_error:
-            logs = self._FindLogs(local_instance_id)
+            logs = cvd_utils.FindLocalLogs(runtime_dir, local_instance_id)
             err_msg = ("Cannot create cuttlefish instance: %s\n"
                        "For more detail: %s/launcher.log" %
                        (launch_error, runtime_dir))
@@ -802,20 +802,3 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             split_stderr = stderr.splitlines()[-_MAX_REPORTED_ERROR_LINES:]
             raise errors.LaunchCVDFail(
                 "%s Stderr:\n%s" % (error_msg, "\n".join(split_stderr)))
-
-    @staticmethod
-    def _FindLogs(local_instance_id):
-        """Find log paths that will be written to report.
-
-        Args:
-            local_instance_id: An integer, the instance id.
-
-        Returns:
-            A list of report.LogFile.
-        """
-        log_dir = instance.GetLocalInstanceLogDir(local_instance_id)
-        return [report.LogFile(os.path.join(log_dir, name), log_type)
-                for name, log_type in [
-                    ("launcher.log", constants.LOG_TYPE_TEXT),
-                    ("kernel.log", constants.LOG_TYPE_KERNEL_LOG),
-                    ("logcat", constants.LOG_TYPE_LOGCAT)]]
