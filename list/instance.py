@@ -278,7 +278,7 @@ def GetCuttleFishLocalInstances(cf_config_path):
 
 def _GetCurrentLocalTime():
     """Return a datetime object for current time in local time zone."""
-    return datetime.datetime.now(dateutil.tz.tzlocal())
+    return datetime.datetime.now(dateutil.tz.tzlocal()).replace(microsecond=0)
 
 
 def _GetElapsedTime(start_time):
@@ -296,10 +296,11 @@ def _GetElapsedTime(start_time):
         # Check start_time has timezone or not. If timezone can't be found,
         # use local timezone to get elapsed time.
         if match:
-            return _GetCurrentLocalTime() - dateutil.parser.parse(start_time)
+            return _GetCurrentLocalTime() - dateutil.parser.parse(
+                start_time).replace(microsecond=0)
 
         return _GetCurrentLocalTime() - dateutil.parser.parse(
-            start_time).replace(tzinfo=dateutil.tz.tzlocal())
+            start_time).replace(tzinfo=dateutil.tz.tzlocal(), microsecond=0)
     except ValueError:
         logger.debug(("Can't parse datetime string(%s)."), start_time)
         return _MSG_UNABLE_TO_CALCULATE
