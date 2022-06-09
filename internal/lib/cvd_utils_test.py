@@ -46,6 +46,35 @@ class CvdUtilsTest(unittest.TestCase):
         self.assertEqual([6444], cvd_utils.GetVncPorts(1, 1))
         self.assertEqual([6445, 6446], cvd_utils.GetVncPorts(2, 2))
 
+    @mock.patch("acloud.internal.lib.cvd_utils.os.path.isdir")
+    def testFindLocalLogs(self, mock_isdir):
+        """Test FindLocalLogs."""
+        mock_isdir.return_value = False
+        expected_logs = [
+            {"path": "/dir/launcher.log", "type": constants.LOG_TYPE_TEXT},
+            {"path": "/dir/kernel.log", "type": constants.LOG_TYPE_KERNEL_LOG},
+            {"path": "/dir/logcat", "type": constants.LOG_TYPE_LOGCAT},
+        ]
+        self.assertEqual(expected_logs, cvd_utils.FindLocalLogs("/dir", 1))
+
+        expected_path = "/dir/instances/cvd-2/logs"
+        mock_isdir.side_effect = lambda path: path == expected_path
+        expected_logs = [
+            {
+                "path": "/dir/instances/cvd-2/logs/launcher.log",
+                "type": constants.LOG_TYPE_TEXT
+            },
+            {
+                "path": "/dir/instances/cvd-2/logs/kernel.log",
+                "type": constants.LOG_TYPE_KERNEL_LOG
+            },
+            {
+                "path": "/dir/instances/cvd-2/logs/logcat",
+                "type": constants.LOG_TYPE_LOGCAT
+            },
+        ]
+        self.assertEqual(expected_logs, cvd_utils.FindLocalLogs("/dir", 2))
+
     @staticmethod
     @mock.patch("acloud.internal.lib.cvd_utils.os.path.isdir",
                 return_value=False)
