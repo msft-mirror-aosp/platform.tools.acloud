@@ -13,12 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Common operations between managing GCE and Cuttlefish devices.
-
-This module provides the common operations between managing GCE (device_driver)
-and Cuttlefish (create_cuttlefish_action) devices. Should not be called
-directly.
-"""
+"""Common operations to create remote devices."""
 
 import logging
 import os
