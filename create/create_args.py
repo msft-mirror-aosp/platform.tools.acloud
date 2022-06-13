@@ -625,7 +625,7 @@ def GetCreateArgParser(subparser):
         dest="emulator_build_target",
         required=False,
         help="'goldfish remote host only' Emulator build target used to run "
-        "the images. e.g. emulator-linux_x64_nolocation.")
+        "the images. e.g. emulator-linux_x64_nolocationui.")
 
     # Arguments for cheeps type.
     create_parser.add_argument(
