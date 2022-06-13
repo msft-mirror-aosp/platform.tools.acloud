@@ -214,7 +214,7 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
 
         Args:
             build_target: The emulator build target name, e.g.,
-                          "sdk_tools_linux", "aarch64_sdk_tools_mac".
+                          "emulator-linux_x64_nolocation", "aarch64_sdk_tools_mac".
             build_id: A string, the emulator build ID.
 
         Returns:
