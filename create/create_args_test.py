@@ -82,13 +82,13 @@ class CreateArgsTest(driver_test_lib.BaseDriverTest):
         # emulator_build_target with wrong avd_type.
         mock_args.avd_type = constants.TYPE_CF
         mock_args.emulator_build_id = None
-        mock_args.emulator_build_target = "emulator-linux_x64_nolocation"
+        mock_args.emulator_build_target = "emulator-linux_x64_nolocationui"
         mock_args.remote_host = "192.0.2.2"
         self.assertRaises(errors.UnsupportedCreateArgs,
                           create_args.VerifyArgs, mock_args)
         # emulator_build_target without remote_host.
         mock_args.avd_type = constants.TYPE_GF
-        mock_args.emulator_build_target = "emulator-linux_x64_nolocation"
+        mock_args.emulator_build_target = "emulator-linux_x64_nolocationui"
         mock_args.remote_host = None
         self.assertRaises(errors.UnsupportedCreateArgs,
                           create_args.VerifyArgs, mock_args)
@@ -106,7 +106,7 @@ class CreateArgsTest(driver_test_lib.BaseDriverTest):
         self.assertRaises(errors.UnsupportedCreateArgs,
                           create_args.VerifyArgs, mock_args)
         # Valid build info.
-        mock_args.emulator_build_target = "emulator-linux_x64_nolocation"
+        mock_args.emulator_build_target = "emulator-linux_x64_nolocationui"
         mock_args.system_branch = "aosp-master"
         mock_args.system_build_target = "aosp_x86_64-userdebug"
         mock_args.system_build_id = "123456"
