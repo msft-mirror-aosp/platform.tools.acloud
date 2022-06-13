@@ -48,7 +48,7 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
     _CFG_ATTRS = {
         "ssh_private_key_path": "cfg_key_path",
         "extra_args_ssh_tunnel": "extra args",
-        "emulator_build_target": "sdk_tools_linux",
+        "emulator_build_target": "emulator-linux_x64_nolocation",
     }
     _AVD_SPEC_ATTRS = {
         "cfg": None,
@@ -155,7 +155,7 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.assertEqual({instance_name: self._LOGS}, factory.GetLogs())
         # Artifacts.
         self._mock_android_build_client.DownloadArtifact.assert_any_call(
-            "sdk_tools_linux", "111111",
+            "emulator-linux_x64_nolocation", "111111",
             "sdk-repo-linux-emulator-111111.zip", mock.ANY, mock.ANY)
         self._mock_android_build_client.DownloadArtifact.assert_any_call(
             "sdk_x86_64-sdk", "123456",
