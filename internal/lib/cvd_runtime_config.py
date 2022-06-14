@@ -122,7 +122,7 @@ class CvdRuntimeConfig():
                                                              raw_data)
         self._instances = self._config_dict.get(_CFG_KEY_INSTANCES)
         self._instance_ids = self._instances.keys()
-        self._display_configs = self._config_dict.get(_CFG_KEY_DISPLAY_CONFIGS)
+        self._display_configs = self._config_dict.get(_CFG_KEY_DISPLAY_CONFIGS, {})
         self._root_dir = self._config_dict.get(_CFG_KEY_ROOT_DIR)
         crosvm_bin = self._config_dict.get(_CFG_KEY_CROSVM_BINARY)
         self._cvd_tools_path = (os.path.dirname(crosvm_bin)

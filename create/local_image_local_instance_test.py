@@ -92,11 +92,7 @@ EOF"""
             "adb_port": 6520,
             "vnc_port": 6444,
             "webrtc_port": 8443,
-            'logs': [
-                {'path': '/log/launcher.log', 'type': 'TEXT'},
-                {'path': '/log/kernel.log', 'type': 'KERNEL_LOG'},
-                {'path': '/log/logcat', 'type': 'LOGCAT'}
-            ],
+            'logs': [{'path': '/log/launcher.log', 'type': 'TEXT'}],
             "screen_command": "screen /instances/cvd/console"
         }
     ]
@@ -105,11 +101,7 @@ EOF"""
         {
             "instance_name": "local-instance-1",
             "ip": "0.0.0.0",
-            'logs': [
-                {'path': '/log/launcher.log', 'type': 'TEXT'},
-                {'path': '/log/kernel.log', 'type': 'KERNEL_LOG'},
-                {'path': '/log/logcat', 'type': 'LOGCAT'}
-            ]
+            'logs': [{'path': '/log/launcher.log', 'type': 'TEXT'}],
         }
     ]
 
@@ -222,18 +214,22 @@ EOF"""
                        "_LaunchCvd")
     @mock.patch.object(local_image_local_instance.LocalImageLocalInstance,
                        "PrepareLaunchCVDCmd")
+    @mock.patch("acloud.create.local_image_local_instance.cvd_utils")
     @mock.patch("acloud.create.local_image_local_instance.instance")
-    def testCreateInstance(self, mock_instance,
+    def testCreateInstance(self, mock_instance, mock_cvd_utils,
                            _mock_prepare_cmd, mock_launch_cvd,
                            _mock_create_common, mock_ota_tools, _mock_utils,
-                           _mock_trust_certs):
+                           mock_trust_certs):
         """Test the report returned by _CreateInstance."""
         mock_instance.GetLocalInstanceHomeDir.return_value = (
             "/local-instance-1")
         mock_instance.GetLocalInstanceName.return_value = "local-instance-1"
-        mock_instance.GetLocalInstanceLogDir.return_value = "/log"
+        mock_instance.GetLocalInstanceRuntimeDir.return_value = (
+            "/instances/cvd")
         mock_instance.GetLocalInstanceConfig.return_value = (
             "/instances/cvd/config")
+        mock_cvd_utils.FindLocalLogs.return_value = [
+            {'path': '/log/launcher.log', 'type': 'TEXT'}]
         artifact_paths = local_image_local_instance.ArtifactPaths(
             "/image/path", "/host/bin/path", "/host/usr/path", "/misc/info/path",
             "/ota/tools/dir", "/system/image/path", "/boot/image/path",
@@ -264,18 +260,21 @@ EOF"""
         mock_ota_tools.OtaTools.assert_called_with("/ota/tools/dir")
         mock_ota_tools_object.BuildSuperImage.assert_called_with(
             "/local-instance-1/mixed_super.img", "/misc/info/path", mock.ANY)
+        mock_cvd_utils.FindLocalLogs.assert_called_with(
+            "/instances/cvd", 1)
 
         # should call _TrustCertificatesForWebRTC
-        _mock_trust_certs.assert_called_once()
-        _mock_trust_certs.reset_mock()
+        mock_trust_certs.assert_called_once()
+        mock_trust_certs.reset_mock()
 
         # should not call _TrustCertificatesForWebRTC
         mock_avd_spec.connect_webrtc = False
         self.local_image_local_instance._CreateInstance(
             ins_ids, artifact_paths, mock_avd_spec, no_prompts=True)
-        self.assertEqual(_mock_create_common.call_count, 0)
+        mock_trust_certs.assert_not_called()
 
         # Failure
+        mock_cvd_utils.reset_mock()
         mock_launch_cvd.side_effect = errors.LaunchCVDFail("unit test")
 
         report = self.local_image_local_instance._CreateInstance(
@@ -284,6 +283,8 @@ EOF"""
         self.assertEqual(report.data.get("devices_failing_boot"),
                          self._EXPECTED_DEVICES_IN_FAILED_REPORT)
         self.assertIn("unit test", report.errors[0])
+        mock_cvd_utils.FindLocalLogs.assert_called_with(
+            "/instances/cvd", 1)
 
     # pylint: disable=protected-access
     @mock.patch("acloud.create.local_image_local_instance.os.path.isfile")

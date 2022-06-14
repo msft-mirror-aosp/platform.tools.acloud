@@ -69,6 +69,8 @@ _ANDROID_BOOT_IMAGE_MAGIC = b"ANDROID!"
 # If `--instance-dir <runtime_dir>` is not specified, the directory is
 # `~/cuttlefish/instances/cvd-<num>`.
 # `~/cuttlefish_runtime` and `~/cuttelfish_runtime.<num>` are symbolic links.
+_LOCAL_LOG_DIR_FORMAT = os.path.join(
+    "%(runtime_dir)s", "instances", "cvd-%(num)d", "logs")
 _REMOTE_RUNTIME_DIR_FORMAT = remote_path.join(
     "cuttlefish", "instances", "cvd-%(num)d")
 _REMOTE_LEGACY_RUNTIME_DIR_FORMAT = "cuttlefish_runtime.%(num)d"
@@ -407,6 +409,27 @@ def FindRemoteLogs(ssh_obj, base_instance_num, num_avds_per_instance):
                                     ("." + str(index) if index else ""))
                 for index, runtime_dir in enumerate(runtime_dirs))
     return logs
+
+
+def FindLocalLogs(runtime_dir, instance_num):
+    """Find log objects in a local runtime directory.
+
+    Args:
+        runtime_dir: A string, the runtime directory path.
+        instance_num: An integer, the instance number.
+
+    Returns:
+        A list of report.LogFile.
+    """
+    log_dir = _LOCAL_LOG_DIR_FORMAT % {"runtime_dir": runtime_dir,
+                                       "num": instance_num}
+    if not os.path.isdir(log_dir):
+        log_dir = runtime_dir
+    return [report.LogFile(os.path.join(log_dir, name), log_type)
+            for name, log_type in [
+                ("launcher.log", constants.LOG_TYPE_TEXT),
+                ("kernel.log", constants.LOG_TYPE_KERNEL_LOG),
+                ("logcat", constants.LOG_TYPE_LOGCAT)]]
 
 
 def GetRemoteBuildInfoDict(avd_spec):
