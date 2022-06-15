@@ -253,6 +253,13 @@ def AddCommonCreateArgs(parser):
         help="'cuttlefish only' Add extra args to launch_cvd command.",
         required=False)
     parser.add_argument(
+        "--pet-name",
+        "--webrtc_device_id",
+        type=str,
+        dest="webrtc_device_id",
+        help="'cuttlefish only' Give the pet name of the instance.",
+        required=False)
+    parser.add_argument(
         "--gce-metadata",
         type=str,
         dest="gce_metadata",
