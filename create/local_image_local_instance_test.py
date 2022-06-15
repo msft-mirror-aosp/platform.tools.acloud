@@ -75,6 +75,11 @@ sg group2
 bin/launch_cvd -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -start_vnc_server=true -console=true
 EOF"""
 
+    LAUNCH_CVD_CMD_WITH_PET_NAME = """sg group1 <<EOF
+sg group2
+bin/cvd start -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -start_vnc_server=true -webrtc_device_id=pet-name
+EOF"""
+
     LAUNCH_CVD_CMD_WITH_NO_CVD = """sg group1 <<EOF
 sg group2
 bin/launch_cvd -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -start_vnc_server=true
@@ -507,6 +512,12 @@ EOF"""
             None, True, mock_artifact_paths, "fake_cvd_dir", False, True,
             None, None, "phone", instance_ids=[1,2])
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_INS_IDS)
+
+        # Test with "pet-name"
+        launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
+            None, True, mock_artifact_paths, "fake_cvd_dir", False, True,
+            None, None, "phone", webrtc_device_id="pet-name")
+        self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_PET_NAME)
 
         # Test with "cvd" doesn't exist
         self.Patch(os.path, "isfile", return_value=False)
