@@ -126,6 +126,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.args.autoconnect = False
         self.args.disk_type = self.DISK_TYPE
         self.args.openwrt = False
+        self.args.webrtc_device_id = "cvd-1"
 
     # pylint: disable=protected-access
     @mock.patch.object(utils, "GetBuildEnvironmentVariable", return_value="fake_env_cf_x86")
@@ -146,11 +147,16 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(launch_cvd_args, expected_args)
 
         self.args.openwrt = True
+        self.args.autoconnect = constants.INS_KEY_WEBRTC
+        self.args.webrtc_device_id = "pet-name"
+
         fake_avd_spec = avd_spec.AVDSpec(self.args)
         expected_args = ["-config=phone", "-x_res=1080", "-y_res=1920", "-dpi=240",
                          "-data_policy=always_create", "-blank_data_image_mb=10240",
-                         "-cpus=2", "-memory_mb=4096", "-console=true",
-                         "-num_instances=2", "--setupwizard_mode=REQUIRED",
+                         "-cpus=2", "-memory_mb=4096", "--start_webrtc",
+                         "--vm_manager=crosvm", "--webrtc_device_id=pet-name",
+                         "-console=true", "-num_instances=2",
+                         "--setupwizard_mode=REQUIRED",
                          "-undefok=report_anonymous_usage_stats,config",
                          "-report_anonymous_usage_stats=y"]
         launch_cvd_args = self.cvd_compute_client_multi_stage._GetLaunchCvdArgs(fake_avd_spec)
@@ -179,8 +185,8 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
                            _get_image, _compare_machine_size, mock_check_img,
                            _mock_env):
         """Test CreateInstance."""
-        expected_metadata = dict()
-        expected_metadata_local_image = dict()
+        expected_metadata = {}
+        expected_metadata_local_image = {}
         expected_metadata.update(self.METADATA)
         expected_metadata_local_image.update(self.METADATA)
         remote_image_metadata = dict(expected_metadata)
@@ -230,6 +236,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
             self.EXTRA_DATA_DISK_SIZE_GB * 1024)
         local_image_metadata["avd_type"] = constants.TYPE_CF
         local_image_metadata["flavor"] = "phone"
+        local_image_metadata[constants.INS_KEY_WEBRTC_DEVICE_ID] = "cvd-1"
         local_image_metadata[constants.INS_KEY_DISPLAY] = ("%sx%s (%s)" % (
             fake_avd_spec.hw_property[constants.HW_X_RES],
             fake_avd_spec.hw_property[constants.HW_Y_RES],
@@ -258,7 +265,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
     def testFormatRemoteHostInstanceName(self):
         """Test FormatRemoteHostInstanceName."""
         name = self.cvd_compute_client_multi_stage.FormatRemoteHostInstanceName(
-            self.REMOTE_HOST_IP, self.BUILD_ID, self.TARGET.split("-")[0])
+            self.REMOTE_HOST_IP, self.BUILD_ID, self.TARGET.split("-", maxsplit=1)[0])
         self.assertEqual(name, self.REMOTE_HOST_INSTANCE_NAME)
 
     def testParseRemoteHostAddress(self):
