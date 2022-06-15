@@ -63,6 +63,7 @@ _NUM_AVDS_ARG = "-num_instances=%(num_AVD)s"
 # Connect the OpenWrt device via console file.
 _ENABLE_CONSOLE_ARG = "-console=true"
 _DEFAULT_BRANCH = "aosp-master"
+_DEFAULT_WEBRTC_DEVICE_ID = "cvd-1"
 _FETCHER_BUILD_TARGET = "aosp_cf_x86_64_phone-userdebug"
 _FETCHER_NAME = "fetch_cvd"
 # Time info to write in report.
@@ -299,14 +300,13 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
 
     # pylint: disable=too-many-branches
     def _GetLaunchCvdArgs(self, avd_spec=None, blank_data_disk_size_gb=None,
-                          decompress_kernel=None, instance=None):
+                          decompress_kernel=None):
         """Get launch_cvd args.
 
         Args:
             avd_spec: An AVDSpec instance.
             blank_data_disk_size_gb: Size of the blank data disk in GB.
             decompress_kernel: Boolean, if true decompress the kernel.
-            instance: String, instance name.
 
         Returns:
             String, args of launch_cvd.
@@ -344,7 +344,9 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                         "-memory_mb=%s" % avd_spec.hw_property[constants.HW_ALIAS_MEMORY])
             if avd_spec.connect_webrtc:
                 launch_cvd_args.extend(_WEBRTC_ARGS)
-                launch_cvd_args.append(_WEBRTC_ID % {"instance": instance})
+                if avd_spec.webrtc_device_id:
+                    launch_cvd_args.append(
+                        _WEBRTC_ID % {"instance": avd_spec.webrtc_device_id})
             if avd_spec.connect_vnc:
                 launch_cvd_args.extend(_VNC_ARGS)
             if avd_spec.openwrt:
@@ -405,7 +407,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         launch_cvd_args = list(extra_args)
         launch_cvd_args.extend(
             self._GetLaunchCvdArgs(avd_spec, blank_data_disk_size_gb,
-                                   decompress_kernel, instance))
+                                   decompress_kernel))
         boot_timeout_secs = self._GetBootTimeout(
             boot_timeout_secs or constants.DEFAULT_CF_BOOT_TIMEOUT)
         ssh_command = "./bin/launch_cvd -daemon " + " ".join(launch_cvd_args)
@@ -489,6 +491,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         if avd_spec:
             metadata[constants.INS_KEY_AVD_TYPE] = avd_spec.avd_type
             metadata[constants.INS_KEY_AVD_FLAVOR] = avd_spec.flavor
+            metadata[constants.INS_KEY_WEBRTC_DEVICE_ID] = (
+                avd_spec.webrtc_device_id or _DEFAULT_WEBRTC_DEVICE_ID)
             metadata[constants.INS_KEY_DISPLAY] = ("%sx%s (%s)" % (
                 avd_spec.hw_property[constants.HW_X_RES],
                 avd_spec.hw_property[constants.HW_Y_RES],

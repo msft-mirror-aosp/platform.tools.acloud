@@ -98,6 +98,7 @@ _CMD_LAUNCH_CVD_NO_ADB_ARG = " -run_adb_connector=false"
 _CMD_LAUNCH_CVD_INSTANCE_NUMS_ARG = " -instance_nums=%s"
 # Connect the OpenWrt device via console file.
 _CMD_LAUNCH_CVD_CONSOLE_ARG = " -console=true"
+_CMD_LAUNCH_CVD_WEBRTC_DEIVE_ID = " -webrtc_device_id=%s"
 _CONFIG_RE = re.compile(r"^config=(?P<config>.+)")
 _CONSOLE_NAME = "console"
 # Files to store the output when launching cvds.
@@ -287,7 +288,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                                        config or avd_spec.flavor,
                                        avd_spec.openwrt,
                                        avd_spec.use_launch_cvd,
-                                       instance_ids)
+                                       instance_ids,
+                                       avd_spec.webrtc_device_id)
 
         result_report = report.Report(command="create")
         instance_name = instance.GetLocalInstanceName(local_instance_id)
@@ -571,7 +573,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                             runtime_dir, connect_webrtc, connect_vnc,
                             super_image_path, launch_args, config,
                             openwrt=False, use_launch_cvd=False,
-                            instance_ids=None):
+                            instance_ids=None, webrtc_device_id=None):
         """Prepare launch_cvd command.
 
         Create the launch_cvd commands with all the required args and add
@@ -590,6 +592,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             openwrt: Boolean of enable OpenWrt devices.
             use_launch_cvd: Boolean of using launch_cvd for old build cases.
             instance_ids: List of integer of instance ids.
+            webrtc_device_id: String of webrtc device id.
 
         Returns:
             String, cvd start cmd.
@@ -650,6 +653,10 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             launch_cvd_w_args = (
                 launch_cvd_w_args +
                 _CMD_LAUNCH_CVD_INSTANCE_NUMS_ARG % ",".join(map(str,instance_ids)))
+
+        if webrtc_device_id:
+            launch_cvd_w_args = (launch_cvd_w_args +
+                                 _CMD_LAUNCH_CVD_WEBRTC_DEIVE_ID % webrtc_device_id)
 
         if launch_args:
             launch_cvd_w_args = launch_cvd_w_args + " " + launch_args
