@@ -22,6 +22,7 @@ import os
 import unittest
 
 from unittest import mock
+import six
 
 # pylint: disable=import-error
 from acloud import errors
@@ -72,7 +73,7 @@ class ComputeClientTest(driver_test_lib.BaseDriverTest):
 
     def setUp(self):
         """Set up test."""
-        super().setUp()
+        super(ComputeClientTest, self).setUp()
         self.Patch(gcompute_client.ComputeClient, "InitResourceHandle")
         fake_cfg = mock.MagicMock()
         fake_cfg.project = PROJECT
@@ -150,7 +151,7 @@ class ComputeClientTest(driver_test_lib.BaseDriverTest):
         self._SetupMocksForGetOperationStatus(
             {"error": {"errors": ["error1", "error2"]}},
             gcompute_client.OperationScope.GLOBAL)
-        self.assertRaisesRegex(
+        six.assertRaisesRegex(self,
                               errors.DriverError,
                               "Get operation state failed.*error1.*error2",
                               self.compute_client._GetOperationStatus,
@@ -341,7 +342,8 @@ class ComputeClientTest(driver_test_lib.BaseDriverTest):
                 "source": GS_IMAGE_SOURCE_URI,
             },
         }
-        self.assertRaisesRegex(
+        six.assertRaisesRegex(
+            self,
             errors.DriverError,
             "Expected fake error",
             self.compute_client.CreateImage,
@@ -1123,7 +1125,8 @@ class ComputeClientTest(driver_test_lib.BaseDriverTest):
                 instance=self.INSTANCE, zone=self.ZONE)
             self.assertEqual(result, "fake contents")
         else:
-            self.assertRaisesRegex(
+            six.assertRaisesRegex(
+                self,
                 errors.DriverError,
                 "Malformed response.*",
                 self.compute_client.GetSerialPortOutput,
@@ -1240,17 +1243,18 @@ class ComputeClientTest(driver_test_lib.BaseDriverTest):
         """Test the rsa key path not exists."""
         fake_ssh_rsa_path = "/path/to/test_rsa.pub"
         self.Patch(os.path, "exists", return_value=False)
-        self.assertRaisesRegex(errors.DriverError,
-                               "RSA file %s does not exist." % fake_ssh_rsa_path,
-                               gcompute_client.GetRsaKey,
-                               ssh_rsa_path=fake_ssh_rsa_path)
+        six.assertRaisesRegex(self,
+                              errors.DriverError,
+                              "RSA file %s does not exist." % fake_ssh_rsa_path,
+                              gcompute_client.GetRsaKey,
+                              ssh_rsa_path=fake_ssh_rsa_path)
 
     def testGetRsaKey(self):
         """Test get the rsa key."""
         fake_ssh_rsa_path = "/path/to/test_rsa.pub"
         self.Patch(os.path, "exists", return_value=True)
         m = mock.mock_open(read_data=self.SSHKEY)
-        with mock.patch("builtins.open", m):
+        with mock.patch.object(six.moves.builtins, "open", m):
             result = gcompute_client.GetRsaKey(fake_ssh_rsa_path)
             self.assertEqual(self.SSHKEY, result)
 
@@ -1382,7 +1386,7 @@ class ComputeClientTest(driver_test_lib.BaseDriverTest):
         self.Patch(
             gcompute_client.ComputeClient, "GetInstance",
             return_value=instance_metadata_key_not_exist)
-        with mock.patch("builtins.open", m):
+        with mock.patch.object(six.moves.builtins, "open", m):
             self.compute_client.AddSshRsaInstanceMetadata(
                 fake_user,
                 "/path/to/test_rsa.pub",
@@ -1398,7 +1402,7 @@ class ComputeClientTest(driver_test_lib.BaseDriverTest):
         self.Patch(
             gcompute_client.ComputeClient, "GetInstance",
             return_value=instance_metadata_key_exist)
-        with mock.patch("builtins.open", m):
+        with mock.patch.object(six.moves.builtins, "open", m):
             self.compute_client.AddSshRsaInstanceMetadata(
                 fake_user,
                 "/path/to/test_rsa.pub",

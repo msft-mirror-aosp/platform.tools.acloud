@@ -45,7 +45,6 @@ class CheepsComputeClientTest(driver_test_lib.BaseDriverTest):
     USER = "test_user"
     PASSWORD = "test_password"
     CHEEPS_BETTY_IMAGE = 'abcasdf'
-    CHEEPS_FEATURES = ['a', 'b', 'c']
 
     def _GetFakeConfig(self):
         """Create a fake configuration object.
@@ -67,7 +66,7 @@ class CheepsComputeClientTest(driver_test_lib.BaseDriverTest):
     def setUp(self):
         """Set up the test."""
 
-        super().setUp()
+        super(CheepsComputeClientTest, self).setUp()
         self.Patch(cheeps_compute_client.CheepsComputeClient,
                    "InitResourceHandle")
         self.cheeps_compute_client = (
@@ -89,7 +88,6 @@ class CheepsComputeClientTest(driver_test_lib.BaseDriverTest):
             'android_build_target': self.ANDROID_BUILD_TARGET,
             'avd_type': "cheeps",
             'betty_image': self.CHEEPS_BETTY_IMAGE,
-            'cheeps_features': ','.join(self.CHEEPS_FEATURES),
             'cvd_01_dpi': str(self.DPI),
             'cvd_01_x_res': str(self.X_RES),
             'cvd_01_y_res': str(self.Y_RES),
@@ -111,9 +109,8 @@ class CheepsComputeClientTest(driver_test_lib.BaseDriverTest):
         avd_spec.remote_image = {
             constants.BUILD_ID: self.ANDROID_BUILD_ID,
             constants.BUILD_TARGET: self.ANDROID_BUILD_TARGET,
+            constants.CHEEPS_BETTY_IMAGE: self.CHEEPS_BETTY_IMAGE,
         }
-        avd_spec.cheeps_betty_image = self.CHEEPS_BETTY_IMAGE
-        avd_spec.cheeps_features = self.CHEEPS_FEATURES
 
         self.cheeps_compute_client.CreateInstance(
             self.INSTANCE,
@@ -139,7 +136,6 @@ class CheepsComputeClientTest(driver_test_lib.BaseDriverTest):
             'android_build_target': self.ANDROID_BUILD_TARGET,
             'avd_type': "cheeps",
             'betty_image': None,
-            'cheeps_features': "",
             'cvd_01_dpi': str(self.DPI),
             'cvd_01_x_res': str(self.X_RES),
             'cvd_01_y_res': str(self.Y_RES),
@@ -160,9 +156,8 @@ class CheepsComputeClientTest(driver_test_lib.BaseDriverTest):
         avd_spec.remote_image = {
             constants.BUILD_ID: self.ANDROID_BUILD_ID,
             constants.BUILD_TARGET: self.ANDROID_BUILD_TARGET,
+            constants.CHEEPS_BETTY_IMAGE: None,
         }
-        avd_spec.cheeps_betty_image = None
-        avd_spec.cheeps_features = []
 
         self.cheeps_compute_client.CreateInstance(
             self.INSTANCE,
