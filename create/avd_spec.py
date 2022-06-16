@@ -361,7 +361,8 @@ class AVDSpec():
         self._use_launch_cvd = args.use_launch_cvd
         self._serial_log_file = args.serial_log_file
         self._emulator_build_id = args.emulator_build_id
-        self._emulator_build_target = args.emulator_build_target
+        self._emulator_build_target = (args.emulator_build_target
+                                       or self._cfg.emulator_build_target)
         self._gpu = args.gpu
         self._disk_type = (args.disk_type or self._cfg.disk_type)
         self._base_instance_num = args.base_instance_num
