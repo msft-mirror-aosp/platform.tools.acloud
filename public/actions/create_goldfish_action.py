@@ -235,6 +235,7 @@ def CreateDevices(avd_spec=None,
                   build_id=None,
                   emulator_build_id=None,
                   emulator_branch=None,
+                  emulator_build_target=None,
                   kernel_build_id=None,
                   kernel_branch=None,
                   kernel_build_target=None,
@@ -255,7 +256,8 @@ def CreateDevices(avd_spec=None,
         build_id: String, Build id, e.g. "2263051", "P2804227"
         branch: String, Branch name for system image.
         emulator_build_id: String, emulator build id.
-        emulator_branch: String, Emulator branch name.
+        emulator_branch: String, emulator branch name.
+        emulator_build_target: String, emulator build target.
         gpu: String, GPU to attach to the device or None. e.g. "nvidia-k80"
         kernel_build_id: Kernel build id, a string.
         kernel_branch: Kernel branch name, a string.
@@ -284,12 +286,16 @@ def CreateDevices(avd_spec=None,
         branch = avd_spec.remote_image[constants.BUILD_BRANCH]
         num = avd_spec.num
         emulator_build_id = avd_spec.emulator_build_id
+        emulator_build_target = avd_spec.emulator_build_target
         gpu = avd_spec.gpu
         serial_log_file = avd_spec.serial_log_file
         autoconnect = avd_spec.autoconnect
         report_internal_ip = avd_spec.report_internal_ip
         client_adb_port = avd_spec.client_adb_port
         boot_timeout_secs = avd_spec.boot_timeout_secs
+
+    if not emulator_build_target:
+        emulator_build_target = cfg.emulator_build_target
 
     # If emulator_build_id and emulator_branch is None, retrieve emulator
     # build id from platform build emulator-info.txt artifact
@@ -312,7 +318,7 @@ def CreateDevices(avd_spec=None,
     # Example: version-sysimage-git_pi-dev-sdk_gphone_x86_64-userdebug=4833817
     if not build_id and not branch:
         build_id = _FetchBuildIdFromFile(cfg,
-                                         cfg.emulator_build_target,
+                                         emulator_build_target,
                                          emulator_build_id,
                                          _SYSIMAGE_INFO_FILENAME)
 
@@ -330,7 +336,7 @@ def CreateDevices(avd_spec=None,
 
     device_factory = GoldfishDeviceFactory(
         cfg, build_target, build_id,
-        cfg.emulator_build_target,
+        emulator_build_target,
         emulator_build_id, gpu=gpu,
         avd_spec=avd_spec, tags=tags,
         branch=branch,
