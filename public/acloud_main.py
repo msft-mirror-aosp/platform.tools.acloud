@@ -197,6 +197,12 @@ def _ParseArgs(args):
         help="Emulator build branch name, e.g. aosp-emu-master-dev. If specified"
         " without emulator_build_id, the last green build will be used.")
     create_gf_parser.add_argument(
+        "--emulator-build-target",
+        dest="emulator_build_target",
+        required=False,
+        help="Emulator build target used to run the images. e.g. "
+        "emulator-linux_x64_nolocationui.")
+    create_gf_parser.add_argument(
         "--base_image",
         type=str,
         dest="base_image",
@@ -406,10 +412,11 @@ def main(argv=None):
         reporter = create_goldfish_action.CreateDevices(
             cfg=cfg,
             build_target=args.build_target,
+            branch=args.branch,
             build_id=args.build_id,
             emulator_build_id=args.emulator_build_id,
-            branch=args.branch,
             emulator_branch=args.emulator_branch,
+            emulator_build_target=args.emulator_build_target,
             kernel_build_id=args.kernel_build_id,
             kernel_branch=args.kernel_branch,
             kernel_build_target=args.kernel_build_target,
