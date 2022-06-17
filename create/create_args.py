@@ -206,6 +206,32 @@ def AddCommonCreateArgs(parser):
         help="Goldfish remote host only. The name of the boot image to be "
         "retrieved from Android build, e.g., boot-5.10.img.")
     parser.add_argument(
+        "--boot-build-id",
+        type=str,
+        dest="boot_build_id",
+        required=False,
+        help="Boot image build ID, e.g., 8747889, 8748012.")
+    parser.add_argument(
+        "--boot-branch",
+        type=str,
+        dest="boot_branch",
+        required=False,
+        help="Boot image branch, e.g., aosp-gki13-boot-release, aosp-master.")
+    parser.add_argument(
+        "--boot-build-target",
+        type=str,
+        dest="boot_build_target",
+        required=False,
+        help="Boot image build target, "
+        "e.g., gki_x86_64-userdebug, aosp_cf_x86_64_phone-userdebug.")
+    parser.add_argument(
+        "--boot-artifact",
+        type=str,
+        dest="boot_artifact",
+        required=False,
+        help="The name of the boot image to be retrieved from Android build, "
+        "e.g., boot-5.10.img, boot.img.")
+    parser.add_argument(
         "--ota-branch",
         type=str,
         dest="ota_branch",
