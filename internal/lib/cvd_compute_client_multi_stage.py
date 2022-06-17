@@ -500,31 +500,16 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         os.rmdir(download_dir)
 
     @utils.TimeExecute(function_description="Downloading build on instance")
-    def FetchBuild(self, build_id, branch, build_target, system_build_id,
-                   system_branch, system_build_target, kernel_build_id,
-                   kernel_branch, kernel_build_target, bootloader_build_id,
-                   bootloader_branch, bootloader_build_target, ota_build_id,
-                   ota_branch, ota_build_target):
+    def FetchBuild(self, default_build_info, system_build_info,
+                   kernel_build_info, bootloader_build_info, ota_build_info):
         """Execute fetch_cvd on the remote instance to get Cuttlefish runtime files.
 
         Args:
-            build_id: String of build id, e.g. "2263051", "P2804227"
-            branch: String of branch name, e.g. "aosp-master"
-            build_target: String of target name.
-                          e.g. "aosp_cf_x86_64_phone-userdebug"
-            system_build_id: String of the system image build id.
-            system_branch: String of the system image branch name.
-            system_build_target: String of the system image target name,
-                                 e.g. "cf_x86_phone-userdebug"
-            kernel_build_id: String of the kernel image build id.
-            kernel_branch: String of the kernel image branch name.
-            kernel_build_target: String of the kernel image target name,
-            bootloader_build_id: String of the bootloader build id.
-            bootloader_branch: String of the bootloader branch name.
-            bootloader_build_target: String of the bootloader target name.
-            ota_build_id: String of the otatools build id.
-            ota_branch: String of the otatools branch name.
-            ota_build_target: String of the otatools target name.
+            default_build_info: The build that provides full cuttlefish images.
+            system_build_info: The build that provides the system image.
+            kernel_build_info: The build that provides the kernel.
+            bootloader_build_info: The build that provides the bootloader.
+            ota_build_info: The build that provides the OTA tools.
 
         Returns:
             List of string args for fetch_cvd.
@@ -532,10 +517,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         timestart = time.time()
         fetch_cvd_args = ["-credential_source=gce"]
         fetch_cvd_build_args = self._build_api.GetFetchBuildArgs(
-            build_id, branch, build_target, system_build_id, system_branch,
-            system_build_target, kernel_build_id, kernel_branch,
-            kernel_build_target, bootloader_build_id, bootloader_branch,
-            bootloader_build_target, ota_build_id, ota_branch, ota_build_target)
+            default_build_info, system_build_info, kernel_build_info,
+            bootloader_build_info, ota_build_info)
         fetch_cvd_args.extend(fetch_cvd_build_args)
 
         self._ssh.Run("./fetch_cvd " + " ".join(fetch_cvd_args),
