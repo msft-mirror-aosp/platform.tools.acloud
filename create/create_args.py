@@ -817,13 +817,12 @@ def _VerifyGoldfishArgs(args):
             "Either none or all of --system-branch, --system-build-target, "
             "and --system-build-id must be specified for goldfish.")
 
-    remote_host_only_flags = ([args.emulator_build_target] +
-                              remote_kernel_flags + remote_system_flags)
+    remote_host_only_flags = remote_kernel_flags + remote_system_flags
     if args.avd_type == constants.TYPE_GF and args.remote_host is None and any(
             remote_host_only_flags):
         raise errors.UnsupportedCreateArgs(
-            "--kernel-*, --system-*, and --emulator-build-target for goldfish "
-            "are only supported for remote host.")
+            "--kernel-* and --system-* for goldfish are only supported for "
+            "remote host.")
 
 
 def VerifyArgs(args):
