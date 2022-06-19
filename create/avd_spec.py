@@ -145,6 +145,8 @@ class AVDSpec():
         self._stable_host_image_name = None
         self._use_launch_cvd = None
         self._remote_fetch = None
+        self._webrtc_device_id = None
+
         # Create config instance for android_build_client to query build api.
         self._cfg = config.GetAcloudConfig(args)
         # Reporting args.
@@ -359,7 +361,8 @@ class AVDSpec():
         self._use_launch_cvd = args.use_launch_cvd
         self._serial_log_file = args.serial_log_file
         self._emulator_build_id = args.emulator_build_id
-        self._emulator_build_target = args.emulator_build_target
+        self._emulator_build_target = (args.emulator_build_target
+                                       or self._cfg.emulator_build_target)
         self._gpu = args.gpu
         self._disk_type = (args.disk_type or self._cfg.disk_type)
         self._base_instance_num = args.base_instance_num
@@ -380,6 +383,7 @@ class AVDSpec():
         self._launch_args = " ".join(
             list(filter(None, [self._cfg.launch_args, args.launch_args])))
         self._remote_fetch = args.remote_fetch
+        self._webrtc_device_id = args.webrtc_device_id
 
         if args.reuse_gce:
             if args.reuse_gce != constants.SELECT_ONE_GCE_INSTANCE:
@@ -1065,3 +1069,8 @@ class AVDSpec():
     def force_sync(self):
         """Return force_sync."""
         return self._force_sync
+
+    @property
+    def webrtc_device_id(self):
+        """Return webrtc_device_id."""
+        return self._webrtc_device_id
