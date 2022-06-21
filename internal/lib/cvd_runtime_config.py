@@ -91,6 +91,7 @@ class CvdRuntimeConfig():
             {
                 "adb_ip_and_port" : "0.0.0.0:6520",
                 "instance_dir" : "/path-to-instance-dir",
+                "webrtc_device_id" : "cvd-1",
                 "virtual_disk_paths" :
                 [
                     "/path-to-image"
