@@ -91,8 +91,9 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         self.assertEqual("local-instance-2", local_instance.name)
         self.assertEqual(True, local_instance.islocal)
         self.assertEqual(["1080x1920 (480)"], local_instance.display)
-        expected_full_name = ("device serial: 0.0.0.0:%s (%s) elapsed time: %s"
+        expected_full_name = ("device serial: 0.0.0.0:%s %s (%s) elapsed time: %s"
                               % ("6521",
+                                 "cvd-2",
                                  "local-instance-2",
                                  "None"))
         self.assertEqual(expected_full_name, local_instance.fullname)
@@ -423,6 +424,25 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
                    return_value=mock.MagicMock(instance_ids=["2", "3"]))
         instance.GetCuttleFishLocalInstances("fake_config_path")
         self.assertEqual(mock_local_instance.call_count, 2)
+
+    def testGetDeviceFullName(self):
+        """Test GetDeviceFullName."""
+        device_serial = "0.0.0.0:6520"
+        webrtc_device_id = "codelab"
+        instance_name = "local-instance-1"
+        elapsed_time = "10:10:24"
+
+        expected_result = ("device serial: 0.0.0.0:6520 codelab "
+                           "(local-instance-1) elapsed time: 10:10:24")
+        self.assertEqual(expected_result, instance._GetDeviceFullName(
+            device_serial, instance_name, elapsed_time, webrtc_device_id))
+
+        # Test with no webrtc_device_id
+        webrtc_device_id = None
+        expected_result = ("device serial: 0.0.0.0:6520 (local-instance-1) "
+                           "elapsed time: 10:10:24")
+        self.assertEqual(expected_result, instance._GetDeviceFullName(
+            device_serial, instance_name, elapsed_time, webrtc_device_id))
 
 
 if __name__ == "__main__":
