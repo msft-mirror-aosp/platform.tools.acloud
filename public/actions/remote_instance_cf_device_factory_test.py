@@ -41,6 +41,8 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.Patch(android_build_client.AndroidBuildClient, "InitResourceHandle")
         self.Patch(cvd_compute_client_multi_stage.CvdComputeClient, "InitResourceHandle")
         self.Patch(cvd_compute_client_multi_stage.CvdComputeClient, "LaunchCvd")
+        self.Patch(cvd_compute_client_multi_stage.CvdComputeClient, "UpdateFetchCvd")
+        self.Patch(cvd_compute_client_multi_stage.CvdComputeClient, "FetchBuild")
         self.Patch(list_instances, "GetInstancesFromInstanceNames", return_value=mock.MagicMock())
         self.Patch(list_instances, "ChooseOneRemoteInstance", return_value=mock.MagicMock())
         self.Patch(utils, "GetBuildEnvironmentVariable",
@@ -48,14 +50,12 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.Patch(glob, "glob", return_vale=["fake.img"])
 
     # pylint: disable=protected-access
+    @staticmethod
     @mock.patch.object(cvd_compute_client_multi_stage.CvdComputeClient,
                        "UpdateCertificate")
-    @mock.patch.object(remote_instance_cf_device_factory.RemoteInstanceDeviceFactory,
-                       "_FetchBuild")
     @mock.patch("acloud.public.actions.remote_instance_cf_device_factory."
                 "cvd_utils")
-    def testProcessArtifacts(self, mock_cvd_utils, mock_download,
-                             mock_uploadca):
+    def testProcessArtifacts(mock_cvd_utils, mock_uploadca):
         """test ProcessArtifacts."""
         # Test image source type is local.
         args = mock.MagicMock()
@@ -103,11 +103,13 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.kernel_branch = "kernel_branch"
         args.kernel_build_target = "kernel_target"
         avd_spec_remote_img = avd_spec.AVDSpec(args)
-        self.Patch(cvd_compute_client_multi_stage.CvdComputeClient, "UpdateFetchCvd")
         factory_remote_img = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
             avd_spec_remote_img)
         factory_remote_img._ProcessArtifacts()
-        mock_download.assert_called_once()
+
+        compute_client = factory_remote_img.GetComputeClient()
+        compute_client.UpdateFetchCvd.assert_called_once()
+        compute_client.FetchBuild.assert_called_once()
 
     # pylint: disable=protected-access
     @mock.patch.dict(os.environ, {constants.ENV_BUILD_TARGET:'fake-target'})
