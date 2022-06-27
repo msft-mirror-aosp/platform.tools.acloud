@@ -86,8 +86,6 @@ _DPI = "dpi"
 _DISPLAY_STRING = "%(x_res)sx%(y_res)s (%(dpi)s)"
 _RE_ZONE = re.compile(r".+/zones/(?P<zone>.+)$")
 _LOCAL_ZONE = "local"
-_FULL_NAME_STRING = ("device serial: %(device_serial)s (%(instance_name)s) "
-                     "elapsed time: %(elapsed_time)s")
 _INDENT = " " * 3
 LocalPorts = collections.namedtuple("LocalPorts", [constants.VNC_PORT,
                                                    constants.ADB_PORT])
@@ -271,6 +269,30 @@ def _GetElapsedTime(start_time):
     except ValueError:
         logger.debug(("Can't parse datetime string(%s)."), start_time)
         return _MSG_UNABLE_TO_CALCULATE
+
+def _GetDeviceFullName(device_serial, instance_name, elapsed_time,
+                       webrtc_device_id=None):
+    """Get the full name of device.
+
+    The full name is composed with device serial, webrtc device id, instance
+    name, and elapsed_time.
+
+    Args:
+        device_serial: String of device serial. e.g. 127.0.0.1:6520
+        instance_name: String of instance name.
+        elapsed time: String of elapsed time.
+        webrtc_device_id: String of webrtc device id.
+
+    Returns:
+        String of device full name.
+    """
+    if webrtc_device_id:
+        return (f"device serial: {device_serial} {webrtc_device_id} "
+                f"({instance_name}) elapsed time: {elapsed_time}")
+
+    return (f"device serial: {device_serial} ({instance_name}) "
+            f"elapsed time: {elapsed_time}")
+
 
 def _IsProcessRunning(process):
     """Check if this process is running.
@@ -479,6 +501,8 @@ class LocalInstance(Instance):
 
         ins_info = self._cf_runtime_cfg.instances.get(ins_id, {})
         adb_port = ins_info.get(_ADB_HOST_PORT) or self._cf_runtime_cfg.adb_port
+        webrtc_device_id = (ins_info.get(constants.INS_KEY_WEBRTC_DEVICE_ID)
+                            or f"cvd-{self._local_instance_id}")
         adb_serial = f"0.0.0.0:{adb_port}"
         display = []
         for display_config in self._cf_runtime_cfg.display_configs:
@@ -496,10 +520,7 @@ class LocalInstance(Instance):
             adb_serial = cvd_status_info.get(_ADB_SERIAL)
 
         name = GetLocalInstanceName(self._local_instance_id)
-        fullname = (_FULL_NAME_STRING %
-                    {"device_serial": adb_serial,
-                     "instance_name": name,
-                     "elapsed_time": None})
+        fullname = _GetDeviceFullName(adb_serial, name, None, webrtc_device_id)
         adb_device = AdbTools(device_serial=adb_serial)
         device_information = None
         if adb_device.IsAdbConnected():
@@ -745,9 +766,7 @@ class LocalGoldfishInstance(Instance):
 
         elapsed_time = _GetElapsedTime(create_time) if create_time else None
 
-        fullname = _FULL_NAME_STRING % {"device_serial": self.device_serial,
-                                        "instance_name": name,
-                                        "elapsed_time": elapsed_time}
+        fullname = _GetDeviceFullName(self.device_serial, name, elapsed_time)
 
         if x_res and y_res and dpi:
             display = _DISPLAY_STRING % {"x_res": x_res, "y_res": y_res,
@@ -888,6 +907,7 @@ class RemoteInstance(Instance):
         avd_type = None
         avd_flavor = None
         webrtc_port = None
+        webrtc_device_id = None
         for metadata in gce_instance.get("metadata", {}).get("items", []):
             key = metadata["key"]
             value = metadata["value"]
@@ -899,6 +919,8 @@ class RemoteInstance(Instance):
                 avd_flavor = value
             elif key == constants.INS_KEY_WEBRTC_PORT:
                 webrtc_port = value
+            elif key == constants.INS_KEY_WEBRTC_DEVICE_ID:
+                webrtc_device_id = value
         # TODO(176884236): Insert avd information into metadata of instance.
         if not avd_type and name.startswith(_ACLOUDWEB_INSTANCE_START_STRING):
             avd_type = constants.TYPE_CF
@@ -918,22 +940,16 @@ class RemoteInstance(Instance):
             adb_device = AdbTools(adb_port)
             if adb_device.IsAdbConnected():
                 device_information = adb_device.device_information
-                fullname = (_FULL_NAME_STRING %
-                            {"device_serial": "127.0.0.1:%d" % adb_port,
-                             "instance_name": name,
-                             "elapsed_time": elapsed_time})
+                fullname = _GetDeviceFullName("127.0.0.1:%d" % adb_port, name,
+                                              elapsed_time, webrtc_device_id)
             else:
-                fullname = (_FULL_NAME_STRING %
-                            {"device_serial": "not connected",
-                             "instance_name": name,
-                             "elapsed_time": elapsed_time})
+                fullname = _GetDeviceFullName("not connected", name,
+                                              elapsed_time, webrtc_device_id)
         # If instance is terminated, its ip is None.
         else:
             ssh_tunnel_is_connected = False
-            fullname = (_FULL_NAME_STRING %
-                        {"device_serial": "terminated",
-                         "instance_name": name,
-                         "elapsed_time": elapsed_time})
+            fullname = _GetDeviceFullName("terminated", name, elapsed_time,
+                                          webrtc_device_id)
 
         super().__init__(
             name=name, fullname=fullname, display=display, ip=ip, status=status,
