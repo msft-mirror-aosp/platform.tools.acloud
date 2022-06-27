@@ -88,45 +88,28 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         Returns:
             A list of strings, the launch_cvd arguments.
         """
-        if self._avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
+        avd_spec = self._avd_spec
+        if avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
             cvd_utils.UploadArtifacts(
                 self._ssh,
-                self._local_image_artifact or self._avd_spec.local_image_dir,
+                self._local_image_artifact or avd_spec.local_image_dir,
                 self._cvd_host_package_artifact)
-        elif self._avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
+        elif avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
             self._compute_client.UpdateFetchCvd()
-            self._FetchBuild(self._avd_spec)
+            self._compute_client.FetchBuild(
+                avd_spec.remote_image,
+                avd_spec.system_build_info,
+                avd_spec.kernel_build_info,
+                avd_spec.bootloader_build_info,
+                avd_spec.ota_build_info)
 
-        if self._avd_spec.mkcert and self._avd_spec.connect_webrtc:
+        if avd_spec.mkcert and avd_spec.connect_webrtc:
             self._compute_client.UpdateCertificate()
 
-        if self._avd_spec.extra_files:
-            self._compute_client.UploadExtraFiles(self._avd_spec.extra_files)
+        if avd_spec.extra_files:
+            self._compute_client.UploadExtraFiles(avd_spec.extra_files)
 
-        return cvd_utils.UploadExtraImages(self._ssh, self._avd_spec)
-
-    def _FetchBuild(self, avd_spec):
-        """Download CF artifacts from android build.
-
-        Args:
-            avd_spec: AVDSpec object that tells us what we're going to create.
-        """
-        self._compute_client.FetchBuild(
-            avd_spec.remote_image[constants.BUILD_ID],
-            avd_spec.remote_image[constants.BUILD_BRANCH],
-            avd_spec.remote_image[constants.BUILD_TARGET],
-            avd_spec.system_build_info[constants.BUILD_ID],
-            avd_spec.system_build_info[constants.BUILD_BRANCH],
-            avd_spec.system_build_info[constants.BUILD_TARGET],
-            avd_spec.kernel_build_info[constants.BUILD_ID],
-            avd_spec.kernel_build_info[constants.BUILD_BRANCH],
-            avd_spec.kernel_build_info[constants.BUILD_TARGET],
-            avd_spec.bootloader_build_info[constants.BUILD_ID],
-            avd_spec.bootloader_build_info[constants.BUILD_BRANCH],
-            avd_spec.bootloader_build_info[constants.BUILD_TARGET],
-            avd_spec.ota_build_info[constants.BUILD_ID],
-            avd_spec.ota_build_info[constants.BUILD_BRANCH],
-            avd_spec.ota_build_info[constants.BUILD_TARGET])
+        return cvd_utils.UploadExtraImages(self._ssh, avd_spec)
 
     def _FindLogFiles(self, instance, download):
         """Find and pull all log files from instance.
