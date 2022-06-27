@@ -167,24 +167,13 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
     def _DownloadArtifactsRemotehost(self):
         """Generate fetch_cvd args and run fetch_cvd on remote host to download artifacts."""
         cfg = self._avd_spec.cfg
-        build_id = self._avd_spec.remote_image[constants.BUILD_ID]
-        build_branch = self._avd_spec.remote_image[constants.BUILD_BRANCH]
-        build_target = self._avd_spec.remote_image[constants.BUILD_TARGET]
 
         fetch_cvd_build_args = self._compute_client.build_api.GetFetchBuildArgs(
-            build_id, build_branch, build_target,
-            self._avd_spec.system_build_info.get(constants.BUILD_ID),
-            self._avd_spec.system_build_info.get(constants.BUILD_BRANCH),
-            self._avd_spec.system_build_info.get(constants.BUILD_TARGET),
-            self._avd_spec.kernel_build_info.get(constants.BUILD_ID),
-            self._avd_spec.kernel_build_info.get(constants.BUILD_BRANCH),
-            self._avd_spec.kernel_build_info.get(constants.BUILD_TARGET),
-            self._avd_spec.bootloader_build_info.get(constants.BUILD_ID),
-            self._avd_spec.bootloader_build_info.get(constants.BUILD_BRANCH),
-            self._avd_spec.bootloader_build_info.get(constants.BUILD_TARGET),
-            self._avd_spec.ota_build_info.get(constants.BUILD_ID),
-            self._avd_spec.ota_build_info.get(constants.BUILD_BRANCH),
-            self._avd_spec.ota_build_info.get(constants.BUILD_TARGET))
+            self._avd_spec.remote_image,
+            self._avd_spec.system_build_info,
+            self._avd_spec.kernel_build_info,
+            self._avd_spec.bootloader_build_info,
+            self._avd_spec.ota_build_info)
         creds_cache_file = os.path.join(_HOME_FOLDER, cfg.creds_cache_file)
         fetch_cvd_cert_arg = self._compute_client.build_api.GetFetchCertArg(
             creds_cache_file)
@@ -234,28 +223,17 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             errors.GetRemoteImageError: Fails to download rom images.
         """
         cfg = self._avd_spec.cfg
-        build_id = self._avd_spec.remote_image[constants.BUILD_ID]
-        build_branch = self._avd_spec.remote_image[constants.BUILD_BRANCH]
-        build_target = self._avd_spec.remote_image[constants.BUILD_TARGET]
 
         # Download images with fetch_cvd
         fetch_cvd = os.path.join(extract_path, constants.FETCH_CVD)
         self._compute_client.build_api.DownloadFetchcvd(fetch_cvd,
                                                         cfg.fetch_cvd_version)
         fetch_cvd_build_args = self._compute_client.build_api.GetFetchBuildArgs(
-            build_id, build_branch, build_target,
-            self._avd_spec.system_build_info.get(constants.BUILD_ID),
-            self._avd_spec.system_build_info.get(constants.BUILD_BRANCH),
-            self._avd_spec.system_build_info.get(constants.BUILD_TARGET),
-            self._avd_spec.kernel_build_info.get(constants.BUILD_ID),
-            self._avd_spec.kernel_build_info.get(constants.BUILD_BRANCH),
-            self._avd_spec.kernel_build_info.get(constants.BUILD_TARGET),
-            self._avd_spec.bootloader_build_info.get(constants.BUILD_ID),
-            self._avd_spec.bootloader_build_info.get(constants.BUILD_BRANCH),
-            self._avd_spec.bootloader_build_info.get(constants.BUILD_TARGET),
-            self._avd_spec.ota_build_info.get(constants.BUILD_ID),
-            self._avd_spec.ota_build_info.get(constants.BUILD_BRANCH),
-            self._avd_spec.ota_build_info.get(constants.BUILD_TARGET))
+            self._avd_spec.remote_image,
+            self._avd_spec.system_build_info,
+            self._avd_spec.kernel_build_info,
+            self._avd_spec.bootloader_build_info,
+            self._avd_spec.ota_build_info)
         creds_cache_file = os.path.join(_HOME_FOLDER, cfg.creds_cache_file)
         fetch_cvd_cert_arg = self._compute_client.build_api.GetFetchCertArg(
             creds_cache_file)
