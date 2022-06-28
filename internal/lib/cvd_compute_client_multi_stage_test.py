@@ -19,7 +19,6 @@
 import collections
 import glob
 import os
-import subprocess
 import unittest
 
 from unittest import mock
@@ -180,60 +179,19 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
     @mock.patch.object(gcompute_client.ComputeClient, "CreateInstance")
     @mock.patch.object(cvd_compute_client_multi_stage.CvdComputeClient, "_GetDiskArgs",
                        return_value=[{"fake_arg": "fake_value"}])
-    @mock.patch("getpass.getuser", return_value="fake_user")
-    def testCreateInstance(self, _get_user, _get_disk_args, mock_create,
-                           _get_image, _compare_machine_size, mock_check_img,
-                           _mock_env):
+    def testCreateInstance(self, _get_disk_args, mock_create, _get_image,
+                           _compare_machine_size, _mock_check_img, _mock_env):
         """Test CreateInstance."""
-        expected_metadata = {}
-        expected_metadata_local_image = {}
-        expected_metadata.update(self.METADATA)
-        expected_metadata_local_image.update(self.METADATA)
-        remote_image_metadata = dict(expected_metadata)
         expected_disk_args = [{"fake_arg": "fake_value"}]
         fake_avd_spec = avd_spec.AVDSpec(self.args)
         fake_avd_spec._instance_name_to_reuse = None
-
-        created_subprocess = mock.MagicMock()
-        created_subprocess.stdout = mock.MagicMock()
-        created_subprocess.stdout.readline = mock.MagicMock(return_value=b"")
-        created_subprocess.poll = mock.MagicMock(return_value=0)
-        created_subprocess.returncode = 0
-        created_subprocess.communicate = mock.MagicMock(return_value=('', ''))
-        self.Patch(subprocess, "Popen", return_value=created_subprocess)
-        self.Patch(subprocess, "check_call")
-        self.Patch(os, "chmod")
-        self.Patch(os, "stat")
-        self.Patch(os, "remove")
-        self.Patch(os, "rmdir")
-        self.cvd_compute_client_multi_stage.CreateInstance(
-            self.INSTANCE, self.IMAGE, self.IMAGE_PROJECT, self.TARGET,
-            self.BRANCH, self.BUILD_ID, self.KERNEL_BRANCH,
-            self.KERNEL_BUILD_ID, self.KERNEL_BUILD_TARGET,
-            self.EXTRA_DATA_DISK_SIZE_GB, extra_scopes=self.EXTRA_SCOPES)
-        mock_create.assert_called_with(
-            self.cvd_compute_client_multi_stage,
-            instance=self.INSTANCE,
-            image_name=self.IMAGE,
-            image_project=self.IMAGE_PROJECT,
-            disk_args=expected_disk_args,
-            metadata=remote_image_metadata,
-            machine_type=self.MACHINE_TYPE,
-            network=self.NETWORK,
-            zone=self.ZONE,
-            extra_scopes=self.EXTRA_SCOPES,
-            gpu=self.GPU,
-            disk_type=None,
-            disable_external_ip=False)
-
-        mock_check_img.return_value = True
-        #test use local image in the remote instance.
-        local_image_metadata = dict(expected_metadata_local_image)
         fake_avd_spec.hw_property[constants.HW_X_RES] = str(self.X_RES)
         fake_avd_spec.hw_property[constants.HW_Y_RES] = str(self.Y_RES)
         fake_avd_spec.hw_property[constants.HW_ALIAS_DPI] = str(self.DPI)
         fake_avd_spec.hw_property[constants.HW_ALIAS_DISK] = str(
             self.EXTRA_DATA_DISK_SIZE_GB * 1024)
+
+        local_image_metadata = dict(self.METADATA)
         local_image_metadata["avd_type"] = constants.TYPE_CF
         local_image_metadata["flavor"] = "phone"
         local_image_metadata[constants.INS_KEY_WEBRTC_DEVICE_ID] = "cvd-1"
@@ -242,10 +200,9 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
             fake_avd_spec.hw_property[constants.HW_Y_RES],
             fake_avd_spec.hw_property[constants.HW_ALIAS_DPI]))
         self.cvd_compute_client_multi_stage.CreateInstance(
-            self.INSTANCE, self.IMAGE, self.IMAGE_PROJECT, self.TARGET, self.BRANCH,
-            self.BUILD_ID, self.KERNEL_BRANCH, self.KERNEL_BUILD_ID,
-            self.KERNEL_BUILD_TARGET, self.EXTRA_DATA_DISK_SIZE_GB,
-            fake_avd_spec, extra_scopes=self.EXTRA_SCOPES)
+            self.INSTANCE, self.IMAGE, self.IMAGE_PROJECT,
+            fake_avd_spec, self.EXTRA_DATA_DISK_SIZE_GB,
+            extra_scopes=self.EXTRA_SCOPES)
 
         mock_create.assert_called_with(
             self.cvd_compute_client_multi_stage,
