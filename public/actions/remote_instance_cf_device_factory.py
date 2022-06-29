@@ -100,6 +100,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
                 avd_spec.remote_image,
                 avd_spec.system_build_info,
                 avd_spec.kernel_build_info,
+                avd_spec.boot_build_info,
                 avd_spec.bootloader_build_info,
                 avd_spec.ota_build_info)
 
