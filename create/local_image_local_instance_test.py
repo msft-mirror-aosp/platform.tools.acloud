@@ -75,6 +75,21 @@ sg group2
 bin/launch_cvd -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -start_vnc_server=true -console=true
 EOF"""
 
+    LAUNCH_CVD_CMD_WITH_PET_NAME = """sg group1 <<EOF
+sg group2
+bin/cvd start -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -start_vnc_server=true -webrtc_device_id=pet-name
+EOF"""
+
+    LAUNCH_CVD_CMD_WITH_NO_CVD = """sg group1 <<EOF
+sg group2
+bin/launch_cvd -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -start_vnc_server=true
+EOF"""
+
+    LAUNCH_CVD_CMD_WITH_INS_IDS = """sg group1 <<EOF
+sg group2
+bin/cvd start -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -start_vnc_server=true -instance_nums=1,2
+EOF"""
+
     _EXPECTED_DEVICES_IN_REPORT = [
         {
             "instance_name": "local-instance-1",
@@ -82,11 +97,7 @@ EOF"""
             "adb_port": 6520,
             "vnc_port": 6444,
             "webrtc_port": 8443,
-            'logs': [
-                {'path': '/log/launcher.log', 'type': 'TEXT'},
-                {'path': '/log/kernel.log', 'type': 'KERNEL_LOG'},
-                {'path': '/log/logcat', 'type': 'LOGCAT'}
-            ],
+            'logs': [{'path': '/log/launcher.log', 'type': 'TEXT'}],
             "screen_command": "screen /instances/cvd/console"
         }
     ]
@@ -95,11 +106,7 @@ EOF"""
         {
             "instance_name": "local-instance-1",
             "ip": "0.0.0.0",
-            'logs': [
-                {'path': '/log/launcher.log', 'type': 'TEXT'},
-                {'path': '/log/kernel.log', 'type': 'KERNEL_LOG'},
-                {'path': '/log/logcat', 'type': 'LOGCAT'}
-            ]
+            'logs': [{'path': '/log/launcher.log', 'type': 'TEXT'}],
         }
     ]
 
@@ -127,6 +134,7 @@ EOF"""
             None, None, None, None, None, None, None)
         mock_check_running_cvd.return_value = True
         mock_avd_spec = mock.Mock()
+        mock_avd_spec.num_avds_per_instance = 1
         mock_lock = mock.Mock()
         mock_lock.Unlock.return_value = False
         mock_lock_instance.return_value = (1, mock_lock)
@@ -157,6 +165,26 @@ EOF"""
         report = self.local_image_local_instance._CreateAVD(
             mock_avd_spec, no_prompts=True)
         self.assertEqual(report.errors, ["unit test"])
+
+    def testSelectAndLockInstances(self):
+        """test _SelectAndLockInstances."""
+        mock_avd_spec = mock.Mock(num_avds_per_instance=1)
+        mock_main_lock = mock.Mock()
+        self.Patch(local_image_local_instance.LocalImageLocalInstance,
+                   "_SelectAndLockInstance", return_value=(1, mock_main_lock))
+        ins_ids, ins_locks = self.local_image_local_instance._SelectAndLockInstances(
+            mock_avd_spec)
+        self.assertEqual([1], ins_ids)
+        self.assertEqual([mock_main_lock], ins_locks)
+
+        mock_avd_spec.num_avds_per_instance = 2
+        mock_second_lock = mock.Mock()
+        self.Patch(local_image_local_instance.LocalImageLocalInstance,
+                   "_SelectOneFreeInstance", return_value=(2, mock_second_lock))
+        ins_ids, ins_locks = self.local_image_local_instance._SelectAndLockInstances(
+            mock_avd_spec)
+        self.assertEqual([1,2], ins_ids)
+        self.assertEqual([mock_main_lock, mock_second_lock], ins_locks)
 
     def testSelectAndLockInstance(self):
         """test _SelectAndLockInstance."""
@@ -191,18 +219,22 @@ EOF"""
                        "_LaunchCvd")
     @mock.patch.object(local_image_local_instance.LocalImageLocalInstance,
                        "PrepareLaunchCVDCmd")
+    @mock.patch("acloud.create.local_image_local_instance.cvd_utils")
     @mock.patch("acloud.create.local_image_local_instance.instance")
-    def testCreateInstance(self, mock_instance,
+    def testCreateInstance(self, mock_instance, mock_cvd_utils,
                            _mock_prepare_cmd, mock_launch_cvd,
                            _mock_create_common, mock_ota_tools, _mock_utils,
-                           _mock_trust_certs):
+                           mock_trust_certs):
         """Test the report returned by _CreateInstance."""
         mock_instance.GetLocalInstanceHomeDir.return_value = (
             "/local-instance-1")
         mock_instance.GetLocalInstanceName.return_value = "local-instance-1"
-        mock_instance.GetLocalInstanceLogDir.return_value = "/log"
+        mock_instance.GetLocalInstanceRuntimeDir.return_value = (
+            "/instances/cvd")
         mock_instance.GetLocalInstanceConfig.return_value = (
             "/instances/cvd/config")
+        mock_cvd_utils.FindLocalLogs.return_value = [
+            {'path': '/log/launcher.log', 'type': 'TEXT'}]
         artifact_paths = local_image_local_instance.ArtifactPaths(
             "/image/path", "/host/bin/path", "/host/usr/path", "/misc/info/path",
             "/ota/tools/dir", "/system/image/path", "/boot/image/path",
@@ -223,35 +255,41 @@ EOF"""
                    return_value=local_ins)
         self.Patch(os, "symlink")
 
+        ins_ids = [1]
         # Success
         report = self.local_image_local_instance._CreateInstance(
-            1, artifact_paths, mock_avd_spec, no_prompts=True)
+            ins_ids, artifact_paths, mock_avd_spec, no_prompts=True)
 
         self.assertEqual(report.data.get("devices"),
                          self._EXPECTED_DEVICES_IN_REPORT)
         mock_ota_tools.OtaTools.assert_called_with("/ota/tools/dir")
         mock_ota_tools_object.BuildSuperImage.assert_called_with(
             "/local-instance-1/mixed_super.img", "/misc/info/path", mock.ANY)
+        mock_cvd_utils.FindLocalLogs.assert_called_with(
+            "/instances/cvd", 1)
 
         # should call _TrustCertificatesForWebRTC
-        _mock_trust_certs.assert_called_once()
-        _mock_trust_certs.reset_mock()
+        mock_trust_certs.assert_called_once()
+        mock_trust_certs.reset_mock()
 
         # should not call _TrustCertificatesForWebRTC
         mock_avd_spec.connect_webrtc = False
         self.local_image_local_instance._CreateInstance(
-            1, artifact_paths, mock_avd_spec, no_prompts=True)
-        self.assertEqual(_mock_create_common.call_count, 0)
+            ins_ids, artifact_paths, mock_avd_spec, no_prompts=True)
+        mock_trust_certs.assert_not_called()
 
         # Failure
+        mock_cvd_utils.reset_mock()
         mock_launch_cvd.side_effect = errors.LaunchCVDFail("unit test")
 
         report = self.local_image_local_instance._CreateInstance(
-            1, artifact_paths, mock_avd_spec, no_prompts=True)
+            ins_ids, artifact_paths, mock_avd_spec, no_prompts=True)
 
         self.assertEqual(report.data.get("devices_failing_boot"),
                          self._EXPECTED_DEVICES_IN_FAILED_REPORT)
         self.assertIn("unit test", report.errors[0])
+        mock_cvd_utils.FindLocalLogs.assert_called_with(
+            "/instances/cvd", 1)
 
     # pylint: disable=protected-access
     @mock.patch("acloud.create.local_image_local_instance.os.path.isfile")
@@ -395,6 +433,7 @@ EOF"""
     def testPrepareLaunchCVDCmd(self, mock_usergroups):
         """test PrepareLaunchCVDCmd."""
         mock_usergroups.return_value = False
+        self.Patch(os.path, "isfile", return_value=True)
         hw_property = {"cpu": "fake", "x_res": "fake", "y_res": "fake",
                        "dpi":"fake", "memory": "fake", "disk": "fake"}
         constants.LIST_CF_USER_GROUPS = ["group1", "group2"]
@@ -467,6 +506,25 @@ EOF"""
             None, True, mock_artifact_paths, "fake_cvd_dir", False, True,
             None, None, "phone", openwrt=True, use_launch_cvd=True)
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_OPENWRT)
+
+        # Test with instance_ids
+        launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
+            None, True, mock_artifact_paths, "fake_cvd_dir", False, True,
+            None, None, "phone", instance_ids=[1,2])
+        self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_INS_IDS)
+
+        # Test with "pet-name"
+        launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
+            None, True, mock_artifact_paths, "fake_cvd_dir", False, True,
+            None, None, "phone", webrtc_device_id="pet-name")
+        self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_PET_NAME)
+
+        # Test with "cvd" doesn't exist
+        self.Patch(os.path, "isfile", return_value=False)
+        launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
+            None, True, mock_artifact_paths, "fake_cvd_dir", False, True,
+            None, None, "phone", openwrt=False, use_launch_cvd=False)
+        self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_NO_CVD)
 
     @mock.patch.object(utils, "GetUserAnswerYes")
     @mock.patch.object(list_instance, "GetActiveCVD")

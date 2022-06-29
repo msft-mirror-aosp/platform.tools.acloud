@@ -34,6 +34,47 @@ class CvdUtilsTest(unittest.TestCase):
         with open(path, "wb") as file_obj:
             file_obj.write(data)
 
+    def testGetAdbPorts(self):
+        """Test GetAdbPorts."""
+        self.assertEqual([6520], cvd_utils.GetAdbPorts(None, None))
+        self.assertEqual([6520], cvd_utils.GetAdbPorts(1, 1))
+        self.assertEqual([6521, 6522], cvd_utils.GetAdbPorts(2, 2))
+
+    def testGetVncPorts(self):
+        """Test GetVncPorts."""
+        self.assertEqual([6444], cvd_utils.GetVncPorts(None, None))
+        self.assertEqual([6444], cvd_utils.GetVncPorts(1, 1))
+        self.assertEqual([6445, 6446], cvd_utils.GetVncPorts(2, 2))
+
+    @mock.patch("acloud.internal.lib.cvd_utils.os.path.isdir")
+    def testFindLocalLogs(self, mock_isdir):
+        """Test FindLocalLogs."""
+        mock_isdir.return_value = False
+        expected_logs = [
+            {"path": "/dir/launcher.log", "type": constants.LOG_TYPE_TEXT},
+            {"path": "/dir/kernel.log", "type": constants.LOG_TYPE_KERNEL_LOG},
+            {"path": "/dir/logcat", "type": constants.LOG_TYPE_LOGCAT},
+        ]
+        self.assertEqual(expected_logs, cvd_utils.FindLocalLogs("/dir", 1))
+
+        expected_path = "/dir/instances/cvd-2/logs"
+        mock_isdir.side_effect = lambda path: path == expected_path
+        expected_logs = [
+            {
+                "path": "/dir/instances/cvd-2/logs/launcher.log",
+                "type": constants.LOG_TYPE_TEXT
+            },
+            {
+                "path": "/dir/instances/cvd-2/logs/kernel.log",
+                "type": constants.LOG_TYPE_KERNEL_LOG
+            },
+            {
+                "path": "/dir/instances/cvd-2/logs/logcat",
+                "type": constants.LOG_TYPE_LOGCAT
+            },
+        ]
+        self.assertEqual(expected_logs, cvd_utils.FindLocalLogs("/dir", 2))
+
     @staticmethod
     @mock.patch("acloud.internal.lib.cvd_utils.os.path.isdir",
                 return_value=False)
@@ -148,18 +189,83 @@ class CvdUtilsTest(unittest.TestCase):
         mock_ssh.Run.assert_any_call("./bin/stop_cvd", retry=0)
         mock_ssh.Run.assert_any_call("'rm -rf ./*'")
 
-    def testConvertRemoteLogs(self):
-        """Test ConvertRemoteLogs."""
-        logs = cvd_utils.ConvertRemoteLogs(
-            ["/kernel.log", "/logcat", "/launcher.log", "/access-kregistry"])
+    @mock.patch("acloud.internal.lib.cvd_utils.utils")
+    def testFindRemoteLogs(self, mock_utils):
+        """Test FindRemoteLogs with the runtime directories in Android 12."""
+        mock_ssh = mock.Mock()
+        mock_utils.FindRemoteFiles.return_value = [
+            "/kernel.log", "/logcat", "/launcher.log", "/access-kregistry",
+            "/cuttlefish_config.json"]
+
+        logs = cvd_utils.FindRemoteLogs(mock_ssh, None, None)
+        mock_ssh.Run.assert_called_with("test -d cuttlefish/instances/cvd-1",
+                                        retry=0)
+        mock_utils.FindRemoteFiles.assert_called_with(
+            mock_ssh, ["cuttlefish/instances/cvd-1"])
         expected_logs = [
-            {"path": "/kernel.log", "type": constants.LOG_TYPE_KERNEL_LOG},
+            {
+                "path": "/kernel.log",
+                "type": constants.LOG_TYPE_KERNEL_LOG,
+                "name": "kernel.log"
+            },
             {
                 "path": "/logcat",
                 "type": constants.LOG_TYPE_LOGCAT,
                 "name": "full_gce_logcat"
             },
-            {"path": "/launcher.log", "type": constants.LOG_TYPE_TEXT}
+            {
+                "path": "/launcher.log",
+                "type": constants.LOG_TYPE_TEXT,
+                "name": "launcher.log"
+            },
+            {
+                "path": "/cuttlefish_config.json",
+                "type": constants.LOG_TYPE_TEXT,
+                "name": "cuttlefish_config.json"
+            },
+            {
+                "path": "cuttlefish/instances/cvd-1/tombstones",
+                "type": constants.LOG_TYPE_DIR,
+                "name": "tombstones-zip"
+            },
+        ]
+        self.assertEqual(expected_logs, logs)
+
+    @mock.patch("acloud.internal.lib.cvd_utils.utils")
+    def testFindRemoteLogsWithLegacyDirs(self, mock_utils):
+        """Test FindRemoteLogs with the runtime directories in Android 11."""
+        mock_ssh = mock.Mock()
+        mock_ssh.Run.side_effect = subprocess.CalledProcessError(
+            cmd="test", returncode=1)
+        mock_utils.FindRemoteFiles.return_value = [
+            "cuttlefish_runtime/kernel.log", "cuttlefish_runtime.4/kernel.log"]
+
+        logs = cvd_utils.FindRemoteLogs(mock_ssh, 3, 2)
+        mock_ssh.Run.assert_called_with("test -d cuttlefish/instances/cvd-3",
+                                        retry=0)
+        mock_utils.FindRemoteFiles.assert_called_with(
+            mock_ssh, ["cuttlefish_runtime", "cuttlefish_runtime.4"])
+        expected_logs = [
+            {
+                "path": "cuttlefish_runtime/kernel.log",
+                "type": constants.LOG_TYPE_KERNEL_LOG,
+                "name": "kernel.log"
+            },
+            {
+                "path": "cuttlefish_runtime.4/kernel.log",
+                "type": constants.LOG_TYPE_KERNEL_LOG,
+                "name": "kernel.1.log"
+            },
+            {
+                "path": "cuttlefish_runtime/tombstones",
+                "type": constants.LOG_TYPE_DIR,
+                "name": "tombstones-zip"
+            },
+            {
+                "path": "cuttlefish_runtime.4/tombstones",
+                "type": constants.LOG_TYPE_DIR,
+                "name": "tombstones-zip.1"
+            },
         ]
         self.assertEqual(expected_logs, logs)
 

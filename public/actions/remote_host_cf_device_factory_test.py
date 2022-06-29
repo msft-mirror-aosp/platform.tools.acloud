@@ -48,6 +48,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                              "build_target": "aosp_cf_x86_64_phone-userdebug"},
                          system_build_info={},
                          kernel_build_info={},
+                         boot_build_info={},
                          bootloader_build_info={},
                          ota_build_info={},
                          remote_host="192.0.2.100",
@@ -61,6 +62,8 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                          gpu="auto",
                          no_pull_log=False,
                          remote_fetch=False,
+                         base_instance_num=None,
+                         num_avds_per_instance=None,
                          cfg=mock_cfg)
 
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory."
@@ -75,6 +78,8 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_avd_spec = self._CreateMockAvdSpec()
         mock_avd_spec.image_source = constants.IMAGE_SRC_LOCAL
         mock_avd_spec.local_image_dir = "/mock/img"
+        mock_avd_spec.base_instance_num = 2
+        mock_avd_spec.num_avds_per_instance = 3
         factory = remote_host_cf_device_factory.RemoteHostDeviceFactory(
             mock_avd_spec, cvd_host_package_artifact="/mock/cvd.tar.gz")
 
@@ -83,16 +88,15 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_client_obj.LaunchCvd.return_value = {"inst": "failure"}
 
         log = {"path": "/log.txt"}
-        tombstones = {"path": "/tombstones"}
-        mock_cvd_utils.TOMBSTONES = tombstones
         mock_cvd_utils.UploadExtraImages.return_value = ["extra"]
-        mock_cvd_utils.ConvertRemoteLogs.return_value = [log]
+        mock_cvd_utils.FindRemoteLogs.return_value = [log]
 
         self.assertEqual("inst", factory.CreateInstance())
         mock_ssh.Ssh.assert_called_once()
         mock_client_obj.InitRemoteHost.assert_called_once()
         mock_cvd_utils.UploadArtifacts.assert_called_with(
             mock.ANY, "/mock/img", "/mock/cvd.tar.gz")
+        mock_cvd_utils.FindRemoteLogs.assert_called_with(mock.ANY, 2, 3)
         mock_client_obj.LaunchCvd.assert_called_with(
             "inst",
             mock_avd_spec,
@@ -101,8 +105,12 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             extra_args=["extra"])
         mock_pull.GetAllLogFilePaths.assert_called_once()
         mock_pull.PullLogs.assert_called_once()
+        factory.GetAdbPorts()
+        mock_cvd_utils.GetAdbPorts.assert_called_with(2, 3)
+        factory.GetVncPorts()
+        mock_cvd_utils.GetVncPorts.assert_called_with(2, 3)
         self.assertEqual({"inst": "failure"}, factory.GetFailures())
-        self.assertEqual({"inst": [tombstones, log]}, factory.GetLogs())
+        self.assertDictEqual({"inst": [log]}, factory.GetLogs())
 
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory."
                 "cvd_compute_client_multi_stage")
@@ -123,16 +131,23 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_client_obj.FormatRemoteHostInstanceName.return_value = "inst"
         mock_client_obj.LaunchCvd.return_value = {}
 
+        mock_cvd_utils.FindRemoteLogs.return_value = []
+
         self.assertEqual("inst", factory.CreateInstance())
         mock_ssh.Ssh.assert_called_once()
         mock_client_obj.InitRemoteHost.assert_called_once()
         mock_cvd_utils.UploadArtifacts.assert_called_with(
             mock.ANY, "/mock/img.zip", "/mock/cvd.tar.gz")
+        mock_cvd_utils.FindRemoteLogs.assert_called_with(mock.ANY, None, None)
         mock_client_obj.LaunchCvd.assert_called()
-        mock_pull.GetAllLogFilePaths.assert_called_once()
+        mock_pull.GetAllLogFilePaths.assert_not_called()
         mock_pull.PullLogs.assert_not_called()
+        factory.GetAdbPorts()
+        mock_cvd_utils.GetAdbPorts.assert_called_with(None, None)
+        factory.GetVncPorts()
+        mock_cvd_utils.GetVncPorts.assert_called_with(None, None)
         self.assertFalse(factory.GetFailures())
-        self.assertEqual(1, len(factory.GetLogs()["inst"]))
+        self.assertDictEqual({"inst": []}, factory.GetLogs())
 
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory."
                 "cvd_compute_client_multi_stage")
@@ -144,7 +159,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory.glob")
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory.pull")
     def testCreateInstanceWithRemoteImages(self, mock_pull, mock_glob,
-                                           mock_check_call, _mock_cvd_utils,
+                                           mock_check_call, mock_cvd_utils,
                                            mock_ssh, _mock_client):
         """Test CreateInstance with remote images."""
         mock_avd_spec = self._CreateMockAvdSpec()
@@ -155,6 +170,8 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_glob.glob.return_value = ["/mock/super.img"]
         factory = remote_host_cf_device_factory.RemoteHostDeviceFactory(
             mock_avd_spec)
+
+        mock_cvd_utils.FindRemoteLogs.return_value = []
 
         mock_client_obj = factory.GetComputeClient()
         mock_client_obj.FormatRemoteHostInstanceName.return_value = "inst"
@@ -169,10 +186,10 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                          r"^tar -cf - --lzop -S -C \S+ super\.img \| "
                          r"/mock/ssh -- tar -xf - --lzop -S$")
         mock_client_obj.LaunchCvd.assert_called()
-        mock_pull.GetAllLogFilePaths.assert_called_once()
+        mock_pull.GetAllLogFilePaths.assert_not_called()
         mock_pull.PullLogs.assert_not_called()
         self.assertFalse(factory.GetFailures())
-        self.assertEqual(1, len(factory.GetLogs()["inst"]))
+        self.assertDictEqual({"inst": []}, factory.GetLogs())
 
 
 if __name__ == "__main__":

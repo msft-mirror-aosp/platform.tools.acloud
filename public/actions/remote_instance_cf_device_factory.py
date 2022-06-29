@@ -88,45 +88,29 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         Returns:
             A list of strings, the launch_cvd arguments.
         """
-        if self._avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
+        avd_spec = self._avd_spec
+        if avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
             cvd_utils.UploadArtifacts(
                 self._ssh,
-                self._local_image_artifact or self._avd_spec.local_image_dir,
+                self._local_image_artifact or avd_spec.local_image_dir,
                 self._cvd_host_package_artifact)
-        elif self._avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
+        elif avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
             self._compute_client.UpdateFetchCvd()
-            self._FetchBuild(self._avd_spec)
+            self._compute_client.FetchBuild(
+                avd_spec.remote_image,
+                avd_spec.system_build_info,
+                avd_spec.kernel_build_info,
+                avd_spec.boot_build_info,
+                avd_spec.bootloader_build_info,
+                avd_spec.ota_build_info)
 
-        if self._avd_spec.mkcert and self._avd_spec.connect_webrtc:
+        if avd_spec.mkcert and avd_spec.connect_webrtc:
             self._compute_client.UpdateCertificate()
 
-        if self._avd_spec.extra_files:
-            self._compute_client.UploadExtraFiles(self._avd_spec.extra_files)
+        if avd_spec.extra_files:
+            self._compute_client.UploadExtraFiles(avd_spec.extra_files)
 
-        return cvd_utils.UploadExtraImages(self._ssh, self._avd_spec)
-
-    def _FetchBuild(self, avd_spec):
-        """Download CF artifacts from android build.
-
-        Args:
-            avd_spec: AVDSpec object that tells us what we're going to create.
-        """
-        self._compute_client.FetchBuild(
-            avd_spec.remote_image[constants.BUILD_ID],
-            avd_spec.remote_image[constants.BUILD_BRANCH],
-            avd_spec.remote_image[constants.BUILD_TARGET],
-            avd_spec.system_build_info[constants.BUILD_ID],
-            avd_spec.system_build_info[constants.BUILD_BRANCH],
-            avd_spec.system_build_info[constants.BUILD_TARGET],
-            avd_spec.kernel_build_info[constants.BUILD_ID],
-            avd_spec.kernel_build_info[constants.BUILD_BRANCH],
-            avd_spec.kernel_build_info[constants.BUILD_TARGET],
-            avd_spec.bootloader_build_info[constants.BUILD_ID],
-            avd_spec.bootloader_build_info[constants.BUILD_BRANCH],
-            avd_spec.bootloader_build_info[constants.BUILD_TARGET],
-            avd_spec.ota_build_info[constants.BUILD_ID],
-            avd_spec.ota_build_info[constants.BUILD_BRANCH],
-            avd_spec.ota_build_info[constants.BUILD_TARGET])
+        return cvd_utils.UploadExtraImages(self._ssh, avd_spec)
 
     def _FindLogFiles(self, instance, download):
         """Find and pull all log files from instance.
@@ -136,13 +120,18 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             download: Whether to download the files to a temporary directory
                       and show messages to the user.
         """
-        self._all_logs[instance] = [cvd_utils.TOMBSTONES,
-                                    cvd_utils.HOST_KERNEL_LOG]
+        logs = [cvd_utils.HOST_KERNEL_LOG]
         if self._avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
-            self._all_logs[instance].append(cvd_utils.FETCHER_CONFIG_JSON)
-        log_files = pull.GetAllLogFilePaths(self._ssh)
-        self._all_logs[instance].extend(cvd_utils.ConvertRemoteLogs(log_files))
+            logs.append(cvd_utils.FETCHER_CONFIG_JSON)
+        logs.extend(cvd_utils.FindRemoteLogs(
+            self._ssh,
+            self._avd_spec.base_instance_num,
+            self._avd_spec.num_avds_per_instance))
+        self._all_logs[instance] = logs
+
         if download:
+            # To avoid long download time, fetch from the first device only.
+            log_files = pull.GetAllLogFilePaths(self._ssh)
             error_log_folder = pull.PullLogs(self._ssh, log_files, instance)
             self._compute_client.ExtendReportData(constants.ERROR_LOG_FOLDER,
                                                   error_log_folder)
@@ -157,6 +146,24 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             return None
         return {"ssh_command": self._compute_client.GetSshConnectCmd(),
                 "screen_command": _SCREEN_CONSOLE_COMMAND}
+
+    def GetAdbPorts(self):
+        """Get ADB ports of the created devices.
+
+        Returns:
+            The port numbers as a list of integers.
+        """
+        return cvd_utils.GetAdbPorts(self._avd_spec.base_instance_num,
+                                     self._avd_spec.num_avds_per_instance)
+
+    def GetVncPorts(self):
+        """Get VNC ports of the created devices.
+
+        Returns:
+            The port numbers as a list of integers.
+        """
+        return cvd_utils.GetVncPorts(self._avd_spec.base_instance_num,
+                                     self._avd_spec.num_avds_per_instance)
 
     def GetBuildInfoDict(self):
         """Get build info dictionary.

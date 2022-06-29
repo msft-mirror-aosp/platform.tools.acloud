@@ -63,6 +63,7 @@ _NUM_AVDS_ARG = "-num_instances=%(num_AVD)s"
 # Connect the OpenWrt device via console file.
 _ENABLE_CONSOLE_ARG = "-console=true"
 _DEFAULT_BRANCH = "aosp-master"
+_DEFAULT_WEBRTC_DEVICE_ID = "cvd-1"
 _FETCHER_BUILD_TARGET = "aosp_cf_x86_64_phone-userdebug"
 _FETCHER_NAME = "fetch_cvd"
 # Time info to write in report.
@@ -188,49 +189,21 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         self._ssh.WaitForSsh(timeout=self._ins_timeout_secs)
         cvd_utils.CleanUpRemoteCvd(self._ssh, raise_error=False)
 
-    # TODO(171376263): Refactor CreateInstance() args with avd_spec.
-    # pylint: disable=arguments-differ,too-many-locals,broad-except
+    # pylint: disable=arguments-differ,broad-except
     def CreateInstance(self, instance, image_name, image_project,
-                       build_target=None, branch=None, build_id=None,
-                       kernel_branch=None, kernel_build_id=None,
-                       kernel_build_target=None, blank_data_disk_size_gb=None,
-                       avd_spec=None, extra_scopes=None,
-                       system_build_target=None, system_branch=None,
-                       system_build_id=None, bootloader_build_target=None,
-                       bootloader_branch=None, bootloader_build_id=None,
-                       ota_build_target=None, ota_branch=None,
-                       ota_build_id=None):
+                       avd_spec, blank_data_disk_size_gb=None,
+                       extra_scopes=None):
 
-        """Create/Reuse a single configured cuttlefish device.
-        1. Prepare GCE instance.
-           Create a new instnace or get IP address for reusing the specific instance.
-        2. Put fetch_cvd on the instance.
-        3. Invoke fetch_cvd to fetch and run the instance.
+        """Create/Reuse a GCE instance.
 
         Args:
             instance: instance name.
             image_name: A string, the name of the GCE image.
             image_project: A string, name of the project where the image lives.
                            Assume the default project if None.
-            build_target: Target name, e.g. "aosp_cf_x86_64_phone-userdebug"
-            branch: Branch name, e.g. "aosp-master"
-            build_id: Build id, a string, e.g. "2263051", "P2804227"
-            kernel_branch: Kernel branch name, e.g. "kernel-common-android-4.14"
-            kernel_build_id: Kernel build id, a string, e.g. "223051", "P280427"
-            kernel_build_target: String, Kernel build target name.
-            blank_data_disk_size_gb: Size of the blank data disk in GB.
             avd_spec: An AVDSpec instance.
+            blank_data_disk_size_gb: Size of the blank data disk in GB.
             extra_scopes: A list of extra scopes to be passed to the instance.
-            system_build_target: String of the system image target name,
-                                 e.g. "cf_x86_phone-userdebug"
-            system_branch: String of the system image branch name.
-            system_build_id: String of the system image build id.
-            bootloader_build_target: String of the bootloader target name.
-            bootloader_branch: String of the bootloader branch name.
-            bootloader_build_id: String of the bootloader build id.
-            ota_build_target: String of the otatools target name.
-            ota_branch: String of the otatools branch name.
-            ota_build_id: String of the otatools build id.
 
         Returns:
             A string, representing instance name.
@@ -242,7 +215,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             int(self.GetImage(image_name, image_project)["diskSizeGb"]) +
             blank_data_disk_size_gb)
 
-        if avd_spec and avd_spec.instance_name_to_reuse:
+        if avd_spec.instance_name_to_reuse:
             self._ip = self._ReusingGceInstance(avd_spec)
         else:
             self._VerifyZoneByQuota()
@@ -257,29 +230,11 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         try:
             self.SetStage(constants.STAGE_SSH_CONNECT)
             self._ssh.WaitForSsh(timeout=self._ins_timeout_secs)
-            if avd_spec:
-                if avd_spec.instance_name_to_reuse:
-                    cvd_utils.CleanUpRemoteCvd(self._ssh, raise_error=False)
-                return instance
-
-            # TODO: Remove following code after create_cf deprecated.
-            self.UpdateFetchCvd()
-
-            self.FetchBuild(build_id, branch, build_target, system_build_id,
-                            system_branch, system_build_target, kernel_build_id,
-                            kernel_branch, kernel_build_target, bootloader_build_id,
-                            bootloader_branch, bootloader_build_target,
-                            ota_build_id, ota_branch, ota_build_target)
-            failures = self.LaunchCvd(
-                instance,
-                blank_data_disk_size_gb=blank_data_disk_size_gb,
-                boot_timeout_secs=self._boot_timeout_secs,
-                extra_args=[])
-            self._all_failures.update(failures)
-            return instance
+            if avd_spec.instance_name_to_reuse:
+                cvd_utils.CleanUpRemoteCvd(self._ssh, raise_error=False)
         except Exception as e:
             self._all_failures[instance] = e
-            return instance
+        return instance
 
     def _GetConfigFromAndroidInfo(self):
         """Get config value from android-info.txt.
@@ -299,14 +254,13 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
 
     # pylint: disable=too-many-branches
     def _GetLaunchCvdArgs(self, avd_spec=None, blank_data_disk_size_gb=None,
-                          decompress_kernel=None, instance=None):
+                          decompress_kernel=None):
         """Get launch_cvd args.
 
         Args:
             avd_spec: An AVDSpec instance.
             blank_data_disk_size_gb: Size of the blank data disk in GB.
             decompress_kernel: Boolean, if true decompress the kernel.
-            instance: String, instance name.
 
         Returns:
             String, args of launch_cvd.
@@ -344,7 +298,9 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                         "-memory_mb=%s" % avd_spec.hw_property[constants.HW_ALIAS_MEMORY])
             if avd_spec.connect_webrtc:
                 launch_cvd_args.extend(_WEBRTC_ARGS)
-                launch_cvd_args.append(_WEBRTC_ID % {"instance": instance})
+                if avd_spec.webrtc_device_id:
+                    launch_cvd_args.append(
+                        _WEBRTC_ID % {"instance": avd_spec.webrtc_device_id})
             if avd_spec.connect_vnc:
                 launch_cvd_args.extend(_VNC_ARGS)
             if avd_spec.openwrt:
@@ -405,7 +361,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         launch_cvd_args = list(extra_args)
         launch_cvd_args.extend(
             self._GetLaunchCvdArgs(avd_spec, blank_data_disk_size_gb,
-                                   decompress_kernel, instance))
+                                   decompress_kernel))
         boot_timeout_secs = self._GetBootTimeout(
             boot_timeout_secs or constants.DEFAULT_CF_BOOT_TIMEOUT)
         ssh_command = "./bin/launch_cvd -daemon " + " ".join(launch_cvd_args)
@@ -489,6 +445,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         if avd_spec:
             metadata[constants.INS_KEY_AVD_TYPE] = avd_spec.avd_type
             metadata[constants.INS_KEY_AVD_FLAVOR] = avd_spec.flavor
+            metadata[constants.INS_KEY_WEBRTC_DEVICE_ID] = (
+                avd_spec.webrtc_device_id or _DEFAULT_WEBRTC_DEVICE_ID)
             metadata[constants.INS_KEY_DISPLAY] = ("%sx%s (%s)" % (
                 avd_spec.hw_property[constants.HW_X_RES],
                 avd_spec.hw_property[constants.HW_Y_RES],
@@ -542,31 +500,18 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         os.rmdir(download_dir)
 
     @utils.TimeExecute(function_description="Downloading build on instance")
-    def FetchBuild(self, build_id, branch, build_target, system_build_id,
-                   system_branch, system_build_target, kernel_build_id,
-                   kernel_branch, kernel_build_target, bootloader_build_id,
-                   bootloader_branch, bootloader_build_target, ota_build_id,
-                   ota_branch, ota_build_target):
+    def FetchBuild(self, default_build_info, system_build_info,
+                   kernel_build_info, boot_build_info, bootloader_build_info,
+                   ota_build_info):
         """Execute fetch_cvd on the remote instance to get Cuttlefish runtime files.
 
         Args:
-            build_id: String of build id, e.g. "2263051", "P2804227"
-            branch: String of branch name, e.g. "aosp-master"
-            build_target: String of target name.
-                          e.g. "aosp_cf_x86_64_phone-userdebug"
-            system_build_id: String of the system image build id.
-            system_branch: String of the system image branch name.
-            system_build_target: String of the system image target name,
-                                 e.g. "cf_x86_phone-userdebug"
-            kernel_build_id: String of the kernel image build id.
-            kernel_branch: String of the kernel image branch name.
-            kernel_build_target: String of the kernel image target name,
-            bootloader_build_id: String of the bootloader build id.
-            bootloader_branch: String of the bootloader branch name.
-            bootloader_build_target: String of the bootloader target name.
-            ota_build_id: String of the otatools build id.
-            ota_branch: String of the otatools branch name.
-            ota_build_target: String of the otatools target name.
+            default_build_info: The build that provides full cuttlefish images.
+            system_build_info: The build that provides the system image.
+            kernel_build_info: The build that provides the kernel.
+            boot_build_info: The build that provides the boot image.
+            bootloader_build_info: The build that provides the bootloader.
+            ota_build_info: The build that provides the OTA tools.
 
         Returns:
             List of string args for fetch_cvd.
@@ -574,10 +519,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         timestart = time.time()
         fetch_cvd_args = ["-credential_source=gce"]
         fetch_cvd_build_args = self._build_api.GetFetchBuildArgs(
-            build_id, branch, build_target, system_build_id, system_branch,
-            system_build_target, kernel_build_id, kernel_branch,
-            kernel_build_target, bootloader_build_id, bootloader_branch,
-            bootloader_build_target, ota_build_id, ota_branch, ota_build_target)
+            default_build_info, system_build_info, kernel_build_info,
+            boot_build_info, bootloader_build_info, ota_build_info)
         fetch_cvd_args.extend(fetch_cvd_build_args)
 
         self._ssh.Run("./fetch_cvd " + " ".join(fetch_cvd_args),

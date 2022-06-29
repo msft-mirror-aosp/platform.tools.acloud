@@ -54,17 +54,18 @@ _EMULATOR_ZIP_NAME_FORMAT = "sdk-repo-%(os)s-emulator-%(build_id)s.zip"
 _EMULATOR_BIN_DIR_NAMES = ("bin64", "qemu")
 _EMULATOR_BIN_NAME = "emulator"
 _SDK_REPO_EMULATOR_DIR_NAME = "emulator"
-# Remote paths
-_REMOTE_WORKING_DIR = "acloud_gf"
-_REMOTE_ARTIFACT_DIR = remote_path.join(_REMOTE_WORKING_DIR, "artifact")
-_REMOTE_IMAGE_DIR = remote_path.join(_REMOTE_WORKING_DIR, "image")
-_REMOTE_KERNEL_PATH = remote_path.join(_REMOTE_WORKING_DIR, "kernel")
-_REMOTE_RAMDISK_PATH = remote_path.join(_REMOTE_WORKING_DIR, "mixed_ramdisk")
-_REMOTE_EMULATOR_DIR = remote_path.join(_REMOTE_WORKING_DIR, "emulator")
-_REMOTE_INSTANCE_DIR = remote_path.join(_REMOTE_WORKING_DIR, "instance")
-_REMOTE_LOGCAT_PATH = os.path.join(_REMOTE_INSTANCE_DIR, "logcat.txt")
-_REMOTE_STDOUT_PATH = os.path.join(_REMOTE_INSTANCE_DIR, "kernel.log")
-_REMOTE_STDERR_PATH = os.path.join(_REMOTE_INSTANCE_DIR, "emu_stderr.txt")
+# Base directory of an instance.
+_REMOTE_INSTANCE_DIR_FORMAT = "acloud_gf_%d"
+# Relative paths in a base directory.
+_REMOTE_ARTIFACT_DIR = "artifact"
+_REMOTE_IMAGE_DIR = "image"
+_REMOTE_KERNEL_PATH = "kernel"
+_REMOTE_RAMDISK_PATH = "mixed_ramdisk"
+_REMOTE_EMULATOR_DIR = "emulator"
+_REMOTE_RUNTIME_DIR = "instance"
+_REMOTE_LOGCAT_PATH = remote_path.join(_REMOTE_RUNTIME_DIR, "logcat.txt")
+_REMOTE_STDOUT_PATH = remote_path.join(_REMOTE_RUNTIME_DIR, "kernel.log")
+_REMOTE_STDERR_PATH = remote_path.join(_REMOTE_RUNTIME_DIR, "emu_stderr.txt")
 # Runtime parameters
 _EMULATOR_DEFAULT_CONSOLE_PORT = 5554
 _DEFAULT_BOOT_TIMEOUT_SECS = 150
@@ -116,6 +117,23 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
     def _ssh_extra_args(self):
         return self._avd_spec.cfg.extra_args_ssh_tunnel
 
+    def _GetConsolePort(self):
+        """Calculate the console port from the instance number.
+
+        By convention, the console port is an even number, and the adb port is
+        the console port + 1. The first instance uses port 5554 and 5555. The
+        second instance uses 5556 and 5557, and so on.
+        """
+        return (_EMULATOR_DEFAULT_CONSOLE_PORT +
+                ((self._avd_spec.base_instance_num or 1) - 1) * 2)
+
+    def _GetInstancePath(self, relative_path):
+        """Append a relative path to the instance directory."""
+        return remote_path.join(
+            _REMOTE_INSTANCE_DIR_FORMAT %
+            (self._avd_spec.base_instance_num or 1),
+            relative_path)
+
     def CreateInstance(self):
         """Create a goldfish instance on the remote host.
 
@@ -127,12 +145,15 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
 
         instance_name = goldfish_remote_host_client.FormatInstanceName(
             self._avd_spec.remote_host,
-            _EMULATOR_DEFAULT_CONSOLE_PORT,
+            self._GetConsolePort(),
             self._avd_spec.remote_image)
         self._logs[instance_name] = [
-            report.LogFile(_REMOTE_STDOUT_PATH, constants.LOG_TYPE_KERNEL_LOG),
-            report.LogFile(_REMOTE_STDERR_PATH, constants.LOG_TYPE_TEXT),
-            report.LogFile(_REMOTE_LOGCAT_PATH, constants.LOG_TYPE_LOGCAT)]
+            report.LogFile(self._GetInstancePath(_REMOTE_STDOUT_PATH),
+                           constants.LOG_TYPE_KERNEL_LOG),
+            report.LogFile(self._GetInstancePath(_REMOTE_STDERR_PATH),
+                           constants.LOG_TYPE_TEXT),
+            report.LogFile(self._GetInstancePath(_REMOTE_LOGCAT_PATH),
+                           constants.LOG_TYPE_LOGCAT)]
         try:
             self._StartEmulator(remote_paths)
             self._WaitForEmulator()
@@ -141,13 +162,13 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         return instance_name
 
     def _InitRemoteHost(self):
-        """Remove existing instance and working directory."""
+        """Remove the existing instance and the instance directory."""
         # Disable authentication for emulator console.
         self._ssh.Run("""'echo -n "" > .emulator_console_auth_token'""")
         try:
             with emulator_console.RemoteEmulatorConsole(
                     self._avd_spec.remote_host,
-                    _EMULATOR_DEFAULT_CONSOLE_PORT,
+                    self._GetConsolePort(),
                     self._ssh_user,
                     self._ssh_private_key_path,
                     self._ssh_extra_args) as console:
@@ -156,7 +177,7 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         except errors.DeviceConnectionError as e:
             logger.info("Did not kill existing emulator: %s", str(e))
         # Delete instance files.
-        self._ssh.Run("rm -rf %s" % _REMOTE_WORKING_DIR)
+        self._ssh.Run(f"rm -rf {self._GetInstancePath('')}")
 
     def _PrepareArtifacts(self):
         """Prepare artifacts on remote host.
@@ -193,7 +214,7 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
 
         Args:
             build_target: The emulator build target name, e.g.,
-                          "sdk_tools_linux", "aarch64_sdk_tools_mac".
+                          "emulator-linux_x64_nolocationui", "aarch64_sdk_tools_mac".
             build_id: A string, the emulator build ID.
 
         Returns:
@@ -461,24 +482,28 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         Returns:
             The remote paths to the extracted emulator tools and images.
         """
+        remote_runtime_dir = self._GetInstancePath(_REMOTE_RUNTIME_DIR)
+        remote_artifact_dir = self._GetInstancePath(_REMOTE_ARTIFACT_DIR)
+        remote_emulator_dir = self._GetInstancePath(_REMOTE_EMULATOR_DIR)
+        remote_image_dir = self._GetInstancePath(_REMOTE_IMAGE_DIR)
         self._ssh.Run("mkdir -p " +
-                      " ".join([_REMOTE_INSTANCE_DIR, _REMOTE_ARTIFACT_DIR,
-                                _REMOTE_EMULATOR_DIR, _REMOTE_IMAGE_DIR]))
-        self._ssh.ScpPushFile(emulator_zip_path, _REMOTE_ARTIFACT_DIR)
-        self._ssh.ScpPushFile(image_zip_path, _REMOTE_ARTIFACT_DIR)
+                      " ".join([remote_runtime_dir, remote_artifact_dir,
+                                remote_emulator_dir, remote_image_dir]))
+        self._ssh.ScpPushFile(emulator_zip_path, remote_artifact_dir)
+        self._ssh.ScpPushFile(image_zip_path, remote_artifact_dir)
 
         self._ssh.Run("unzip -d %s %s" % (
-            _REMOTE_EMULATOR_DIR,
-            remote_path.join(_REMOTE_ARTIFACT_DIR,
+            remote_emulator_dir,
+            remote_path.join(remote_artifact_dir,
                              os.path.basename(emulator_zip_path))))
         self._ssh.Run("unzip -d %s %s" % (
-            _REMOTE_IMAGE_DIR,
-            remote_path.join(_REMOTE_ARTIFACT_DIR,
+            remote_image_dir,
+            remote_path.join(remote_artifact_dir,
                              os.path.basename(image_zip_path))))
         remote_emulator_subdir = remote_path.join(
-            _REMOTE_EMULATOR_DIR, _SDK_REPO_EMULATOR_DIR_NAME)
+            remote_emulator_dir, _SDK_REPO_EMULATOR_DIR_NAME)
         remote_image_subdir = remote_path.join(
-            _REMOTE_IMAGE_DIR, self._GetSubdirNameInZip(image_zip_path))
+            remote_image_dir, self._GetSubdirNameInZip(image_zip_path))
         # TODO(b/141898893): In Android build environment, emulator gets build
         # information from $ANDROID_PRODUCT_OUT/system/build.prop.
         # If image_dir is an extacted SDK repository, the file is at
@@ -538,14 +563,16 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         Returns:
             The remote paths to the kernel image and the ramdisk image.
         """
+        remote_kernel_path = self._GetInstancePath(_REMOTE_KERNEL_PATH)
+        remote_ramdisk_path = self._GetInstancePath(_REMOTE_RAMDISK_PATH)
         with tempfile.TemporaryDirectory("host_gf_kernel") as temp_dir:
             kernel_path, ramdisk_path = goldfish_utils.MixWithBootImage(
                 temp_dir, image_dir, boot_image_path, ota)
 
-            self._ssh.ScpPushFile(kernel_path, _REMOTE_KERNEL_PATH)
-            self._ssh.ScpPushFile(ramdisk_path, _REMOTE_RAMDISK_PATH)
+            self._ssh.ScpPushFile(kernel_path, remote_kernel_path)
+            self._ssh.ScpPushFile(ramdisk_path, remote_ramdisk_path)
 
-        return _REMOTE_KERNEL_PATH, _REMOTE_RAMDISK_PATH
+        return remote_kernel_path, remote_ramdisk_path
 
     @utils.TimeExecute(function_description="Start emulator")
     def _StartEmulator(self, remote_paths):
@@ -563,15 +590,15 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         remote_bin_paths.append(remote_emulator_bin_path)
         self._ssh.Run("chmod -R +x %s" % " ".join(remote_bin_paths))
 
+        remote_runtime_dir = self._GetInstancePath(_REMOTE_RUNTIME_DIR)
         env = {constants.ENV_ANDROID_PRODUCT_OUT: remote_paths.image_dir,
-               constants.ENV_ANDROID_TMP: _REMOTE_INSTANCE_DIR,
-               constants.ENV_ANDROID_BUILD_TOP: _REMOTE_INSTANCE_DIR}
-        adb_port = _EMULATOR_DEFAULT_CONSOLE_PORT + 1
+               constants.ENV_ANDROID_TMP: remote_runtime_dir,
+               constants.ENV_ANDROID_BUILD_TOP: remote_runtime_dir}
         cmd = ["nohup", remote_emulator_bin_path, "-verbose", "-show-kernel",
                "-read-only", "-ports",
-               str(_EMULATOR_DEFAULT_CONSOLE_PORT) + "," + str(adb_port),
+               str(self._GetConsolePort()) + "," + str(self.GetAdbPorts()[0]),
                "-no-window",
-               "-logcat-output", _REMOTE_LOGCAT_PATH]
+               "-logcat-output", self._GetInstancePath(_REMOTE_LOGCAT_PATH)]
 
         if remote_paths.kernel:
             cmd.extend(("-kernel", remote_paths.kernel))
@@ -592,8 +619,8 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
             "'export {env} ; {cmd} 1> {stdout} 2> {stderr} &'".format(
                 env=" ".join(k + "=~/" + v for k, v in env.items()),
                 cmd=" ".join(cmd),
-                stdout=_REMOTE_STDOUT_PATH,
-                stderr=_REMOTE_STDERR_PATH))
+                stdout=self._GetInstancePath(_REMOTE_STDOUT_PATH),
+                stderr=self._GetInstancePath(_REMOTE_STDERR_PATH)))
 
     @utils.TimeExecute(function_description="Wait for emulator")
     def _WaitForEmulator(self):
@@ -604,7 +631,7 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
             errors.DeviceBootTimeoutError if boot times out.
         """
         ip_addr = self._avd_spec.remote_host
-        console_port = _EMULATOR_DEFAULT_CONSOLE_PORT
+        console_port = self._GetConsolePort()
         poll_timeout_secs = (self._avd_spec.boot_timeout_secs or
                              _DEFAULT_BOOT_TIMEOUT_SECS)
         try:
@@ -634,6 +661,16 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         build_info_dict = {key: val for key, val in
                            self._avd_spec.remote_image.items() if val}
         return build_info_dict
+
+    def GetAdbPorts(self):
+        """Get ADB ports of the created devices.
+
+        This class does not support --num-avds-per-instance.
+
+        Returns:
+            The port numbers as a list of integers.
+        """
+        return [self._GetConsolePort() + 1]
 
     def GetFailures(self):
         """Get Failures from all devices.

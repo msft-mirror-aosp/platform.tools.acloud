@@ -170,6 +170,7 @@ INS_KEY_ADB = "adb"
 INS_KEY_VNC = "vnc"
 INS_KEY_WEBRTC = "webrtc"
 INS_KEY_WEBRTC_PORT = "webrtc_port"
+INS_KEY_WEBRTC_DEVICE_ID = "webrtc_device_id"
 INS_KEY_CREATETIME = "creationTimestamp"
 INS_KEY_AVD_TYPE = "avd_type"
 INS_KEY_AVD_FLAVOR = "flavor"
@@ -247,6 +248,10 @@ ERROR_MSG_WEBRTC_NOT_SUPPORT = "unknown command line flag 'start_webrtc'"
 
 # The name of download image tool.
 FETCH_CVD = "fetch_cvd"
+
+# The name of credential source key json file, a copy of
+# cfg.service_account_json_private_key_path for remote host case.
+FETCH_CVD_CREDENTIAL_SOURCE = "credential_key.json"
 
 # For setup and cleanup
 # Packages "devscripts" and "equivs" are required for "mk-build-deps".

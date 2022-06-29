@@ -499,6 +499,28 @@ class UtilsTest(driver_test_lib.BaseDriverTest):
         webrtc_ports = utils.GetWebrtcPortFromSSHTunnel("1.1.1.1")
         self.assertEqual(12345, webrtc_ports)
 
+    @mock.patch("acloud.internal.lib.utils.subprocess")
+    def testFindRemoteFiles(self, mock_subprocess):
+        """Test FindRemoteFiles."""
+        mock_ssh = mock.Mock()
+
+        paths = utils.FindRemoteFiles(mock_ssh, [])
+        mock_subprocess.run.assert_not_called()
+        self.assertEqual([], paths)
+
+        mock_ssh.GetBaseCmd.return_value = "mock_ssh"
+        mock_subprocess.run.return_value = mock.Mock(
+            stderr=b'stderr', stdout=b'file1\nfile2\n')
+        paths = utils.FindRemoteFiles(mock_ssh, ["dir1", "dir2"])
+        self.assertEqual(["file1", "file2"], paths)
+        mock_subprocess.run.assert_called_with(
+            'mock_ssh find -H dir1 dir2 -type f',
+            shell=True, capture_output=True, check=False)
+
+        mock_subprocess.run.return_value = mock.Mock(stderr=None, stdout=b'')
+        paths = utils.FindRemoteFiles(mock_ssh, ["dir1", "dir2"])
+        self.assertEqual([], paths)
+
     # pylint: disable=protected-access, no-member
     def testCleanupSSVncviwer(self):
         """test cleanup ssvnc viewer."""

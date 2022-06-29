@@ -44,11 +44,11 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         constants.BUILD_TARGET: "sdk_arm64-sdk",
     }
     _ARM64_INSTANCE_NAME = (
-        "host-goldfish-192.0.2.1-5554-123456-sdk_arm64-sdk")
+        "host-goldfish-192.0.2.1-5556-123456-sdk_arm64-sdk")
     _CFG_ATTRS = {
         "ssh_private_key_path": "cfg_key_path",
         "extra_args_ssh_tunnel": "extra args",
-        "emulator_build_target": "sdk_tools_linux",
+        "emulator_build_target": "emulator-linux_x64_nolocationui",
     }
     _AVD_SPEC_ATTRS = {
         "cfg": None,
@@ -61,23 +61,24 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         "emulator_build_target": None,
         "system_build_info": {},
         "kernel_build_info": {},
+        "base_instance_num": None,
         "boot_timeout_secs": None,
         "hw_customize": False,
         "hw_property": {},
         "gpu": "auto",
     }
-    _LOGS = [{"path": "acloud_gf/instance/kernel.log", "type": "KERNEL_LOG"},
-             {"path": "acloud_gf/instance/emu_stderr.txt", "type": "TEXT"},
-             {"path": "acloud_gf/instance/logcat.txt", "type": "LOGCAT"}]
+    _LOGS = [{"path": "acloud_gf_1/instance/kernel.log", "type": "KERNEL_LOG"},
+             {"path": "acloud_gf_1/instance/emu_stderr.txt", "type": "TEXT"},
+             {"path": "acloud_gf_1/instance/logcat.txt", "type": "LOGCAT"}]
     _SSH_COMMAND = (
-        "'export ANDROID_PRODUCT_OUT=~/acloud_gf/image/x86_64 "
-        "ANDROID_TMP=~/acloud_gf/instance "
-        "ANDROID_BUILD_TOP=~/acloud_gf/instance ; "
-        "nohup acloud_gf/emulator/emulator/emulator -verbose "
+        "'export ANDROID_PRODUCT_OUT=~/acloud_gf_1/image/x86_64 "
+        "ANDROID_TMP=~/acloud_gf_1/instance "
+        "ANDROID_BUILD_TOP=~/acloud_gf_1/instance ; "
+        "nohup acloud_gf_1/emulator/emulator/emulator -verbose "
         "-show-kernel -read-only -ports 5554,5555 -no-window "
-        "-logcat-output acloud_gf/instance/logcat.txt -gpu auto "
-        "1> acloud_gf/instance/kernel.log "
-        "2> acloud_gf/instance/emu_stderr.txt &'"
+        "-logcat-output acloud_gf_1/instance/logcat.txt -gpu auto "
+        "1> acloud_gf_1/instance/kernel.log "
+        "2> acloud_gf_1/instance/emu_stderr.txt &'"
     )
 
     def setUp(self):
@@ -148,11 +149,13 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
 
         self.assertEqual(self._X86_64_INSTANCE_NAME, instance_name)
         self.assertEqual(self._X86_64_BUILD_INFO, factory.GetBuildInfoDict())
+        self.assertEqual([5555], factory.GetAdbPorts())
+        self.assertEqual([None], factory.GetVncPorts())
         self.assertEqual({}, factory.GetFailures())
         self.assertEqual({instance_name: self._LOGS}, factory.GetLogs())
         # Artifacts.
         self._mock_android_build_client.DownloadArtifact.assert_any_call(
-            "sdk_tools_linux", "111111",
+            "emulator-linux_x64_nolocationui", "111111",
             "sdk-repo-linux-emulator-111111.zip", mock.ANY, mock.ANY)
         self._mock_android_build_client.DownloadArtifact.assert_any_call(
             "sdk_x86_64-sdk", "123456",
@@ -175,6 +178,7 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self._mock_avd_spec.host_ssh_private_key_path = "key_path"
         self._mock_avd_spec.emulator_build_id = "999999"
         self._mock_avd_spec.emulator_build_target = "aarch64_sdk_tools_mac"
+        self._mock_avd_spec.base_instance_num = 2
         self._mock_avd_spec.boot_timeout_secs = 1
         self._mock_avd_spec.hw_customize = True
         self._mock_avd_spec.hw_property = {"disk": "4096"}
@@ -201,6 +205,8 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
 
         self.assertEqual(self._ARM64_INSTANCE_NAME, instance_name)
         self.assertEqual(self._ARM64_BUILD_INFO, factory.GetBuildInfoDict())
+        self.assertEqual([5557], factory.GetAdbPorts())
+        self.assertEqual([None], factory.GetVncPorts())
         self.assertEqual({}, factory.GetFailures())
 
     @mock.patch("acloud.public.actions.remote_host_gf_device_factory."
@@ -232,10 +238,12 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         # Images.
         mock_gf_utils.MixWithSystemImage.assert_called_once()
         self._mock_ssh.ScpPushFile.assert_called_with(
-            "/mixed/disk", "acloud_gf/image/x86_64/system-qemu.img")
+            "/mixed/disk", "acloud_gf_1/image/x86_64/system-qemu.img")
 
         self.assertEqual(self._X86_64_INSTANCE_NAME, instance_name)
         self.assertEqual(self._X86_64_BUILD_INFO, factory.GetBuildInfoDict())
+        self.assertEqual([5555], factory.GetAdbPorts())
+        self.assertEqual([None], factory.GetVncPorts())
         self.assertEqual({}, factory.GetFailures())
 
     @mock.patch("acloud.public.actions.remote_host_gf_device_factory."
@@ -268,12 +276,14 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         # Images.
         mock_gf_utils.MixWithBootImage.assert_called_once()
         self._mock_ssh.ScpPushFile.assert_any_call(
-            "/path/to/kernel", "acloud_gf/kernel")
+            "/path/to/kernel", "acloud_gf_1/kernel")
         self._mock_ssh.ScpPushFile.assert_any_call(
-            "/path/to/ramdisk", "acloud_gf/mixed_ramdisk")
+            "/path/to/ramdisk", "acloud_gf_1/mixed_ramdisk")
 
         self.assertEqual(self._X86_64_INSTANCE_NAME, instance_name)
         self.assertEqual(self._X86_64_BUILD_INFO, factory.GetBuildInfoDict())
+        self.assertEqual([5555], factory.GetAdbPorts())
+        self.assertEqual([None], factory.GetVncPorts())
         self.assertEqual({}, factory.GetFailures())
 
     def testCreateInstanceError(self):
