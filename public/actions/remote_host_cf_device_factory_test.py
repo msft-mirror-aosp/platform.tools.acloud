@@ -48,6 +48,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                              "build_target": "aosp_cf_x86_64_phone-userdebug"},
                          system_build_info={},
                          kernel_build_info={},
+                         boot_build_info={},
                          bootloader_build_info={},
                          ota_build_info={},
                          remote_host="192.0.2.100",
