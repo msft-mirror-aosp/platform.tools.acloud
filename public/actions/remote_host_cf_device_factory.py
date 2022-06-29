@@ -172,6 +172,7 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             self._avd_spec.remote_image,
             self._avd_spec.system_build_info,
             self._avd_spec.kernel_build_info,
+            self._avd_spec.boot_build_info,
             self._avd_spec.bootloader_build_info,
             self._avd_spec.ota_build_info)
         creds_cache_file = os.path.join(_HOME_FOLDER, cfg.creds_cache_file)
@@ -232,6 +233,7 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             self._avd_spec.remote_image,
             self._avd_spec.system_build_info,
             self._avd_spec.kernel_build_info,
+            self._avd_spec.boot_build_info,
             self._avd_spec.bootloader_build_info,
             self._avd_spec.ota_build_info)
         creds_cache_file = os.path.join(_HOME_FOLDER, cfg.creds_cache_file)
