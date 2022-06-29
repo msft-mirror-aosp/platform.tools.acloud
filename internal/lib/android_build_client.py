@@ -155,8 +155,8 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
         return (build_id or branch) + "/" + build_target
 
     def GetFetchBuildArgs(self, default_build_info, system_build_info,
-                          kernel_build_info, bootloader_build_info,
-                          ota_build_info):
+                          kernel_build_info, boot_build_info,
+                          bootloader_build_info, ota_build_info):
         """Get args from build information for fetch_cvd.
 
         Each build_info is a dictionary that contains 3 items, for example,
@@ -170,6 +170,10 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
             default_build_info: The build that provides full cuttlefish images.
             system_build_info: The build that provides the system image.
             kernel_build_info: The build that provides the kernel.
+            boot_build_info: The build that provides the boot image. This
+                             dictionary may contain an additional key
+                             constants.BUILD_ARTIFACT which is mapped to the
+                             boot image name.
             bootloader_build_info: The build that provides the bootloader.
             ota_build_info: The build that provides the OTA tools.
 
@@ -190,6 +194,12 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
         kernel_build = self.GetKernelBuild(kernel_build_info)
         if kernel_build:
             fetch_cvd_args.append(f"-kernel_build={kernel_build}")
+        boot_build = self.ProcessBuild(boot_build_info)
+        if boot_build:
+            fetch_cvd_args.append(f"-boot_build={boot_build}")
+            boot_artifact = boot_build_info.get(constants.BUILD_ARTIFACT)
+            if boot_artifact:
+                fetch_cvd_args.append(f"-boot_artifact={boot_artifact}")
         ota_build = self.ProcessBuild(ota_build_info)
         if ota_build:
             fetch_cvd_args.append(f"-otatools_build={ota_build}")
