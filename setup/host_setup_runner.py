@@ -46,14 +46,20 @@ _KVM_AMD = "kvm_amd"
 _LIST_OF_INTEL_MODULES = [_KVM_INTEL, "kvm"]
 _LIST_OF_AMD_MODULES = [_KVM_AMD, "kvm"]
 _DICT_MODULES = {_INTEL: _LIST_OF_INTEL_MODULES, _AMD: _LIST_OF_AMD_MODULES}
-_INTEL_COMMANDS = ["sudo rmmod kvm_intel", "sudo modprobe kvm_intel"]
-_AMD_COMMANDS = ["sudo rmmod kvm_amd", "sudo modprobe kvm_amd"]
+_INTEL_COMMANDS = [
+    "sudo rmmod kvm_intel", "sudo rmmod kvm", "sudo modprobe kvm",
+    "sudo modprobe kvm_intel"]
+_AMD_COMMANDS = [
+    "sudo rmmod kvm_amd", "sudo rmmod kvm", "sudo modprobe kvm",
+    "sudo modprobe kvm_amd"]
 _DICT_SETUP_CMDS = {_INTEL: _INTEL_COMMANDS, _AMD: _AMD_COMMANDS}
 _UPDATE_APT_GET_CMD = "sudo apt-get update"
 _INSTALL_CUTTLEFISH_COMMOM_CMD = [
     "git clone https://github.com/google/android-cuttlefish.git {git_folder}",
     "cd {git_folder}",
     "debuild -i -us -uc -b",
+    "sudo dpkg -i ../cuttlefish-base_*_*64.deb || sudo apt-get install -f",
+    "sudo dpkg -i ../cuttlefish-user_*_*64.deb || sudo apt-get install -f",
     "sudo dpkg -i ../cuttlefish-common_*_*64.deb || sudo apt-get install -f"]
 
 
@@ -251,8 +257,7 @@ class CuttlefishHostSetup(base_task_runner.BaseTaskRunner):
         """Setup host environment for local cuttlefish instance support."""
         # TODO: provide --uid args to let user use prefered username
         username = getpass.getuser()
-        setup_cmds = ["sudo rmmod kvm", "sudo modprobe kvm"]
-        setup_cmds.extend(_DICT_SETUP_CMDS.get(self._GetProcessorType()))
+        setup_cmds = _DICT_SETUP_CMDS.get(self._GetProcessorType())
         for group in constants.LIST_CF_USER_GROUPS:
             setup_cmds.append("sudo usermod -aG %s % s" % (group, username))
 
