@@ -131,6 +131,7 @@ class AVDSpec():
         self._remote_image = None
         self._system_build_info = None
         self._kernel_build_info = None
+        self._boot_build_info = None
         self._ota_build_info = None
         self._bootloader_build_info = None
         self._hw_property = None
@@ -624,6 +625,10 @@ class AVDSpec():
                                    constants.BUILD_BRANCH: args.kernel_branch,
                                    constants.BUILD_TARGET: args.kernel_build_target,
                                    constants.BUILD_ARTIFACT: args.kernel_artifact}
+        self._boot_build_info = {constants.BUILD_ID: args.boot_build_id,
+                                 constants.BUILD_BRANCH: args.boot_branch,
+                                 constants.BUILD_TARGET: args.boot_build_target,
+                                 constants.BUILD_ARTIFACT: args.boot_artifact}
         self._bootloader_build_info = {
             constants.BUILD_ID: args.bootloader_build_id,
             constants.BUILD_BRANCH: args.bootloader_branch,
@@ -878,6 +883,11 @@ class AVDSpec():
     def kernel_build_info(self):
         """Return kernel build info."""
         return self._kernel_build_info
+
+    @property
+    def boot_build_info(self):
+        """Return boot build info."""
+        return self._boot_build_info
 
     @property
     def bootloader_build_info(self):
