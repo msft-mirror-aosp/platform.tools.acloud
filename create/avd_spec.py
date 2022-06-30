@@ -623,8 +623,7 @@ class AVDSpec():
                                 constants.BUILD_TARGET: args.ota_build_target}
         self._kernel_build_info = {constants.BUILD_ID: args.kernel_build_id,
                                    constants.BUILD_BRANCH: args.kernel_branch,
-                                   constants.BUILD_TARGET: args.kernel_build_target,
-                                   constants.BUILD_ARTIFACT: args.kernel_artifact}
+                                   constants.BUILD_TARGET: args.kernel_build_target}
         self._boot_build_info = {constants.BUILD_ID: args.boot_build_id,
                                  constants.BUILD_BRANCH: args.boot_branch,
                                  constants.BUILD_TARGET: args.boot_build_target,

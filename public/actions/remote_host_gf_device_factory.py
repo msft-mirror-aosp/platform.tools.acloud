@@ -362,7 +362,7 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         return None
 
     def _RetrieveBootImage(self, download_dir, build_api):
-        """Retrieve boot image if kernel build info is not empty.
+        """Retrieve boot image if boot build info is not empty.
 
         Args:
             download_dir: The download cache directory.
@@ -370,12 +370,12 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
 
         Returns:
             The path to the boot image in download_dir.
-            None if the kernel build info is empty.
+            None if the boot build info is empty.
         """
-        build_id = self._avd_spec.kernel_build_info.get(constants.BUILD_ID)
-        build_target = self._avd_spec.kernel_build_info.get(
+        build_id = self._avd_spec.boot_build_info.get(constants.BUILD_ID)
+        build_target = self._avd_spec.boot_build_info.get(
             constants.BUILD_TARGET)
-        image_name = self._avd_spec.kernel_build_info.get(
+        image_name = self._avd_spec.boot_build_info.get(
             constants.BUILD_ARTIFACT)
         if build_id and build_target and image_name:
             return self._RetrieveArtifact(
