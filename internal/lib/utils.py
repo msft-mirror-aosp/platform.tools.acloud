@@ -40,8 +40,6 @@ import uuid
 import webbrowser
 import zipfile
 
-import six
-
 from acloud import errors
 from acloud.internal import constants
 
@@ -75,11 +73,7 @@ _PORT_1443 = 1443
 PortMapping = collections.namedtuple("PortMapping", ["local", "target"])
 WEBRTC_PORTS_MAPPING = [PortMapping(15550, 15550),
                         PortMapping(15551, 15551),
-                        PortMapping(15552, 15552),
-                        PortMapping(15553, 15553),
-                        PortMapping(15554, 15554),
-                        PortMapping(15555, 15555),
-                        PortMapping(15556, 15556)]
+                        PortMapping(15552, 15552)]
 _RE_GROUP_WEBRTC = "local_webrtc_port"
 _RE_WEBRTC_SSH_TUNNEL_PATTERN = (
     r"((.*-L\s)(?P<local_webrtc_port>\d+):127.0.0.1:%s)(.+%s)")
@@ -334,7 +328,7 @@ def MakeTarFile(src_dict, dest):
     """
     logger.info("Compressing %s into %s.", src_dict.keys(), dest)
     with tarfile.open(dest, "w:gz") as tar:
-        for src, arcname in six.iteritems(src_dict):
+        for src, arcname in src_dict.items():
             tar.add(src, arcname=arcname)
 
 def CreateSshKeyPairIfNotExist(private_key_path, public_key_path):
@@ -431,7 +425,7 @@ def VerifyRsaPubKey(rsa):
 
     key_type, data, _ = elements
     try:
-        binary_data = base64.decodebytes(six.b(data))
+        binary_data = base64.decodebytes(data.encode())
         # number of bytes of int type
         int_length = 4
         # binary_data is like "7ssh-key..." in a binary format.
@@ -441,7 +435,7 @@ def VerifyRsaPubKey(rsa):
         # We will verify that the rsa conforms to this format.
         # ">I" in the following line means "big-endian unsigned integer".
         type_length = struct.unpack(">I", binary_data[:int_length])[0]
-        if binary_data[int_length:int_length + type_length] != six.b(key_type):
+        if binary_data[int_length:int_length + type_length] != key_type.encode():
             raise errors.DriverError("rsa key is invalid: %s" % rsa)
     except (struct.error, binascii.Error) as e:
         raise errors.DriverError(
@@ -518,7 +512,7 @@ def InteractWithQuestion(question, colors=TextColors.WARNING):
     Returns:
         String, input from user.
     """
-    return str(six.moves.input(colors + question + TextColors.ENDC).strip())
+    return str(input(colors + question + TextColors.ENDC).strip())
 
 
 def GetUserAnswerYes(question):
@@ -606,7 +600,7 @@ class BatchHttpRequestExecutor:
         self._final_results.update(results)
         # Clear pending_requests
         self._pending_requests.clear()
-        for request_id, result in six.iteritems(results):
+        for request_id, result in results.items():
             exception = result[1]
             if exception is not None and self._ShoudRetry(exception):
                 # If this is a retriable exception, put it in pending_requests
@@ -892,6 +886,11 @@ def EstablishWebRTCSshTunnel(ip_addr, webrtc_local_port, rsa_key_file, ssh_user,
     """
     webrtc_server_port = GetWebRTCServerPort(
         ip_addr, rsa_key_file, ssh_user, extra_args_ssh_tunnel)
+
+    # TODO(b/209502647): design a better way to forward webrtc ports.
+    if extra_args_ssh_tunnel:
+        for webrtc_port in WEBRTC_PORTS_MAPPING:
+            ReleasePort(webrtc_port.local)
     port_mapping = (WEBRTC_PORTS_MAPPING +
                     [PortMapping(webrtc_local_port, webrtc_server_port)])
     try:
@@ -1036,7 +1035,7 @@ def GetAnswerFromList(answer_list, enable_choose_all=False):
 
     while True:
         try:
-            choice = six.moves.input("Enter your choice[0-%d]: " % max_choice)
+            choice = input("Enter your choice[0-%d]: " % max_choice)
             choice = int(choice)
         except ValueError:
             print("'%s' is not a valid integer.", choice)
@@ -1470,11 +1469,9 @@ def GetDictItems(namedtuple_object):
         namedtuple_object: namedtuple object.
 
     Returns:
-        collections.namedtuple.__dict__.items() when using python2.
         collections.namedtuple._asdict().items() when using python3.
     """
-    return (namedtuple_object.__dict__.items() if six.PY2
-            else namedtuple_object._asdict().items())
+    return namedtuple_object._asdict().items()
 
 
 def CleanupSSVncviewer(vnc_port):

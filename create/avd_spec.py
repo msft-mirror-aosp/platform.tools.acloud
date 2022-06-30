@@ -141,7 +141,9 @@ class AVDSpec():
         self._host_ssh_private_key_path = None
         self._gpu = None
         self._disk_type = None
+        self._base_instance_num = None
         self._stable_host_image_name = None
+        self._use_launch_cvd = None
         # Create config instance for android_build_client to query build api.
         self._cfg = config.GetAcloudConfig(args)
         # Reporting args.
@@ -155,6 +157,8 @@ class AVDSpec():
         self._stable_cheeps_host_image_project = None
         self._username = None
         self._password = None
+        self._cheeps_betty_image = None
+        self._cheeps_features = None
 
         # The maximum time in seconds used to wait for the AVD to boot.
         self._boot_timeout_secs = None
@@ -232,6 +236,14 @@ class AVDSpec():
         else:
             self._image_source = constants.IMAGE_SRC_LOCAL
             self._ProcessLocalImageArgs(args)
+
+        if args.local_kernel_image is not None:
+            self._local_kernel_image = self._GetLocalImagePath(
+                args.local_kernel_image)
+
+        if args.local_system_image is not None:
+            self._local_system_image = self._GetLocalImagePath(
+                args.local_system_image)
 
         self.image_download_dir = (
             args.image_download_dir if args.image_download_dir
@@ -343,11 +355,13 @@ class AVDSpec():
         self._mkcert = args.mkcert
         self._oxygen = args.oxygen
         self._openwrt = args.openwrt
+        self._use_launch_cvd = args.use_launch_cvd
         self._serial_log_file = args.serial_log_file
         self._emulator_build_id = args.emulator_build_id
         self._emulator_build_target = args.emulator_build_target
         self._gpu = args.gpu
         self._disk_type = (args.disk_type or self._cfg.disk_type)
+        self._base_instance_num = args.base_instance_num
         self._gce_metadata = create_common.ParseKeyValuePairArgs(args.gce_metadata)
         self._stable_host_image_name = (
             args.stable_host_image_name or self._cfg.stable_host_image_name)
@@ -356,6 +370,9 @@ class AVDSpec():
         self._stable_cheeps_host_image_project = args.stable_cheeps_host_image_project
         self._username = args.username
         self._password = args.password
+        self._cheeps_betty_image = (
+            args.cheeps_betty_image or self._cfg.betty_image)
+        self._cheeps_features = args.cheeps_features
 
         self._boot_timeout_secs = args.boot_timeout_secs
         self._ins_timeout_secs = args.ins_timeout_secs
@@ -420,14 +437,6 @@ class AVDSpec():
             raise errors.CreateError(
                 "Local image doesn't support the AVD type: %s" % self._avd_type
             )
-
-        if args.local_kernel_image is not None:
-            self._local_kernel_image = self._GetLocalImagePath(
-                args.local_kernel_image)
-
-        if args.local_system_image is not None:
-            self._local_system_image = self._GetLocalImagePath(
-                args.local_system_image)
 
     @staticmethod
     def _GetGceLocalImagePath(local_image_dir):
@@ -597,9 +606,6 @@ class AVDSpec():
             self._remote_image[constants.BUILD_ID] = build_client.GetLKGB(
                 self._remote_image[constants.BUILD_TARGET],
                 self._remote_image[constants.BUILD_BRANCH])
-
-        self._remote_image[constants.CHEEPS_BETTY_IMAGE] = (
-            args.cheeps_betty_image or self._cfg.betty_image)
 
         # Process system image, kernel image, bootloader, and otatools.
         self._system_build_info = {constants.BUILD_ID: args.system_build_id,
@@ -895,6 +901,11 @@ class AVDSpec():
         return self._disk_type
 
     @property
+    def base_instance_num(self):
+        """Return base instance num."""
+        return self._base_instance_num
+
+    @property
     def gpu(self):
         """Return gpu."""
         return self._gpu
@@ -939,6 +950,16 @@ class AVDSpec():
     def password(self):
         """Return password."""
         return self._password
+
+    @property
+    def cheeps_betty_image(self):
+        """Return cheeps_betty_image."""
+        return self._cheeps_betty_image
+
+    @property
+    def cheeps_features(self):
+        """Return cheeps_features."""
+        return self._cheeps_features
 
     @property
     def boot_timeout_secs(self):
@@ -1009,6 +1030,11 @@ class AVDSpec():
     def openwrt(self):
         """Return openwrt."""
         return self._openwrt
+
+    @property
+    def use_launch_cvd(self):
+        """Return use_launch_cvd."""
+        return self._use_launch_cvd
 
     @property
     def launch_args(self):

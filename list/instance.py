@@ -58,6 +58,10 @@ _CVD_BIN = "cvd"
 _CVD_BIN_FOLDER = "host_bins/bin"
 _CVD_STATUS_BIN = "cvd_status"
 _CVD_SERVER = "cvd_server"
+_CVD_STOP_ERROR_KEYWORDS = "cvd_internal_stop E"
+# Default timeout 30 secs for cvd commands.
+_CVD_TIMEOUT = 30
+_INSTANCE_ASSEMBLY_DIR = "cuttlefish_assembly"
 _LOCAL_INSTANCE_NAME_FORMAT = "local-instance-%(id)d"
 _LOCAL_INSTANCE_NAME_PATTERN = re.compile(r"^local-instance-(?P<id>\d+)$")
 _ACLOUDWEB_INSTANCE_START_STRING = "cf-"
@@ -69,6 +73,7 @@ _RE_SSH_TUNNEL_PATTERN = (r"((.*\s*-L\s)(?P<%s>\d+):127.0.0.1:%s)"
                           r"((.*\s*-L\s)(?P<%s>\d+):127.0.0.1:%s)"
                           r"(.+%s)")
 _RE_TIMEZONE = re.compile(r"^(?P<time>[0-9\-\.:T]*)(?P<timezone>[+-]\d+:\d+)$")
+_RE_DEVICE_INFO = re.compile(r"(?s).*(?P<device_info>[{][\s\w\W]+})")
 
 _COMMAND_PS_LAUNCH_CVD = ["ps", "-wweo", "lstart,cmd"]
 _RE_RUN_CVD = re.compile(r"(?P<date_str>^[^/]+)(.*run_cvd)")
@@ -123,7 +128,7 @@ def GetLocalInstanceIdByName(name):
     return None
 
 
-def GetLocalInstanceConfig(local_instance_id):
+def GetLocalInstanceConfigPath(local_instance_id):
     """Get the path of instance config.
 
     Args:
@@ -132,15 +137,23 @@ def GetLocalInstanceConfig(local_instance_id):
     Return:
         String, path of cf runtime config.
     """
-    ins_runtime_dir = GetLocalInstanceRuntimeDir(local_instance_id)
-    cfg_dirs = [ins_runtime_dir]
-    cfg_dirs.append(_CVD_CONFIG_FOLDER % {
-        "cvd_runtime": ins_runtime_dir,
-        "id": local_instance_id})
-    for cfg_dir in cfg_dirs:
-        cfg_path = os.path.join(cfg_dir, constants.CUTTLEFISH_CONFIG_FILE)
-        if os.path.isfile(cfg_path):
-            return cfg_path
+    ins_assembly_dir = os.path.join(GetLocalInstanceHomeDir(local_instance_id),
+                                    _INSTANCE_ASSEMBLY_DIR)
+    return os.path.join(ins_assembly_dir, constants.CUTTLEFISH_CONFIG_FILE)
+
+
+def GetLocalInstanceConfig(local_instance_id):
+    """Get the path of existed config from local instance.
+
+    Args:
+        local_instance_id: Integer of instance id.
+
+    Return:
+        String, path of cf runtime config. None for config not exist.
+    """
+    cfg_path = GetLocalInstanceConfigPath(local_instance_id)
+    if os.path.isfile(cfg_path):
+        return cfg_path
     return None
 
 
@@ -539,12 +552,38 @@ class LocalInstance(Instance):
                                        env=self._GetCvdEnv(),
                                        stdout=subprocess.PIPE,
                                        stderr=subprocess.PIPE)
-            stdout, _ = process.communicate()
+            stdout, _ = process.communicate(timeout=_CVD_TIMEOUT)
             logger.debug("Output of cvd fleet: %s", stdout)
-            return json.loads(stdout)
-        except (subprocess.CalledProcessError, json.JSONDecodeError) as error:
+            return json.loads(self._ParsingCvdFleetOutput(stdout))
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired,
+                json.JSONDecodeError) as error:
             logger.error("Failed to run 'cvd fleet': %s", str(error))
             return None
+
+    @staticmethod
+    def _ParsingCvdFleetOutput(output):
+        """Parsing the output of cvd fleet.
+
+        The output example:
+            WARNING: cvd_server client version (8245608) does not match.
+            {
+                "adb_serial" : "0.0.0.0:6520",
+                "assembly_dir" : "/home/cuttlefish_runtime/assembly",
+                "displays" : ["720 x 1280 ( 320 )"],
+                "instance_dir" : "/home/cuttlefish_runtime/instances/cvd-1",
+                "instance_name" : "cvd-1",
+                "status" : "Running",
+                "web_access" : "https://0.0.0.0:8443/client.html?deviceId=cvd-1",
+                "webrtc_port" : "8443"
+            }
+
+        Returns:
+            Parsed output filtered warning message.
+        """
+        device_match = _RE_DEVICE_INFO.match(output)
+        if device_match:
+            return device_match.group("device_info")
+        return ""
 
     def CvdStatus(self):
         """check if local instance is active.
@@ -593,30 +632,51 @@ class LocalInstance(Instance):
             return False
 
     def Delete(self):
-        """Execute stop_cvd to stop local cuttlefish instance.
+        """Execute "cvd stop" to stop local cuttlefish instance.
 
-        - We should get the same host tool used to launch cvd to delete instance
-        , So get stop_cvd bin from the cvd runtime config.
-        - Add CUTTLEFISH_CONFIG_FILE env variable to tell stop_cvd which cvd
-        need to be deleted.
+        - We should get the same host tool used to delete instance.
+        - Add CUTTLEFISH_CONFIG_FILE env variable to tell cvd which cvd need to
+          be deleted.
         - Stop adb since local instance use the fixed adb port and could be
          reused again soon.
         """
-        stop_cvd_cmd = os.path.join(self.cf_runtime_cfg.cvd_tools_path,
-                                    constants.CMD_STOP_CVD)
+        ins_home_dir = GetLocalInstanceHomeDir(self._local_instance_id)
+        cvd_tool = os.path.join(ins_home_dir, _CVD_BIN_FOLDER, _CVD_BIN)
+        stop_cvd_cmd = f"{cvd_tool} stop"
         logger.debug("Running cmd[%s] to delete local cvd", stop_cvd_cmd)
         if not self.instance_dir:
             logger.error("instance_dir is null!! instance[%d] might not be"
                          " deleted", self._local_instance_id)
-        subprocess.check_call(
-            utils.AddUserGroupsToCmd(stop_cvd_cmd,
-                                     constants.LIST_CF_USER_GROUPS),
-            stderr=subprocess.STDOUT, shell=True, env=self._GetCvdEnv())
+        try:
+            output = subprocess.check_output(
+                utils.AddUserGroupsToCmd(stop_cvd_cmd,
+                                         constants.LIST_CF_USER_GROUPS),
+                stderr=subprocess.STDOUT, shell=True, env=self._GetCvdEnv(),
+                text=True, timeout=_CVD_TIMEOUT)
+            # TODO: Remove workaround of stop_cvd when 'cvd stop' is stable.
+            if _CVD_STOP_ERROR_KEYWORDS in output:
+                logger.debug("Fail to stop cvd: %s", output)
+                self._ExecuteStopCvd(os.path.join(ins_home_dir, _CVD_BIN_FOLDER))
+        except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as e:
+            logger.debug("'cvd stop' error: %s", str(e))
+            self._ExecuteStopCvd(os.path.join(ins_home_dir, _CVD_BIN_FOLDER))
 
         adb_cmd = AdbTools(self.adb_port)
         # When relaunch a local instance, we need to pass in retry=True to make
         # sure adb device is completely gone since it will use the same adb port
         adb_cmd.DisconnectAdb(retry=True)
+
+    def _ExecuteStopCvd(self, dir_path):
+        """Execute "stop_cvd" to stop local cuttlefish instance.
+
+        Args:
+            bin_dir: String, directory path of "stop_cvd".
+        """
+        stop_cvd_cmd = os.path.join(dir_path, constants.CMD_STOP_CVD)
+        subprocess.check_call(
+            utils.AddUserGroupsToCmd(
+                stop_cvd_cmd, constants.LIST_CF_USER_GROUPS),
+            stderr=subprocess.STDOUT, shell=True, env=self._GetCvdEnv())
 
     def GetLock(self):
         """Return the LocalInstanceLock for this object."""
