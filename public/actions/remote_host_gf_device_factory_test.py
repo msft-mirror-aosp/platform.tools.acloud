@@ -60,7 +60,7 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         "emulator_build_id": None,
         "emulator_build_target": None,
         "system_build_info": {},
-        "kernel_build_info": {},
+        "boot_build_info": {},
         "base_instance_num": None,
         "boot_timeout_secs": None,
         "hw_customize": False,
@@ -248,11 +248,11 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
 
     @mock.patch("acloud.public.actions.remote_host_gf_device_factory."
                 "goldfish_utils")
-    def testCreateInstanceWithKernelBuild(self, mock_gf_utils):
-        """Test RemoteHostGoldfishDeviceFactory with kernel build."""
-        self._mock_avd_spec.kernel_build_info = {
+    def testCreateInstanceWithBootBuild(self, mock_gf_utils):
+        """Test RemoteHostGoldfishDeviceFactory with boot build."""
+        self._mock_avd_spec.boot_build_info = {
             constants.BUILD_ID: "111111",
-            constants.BUILD_TARGET: "aosp_x86_64-userdebug",
+            constants.BUILD_TARGET: "gki_x86_64-userdebug",
             constants.BUILD_ARTIFACT: "boot-5.10.img"}
         mock_gf_utils.ConvertAvdSpecToArgs.return_value = ["-gpu", "auto"]
         mock_gf_utils.MixWithBootImage.return_value = (
@@ -266,7 +266,7 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             "sdk_x86_64-sdk", "123456",
             "sdk-repo-linux-system-images-123456.zip", mock.ANY, mock.ANY)
         self._mock_android_build_client.DownloadArtifact.assert_any_call(
-            "aosp_x86_64-userdebug", "111111",
+            "gki_x86_64-userdebug", "111111",
             "boot-5.10.img", mock.ANY, mock.ANY)
         self._mock_android_build_client.DownloadArtifact.assert_any_call(
             "sdk_x86_64-sdk", "123456",
