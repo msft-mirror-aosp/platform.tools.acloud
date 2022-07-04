@@ -51,7 +51,10 @@ class CvdUtilsTest(unittest.TestCase):
         """Test FindLocalLogs."""
         mock_isdir.return_value = False
         expected_logs = [
-            {"path": "/dir/launcher.log", "type": constants.LOG_TYPE_TEXT},
+            {
+                "path": "/dir/launcher.log",
+                "type": constants.LOG_TYPE_CUTTLEFISH_LOG
+            },
             {"path": "/dir/kernel.log", "type": constants.LOG_TYPE_KERNEL_LOG},
             {"path": "/dir/logcat", "type": constants.LOG_TYPE_LOGCAT},
         ]
@@ -62,7 +65,7 @@ class CvdUtilsTest(unittest.TestCase):
         expected_logs = [
             {
                 "path": "/dir/instances/cvd-2/logs/launcher.log",
-                "type": constants.LOG_TYPE_TEXT
+                "type": constants.LOG_TYPE_CUTTLEFISH_LOG
             },
             {
                 "path": "/dir/instances/cvd-2/logs/kernel.log",
@@ -215,12 +218,12 @@ class CvdUtilsTest(unittest.TestCase):
             },
             {
                 "path": "/launcher.log",
-                "type": constants.LOG_TYPE_TEXT,
+                "type": constants.LOG_TYPE_CUTTLEFISH_LOG,
                 "name": "launcher.log"
             },
             {
                 "path": "/cuttlefish_config.json",
-                "type": constants.LOG_TYPE_TEXT,
+                "type": constants.LOG_TYPE_CUTTLEFISH_LOG,
                 "name": "cuttlefish_config.json"
             },
             {
