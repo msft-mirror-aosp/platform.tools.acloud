@@ -50,6 +50,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
     MACHINE_TYPE = "fake-machine-type"
     NETWORK = "fake-network"
     ZONE = "fake-zone"
+    PROJECT = "fake-project"
     BRANCH = "fake-branch"
     TARGET = "aosp_cf_x86_64_phone-userdebug"
     BUILD_ID = "2263051"
@@ -81,6 +82,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         fake_cfg.machine_type = self.MACHINE_TYPE
         fake_cfg.network = self.NETWORK
         fake_cfg.zone = self.ZONE
+        fake_cfg.project = self.PROJECT
         fake_cfg.resolution = "{x}x{y}x32x{dpi}".format(
             x=self.X_RES, y=self.Y_RES, dpi=self.DPI)
         fake_cfg.metadata_variable = self.METADATA
@@ -302,6 +304,25 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.cvd_compute_client_multi_stage._UpdateOpenWrtStatus(fake_avd_spec)
         self.assertEqual(True, self.cvd_compute_client_multi_stage.openwrt)
 
+    def testGetGCEHostName(self):
+        """Test GetGCEHostName."""
+        fake_avd_spec = mock.MagicMock(connect_hostname=True)
+        instance_name = "instance_name"
+        expected = "nic0.instance_name.fake-zone.c.fake-project.internal.gcpnode.com"
+        self.assertEqual(expected,
+                         self.cvd_compute_client_multi_stage._GetGCEHostName(
+                             instance_name, fake_avd_spec))
+
+        self.cvd_compute_client_multi_stage._project = "test.com:project"
+        expected = "nic0.instance_name.fake-zone.c.project.test.com.internal.gcpnode.com"
+        self.assertEqual(expected,
+                         self.cvd_compute_client_multi_stage._GetGCEHostName(
+                             instance_name, fake_avd_spec))
+
+        fake_avd_spec.connect_hostname = False
+        self.assertEqual(None,
+                         self.cvd_compute_client_multi_stage._GetGCEHostName(
+                             instance_name, fake_avd_spec))
 
 if __name__ == "__main__":
     unittest.main()

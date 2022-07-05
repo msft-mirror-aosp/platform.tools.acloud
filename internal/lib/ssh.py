@@ -239,13 +239,22 @@ class Ssh():
         _user: String of user login into the instance.
         _ssh_private_key_path: Path to the private key file.
         _extra_args_ssh_tunnel: String, extra args for ssh or scp.
+        _report_internal_ip: Boolean, True to use internal ip.
+        _gce_hostname: String, the hostname for ssh connect.
     """
     def __init__(self, ip, user, ssh_private_key_path,
-                 extra_args_ssh_tunnel=None, report_internal_ip=False):
+                 extra_args_ssh_tunnel=None, report_internal_ip=False,
+                 gce_hostname=None):
         self._ip = ip.internal if report_internal_ip else ip.external
         self._user = user
         self._ssh_private_key_path = ssh_private_key_path
         self._extra_args_ssh_tunnel = extra_args_ssh_tunnel
+        if gce_hostname:
+            self._ip = gce_hostname
+            self._extra_args_ssh_tunnel = None
+            logger.debug(
+                "To connect with hostname, erase the extra_args_ssh_tunnel: %s",
+                extra_args_ssh_tunnel)
 
     def Run(self, target_command, timeout=None, show_output=False,
             retry=_SSH_CMD_MAX_RETRY):

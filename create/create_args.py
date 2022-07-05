@@ -338,6 +338,13 @@ def AddCommonCreateArgs(parser):
         default=1,
         help="'cuttlefish only' Create multiple cuttlefish AVDs in one local "
              "instance.")
+    parser.add_argument(
+        "--connect-hostname",
+        action="store_true",
+        dest="connect_hostname",
+        required=False,
+        default=False,
+        help="Ssh connects to the GCE instance with hostname.")
     # Hide following args for users, it is only used in infra.
     parser.add_argument(
         "--local-instance-dir",

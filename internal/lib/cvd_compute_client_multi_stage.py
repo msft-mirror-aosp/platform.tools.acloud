@@ -226,7 +226,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                         user=constants.GCE_USER,
                         ssh_private_key_path=self._ssh_private_key_path,
                         extra_args_ssh_tunnel=self._extra_args_ssh_tunnel,
-                        report_internal_ip=self._report_internal_ip)
+                        report_internal_ip=self._report_internal_ip,
+                        gce_hostname=self._GetGCEHostName(instance, avd_spec))
         try:
             self.SetStage(constants.STAGE_SSH_CONNECT)
             self._ssh.WaitForSsh(timeout=self._ins_timeout_secs)
@@ -235,6 +236,25 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         except Exception as e:
             self._all_failures[instance] = e
         return instance
+
+    def _GetGCEHostName(self, instance, avd_spec):
+        """Get the GCE host name with specific rule.
+
+        Args:
+            instance: Sting, instance name.
+            avd_spec: An AVDSpec instance.
+
+        Returns:
+            One host name coverted by instance name, project name, and zone.
+        """
+        if avd_spec.connect_hostname:
+            if ":" in self._project:
+                domain = self._project.split(":")[0]
+                project_no_domain = self._project.split(":")[1]
+                project = f"{project_no_domain}.{domain}"
+                return f"nic0.{instance}.{self._zone}.c.{project}.internal.gcpnode.com"
+            return f"nic0.{instance}.{self._zone}.c.{self._project}.internal.gcpnode.com"
+        return None
 
     def _GetConfigFromAndroidInfo(self):
         """Get config value from android-info.txt.
