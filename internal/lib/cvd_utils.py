@@ -77,7 +77,7 @@ _REMOTE_LEGACY_RUNTIME_DIR_FORMAT = "cuttlefish_runtime.%(num)d"
 HOST_KERNEL_LOG = report.LogFile(
     "/var/log/kern.log", constants.LOG_TYPE_KERNEL_LOG, "host_kernel.log")
 FETCHER_CONFIG_JSON = report.LogFile(
-    "fetcher_config.json", constants.LOG_TYPE_TEXT)
+    "fetcher_config.json", constants.LOG_TYPE_CUTTLEFISH_LOG)
 
 
 def GetAdbPorts(base_instance_num, num_avds_per_instance):
@@ -393,7 +393,7 @@ def FindRemoteLogs(ssh_obj, base_instance_num, num_avds_per_instance):
             if log_path.startswith(runtime_dir + remote_path.sep):
                 index_str = "." + str(index) if index else ""
         log_name = base + index_str + ext
-        log_type = constants.LOG_TYPE_TEXT
+        log_type = constants.LOG_TYPE_CUTTLEFISH_LOG
 
         if file_name == "kernel.log":
             log_type = constants.LOG_TYPE_KERNEL_LOG
@@ -427,7 +427,7 @@ def FindLocalLogs(runtime_dir, instance_num):
         log_dir = runtime_dir
     return [report.LogFile(os.path.join(log_dir, name), log_type)
             for name, log_type in [
-                ("launcher.log", constants.LOG_TYPE_TEXT),
+                ("launcher.log", constants.LOG_TYPE_CUTTLEFISH_LOG),
                 ("kernel.log", constants.LOG_TYPE_KERNEL_LOG),
                 ("logcat", constants.LOG_TYPE_LOGCAT)]]
 
