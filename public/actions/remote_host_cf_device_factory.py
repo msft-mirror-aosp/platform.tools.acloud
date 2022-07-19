@@ -21,6 +21,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
 
 from acloud import errors
 from acloud.internal import constants
@@ -37,6 +38,9 @@ logger = logging.getLogger(__name__)
 _ALL_FILES = "*"
 _HOME_FOLDER = os.path.expanduser("~")
 _SCREEN_CONSOLE_COMMAND = "screen ~/cuttlefish_runtime/console"
+_FETCH_ARTIFACT = "fetch_artifact_time"
+_GCE_CREATE = "gce_create_time"
+_LAUNCH_CVD = "launch_cvd_time"
 
 
 class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
@@ -79,14 +83,26 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         Returns:
             A string, representing instance name.
         """
+        init_remote_host_timestart = time.time()
         instance = self._InitRemotehost()
+        self._compute_client._execution_time[_GCE_CREATE] = round(
+            time.time() - init_remote_host_timestart, 2)
+
+        process_artifacts_timestart = time.time()
         image_args = self._ProcessRemoteHostArtifacts()
+        self._compute_client._execution_time[_FETCH_ARTIFACT] = round(
+            time.time() - process_artifacts_timestart, 2)
+
+        launch_cvd_timestart = time.time()
         failures = self._compute_client.LaunchCvd(
             instance,
             self._avd_spec,
             self._avd_spec.cfg.extra_data_disk_size_gb,
             boot_timeout_secs=self._avd_spec.boot_timeout_secs,
             extra_args=image_args)
+        self._compute_client._execution_time[_LAUNCH_CVD] = round(
+            time.time() - launch_cvd_timestart, 2)
+
         self._all_failures.update(failures)
         self._FindLogFiles(
             instance, instance in failures and not self._avd_spec.no_pull_log)
