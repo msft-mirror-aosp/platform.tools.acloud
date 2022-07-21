@@ -131,6 +131,10 @@ GF_VNC_PORT = 6444
 FVP_ADB_PORT = 5555
 # Maximum port number
 MAX_PORT = 65535
+# Time info to write in report.
+TIME_ARTIFACT = "fetch_artifact_time"
+TIME_GCE = "gce_create_time"
+TIME_LAUNCH = "launch_cvd_time"
 
 COMMAND_PS = ["ps", "aux"]
 CMD_CVD = "cvd"
