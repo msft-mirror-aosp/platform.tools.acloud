@@ -127,49 +127,6 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.args.openwrt = False
         self.args.webrtc_device_id = "cvd-1"
 
-    # pylint: disable=protected-access
-    @mock.patch.object(utils, "GetBuildEnvironmentVariable", return_value="fake_env_cf_x86")
-    @mock.patch.object(glob, "glob", return_value=["fake.img"])
-    def testGetLaunchCvdArgs(self, _mock_check_img, _mock_env):
-        """test GetLaunchCvdArgs."""
-        # test GetLaunchCvdArgs with avd_spec
-        self.Patch(cvd_compute_client_multi_stage.CvdComputeClient,
-                   "_GetConfigFromAndroidInfo", return_value="phone")
-        fake_avd_spec = avd_spec.AVDSpec(self.args)
-        expected_args = ["-config=phone", "-x_res=1080", "-y_res=1920", "-dpi=240",
-                         "-data_policy=always_create", "-blank_data_image_mb=10240",
-                         "-cpus=2", "-memory_mb=4096", "-num_instances=2",
-                         "--setupwizard_mode=REQUIRED",
-                         "-undefok=report_anonymous_usage_stats,config",
-                         "-report_anonymous_usage_stats=y"]
-        launch_cvd_args = self.cvd_compute_client_multi_stage._GetLaunchCvdArgs(fake_avd_spec)
-        self.assertEqual(launch_cvd_args, expected_args)
-
-        self.args.openwrt = True
-        self.args.autoconnect = constants.INS_KEY_WEBRTC
-        self.args.webrtc_device_id = "pet-name"
-
-        fake_avd_spec = avd_spec.AVDSpec(self.args)
-        expected_args = ["-config=phone", "-x_res=1080", "-y_res=1920", "-dpi=240",
-                         "-data_policy=always_create", "-blank_data_image_mb=10240",
-                         "-cpus=2", "-memory_mb=4096", "--start_webrtc",
-                         "--vm_manager=crosvm", "--webrtc_device_id=pet-name",
-                         "-console=true", "-num_instances=2",
-                         "--setupwizard_mode=REQUIRED",
-                         "-undefok=report_anonymous_usage_stats,config",
-                         "-report_anonymous_usage_stats=y"]
-        launch_cvd_args = self.cvd_compute_client_multi_stage._GetLaunchCvdArgs(fake_avd_spec)
-        self.assertEqual(launch_cvd_args, expected_args)
-
-        # test GetLaunchCvdArgs without avd_spec
-        expected_args = ["-x_res=720", "-y_res=1280", "-dpi=160",
-                         "--setupwizard_mode=REQUIRED",
-                         "-undefok=report_anonymous_usage_stats,config",
-                         "-report_anonymous_usage_stats=y"]
-        launch_cvd_args = self.cvd_compute_client_multi_stage._GetLaunchCvdArgs(
-            avd_spec=None)
-        self.assertEqual(launch_cvd_args, expected_args)
-
     @mock.patch.object(utils, "GetBuildEnvironmentVariable", return_value="fake_env_cf_x86")
     @mock.patch.object(glob, "glob", return_value=["fake.img"])
     @mock.patch.object(gcompute_client.ComputeClient, "CompareMachineSize",
