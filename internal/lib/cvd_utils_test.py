@@ -192,6 +192,66 @@ class CvdUtilsTest(unittest.TestCase):
         mock_ssh.Run.assert_any_call("./bin/stop_cvd", retry=0)
         mock_ssh.Run.assert_any_call("'rm -rf ./*'")
 
+    def testGetLaunchCvdArgs(self):
+        """Test GetLaunchCvdArgs."""
+        # Minimum arguments
+        hw_property = {
+            constants.HW_X_RES: "1080",
+            constants.HW_Y_RES: "1920",
+            constants.HW_ALIAS_DPI: "240"}
+        mock_avd_spec = mock.Mock(
+            spec=[],
+            hw_customize=False,
+            hw_property=hw_property,
+            connect_webrtc=False,
+            connect_vnc=False,
+            openwrt=False,
+            num_avds_per_instance=1,
+            base_instance_num=0,
+            launch_args="")
+        expected_args = [
+            "-x_res=1080", "-y_res=1920", "-dpi=240",
+            "-undefok=report_anonymous_usage_stats,config",
+            "-report_anonymous_usage_stats=y"]
+        launch_cvd_args = cvd_utils.GetLaunchCvdArgs(mock_avd_spec)
+        self.assertEqual(launch_cvd_args, expected_args)
+
+        # All arguments.
+        hw_property = {
+            constants.HW_X_RES: "1080",
+            constants.HW_Y_RES: "1920",
+            constants.HW_ALIAS_DPI: "240",
+            constants.HW_ALIAS_DISK: "10240",
+            constants.HW_ALIAS_CPUS: "2",
+            constants.HW_ALIAS_MEMORY: "4096"}
+        mock_avd_spec = mock.Mock(
+            spec=[],
+            hw_customize=True,
+            hw_property=hw_property,
+            connect_webrtc=True,
+            webrtc_device_id="pet-name",
+            connect_vnc=True,
+            openwrt=True,
+            num_avds_per_instance=2,
+            base_instance_num=3,
+            launch_args="--setupwizard_mode=REQUIRED")
+        expected_args = [
+            "-data_policy=create_if_missing", "-blank_data_image_mb=20480",
+            "-config=phone", "-x_res=1080", "-y_res=1920", "-dpi=240",
+            "-data_policy=always_create", "-blank_data_image_mb=10240",
+            "-cpus=2", "-memory_mb=4096",
+            "--start_webrtc", "--vm_manager=crosvm",
+            "--webrtc_device_id=pet-name",
+            "--start_vnc_server=true",
+            "-console=true",
+            "-num_instances=2", "--base-instance-num=3",
+            "--setupwizard_mode=REQUIRED",
+            "-undefok=report_anonymous_usage_stats,config",
+            "-report_anonymous_usage_stats=y"]
+        launch_cvd_args = cvd_utils.GetLaunchCvdArgs(
+            mock_avd_spec, blank_data_disk_size_gb=20, config="phone")
+        self.assertEqual(launch_cvd_args, expected_args)
+
     @mock.patch("acloud.internal.lib.cvd_utils.utils")
     def testFindRemoteLogs(self, mock_utils):
         """Test FindRemoteLogs with the runtime directories in Android 12."""
