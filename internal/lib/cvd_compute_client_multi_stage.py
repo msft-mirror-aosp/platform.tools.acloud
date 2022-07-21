@@ -55,27 +55,12 @@ from acloud.setup import mkcert
 
 logger = logging.getLogger(__name__)
 
-_CONFIG_ARG = "-config"
-_DECOMPRESS_KERNEL_ARG = "-decompress_kernel=true"
-_AGREEMENT_PROMPT_ARG = "-report_anonymous_usage_stats=y"
-_UNDEFOK_ARG = "-undefok=report_anonymous_usage_stats,config"
-_NUM_AVDS_ARG = "-num_instances=%(num_AVD)s"
-# Connect the OpenWrt device via console file.
-_ENABLE_CONSOLE_ARG = "-console=true"
-_DEFAULT_BRANCH = "aosp-master"
 _DEFAULT_WEBRTC_DEVICE_ID = "cvd-1"
-_FETCHER_BUILD_TARGET = "aosp_cf_x86_64_phone-userdebug"
 _FETCHER_NAME = "fetch_cvd"
 # Time info to write in report.
 _FETCH_ARTIFACT = "fetch_artifact_time"
 _GCE_CREATE = "gce_create_time"
 _LAUNCH_CVD = "launch_cvd_time"
-# WebRTC args for launching AVD
-_START_WEBRTC = "--start_webrtc"
-_WEBRTC_ID = "--webrtc_device_id=%(instance)s"
-_VM_MANAGER = "--vm_manager=crosvm"
-_WEBRTC_ARGS = [_START_WEBRTC, _VM_MANAGER]
-_VNC_ARGS = ["--start_vnc_server=true"]
 _NO_RETRY = 0
 # Launch cvd command for acloud report
 _LAUNCH_CVD_COMMAND = "launch_cvd_command"
@@ -252,90 +237,10 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             return config_match.group("config")
         return None
 
-    # pylint: disable=too-many-branches
-    def _GetLaunchCvdArgs(self, avd_spec=None, blank_data_disk_size_gb=None,
-                          decompress_kernel=None):
-        """Get launch_cvd args.
-
-        Args:
-            avd_spec: An AVDSpec instance.
-            blank_data_disk_size_gb: Size of the blank data disk in GB.
-            decompress_kernel: Boolean, if true decompress the kernel.
-
-        Returns:
-            String, args of launch_cvd.
-        """
-        launch_cvd_args = []
-        if blank_data_disk_size_gb and blank_data_disk_size_gb > 0:
-            # Policy 'create_if_missing' would create a blank userdata disk if
-            # missing. If already exist, reuse the disk.
-            launch_cvd_args.append(
-                "-data_policy=" + self.DATA_POLICY_CREATE_IF_MISSING)
-            launch_cvd_args.append(
-                "-blank_data_image_mb=%d" % (blank_data_disk_size_gb * 1024))
-        if avd_spec:
-            config = self._GetConfigFromAndroidInfo()
-            if config:
-                launch_cvd_args.append("-config=%s" % config)
-            if avd_spec.hw_customize or not config:
-                launch_cvd_args.append(
-                    "-x_res=" + avd_spec.hw_property[constants.HW_X_RES])
-                launch_cvd_args.append(
-                    "-y_res=" + avd_spec.hw_property[constants.HW_Y_RES])
-                launch_cvd_args.append(
-                    "-dpi=" + avd_spec.hw_property[constants.HW_ALIAS_DPI])
-                if constants.HW_ALIAS_DISK in avd_spec.hw_property:
-                    launch_cvd_args.append(
-                        "-data_policy=" + self.DATA_POLICY_ALWAYS_CREATE)
-                    launch_cvd_args.append(
-                        "-blank_data_image_mb="
-                        + avd_spec.hw_property[constants.HW_ALIAS_DISK])
-                if constants.HW_ALIAS_CPUS in avd_spec.hw_property:
-                    launch_cvd_args.append(
-                        "-cpus=%s" % avd_spec.hw_property[constants.HW_ALIAS_CPUS])
-                if constants.HW_ALIAS_MEMORY in avd_spec.hw_property:
-                    launch_cvd_args.append(
-                        "-memory_mb=%s" % avd_spec.hw_property[constants.HW_ALIAS_MEMORY])
-            if avd_spec.connect_webrtc:
-                launch_cvd_args.extend(_WEBRTC_ARGS)
-                if avd_spec.webrtc_device_id:
-                    launch_cvd_args.append(
-                        _WEBRTC_ID % {"instance": avd_spec.webrtc_device_id})
-            if avd_spec.connect_vnc:
-                launch_cvd_args.extend(_VNC_ARGS)
-            if avd_spec.openwrt:
-                launch_cvd_args.append(_ENABLE_CONSOLE_ARG)
-            if avd_spec.num_avds_per_instance > 1:
-                launch_cvd_args.append(
-                    _NUM_AVDS_ARG % {"num_AVD": avd_spec.num_avds_per_instance})
-            if avd_spec.base_instance_num:
-                launch_cvd_args.append(
-                    "--base-instance-num=%s" % avd_spec.base_instance_num)
-            if avd_spec.launch_args:
-                launch_cvd_args.append(avd_spec.launch_args)
-        else:
-            resolution = self._resolution.split("x")
-            launch_cvd_args.append("-x_res=" + resolution[0])
-            launch_cvd_args.append("-y_res=" + resolution[1])
-            launch_cvd_args.append("-dpi=" + resolution[3])
-
-        if not avd_spec and self._launch_args:
-            launch_cvd_args.append(self._launch_args)
-
-        if decompress_kernel:
-            launch_cvd_args.append(_DECOMPRESS_KERNEL_ARG)
-
-        launch_cvd_args.append(_UNDEFOK_ARG)
-        launch_cvd_args.append(_AGREEMENT_PROMPT_ARG)
-        return launch_cvd_args
-
     @utils.TimeExecute(function_description="Launching AVD(s) and waiting for boot up",
                        result_evaluator=utils.BootEvaluator)
-    def LaunchCvd(self, instance, avd_spec=None,
-                  blank_data_disk_size_gb=None,
-                  decompress_kernel=None,
-                  boot_timeout_secs=None,
-                  extra_args=()):
+    def LaunchCvd(self, instance, avd_spec, blank_data_disk_size_gb=None,
+                  boot_timeout_secs=None, extra_args=()):
         """Launch CVD.
 
         Launch AVD with launch_cvd. If the process is failed, acloud would show
@@ -345,7 +250,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             instance: String, instance name.
             avd_spec: An AVDSpec instance.
             blank_data_disk_size_gb: Size of the blank data disk in GB.
-            decompress_kernel: Boolean, if true decompress the kernel.
             boot_timeout_secs: Integer, the maximum time to wait for the
                                command to respond.
             extra_args: Collection of strings, the extra arguments generated by
@@ -359,15 +263,15 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         timestart = time.time()
         error_msg = ""
         launch_cvd_args = list(extra_args)
+        config = self._GetConfigFromAndroidInfo()
         launch_cvd_args.extend(
-            self._GetLaunchCvdArgs(avd_spec, blank_data_disk_size_gb,
-                                   decompress_kernel))
+            cvd_utils.GetLaunchCvdArgs(avd_spec, blank_data_disk_size_gb,
+                                       config))
+
         boot_timeout_secs = self._GetBootTimeout(
             boot_timeout_secs or constants.DEFAULT_CF_BOOT_TIMEOUT)
         ssh_command = "./bin/launch_cvd -daemon " + " ".join(launch_cvd_args)
         try:
-            if avd_spec and avd_spec.base_instance_num:
-                self.ExtendReportData(constants.BASE_INSTANCE_NUM, avd_spec.base_instance_num)
             self.ExtendReportData(_LAUNCH_CVD_COMMAND, ssh_command)
             self._ssh.Run(ssh_command, boot_timeout_secs, retry=_NO_RETRY)
             self._UpdateOpenWrtStatus(avd_spec)
