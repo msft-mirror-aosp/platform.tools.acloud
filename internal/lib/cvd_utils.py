@@ -18,6 +18,7 @@ import glob
 import logging
 import os
 import posixpath as remote_path
+import re
 import subprocess
 
 from acloud import errors
@@ -53,6 +54,12 @@ _REMOTE_INITRAMFS_IMAGE_PATH = remote_path.join(
 
 _ANDROID_BOOT_IMAGE_MAGIC = b"ANDROID!"
 
+# Remote host instance name
+_REMOTE_HOST_INSTANCE_NAME_FORMAT = (
+    constants.INSTANCE_TYPE_HOST +
+    "-%(ip_addr)s-%(build_id)s-%(build_target)s")
+_REMOTE_HOST_INSTANCE_NAME_PATTERN = re.compile(
+    constants.INSTANCE_TYPE_HOST + r"-(?P<ip_addr>[\d.]+)-.+")
 # launch_cvd arguments.
 _DATA_POLICY_CREATE_IF_MISSING = "create_if_missing"
 _DATA_POLICY_ALWAYS_CREATE = "always_create"
@@ -338,6 +345,37 @@ def CleanUpRemoteCvd(ssh_obj, raise_error):
     # This command deletes all files except hidden files under HOME.
     # It does not raise an error if no files can be deleted.
     ssh_obj.Run("'rm -rf ./*'")
+
+
+def FormatRemoteHostInstanceName(ip_addr, build_id, build_target):
+    """Convert an IP address and build info to an instance name.
+
+    Args:
+        ip_addr: String, the IP address of the remote host.
+        build_id: String, the build id.
+        build_target: String, the build target, e.g., aosp_cf_x86_64_phone.
+
+    Return:
+        String, the instance name.
+    """
+    return _REMOTE_HOST_INSTANCE_NAME_FORMAT % {
+        "ip_addr": ip_addr,
+        "build_id": build_id,
+        "build_target": build_target}
+
+
+def ParseRemoteHostAddress(instance_name):
+    """Parse IP address from a remote host instance name.
+
+    Args:
+        instance_name: String, the instance name.
+
+    Returns:
+        The IP address as a string.
+        None if the name does not represent a remote host instance.
+    """
+    match = _REMOTE_HOST_INSTANCE_NAME_PATTERN.fullmatch(instance_name)
+    return match.group("ip_addr") if match else None
 
 
 # pylint:disable=too-many-branches

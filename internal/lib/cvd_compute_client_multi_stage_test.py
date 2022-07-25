@@ -67,8 +67,6 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
     GPU = "fake-gpu"
     DISK_TYPE = "fake-disk-type"
     FAKE_IP = IP(external="1.1.1.1", internal="10.1.1.1")
-    REMOTE_HOST_IP = "192.0.2.1"
-    REMOTE_HOST_INSTANCE_NAME = "host-192.0.2.1-2263051-aosp_cf_x86_64_phone"
 
     def _GetFakeConfig(self):
         """Create a fake configuration object.
@@ -175,22 +173,6 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
             gpu=self.GPU,
             disk_type=self.DISK_TYPE,
             disable_external_ip=False)
-
-    def testFormatRemoteHostInstanceName(self):
-        """Test FormatRemoteHostInstanceName."""
-        name = self.cvd_compute_client_multi_stage.FormatRemoteHostInstanceName(
-            self.REMOTE_HOST_IP, self.BUILD_ID, self.TARGET.split("-", maxsplit=1)[0])
-        self.assertEqual(name, self.REMOTE_HOST_INSTANCE_NAME)
-
-    def testParseRemoteHostAddress(self):
-        """Test ParseRemoteHostAddress."""
-        ip_addr = self.cvd_compute_client_multi_stage.ParseRemoteHostAddress(
-            self.REMOTE_HOST_INSTANCE_NAME)
-        self.assertEqual(ip_addr, self.REMOTE_HOST_IP)
-
-        ip_addr = self.cvd_compute_client_multi_stage.ParseRemoteHostAddress(
-            "host-goldfish-192.0.2.1-5554-123456-sdk_x86_64-sdk")
-        self.assertIsNone(ip_addr)
 
     def testSetStage(self):
         """Test SetStage"""
