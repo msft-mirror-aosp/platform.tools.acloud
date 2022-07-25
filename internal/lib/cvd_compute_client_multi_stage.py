@@ -57,10 +57,6 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_WEBRTC_DEVICE_ID = "cvd-1"
 _FETCHER_NAME = "fetch_cvd"
-# Time info to write in report.
-_FETCH_ARTIFACT = "fetch_artifact_time"
-_GCE_CREATE = "gce_create_time"
-_LAUNCH_CVD = "launch_cvd_time"
 _NO_RETRY = 0
 # Launch cvd command for acloud report
 _LAUNCH_CVD_COMMAND = "launch_cvd_command"
@@ -122,7 +118,9 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         self._user = constants.GCE_USER
         self._openwrt = None
         self._stage = constants.STAGE_INIT
-        self._execution_time = {_FETCH_ARTIFACT: 0, _GCE_CREATE: 0, _LAUNCH_CVD: 0}
+        self._execution_time = {constants.TIME_ARTIFACT: 0,
+                                constants.TIME_GCE: 0,
+                                constants.TIME_LAUNCH: 0}
 
     @staticmethod
     def FormatRemoteHostInstanceName(ip_addr, build_id, build_target):
@@ -230,7 +228,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             Strings of config value.
         """
         android_info = self._ssh.GetCmdOutput(
-            "cat %s" % constants.ANDROID_INFO_FILE)
+            f"cat {constants.ANDROID_INFO_FILE}")
         logger.debug("Android info: %s", android_info)
         config_match = _CONFIG_RE.match(android_info)
         if config_match:
@@ -277,8 +275,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             self._UpdateOpenWrtStatus(avd_spec)
         except (subprocess.CalledProcessError, errors.DeviceConnectionError,
                 errors.LaunchCVDFail) as e:
-            error_msg = ("Device %s did not finish on boot within timeout (%s secs)"
-                         % (instance, boot_timeout_secs))
+            error_msg = (f"Device {instance} did not finish on boot within "
+                         f"timeout ({boot_timeout_secs} secs)")
             if constants.ERROR_MSG_VNC_NOT_SUPPORT in str(e):
                 error_msg = (
                     "VNC is not supported in the current build. Please try WebRTC such "
@@ -289,7 +287,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                     "as '$acloud create --autoconnect vnc'")
             utils.PrintColorString(str(e), utils.TextColors.FAIL)
 
-        self._execution_time[_LAUNCH_CVD] = round(time.time() - timestart, 2)
+        self._execution_time[constants.TIME_LAUNCH] = round(time.time() - timestart, 2)
         return {instance: error_msg} if error_msg else {}
 
     def _GetBootTimeout(self, timeout_secs):
@@ -303,7 +301,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         Returns:
             The timeout values for device boots up.
         """
-        boot_timeout_secs = timeout_secs - self._execution_time[_FETCH_ARTIFACT]
+        boot_timeout_secs = timeout_secs - self._execution_time[constants.TIME_ARTIFACT]
         logger.debug("Timeout for boot: %s secs", boot_timeout_secs)
         return boot_timeout_secs
 
@@ -384,7 +382,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         logger.debug("'instance_ip': %s", ip.internal
                      if self._report_internal_ip else ip.external)
 
-        self._execution_time[_GCE_CREATE] = round(time.time() - timestart, 2)
+        self._execution_time[constants.TIME_GCE] = round(time.time() - timestart, 2)
         return ip
 
     @utils.TimeExecute(function_description="Uploading build fetcher to instance")
@@ -429,7 +427,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
 
         self._ssh.Run("./fetch_cvd " + " ".join(fetch_cvd_args),
                       timeout=constants.DEFAULT_SSH_TIMEOUT)
-        self._execution_time[_FETCH_ARTIFACT] = round(time.time() - timestart, 2)
+        self._execution_time[constants.TIME_ARTIFACT] = round(time.time() - timestart, 2)
 
     @utils.TimeExecute(function_description="Update instance's certificates")
     def UpdateCertificate(self):
@@ -469,7 +467,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         for extra_file in extra_files:
             if not os.path.exists(extra_file.source):
                 raise errors.CheckPathError(
-                    "The path doesn't exist: %s" % extra_file.source)
+                    f"The path doesn't exist: {extra_file.source}")
             self._ssh.ScpPushFile(extra_file.source, extra_file.target)
 
     def GetSshConnectCmd(self):
