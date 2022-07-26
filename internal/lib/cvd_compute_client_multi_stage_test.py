@@ -263,23 +263,18 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
 
     def testGetGCEHostName(self):
         """Test GetGCEHostName."""
-        fake_avd_spec = mock.MagicMock(connect_hostname=True)
         instance_name = "instance_name"
         expected = "nic0.instance_name.fake-zone.c.fake-project.internal.gcpnode.com"
         self.assertEqual(expected,
                          self.cvd_compute_client_multi_stage._GetGCEHostName(
-                             instance_name, fake_avd_spec))
+                             instance_name))
 
         self.cvd_compute_client_multi_stage._project = "test.com:project"
         expected = "nic0.instance_name.fake-zone.c.project.test.com.internal.gcpnode.com"
         self.assertEqual(expected,
                          self.cvd_compute_client_multi_stage._GetGCEHostName(
-                             instance_name, fake_avd_spec))
+                             instance_name))
 
-        fake_avd_spec.connect_hostname = False
-        self.assertEqual(None,
-                         self.cvd_compute_client_multi_stage._GetGCEHostName(
-                             instance_name, fake_avd_spec))
 
 if __name__ == "__main__":
     unittest.main()

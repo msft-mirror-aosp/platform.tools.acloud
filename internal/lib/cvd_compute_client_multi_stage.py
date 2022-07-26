@@ -205,12 +205,14 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             self._ip = self._CreateGceInstance(instance, image_name, image_project,
                                                extra_scopes, boot_disk_size_gb,
                                                avd_spec)
+        if avd_spec.connect_hostname:
+            self._gce_hostname = self._GetGCEHostName(instance)
         self._ssh = Ssh(ip=self._ip,
                         user=constants.GCE_USER,
                         ssh_private_key_path=self._ssh_private_key_path,
                         extra_args_ssh_tunnel=self._extra_args_ssh_tunnel,
                         report_internal_ip=self._report_internal_ip,
-                        gce_hostname=self._GetGCEHostName(instance, avd_spec))
+                        gce_hostname=self._gce_hostname)
         try:
             self.SetStage(constants.STAGE_SSH_CONNECT)
             self._ssh.WaitForSsh(timeout=self._ins_timeout_secs)
@@ -220,24 +222,21 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             self._all_failures[instance] = e
         return instance
 
-    def _GetGCEHostName(self, instance, avd_spec):
+    def _GetGCEHostName(self, instance):
         """Get the GCE host name with specific rule.
 
         Args:
             instance: Sting, instance name.
-            avd_spec: An AVDSpec instance.
 
         Returns:
             One host name coverted by instance name, project name, and zone.
         """
-        if avd_spec.connect_hostname:
-            if ":" in self._project:
-                domain = self._project.split(":")[0]
-                project_no_domain = self._project.split(":")[1]
-                project = f"{project_no_domain}.{domain}"
-                return f"nic0.{instance}.{self._zone}.c.{project}.internal.gcpnode.com"
-            return f"nic0.{instance}.{self._zone}.c.{self._project}.internal.gcpnode.com"
-        return None
+        if ":" in self._project:
+            domain = self._project.split(":")[0]
+            project_no_domain = self._project.split(":")[1]
+            project = f"{project_no_domain}.{domain}"
+            return f"nic0.{instance}.{self._zone}.c.{project}.internal.gcpnode.com"
+        return f"nic0.{instance}.{self._zone}.c.{self._project}.internal.gcpnode.com"
 
     def _GetConfigFromAndroidInfo(self):
         """Get config value from android-info.txt.

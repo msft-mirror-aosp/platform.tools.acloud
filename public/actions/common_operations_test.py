@@ -56,6 +56,7 @@ class CommonOperationsTest(driver_test_lib.BaseDriverTest):
             "AndroidBuildClient",
             return_value=self.build_client)
         self.compute_client = mock.MagicMock()
+        self.compute_client.gce_hostname = None
         self.Patch(
             android_compute_client,
             "AndroidComputeClient",
