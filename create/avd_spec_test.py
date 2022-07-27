@@ -540,6 +540,14 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.AvdSpec._ProcessMiscArgs(self.args)
         self.assertEqual(self.args.cheeps_features, ['a', 'b', 'c'])
 
+        # Verify connect_hostname
+        self.mock_config.connect_hostname = True
+        self.AvdSpec._ProcessMiscArgs(self.args)
+        self.assertTrue(self.AvdSpec.connect_hostname)
+        self.args.connect_hostname = True
+        self.mock_config.connect_hostname = False
+        self.assertTrue(self.AvdSpec.connect_hostname)
+
 
 if __name__ == "__main__":
     unittest.main()
