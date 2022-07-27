@@ -94,7 +94,8 @@ class GCEDeviceFactory(base_device_factory.BaseDeviceFactory):
                             user=constants.GCE_USER,
                             ssh_private_key_path=self._cfg.ssh_private_key_path,
                             extra_args_ssh_tunnel=self._cfg.extra_args_ssh_tunnel,
-                            report_internal_ip=self._report_internal_ip)
+                            report_internal_ip=self._report_internal_ip,
+                            gce_hostname=self._compute_client.gce_hostname)
         return instance
 
     def GetFailures(self):
