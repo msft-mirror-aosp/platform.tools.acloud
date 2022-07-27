@@ -386,7 +386,7 @@ class AVDSpec():
             list(filter(None, [self._cfg.launch_args, args.launch_args])))
         self._remote_fetch = args.remote_fetch
         self._webrtc_device_id = args.webrtc_device_id
-        self._connect_hostname = args.connect_hostname
+        self._connect_hostname = args.connect_hostname or self._cfg.connect_hostname
 
         if args.reuse_gce:
             if args.reuse_gce != constants.SELECT_ONE_GCE_INSTANCE:
