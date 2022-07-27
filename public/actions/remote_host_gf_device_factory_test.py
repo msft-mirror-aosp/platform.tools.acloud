@@ -85,8 +85,7 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         super().setUp()
         self._mock_ssh = mock.Mock()
         self.Patch(gf_factory.ssh, "Ssh", return_value=self._mock_ssh)
-        self.Patch(gf_factory.goldfish_remote_host_client,
-                   "GoldfishRemoteHostClient")
+        self.Patch(gf_factory.remote_host_client, "RemoteHostClient")
         self.Patch(gf_factory.auth, "CreateCredentials")
         # Emulator console
         self._mock_console = mock.MagicMock()
@@ -222,7 +221,7 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
 
         factory = gf_factory.RemoteHostGoldfishDeviceFactory(
             self._mock_avd_spec)
-        instance_name = factory.CreateInstance()
+        factory.CreateInstance()
         # Artifacts.
         self._mock_android_build_client.DownloadArtifact.assert_any_call(
             "sdk_x86_64-sdk", "123456",
@@ -240,7 +239,7 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self._mock_ssh.ScpPushFile.assert_called_with(
             "/mixed/disk", "acloud_gf_1/image/x86_64/system-qemu.img")
 
-        self.assertEqual(self._X86_64_INSTANCE_NAME, instance_name)
+        mock_gf_utils.FormatRemoteHostInstanceName.assert_called()
         self.assertEqual(self._X86_64_BUILD_INFO, factory.GetBuildInfoDict())
         self.assertEqual([5555], factory.GetAdbPorts())
         self.assertEqual([None], factory.GetVncPorts())
@@ -260,7 +259,7 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
 
         factory = gf_factory.RemoteHostGoldfishDeviceFactory(
             self._mock_avd_spec)
-        instance_name = factory.CreateInstance()
+        factory.CreateInstance()
         # Artifacts.
         self._mock_android_build_client.DownloadArtifact.assert_any_call(
             "sdk_x86_64-sdk", "123456",
@@ -280,7 +279,7 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self._mock_ssh.ScpPushFile.assert_any_call(
             "/path/to/ramdisk", "acloud_gf_1/mixed_ramdisk")
 
-        self.assertEqual(self._X86_64_INSTANCE_NAME, instance_name)
+        mock_gf_utils.FormatRemoteHostInstanceName.assert_called()
         self.assertEqual(self._X86_64_BUILD_INFO, factory.GetBuildInfoDict())
         self.assertEqual([5555], factory.GetAdbPorts())
         self.assertEqual([None], factory.GetVncPorts())
