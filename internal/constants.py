@@ -124,6 +124,8 @@ CHEEPS_VNC_PORT = 5900
 # For gce_x86_phones remote instances
 GCE_ADB_PORT = 5555
 GCE_VNC_PORT = 6444
+# For ssh connect with GCE hostname
+GCE_HOSTNAME = "gce_hostname"
 # For goldfish remote instances
 GF_ADB_PORT = 5555
 GF_VNC_PORT = 6444

@@ -62,6 +62,7 @@ class CreateGoldfishActionTest(driver_test_lib.BaseDriverTest):
             return_value=self.build_client)
         self.compute_client = mock.MagicMock()
         self.compute_client.openwrt = False
+        self.compute_client.gce_hostname = None
         self.Patch(
             goldfish_compute_client,
             "GoldfishComputeClient",
