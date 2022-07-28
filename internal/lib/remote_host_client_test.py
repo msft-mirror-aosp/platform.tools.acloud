@@ -17,6 +17,7 @@
 """Unit tests for RemoteHostClient."""
 
 import unittest
+from unittest import mock
 
 from acloud.internal.lib import driver_test_lib
 from acloud.internal.lib import remote_host_client
@@ -33,6 +34,16 @@ class RemoteHostClientTest(driver_test_lib.BaseDriverTest):
         ip_addr = client.GetInstanceIP("name")
         self.assertEqual(ip_addr.external, self._IP_ADDRESS)
         self.assertEqual(ip_addr.internal, self._IP_ADDRESS)
+
+    def testRecordTime(self):
+        """Test RecordTime and execution_time."""
+        client = remote_host_client.RemoteHostClient(self._IP_ADDRESS)
+        self.assertFalse(client.execution_time)
+        with mock.patch(
+                "acloud.internal.lib.remote_host_client.time") as mock_time:
+            mock_time.time.return_value = 1.0
+            self.assertEqual(1.0, client.RecordTime("TIME", 0.25))
+        self.assertDictEqual({"TIME": 0.75}, client.execution_time)
 
 
 if __name__ == "__main__":
