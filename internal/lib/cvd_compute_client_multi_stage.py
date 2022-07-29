@@ -65,11 +65,6 @@ _TRUST_REMOTE_INSTANCE_COMMAND = (
     f"\"sudo cp -p ~/{constants.WEBRTC_CERTS_PATH}/{constants.SSL_CA_NAME}.pem "
     f"{constants.SSL_TRUST_CA_DIR}/{constants.SSL_CA_NAME}.crt;"
     "sudo update-ca-certificates;\"")
-# Remote host instance name
-_HOST_INSTANCE_NAME_FORMAT = (constants.INSTANCE_TYPE_HOST +
-                              "-%(ip_addr)s-%(build_id)s-%(build_target)s")
-_HOST_INSTANCE_NAME_PATTERN = re.compile(constants.INSTANCE_TYPE_HOST +
-                                         r"-(?P<ip_addr>[\d.]+)-.+")
 
 
 class CvdComputeClient(android_compute_client.AndroidComputeClient):
@@ -121,37 +116,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         self._execution_time = {constants.TIME_ARTIFACT: 0,
                                 constants.TIME_GCE: 0,
                                 constants.TIME_LAUNCH: 0}
-
-    @staticmethod
-    def FormatRemoteHostInstanceName(ip_addr, build_id, build_target):
-        """Convert an IP address and build info to an instance name.
-
-        Args:
-            ip_addr: String, the IP address of the remote host.
-            build_id: String, the build id.
-            build_target: String, the build target, e.g., aosp_cf_x86_64_phone.
-
-        Return:
-            String, the instance name.
-        """
-        return _HOST_INSTANCE_NAME_FORMAT % {
-            "ip_addr": ip_addr,
-            "build_id": build_id,
-            "build_target": build_target}
-
-    @staticmethod
-    def ParseRemoteHostAddress(instance_name):
-        """Parse IP address from a remote host instance name.
-
-        Args:
-            instance_name: String, the instance name.
-
-        Returns:
-            The IP address as a string.
-            None if the name does not represent a remote host instance.
-        """
-        match = _HOST_INSTANCE_NAME_PATTERN.fullmatch(instance_name)
-        return match.group("ip_addr") if match else None
 
     def InitRemoteHost(self, ssh, ip, user):
         """Init remote host.
