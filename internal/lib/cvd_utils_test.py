@@ -28,6 +28,12 @@ from acloud.internal.lib import cvd_utils
 class CvdUtilsTest(unittest.TestCase):
     """Test the functions in cvd_utils."""
 
+    # Remote host instance name.
+    _PRODUCT_NAME = "aosp_cf_x86_64_phone"
+    _BUILD_ID = "2263051"
+    _REMOTE_HOST_IP = "192.0.2.1"
+    _REMOTE_HOST_INSTANCE_NAME = "host-192.0.2.1-2263051-aosp_cf_x86_64_phone"
+
     @staticmethod
     def _CreateFile(path, data=b""):
         """Create and write binary data to a file."""
@@ -191,6 +197,22 @@ class CvdUtilsTest(unittest.TestCase):
         cvd_utils.CleanUpRemoteCvd(mock_ssh, raise_error=False)
         mock_ssh.Run.assert_any_call("./bin/stop_cvd", retry=0)
         mock_ssh.Run.assert_any_call("'rm -rf ./*'")
+
+    def testFormatRemoteHostInstanceName(self):
+        """Test FormatRemoteHostInstanceName."""
+        name = cvd_utils.FormatRemoteHostInstanceName(
+            self._REMOTE_HOST_IP, self._BUILD_ID, self._PRODUCT_NAME)
+        self.assertEqual(name, self._REMOTE_HOST_INSTANCE_NAME)
+
+    def testParseRemoteHostAddress(self):
+        """Test ParseRemoteHostAddress."""
+        ip_addr = cvd_utils.ParseRemoteHostAddress(
+            self._REMOTE_HOST_INSTANCE_NAME)
+        self.assertEqual(ip_addr, self._REMOTE_HOST_IP)
+
+        ip_addr = cvd_utils.ParseRemoteHostAddress(
+            "host-goldfish-192.0.2.1-5554-123456-sdk_x86_64-sdk")
+        self.assertIsNone(ip_addr)
 
     def testGetLaunchCvdArgs(self):
         """Test GetLaunchCvdArgs."""
