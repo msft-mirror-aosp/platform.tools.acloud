@@ -20,7 +20,6 @@ from unittest import mock
 
 from acloud import errors
 from acloud.delete import delete
-from acloud.internal.lib import cvd_compute_client_multi_stage
 from acloud.internal.lib import driver_test_lib
 from acloud.internal.lib import oxygen_client
 from acloud.internal.lib import utils
@@ -389,8 +388,6 @@ class DeleteTest(driver_test_lib.BaseDriverTest):
 
         self.Patch(delete, "_ReleaseOxygenDevice")
         self.Patch(delete, "DeleteInstanceByNames")
-        self.Patch(cvd_compute_client_multi_stage.CvdComputeClient,
-                   "ParseRemoteHostAddress")
         self.Patch(delete, "CleanUpRemoteHost")
         fake_cfg = mock.MagicMock()
         fake_cfg.SupportRemoteInstance = mock.MagicMock()
