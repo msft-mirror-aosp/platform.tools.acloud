@@ -84,10 +84,10 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             mock_avd_spec, cvd_host_package_artifact="/mock/cvd.tar.gz")
 
         mock_client_obj = factory.GetComputeClient()
-        mock_client_obj.FormatRemoteHostInstanceName.return_value = "inst"
         mock_client_obj.LaunchCvd.return_value = {"inst": "failure"}
 
         log = {"path": "/log.txt"}
+        mock_cvd_utils.FormatRemoteHostInstanceName.return_value = "inst"
         mock_cvd_utils.UploadExtraImages.return_value = ["extra"]
         mock_cvd_utils.FindRemoteLogs.return_value = [log]
 
@@ -128,9 +128,9 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             cvd_host_package_artifact="/mock/cvd.tar.gz")
 
         mock_client_obj = factory.GetComputeClient()
-        mock_client_obj.FormatRemoteHostInstanceName.return_value = "inst"
         mock_client_obj.LaunchCvd.return_value = {}
 
+        mock_cvd_utils.FormatRemoteHostInstanceName.return_value = "inst"
         mock_cvd_utils.FindRemoteLogs.return_value = []
 
         self.assertEqual("inst", factory.CreateInstance())
@@ -171,10 +171,10 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         factory = remote_host_cf_device_factory.RemoteHostDeviceFactory(
             mock_avd_spec)
 
+        mock_cvd_utils.FormatRemoteHostInstanceName.return_value = "inst"
         mock_cvd_utils.FindRemoteLogs.return_value = []
 
         mock_client_obj = factory.GetComputeClient()
-        mock_client_obj.FormatRemoteHostInstanceName.return_value = "inst"
         mock_client_obj.LaunchCvd.return_value = {}
 
         self.assertEqual("inst", factory.CreateInstance())

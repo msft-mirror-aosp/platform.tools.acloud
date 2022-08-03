@@ -25,10 +25,9 @@ import subprocess
 
 from acloud import errors
 from acloud.internal import constants
-from acloud.internal.lib import cvd_compute_client_multi_stage
 from acloud.internal.lib import cvd_utils
 from acloud.internal.lib import emulator_console
-from acloud.internal.lib import goldfish_remote_host_client
+from acloud.internal.lib import goldfish_utils
 from acloud.internal.lib import oxygen_client
 from acloud.internal.lib import ssh
 from acloud.internal.lib import utils
@@ -242,8 +241,7 @@ def DeleteHostGoldfishInstance(cfg, name, ssh_user,
     Returns:
         delete_report.
     """
-    ip_addr, port = goldfish_remote_host_client.ParseEmulatorConsoleAddress(
-        name)
+    ip_addr, port = goldfish_utils.ParseRemoteHostConsoleAddress(name)
     try:
         with emulator_console.RemoteEmulatorConsole(
                 ip_addr, port,
@@ -322,11 +320,10 @@ def DeleteInstanceByNames(cfg, instances, host_user,
     local_names = set(name for name in instances if
                       name.startswith(_LOCAL_INSTANCE_PREFIX))
     remote_host_cf_names = set(
-        name for name in instances if
-        cvd_compute_client_multi_stage.CvdComputeClient.ParseRemoteHostAddress(name))
+        name for name in instances if cvd_utils.ParseRemoteHostAddress(name))
     remote_host_gf_names = set(
         name for name in instances if
-        goldfish_remote_host_client.ParseEmulatorConsoleAddress(name))
+        goldfish_utils.ParseRemoteHostConsoleAddress(name))
     remote_names = list(set(instances) - local_names - remote_host_cf_names -
                         remote_host_gf_names)
 
@@ -344,8 +341,7 @@ def DeleteInstanceByNames(cfg, instances, host_user,
 
     if remote_host_cf_names:
         for name in remote_host_cf_names:
-            ip_addr = cvd_compute_client_multi_stage.CvdComputeClient.ParseRemoteHostAddress(
-                name)
+            ip_addr = cvd_utils.ParseRemoteHostAddress(name)
             CleanUpRemoteHost(cfg, ip_addr, host_user,
                               host_ssh_private_key_path, delete_report)
 

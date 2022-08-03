@@ -28,10 +28,10 @@ from acloud import errors
 from acloud.internal import constants
 from acloud.internal.lib import android_build_client
 from acloud.internal.lib import auth
-from acloud.internal.lib import goldfish_remote_host_client
 from acloud.internal.lib import goldfish_utils
 from acloud.internal.lib import emulator_console
 from acloud.internal.lib import ota_tools
+from acloud.internal.lib import remote_host_client
 from acloud.internal.lib import utils
 from acloud.internal.lib import ssh
 from acloud.public import report
@@ -102,7 +102,7 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         self._failures = {}
         self._logs = {}
         super().__init__(compute_client=(
-            goldfish_remote_host_client.GoldfishRemoteHostClient()))
+            remote_host_client.RemoteHostClient(avd_spec.remote_host)))
 
     @property
     def _ssh_user(self):
@@ -143,7 +143,7 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         self._InitRemoteHost()
         remote_paths = self._PrepareArtifacts()
 
-        instance_name = goldfish_remote_host_client.FormatInstanceName(
+        instance_name = goldfish_utils.FormatRemoteHostInstanceName(
             self._avd_spec.remote_host,
             self._GetConsolePort(),
             self._avd_spec.remote_image)

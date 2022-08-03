@@ -124,6 +124,8 @@ CHEEPS_VNC_PORT = 5900
 # For gce_x86_phones remote instances
 GCE_ADB_PORT = 5555
 GCE_VNC_PORT = 6444
+# For ssh connect with GCE hostname
+GCE_HOSTNAME = "gce_hostname"
 # For goldfish remote instances
 GF_ADB_PORT = 5555
 GF_VNC_PORT = 6444
@@ -131,6 +133,10 @@ GF_VNC_PORT = 6444
 FVP_ADB_PORT = 5555
 # Maximum port number
 MAX_PORT = 65535
+# Time info to write in report.
+TIME_ARTIFACT = "fetch_artifact_time"
+TIME_GCE = "gce_create_time"
+TIME_LAUNCH = "launch_cvd_time"
 
 COMMAND_PS = ["ps", "aux"]
 CMD_CVD = "cvd"

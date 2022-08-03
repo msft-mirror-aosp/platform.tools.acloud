@@ -147,6 +147,7 @@ class AVDSpec():
         self._use_launch_cvd = None
         self._remote_fetch = None
         self._webrtc_device_id = None
+        self._connect_hostname = None
 
         # Create config instance for android_build_client to query build api.
         self._cfg = config.GetAcloudConfig(args)
@@ -385,6 +386,7 @@ class AVDSpec():
             list(filter(None, [self._cfg.launch_args, args.launch_args])))
         self._remote_fetch = args.remote_fetch
         self._webrtc_device_id = args.webrtc_device_id
+        self._connect_hostname = args.connect_hostname or self._cfg.connect_hostname
 
         if args.reuse_gce:
             if args.reuse_gce != constants.SELECT_ONE_GCE_INSTANCE:
@@ -1083,3 +1085,8 @@ class AVDSpec():
     def webrtc_device_id(self):
         """Return webrtc_device_id."""
         return self._webrtc_device_id
+
+    @property
+    def connect_hostname(self):
+        """Return connect_hostname"""
+        return self._connect_hostname

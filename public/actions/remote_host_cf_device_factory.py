@@ -38,9 +38,6 @@ logger = logging.getLogger(__name__)
 _ALL_FILES = "*"
 _HOME_FOLDER = os.path.expanduser("~")
 _SCREEN_CONSOLE_COMMAND = "screen ~/cuttlefish_runtime/console"
-_FETCH_ARTIFACT = "fetch_artifact_time"
-_GCE_CREATE = "gce_create_time"
-_LAUNCH_CVD = "launch_cvd_time"
 
 
 class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
@@ -85,13 +82,13 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         """
         init_remote_host_timestart = time.time()
         instance = self._InitRemotehost()
-        self._compute_client._execution_time[_GCE_CREATE] = round(
-            time.time() - init_remote_host_timestart, 2)
+        self._compute_client.execution_time[constants.TIME_GCE] = (
+            time.time() - init_remote_host_timestart)
 
         process_artifacts_timestart = time.time()
         image_args = self._ProcessRemoteHostArtifacts()
-        self._compute_client._execution_time[_FETCH_ARTIFACT] = round(
-            time.time() - process_artifacts_timestart, 2)
+        self._compute_client.execution_time[constants.TIME_ARTIFACT] = (
+            time.time() - process_artifacts_timestart)
 
         launch_cvd_timestart = time.time()
         failures = self._compute_client.LaunchCvd(
@@ -100,8 +97,8 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             self._avd_spec.cfg.extra_data_disk_size_gb,
             boot_timeout_secs=self._avd_spec.boot_timeout_secs,
             extra_args=image_args)
-        self._compute_client._execution_time[_LAUNCH_CVD] = round(
-            time.time() - launch_cvd_timestart, 2)
+        self._compute_client.execution_time[constants.TIME_LAUNCH] = (
+            time.time() - launch_cvd_timestart)
 
         self._all_failures.update(failures)
         self._FindLogFiles(
@@ -132,7 +129,7 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         if self._avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
             build_id = self._avd_spec.remote_image[constants.BUILD_ID]
 
-        instance = self._compute_client.FormatRemoteHostInstanceName(
+        instance = cvd_utils.FormatRemoteHostInstanceName(
             self._avd_spec.remote_host, build_id, build_target)
         ip = ssh.IP(ip=self._avd_spec.remote_host)
         self._ssh = ssh.Ssh(

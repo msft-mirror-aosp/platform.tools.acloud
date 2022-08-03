@@ -50,6 +50,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
     MACHINE_TYPE = "fake-machine-type"
     NETWORK = "fake-network"
     ZONE = "fake-zone"
+    PROJECT = "fake-project"
     BRANCH = "fake-branch"
     TARGET = "aosp_cf_x86_64_phone-userdebug"
     BUILD_ID = "2263051"
@@ -67,8 +68,6 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
     GPU = "fake-gpu"
     DISK_TYPE = "fake-disk-type"
     FAKE_IP = IP(external="1.1.1.1", internal="10.1.1.1")
-    REMOTE_HOST_IP = "192.0.2.1"
-    REMOTE_HOST_INSTANCE_NAME = "host-192.0.2.1-2263051-aosp_cf_x86_64_phone"
 
     def _GetFakeConfig(self):
         """Create a fake configuration object.
@@ -81,6 +80,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         fake_cfg.machine_type = self.MACHINE_TYPE
         fake_cfg.network = self.NETWORK
         fake_cfg.zone = self.ZONE
+        fake_cfg.project = self.PROJECT
         fake_cfg.resolution = "{x}x{y}x32x{dpi}".format(
             x=self.X_RES, y=self.Y_RES, dpi=self.DPI)
         fake_cfg.metadata_variable = self.METADATA
@@ -176,22 +176,6 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
             disk_type=self.DISK_TYPE,
             disable_external_ip=False)
 
-    def testFormatRemoteHostInstanceName(self):
-        """Test FormatRemoteHostInstanceName."""
-        name = self.cvd_compute_client_multi_stage.FormatRemoteHostInstanceName(
-            self.REMOTE_HOST_IP, self.BUILD_ID, self.TARGET.split("-", maxsplit=1)[0])
-        self.assertEqual(name, self.REMOTE_HOST_INSTANCE_NAME)
-
-    def testParseRemoteHostAddress(self):
-        """Test ParseRemoteHostAddress."""
-        ip_addr = self.cvd_compute_client_multi_stage.ParseRemoteHostAddress(
-            self.REMOTE_HOST_INSTANCE_NAME)
-        self.assertEqual(ip_addr, self.REMOTE_HOST_IP)
-
-        ip_addr = self.cvd_compute_client_multi_stage.ParseRemoteHostAddress(
-            "host-goldfish-192.0.2.1-5554-123456-sdk_x86_64-sdk")
-        self.assertIsNone(ip_addr)
-
     def testSetStage(self):
         """Test SetStage"""
         device_stage = "fake_stage"
@@ -258,6 +242,20 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         fake_avd_spec.openwrt = True
         self.cvd_compute_client_multi_stage._UpdateOpenWrtStatus(fake_avd_spec)
         self.assertEqual(True, self.cvd_compute_client_multi_stage.openwrt)
+
+    def testGetGCEHostName(self):
+        """Test GetGCEHostName."""
+        instance_name = "instance_name"
+        expected = "nic0.instance_name.fake-zone.c.fake-project.internal.gcpnode.com"
+        self.assertEqual(expected,
+                         self.cvd_compute_client_multi_stage._GetGCEHostName(
+                             instance_name))
+
+        self.cvd_compute_client_multi_stage._project = "test.com:project"
+        expected = "nic0.instance_name.fake-zone.c.project.test.com.internal.gcpnode.com"
+        self.assertEqual(expected,
+                         self.cvd_compute_client_multi_stage._GetGCEHostName(
+                             instance_name))
 
 
 if __name__ == "__main__":
