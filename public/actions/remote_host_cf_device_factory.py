@@ -82,13 +82,13 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         """
         init_remote_host_timestart = time.time()
         instance = self._InitRemotehost()
-        self._compute_client.execution_time[constants.TIME_GCE] = round(
-            time.time() - init_remote_host_timestart, 2)
+        self._compute_client.execution_time[constants.TIME_GCE] = (
+            time.time() - init_remote_host_timestart)
 
         process_artifacts_timestart = time.time()
         image_args = self._ProcessRemoteHostArtifacts()
-        self._compute_client.execution_time[constants.TIME_ARTIFACT] = round(
-            time.time() - process_artifacts_timestart, 2)
+        self._compute_client.execution_time[constants.TIME_ARTIFACT] = (
+            time.time() - process_artifacts_timestart)
 
         launch_cvd_timestart = time.time()
         failures = self._compute_client.LaunchCvd(
@@ -97,8 +97,8 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             self._avd_spec.cfg.extra_data_disk_size_gb,
             boot_timeout_secs=self._avd_spec.boot_timeout_secs,
             extra_args=image_args)
-        self._compute_client.execution_time[constants.TIME_LAUNCH] = round(
-            time.time() - launch_cvd_timestart, 2)
+        self._compute_client.execution_time[constants.TIME_LAUNCH] = (
+            time.time() - launch_cvd_timestart)
 
         self._all_failures.update(failures)
         self._FindLogFiles(
