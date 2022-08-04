@@ -270,7 +270,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                     "as '$acloud create --autoconnect vnc'")
             utils.PrintColorString(str(e), utils.TextColors.FAIL)
 
-        self._execution_time[constants.TIME_LAUNCH] = round(time.time() - timestart, 2)
+        self._execution_time[constants.TIME_LAUNCH] = time.time() - timestart
         return {instance: error_msg} if error_msg else {}
 
     def _GetBootTimeout(self, timeout_secs):
@@ -365,7 +365,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         logger.debug("'instance_ip': %s", ip.internal
                      if self._report_internal_ip else ip.external)
 
-        self._execution_time[constants.TIME_GCE] = round(time.time() - timestart, 2)
+        self._execution_time[constants.TIME_GCE] = time.time() - timestart
         return ip
 
     @utils.TimeExecute(function_description="Uploading build fetcher to instance")
@@ -410,7 +410,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
 
         self._ssh.Run("./fetch_cvd " + " ".join(fetch_cvd_args),
                       timeout=constants.DEFAULT_SSH_TIMEOUT)
-        self._execution_time[constants.TIME_ARTIFACT] = round(time.time() - timestart, 2)
+        self._execution_time[constants.TIME_ARTIFACT] = time.time() - timestart
 
     @utils.TimeExecute(function_description="Update instance's certificates")
     def UpdateCertificate(self):

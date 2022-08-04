@@ -104,8 +104,9 @@ class DevicePool:
         for _ in range(num):
             instance = self._device_factory.CreateInstance()
             ip = self._compute_client.GetInstanceIP(instance)
-            time_info = self._compute_client.execution_time if hasattr(
-                self._compute_client, "execution_time") else {}
+            time_info = {
+                stage: round(exec_time, 2) for stage, exec_time in
+                getattr(self._compute_client, "execution_time", {}).items()}
             stage = self._compute_client.stage if hasattr(
                 self._compute_client, "stage") else 0
             openwrt = self._compute_client.openwrt if hasattr(
