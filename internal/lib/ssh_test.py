@@ -224,9 +224,9 @@ class SshTest(driver_test_lib.BaseDriverTest):
                              user=self.FAKE_SSH_USER,
                              ssh_private_key_path=self.FAKE_SSH_PRIVATE_KEY_PATH,
                              report_internal_ip=self.FAKE_REPORT_INTERNAL_IP)
-        self.Patch(ssh, "_SshCallWait", return_value=-1)
-        self.Patch(ssh, "_SshLogOutput")
-        self.assertRaises(errors.DeviceConnectionError,
+        self.created_subprocess.returncode = -1
+        self.Patch(subprocess, "Popen", return_value=self.created_subprocess)
+        self.assertRaises(subprocess.CalledProcessError,
                           ssh_object.WaitForSsh,
                           timeout=1,
                           max_retry=1)

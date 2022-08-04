@@ -90,6 +90,7 @@ class GCEDeviceFactory(base_device_factory.BaseDeviceFactory):
             blank_data_disk_size_gb=self._cfg.extra_data_disk_size_gb,
             avd_spec=self._avd_spec)
         ip = self._compute_client.GetInstanceIP(instance)
+        self._all_failures = self._compute_client.all_failures
         self._ssh = ssh.Ssh(ip=ip,
                             user=constants.GCE_USER,
                             ssh_private_key_path=self._cfg.ssh_private_key_path,
