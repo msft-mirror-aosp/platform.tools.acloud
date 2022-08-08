@@ -15,6 +15,8 @@
 """This module implements the classes and functions needed for the common
 creation flow."""
 
+import time
+
 from acloud.internal.lib import ssh
 from acloud.public import config
 
@@ -28,12 +30,30 @@ class RemoteHostClient:
 
     Attributes:
         ip_addr: A string, the IP address of the host.
+        execution_time: A dictionary that records the execution time. The
+                        possible keys are defined as TIME_* in constants.py.
     """
 
     def __init__(self, ip_addr):
         """Initialize the attribtues."""
         self._ip_addr = ip_addr
+        self._execution_time = {}
 
+    def RecordTime(self, key, start_time):
+        """Record the interval between the start time and the current time.
+
+        Args:
+            key: A string, the stage name.
+            start_time: A float, the timestamp when the stage starts.
+
+        Returns:
+            A float, the current time.
+        """
+        current = time.time()
+        self._execution_time[key] = current - start_time
+        return current
+
+    # The following methods are called by common_operations.py.
     def GetInstanceIP(self, _instance_name):
         """Return the IP address of the host."""
         return ssh.IP(ip=self._ip_addr)
@@ -48,6 +68,11 @@ class RemoteHostClient:
     def GetSerialPortOutput():
         """Remote hosts do not support serial log."""
         return ""
+
+    @property
+    def execution_time(self):
+        """Return execution_time."""
+        return self._execution_time
 
     @property
     def dict_report(self):
