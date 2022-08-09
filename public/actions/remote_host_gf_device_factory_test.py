@@ -85,7 +85,9 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         super().setUp()
         self._mock_ssh = mock.Mock()
         self.Patch(gf_factory.ssh, "Ssh", return_value=self._mock_ssh)
-        self.Patch(gf_factory.remote_host_client, "RemoteHostClient")
+        self._mock_remote_host_client = mock.Mock()
+        self.Patch(gf_factory.remote_host_client, "RemoteHostClient",
+                   return_value=self._mock_remote_host_client)
         self.Patch(gf_factory.auth, "CreateCredentials")
         # Emulator console
         self._mock_console = mock.MagicMock()
@@ -170,6 +172,13 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(self._mock_console.Ping.call_count,
                          self._mock_console.Reconnect.call_count + 1)
         self._mock_console.Reconnect.assert_called()
+        # RemoteHostClient.
+        self._mock_remote_host_client.RecordTime.assert_has_calls([
+            mock.call(constants.TIME_GCE, mock.ANY),
+            mock.call(constants.TIME_ARTIFACT, mock.ANY),
+            mock.call(constants.TIME_LAUNCH, mock.ANY)])
+        self.assertEqual(3,
+                         self._mock_remote_host_client.RecordTime.call_count)
 
     def testCreateInstanceWithAvdSpec(self):
         """Test RemoteHostGoldfishDeviceFactory with command options."""
@@ -299,6 +308,8 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                               errors.DeviceBootError)
         self.assertEqual({self._X86_64_INSTANCE_NAME: self._LOGS},
                          factory.GetLogs())
+        self.assertEqual(3,
+                         self._mock_remote_host_client.RecordTime.call_count)
 
     def testCreateInstanceTimeout(self):
         """Test RemoteHostGoldfishDeviceFactory with timeout."""
@@ -320,6 +331,8 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                               errors.DeviceBootTimeoutError)
         self.assertEqual({self._X86_64_INSTANCE_NAME: self._LOGS},
                          factory.GetLogs())
+        self.assertEqual(3,
+                         self._mock_remote_host_client.RecordTime.call_count)
 
 
 if __name__ == "__main__":

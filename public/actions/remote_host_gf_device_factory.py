@@ -22,6 +22,7 @@ import posixpath as remote_path
 import re
 import shutil
 import tempfile
+import time
 import zipfile
 
 from acloud import errors
@@ -140,8 +141,13 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         Returns:
             The instance name.
         """
+        client = self.GetComputeClient()
+        start_time = time.time()
         self._InitRemoteHost()
+        start_time = client.RecordTime(constants.TIME_GCE, start_time)
+
         remote_paths = self._PrepareArtifacts()
+        start_time = client.RecordTime(constants.TIME_ARTIFACT, start_time)
 
         instance_name = goldfish_utils.FormatRemoteHostInstanceName(
             self._avd_spec.remote_host,
@@ -159,6 +165,7 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
             self._WaitForEmulator()
         except errors.DeviceBootError as e:
             self._failures[instance_name] = e
+        client.RecordTime(constants.TIME_LAUNCH, start_time)
         return instance_name
 
     def _InitRemoteHost(self):
