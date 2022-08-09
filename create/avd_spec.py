@@ -148,6 +148,7 @@ class AVDSpec():
         self._remote_fetch = None
         self._webrtc_device_id = None
         self._connect_hostname = None
+        self._fetch_cvd_wrapper = None
 
         # Create config instance for android_build_client to query build api.
         self._cfg = config.GetAcloudConfig(args)
@@ -387,6 +388,7 @@ class AVDSpec():
         self._remote_fetch = args.remote_fetch
         self._webrtc_device_id = args.webrtc_device_id
         self._connect_hostname = args.connect_hostname or self._cfg.connect_hostname
+        self._fetch_cvd_wrapper = args.fetch_cvd_wrapper
 
         if args.reuse_gce:
             if args.reuse_gce != constants.SELECT_ONE_GCE_INSTANCE:
@@ -859,6 +861,14 @@ class AVDSpec():
         Return: Boolean, whether fetch cvd in remote host.
         """
         return self._remote_fetch is True
+
+    @property
+    def fetch_cvd_wrapper(self):
+        """use fetch_cvd wrapper
+
+        Return: Boolean, whether fetch cvd in remote host.
+        """
+        return self._fetch_cvd_wrapper
 
     @property
     def num(self):

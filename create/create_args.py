@@ -445,6 +445,15 @@ def AddCommonCreateArgs(parser):
         required=False,
         default=None,
         help="'cuttlefish only' Fetch artifacts in remote host.")
+    parser.add_argument(
+        "--fetch-cvd-wrapper",
+        dest="fetch_cvd_wrapper",
+        type=str,
+        required=False,
+        help="'cuttlefish only' Fetch artifacts in remote host by a"
+        " provided static executable fetch cvd wrapper file. "
+        " (Still in experiment, this flag only works on lab hosts"
+        " with special setup.)")
 
 
 def GetCreateArgParser(subparser):
