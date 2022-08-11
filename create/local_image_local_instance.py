@@ -78,6 +78,7 @@ _SYSTEM_IMAGE_NAME_PATTERN = r"system\.img"
 _MISC_INFO_FILE_NAME = "misc_info.txt"
 _TARGET_FILES_IMAGES_DIR_NAME = "IMAGES"
 _TARGET_FILES_META_DIR_NAME = "META"
+_SUPER_IMAGE_NAME = "super.img"
 _MIXED_SUPER_IMAGE_NAME = "mixed_super.img"
 _CMD_CVD_START = " start"
 _CMD_LAUNCH_CVD_ARGS = (
@@ -402,7 +403,9 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         if os.path.isfile(misc_info_path):
             return misc_info_path
         raise errors.CheckPathError(
-            "Cannot find %s in %s." % (_MISC_INFO_FILE_NAME, image_dir))
+            f"Cannot find {_MISC_INFO_FILE_NAME} in {image_dir}. The "
+            f"directory is expected to be an extracted target files zip or "
+            f"{constants.ENV_ANDROID_PRODUCT_OUT}.")
 
     @staticmethod
     def FindImageDir(image_dir):
@@ -426,6 +429,27 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             return subdir
         raise errors.GetLocalImageError(
             "Cannot find images in %s." % image_dir)
+
+    @staticmethod
+    def _VerifyExtractedImgZip(image_dir):
+        """Verify that a path is build output dir or extracted img zip.
+
+        This method checks existence of super image. The file is in img zip
+        but not in target files zip. A cuttlefish instance requires a super
+        image if no system image or OTA tools are given.
+
+        Args:
+            image_dir: The directory to be verified.
+
+        Raises:
+            errors.GetLocalImageError if the directory does not contain the
+            needed file.
+        """
+        if not os.path.isfile(os.path.join(image_dir, _SUPER_IMAGE_NAME)):
+            raise errors.GetLocalImageError(
+                f"Cannot find {_SUPER_IMAGE_NAME} in {image_dir}. The "
+                f"directory is expected to be an extracted img zip or "
+                f"{constants.ENV_ANDROID_PRODUCT_OUT}.")
 
     @staticmethod
     def _FindBootOrKernelImages(image_path):
@@ -498,6 +522,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             system_image_path = create_common.FindLocalImage(
                 avd_spec.local_system_image, _SYSTEM_IMAGE_NAME_PATTERN)
         else:
+            self._VerifyExtractedImgZip(image_dir)
             misc_info_path = None
             ota_tools_dir = None
             system_image_path = None
