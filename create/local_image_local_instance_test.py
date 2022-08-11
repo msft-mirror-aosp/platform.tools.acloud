@@ -319,7 +319,7 @@ EOF"""
     def testGetImageArtifactsPath(self, mock_ota_tools):
         """Test GetImageArtifactsPath without system image dir."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            image_dir = "/unit/test"
+            image_dir = os.path.join(temp_dir, "image")
             cvd_dir = os.path.join(temp_dir, "cvd-host_package")
             self._CreateEmptyFile(os.path.join(cvd_dir, "bin", "launch_cvd"))
             self._CreateEmptyFile(os.path.join(cvd_dir, "usr/share/webrtc/certs", "server.crt"))
@@ -329,6 +329,15 @@ EOF"""
                 local_kernel_image=None,
                 local_system_image=None,
                 local_tool_dirs=[cvd_dir])
+
+            with self.assertRaisesRegex(
+                    errors.GetLocalImageError,
+                    r"The directory is expected to be an extracted img zip "
+                    r"or ANDROID_PRODUCT_OUT\."):
+                self.local_image_local_instance.GetImageArtifactsPath(
+                    mock_avd_spec)
+
+            self._CreateEmptyFile(os.path.join(image_dir, "super.img"))
 
             paths = self.local_image_local_instance.GetImageArtifactsPath(
                 mock_avd_spec)
@@ -399,20 +408,28 @@ EOF"""
             image_dir = os.path.join(temp_dir, "image")
             cvd_dir = os.path.join(temp_dir, "cvd-host_package")
             system_image_path = os.path.join(temp_dir, "system", "test.img")
-            misc_info_path = os.path.join(image_dir, "META", "misc_info.txt")
 
             self._CreateEmptyFile(os.path.join(image_dir, "IMAGES",
                                                "vbmeta.img"))
             self._CreateEmptyFile(os.path.join(cvd_dir, "bin", "launch_cvd"))
             self._CreateEmptyFile(os.path.join(cvd_dir, "usr/share/webrtc/certs", "server.crt"))
             self._CreateEmptyFile(system_image_path)
-            self._CreateEmptyFile(misc_info_path)
 
             mock_avd_spec = mock.Mock(
                 local_image_dir=image_dir,
                 local_kernel_image=image_dir,
                 local_system_image=system_image_path,
                 local_tool_dirs=[ota_tools_dir, cvd_dir])
+
+            with self.assertRaisesRegex(
+                    errors.CheckPathError,
+                    r"The directory is expected to be an extracted target "
+                    r"files zip or ANDROID_PRODUCT_OUT."):
+                self.local_image_local_instance.GetImageArtifactsPath(
+                    mock_avd_spec)
+
+            misc_info_path = os.path.join(image_dir, "META", "misc_info.txt")
+            self._CreateEmptyFile(misc_info_path)
 
             with mock.patch.dict("acloud.create.local_image_local_instance."
                                  "os.environ",
