@@ -133,12 +133,11 @@ def _SshLogOutput(cmd, timeout=None, show_output=False):
     if timeout:
         timer.cancel()
     if process.returncode == 255:
-        raise errors.DeviceConnectionError(
-            "Failed to send command to instance (%(ssh_cmd)s)\n"
-            "Error message: %(error_message)s" % {
-                "ssh_cmd": cmd,
-                "error_message": _GetErrorMessage(stdout)}
-        )
+        error_msg = (f"Failed to send command to instance {cmd}\n"
+                     f"Error message: {_GetErrorMessage(stdout)}")
+        if constants.ERROR_MSG_SSO_INVALID in stdout:
+            raise errors.SshConnectFail(error_msg)
+        raise errors.DeviceConnectionError(error_msg)
     if process.returncode != 0:
         if constants.ERROR_MSG_VNC_NOT_SUPPORT in stdout:
             raise errors.LaunchCVDFail(constants.ERROR_MSG_VNC_NOT_SUPPORT)
@@ -339,11 +338,11 @@ class Ssh():
         """
         remote_cmd = [self.GetBaseCmd(constants.SSH_BIN)]
         remote_cmd.append("uptime")
-
-        if _SshCallWait(" ".join(remote_cmd), timeout) == 0:
-            return
-        raise errors.DeviceConnectionError(
-            "Ssh isn't ready in the remote instance.")
+        try:
+            _SshLogOutput(" ".join(remote_cmd), timeout)
+        except subprocess.CalledProcessError as e:
+            raise errors.DeviceConnectionError(
+                "Ssh isn't ready in the remote instance.") from e
 
     @utils.TimeExecute(function_description="Waiting for SSH server")
     def WaitForSsh(self, timeout=None, max_retry=_SSH_CMD_MAX_RETRY):
