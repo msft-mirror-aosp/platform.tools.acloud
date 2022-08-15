@@ -95,7 +95,8 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_ssh.Ssh.assert_called_once()
         mock_client_obj.InitRemoteHost.assert_called_once()
         mock_cvd_utils.UploadArtifacts.assert_called_with(
-            mock.ANY, "/mock/img", "/mock/cvd.tar.gz")
+            mock.ANY, mock_cvd_utils.GCE_BASE_DIR,
+            "/mock/img", "/mock/cvd.tar.gz")
         mock_cvd_utils.FindRemoteLogs.assert_called_with(mock.ANY, 2, 3)
         mock_client_obj.LaunchCvd.assert_called_with(
             "inst",
@@ -137,7 +138,8 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_ssh.Ssh.assert_called_once()
         mock_client_obj.InitRemoteHost.assert_called_once()
         mock_cvd_utils.UploadArtifacts.assert_called_with(
-            mock.ANY, "/mock/img.zip", "/mock/cvd.tar.gz")
+            mock.ANY, mock_cvd_utils.GCE_BASE_DIR,
+            "/mock/img.zip", "/mock/cvd.tar.gz")
         mock_cvd_utils.FindRemoteLogs.assert_called_with(mock.ANY, None, None)
         mock_client_obj.LaunchCvd.assert_called()
         mock_pull.GetAllLogFilePaths.assert_not_called()
@@ -173,6 +175,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
 
         mock_cvd_utils.FormatRemoteHostInstanceName.return_value = "inst"
         mock_cvd_utils.FindRemoteLogs.return_value = []
+        mock_cvd_utils.GCE_BASE_DIR = "."
 
         mock_client_obj = factory.GetComputeClient()
         mock_client_obj.LaunchCvd.return_value = {}
@@ -184,7 +187,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_ssh.ShellCmdWithRetry.assert_called_once()
         self.assertRegex(mock_ssh.ShellCmdWithRetry.call_args[0][0],
                          r"^tar -cf - --lzop -S -C \S+ super\.img \| "
-                         r"/mock/ssh -- tar -xf - --lzop -S$")
+                         r"/mock/ssh -- tar -xf - --lzop -S -C \.$")
         mock_client_obj.LaunchCvd.assert_called()
         mock_pull.GetAllLogFilePaths.assert_not_called()
         mock_pull.PullLogs.assert_not_called()
