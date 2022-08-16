@@ -179,6 +179,11 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             mock.call(constants.TIME_LAUNCH, mock.ANY)])
         self.assertEqual(3,
                          self._mock_remote_host_client.RecordTime.call_count)
+        self._mock_remote_host_client.SetStage.assert_has_calls([
+            mock.call(constants.STAGE_SSH_CONNECT),
+            mock.call(constants.STAGE_ARTIFACT),
+            mock.call(constants.STAGE_BOOT_UP)])
+        self.assertEqual(3, self._mock_remote_host_client.SetStage.call_count)
 
     def testCreateInstanceWithAvdSpec(self):
         """Test RemoteHostGoldfishDeviceFactory with command options."""
@@ -308,6 +313,8 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.assertEqual({}, factory.GetLogs())
         self._mock_remote_host_client.RecordTime.assert_called_once_with(
             constants.TIME_GCE, mock.ANY)
+        self._mock_remote_host_client.SetStage.assert_called_once_with(
+            constants.STAGE_SSH_CONNECT)
 
     def testCreateInstanceDownloadError(self):
         """Test RemoteHostGoldfishDeviceFactory with download error."""
@@ -327,6 +334,10 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             mock.call(constants.TIME_ARTIFACT, mock.ANY)])
         self.assertEqual(2,
                          self._mock_remote_host_client.RecordTime.call_count)
+        self._mock_remote_host_client.SetStage.assert_has_calls([
+            mock.call(constants.STAGE_SSH_CONNECT),
+            mock.call(constants.STAGE_ARTIFACT)])
+        self.assertEqual(2, self._mock_remote_host_client.SetStage.call_count)
 
     def testCreateInstanceBootError(self):
         """Test RemoteHostGoldfishDeviceFactory with boot error."""
@@ -344,6 +355,7 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                          factory.GetLogs())
         self.assertEqual(3,
                          self._mock_remote_host_client.RecordTime.call_count)
+        self.assertEqual(3, self._mock_remote_host_client.SetStage.call_count)
 
     def testCreateInstanceTimeout(self):
         """Test RemoteHostGoldfishDeviceFactory with timeout."""
@@ -367,6 +379,7 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                          factory.GetLogs())
         self.assertEqual(3,
                          self._mock_remote_host_client.RecordTime.call_count)
+        self.assertEqual(3, self._mock_remote_host_client.SetStage.call_count)
 
 
 if __name__ == "__main__":
