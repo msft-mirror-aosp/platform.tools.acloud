@@ -151,14 +151,17 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         timed_stage = constants.TIME_GCE
         start_time = time.time()
         try:
+            client.SetStage(constants.STAGE_SSH_CONNECT)
             self._InitRemoteHost()
 
             start_time = client.RecordTime(timed_stage, start_time)
             timed_stage = constants.TIME_ARTIFACT
+            client.SetStage(constants.STAGE_ARTIFACT)
             remote_paths = self._PrepareArtifacts()
 
             start_time = client.RecordTime(timed_stage, start_time)
             timed_stage = constants.TIME_LAUNCH
+            client.SetStage(constants.STAGE_BOOT_UP)
             self._logs[instance_name] = self._GetEmulatorLogs()
             self._StartEmulator(remote_paths)
             self._WaitForEmulator()
