@@ -21,17 +21,19 @@ import os
 import posixpath as remote_path
 import re
 import shutil
+import subprocess
 import tempfile
+import time
 import zipfile
 
 from acloud import errors
 from acloud.internal import constants
 from acloud.internal.lib import android_build_client
 from acloud.internal.lib import auth
-from acloud.internal.lib import goldfish_remote_host_client
 from acloud.internal.lib import goldfish_utils
 from acloud.internal.lib import emulator_console
 from acloud.internal.lib import ota_tools
+from acloud.internal.lib import remote_host_client
 from acloud.internal.lib import utils
 from acloud.internal.lib import ssh
 from acloud.public import report
@@ -102,7 +104,7 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         self._failures = {}
         self._logs = {}
         super().__init__(compute_client=(
-            goldfish_remote_host_client.GoldfishRemoteHostClient()))
+            remote_host_client.RemoteHostClient(avd_spec.remote_host)))
 
     @property
     def _ssh_user(self):
@@ -140,25 +142,36 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         Returns:
             The instance name.
         """
-        self._InitRemoteHost()
-        remote_paths = self._PrepareArtifacts()
-
-        instance_name = goldfish_remote_host_client.FormatInstanceName(
+        instance_name = goldfish_utils.FormatRemoteHostInstanceName(
             self._avd_spec.remote_host,
             self._GetConsolePort(),
             self._avd_spec.remote_image)
-        self._logs[instance_name] = [
-            report.LogFile(self._GetInstancePath(_REMOTE_STDOUT_PATH),
-                           constants.LOG_TYPE_KERNEL_LOG),
-            report.LogFile(self._GetInstancePath(_REMOTE_STDERR_PATH),
-                           constants.LOG_TYPE_TEXT),
-            report.LogFile(self._GetInstancePath(_REMOTE_LOGCAT_PATH),
-                           constants.LOG_TYPE_LOGCAT)]
+
+        client = self.GetComputeClient()
+        timed_stage = constants.TIME_GCE
+        start_time = time.time()
         try:
+            client.SetStage(constants.STAGE_SSH_CONNECT)
+            self._InitRemoteHost()
+
+            start_time = client.RecordTime(timed_stage, start_time)
+            timed_stage = constants.TIME_ARTIFACT
+            client.SetStage(constants.STAGE_ARTIFACT)
+            remote_paths = self._PrepareArtifacts()
+
+            start_time = client.RecordTime(timed_stage, start_time)
+            timed_stage = constants.TIME_LAUNCH
+            client.SetStage(constants.STAGE_BOOT_UP)
+            self._logs[instance_name] = self._GetEmulatorLogs()
             self._StartEmulator(remote_paths)
             self._WaitForEmulator()
-        except errors.DeviceBootError as e:
+        except (errors.DriverError, subprocess.CalledProcessError) as e:
+            # Catch the generic runtime error and CalledProcessError which is
+            # raised by the ssh module.
             self._failures[instance_name] = e
+        finally:
+            client.RecordTime(timed_stage, start_time)
+
         return instance_name
 
     def _InitRemoteHost(self):
@@ -362,7 +375,7 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         return None
 
     def _RetrieveBootImage(self, download_dir, build_api):
-        """Retrieve boot image if kernel build info is not empty.
+        """Retrieve boot image if boot build info is not empty.
 
         Args:
             download_dir: The download cache directory.
@@ -370,12 +383,12 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
 
         Returns:
             The path to the boot image in download_dir.
-            None if the kernel build info is empty.
+            None if the boot build info is empty.
         """
-        build_id = self._avd_spec.kernel_build_info.get(constants.BUILD_ID)
-        build_target = self._avd_spec.kernel_build_info.get(
+        build_id = self._avd_spec.boot_build_info.get(constants.BUILD_ID)
+        build_target = self._avd_spec.boot_build_info.get(
             constants.BUILD_TARGET)
-        image_name = self._avd_spec.kernel_build_info.get(
+        image_name = self._avd_spec.boot_build_info.get(
             constants.BUILD_ARTIFACT)
         if build_id and build_target and image_name:
             return self._RetrieveArtifact(
@@ -573,6 +586,15 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
             self._ssh.ScpPushFile(ramdisk_path, remote_ramdisk_path)
 
         return remote_kernel_path, remote_ramdisk_path
+
+    def _GetEmulatorLogs(self):
+        """Return the logs created by the remote emulator command."""
+        return [report.LogFile(self._GetInstancePath(_REMOTE_STDOUT_PATH),
+                               constants.LOG_TYPE_KERNEL_LOG),
+                report.LogFile(self._GetInstancePath(_REMOTE_STDERR_PATH),
+                               constants.LOG_TYPE_TEXT),
+                report.LogFile(self._GetInstancePath(_REMOTE_LOGCAT_PATH),
+                               constants.LOG_TYPE_LOGCAT)]
 
     @utils.TimeExecute(function_description="Start emulator")
     def _StartEmulator(self, remote_paths):

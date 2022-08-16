@@ -60,7 +60,7 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         "emulator_build_id": None,
         "emulator_build_target": None,
         "system_build_info": {},
-        "kernel_build_info": {},
+        "boot_build_info": {},
         "base_instance_num": None,
         "boot_timeout_secs": None,
         "hw_customize": False,
@@ -85,8 +85,9 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         super().setUp()
         self._mock_ssh = mock.Mock()
         self.Patch(gf_factory.ssh, "Ssh", return_value=self._mock_ssh)
-        self.Patch(gf_factory.goldfish_remote_host_client,
-                   "GoldfishRemoteHostClient")
+        self._mock_remote_host_client = mock.Mock()
+        self.Patch(gf_factory.remote_host_client, "RemoteHostClient",
+                   return_value=self._mock_remote_host_client)
         self.Patch(gf_factory.auth, "CreateCredentials")
         # Emulator console
         self._mock_console = mock.MagicMock()
@@ -171,6 +172,18 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(self._mock_console.Ping.call_count,
                          self._mock_console.Reconnect.call_count + 1)
         self._mock_console.Reconnect.assert_called()
+        # RemoteHostClient.
+        self._mock_remote_host_client.RecordTime.assert_has_calls([
+            mock.call(constants.TIME_GCE, mock.ANY),
+            mock.call(constants.TIME_ARTIFACT, mock.ANY),
+            mock.call(constants.TIME_LAUNCH, mock.ANY)])
+        self.assertEqual(3,
+                         self._mock_remote_host_client.RecordTime.call_count)
+        self._mock_remote_host_client.SetStage.assert_has_calls([
+            mock.call(constants.STAGE_SSH_CONNECT),
+            mock.call(constants.STAGE_ARTIFACT),
+            mock.call(constants.STAGE_BOOT_UP)])
+        self.assertEqual(3, self._mock_remote_host_client.SetStage.call_count)
 
     def testCreateInstanceWithAvdSpec(self):
         """Test RemoteHostGoldfishDeviceFactory with command options."""
@@ -222,7 +235,7 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
 
         factory = gf_factory.RemoteHostGoldfishDeviceFactory(
             self._mock_avd_spec)
-        instance_name = factory.CreateInstance()
+        factory.CreateInstance()
         # Artifacts.
         self._mock_android_build_client.DownloadArtifact.assert_any_call(
             "sdk_x86_64-sdk", "123456",
@@ -240,7 +253,7 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self._mock_ssh.ScpPushFile.assert_called_with(
             "/mixed/disk", "acloud_gf_1/image/x86_64/system-qemu.img")
 
-        self.assertEqual(self._X86_64_INSTANCE_NAME, instance_name)
+        mock_gf_utils.FormatRemoteHostInstanceName.assert_called()
         self.assertEqual(self._X86_64_BUILD_INFO, factory.GetBuildInfoDict())
         self.assertEqual([5555], factory.GetAdbPorts())
         self.assertEqual([None], factory.GetVncPorts())
@@ -248,11 +261,11 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
 
     @mock.patch("acloud.public.actions.remote_host_gf_device_factory."
                 "goldfish_utils")
-    def testCreateInstanceWithKernelBuild(self, mock_gf_utils):
-        """Test RemoteHostGoldfishDeviceFactory with kernel build."""
-        self._mock_avd_spec.kernel_build_info = {
+    def testCreateInstanceWithBootBuild(self, mock_gf_utils):
+        """Test RemoteHostGoldfishDeviceFactory with boot build."""
+        self._mock_avd_spec.boot_build_info = {
             constants.BUILD_ID: "111111",
-            constants.BUILD_TARGET: "aosp_x86_64-userdebug",
+            constants.BUILD_TARGET: "gki_x86_64-userdebug",
             constants.BUILD_ARTIFACT: "boot-5.10.img"}
         mock_gf_utils.ConvertAvdSpecToArgs.return_value = ["-gpu", "auto"]
         mock_gf_utils.MixWithBootImage.return_value = (
@@ -260,13 +273,13 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
 
         factory = gf_factory.RemoteHostGoldfishDeviceFactory(
             self._mock_avd_spec)
-        instance_name = factory.CreateInstance()
+        factory.CreateInstance()
         # Artifacts.
         self._mock_android_build_client.DownloadArtifact.assert_any_call(
             "sdk_x86_64-sdk", "123456",
             "sdk-repo-linux-system-images-123456.zip", mock.ANY, mock.ANY)
         self._mock_android_build_client.DownloadArtifact.assert_any_call(
-            "aosp_x86_64-userdebug", "111111",
+            "gki_x86_64-userdebug", "111111",
             "boot-5.10.img", mock.ANY, mock.ANY)
         self._mock_android_build_client.DownloadArtifact.assert_any_call(
             "sdk_x86_64-sdk", "123456",
@@ -280,13 +293,53 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self._mock_ssh.ScpPushFile.assert_any_call(
             "/path/to/ramdisk", "acloud_gf_1/mixed_ramdisk")
 
-        self.assertEqual(self._X86_64_INSTANCE_NAME, instance_name)
+        mock_gf_utils.FormatRemoteHostInstanceName.assert_called()
         self.assertEqual(self._X86_64_BUILD_INFO, factory.GetBuildInfoDict())
         self.assertEqual([5555], factory.GetAdbPorts())
         self.assertEqual([None], factory.GetVncPorts())
         self.assertEqual({}, factory.GetFailures())
 
-    def testCreateInstanceError(self):
+    def testCreateInstanceInitError(self):
+        """Test RemoteHostGoldfishDeviceFactory with SSH error."""
+        self._mock_ssh.Run.side_effect = errors.DeviceConnectionError
+
+        factory = gf_factory.RemoteHostGoldfishDeviceFactory(
+            self._mock_avd_spec)
+        factory.CreateInstance()
+
+        failures = factory.GetFailures()
+        self.assertIsInstance(failures.get(self._X86_64_INSTANCE_NAME),
+                              errors.DeviceConnectionError)
+        self.assertEqual({}, factory.GetLogs())
+        self._mock_remote_host_client.RecordTime.assert_called_once_with(
+            constants.TIME_GCE, mock.ANY)
+        self._mock_remote_host_client.SetStage.assert_called_once_with(
+            constants.STAGE_SSH_CONNECT)
+
+    def testCreateInstanceDownloadError(self):
+        """Test RemoteHostGoldfishDeviceFactory with download error."""
+        self._mock_android_build_client.DownloadArtifact.side_effect = (
+            errors.DriverError)
+
+        factory = gf_factory.RemoteHostGoldfishDeviceFactory(
+            self._mock_avd_spec)
+        factory.CreateInstance()
+
+        failures = factory.GetFailures()
+        self.assertIsInstance(failures.get(self._X86_64_INSTANCE_NAME),
+                              errors.DriverError)
+        self.assertEqual({}, factory.GetLogs())
+        self._mock_remote_host_client.RecordTime.assert_has_calls([
+            mock.call(constants.TIME_GCE, mock.ANY),
+            mock.call(constants.TIME_ARTIFACT, mock.ANY)])
+        self.assertEqual(2,
+                         self._mock_remote_host_client.RecordTime.call_count)
+        self._mock_remote_host_client.SetStage.assert_has_calls([
+            mock.call(constants.STAGE_SSH_CONNECT),
+            mock.call(constants.STAGE_ARTIFACT)])
+        self.assertEqual(2, self._mock_remote_host_client.SetStage.call_count)
+
+    def testCreateInstanceBootError(self):
         """Test RemoteHostGoldfishDeviceFactory with boot error."""
         self._mock_console.Reconnect.side_effect = (
             errors.DeviceConnectionError)
@@ -300,6 +353,9 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                               errors.DeviceBootError)
         self.assertEqual({self._X86_64_INSTANCE_NAME: self._LOGS},
                          factory.GetLogs())
+        self.assertEqual(3,
+                         self._mock_remote_host_client.RecordTime.call_count)
+        self.assertEqual(3, self._mock_remote_host_client.SetStage.call_count)
 
     def testCreateInstanceTimeout(self):
         """Test RemoteHostGoldfishDeviceFactory with timeout."""
@@ -321,6 +377,9 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                               errors.DeviceBootTimeoutError)
         self.assertEqual({self._X86_64_INSTANCE_NAME: self._LOGS},
                          factory.GetLogs())
+        self.assertEqual(3,
+                         self._mock_remote_host_client.RecordTime.call_count)
+        self.assertEqual(3, self._mock_remote_host_client.SetStage.call_count)
 
 
 if __name__ == "__main__":

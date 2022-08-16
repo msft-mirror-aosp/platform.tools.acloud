@@ -124,6 +124,8 @@ CHEEPS_VNC_PORT = 5900
 # For gce_x86_phones remote instances
 GCE_ADB_PORT = 5555
 GCE_VNC_PORT = 6444
+# For ssh connect with GCE hostname
+GCE_HOSTNAME = "gce_hostname"
 # For goldfish remote instances
 GF_ADB_PORT = 5555
 GF_VNC_PORT = 6444
@@ -131,6 +133,10 @@ GF_VNC_PORT = 6444
 FVP_ADB_PORT = 5555
 # Maximum port number
 MAX_PORT = 65535
+# Time info to write in report.
+TIME_ARTIFACT = "fetch_artifact_time"
+TIME_GCE = "gce_create_time"
+TIME_LAUNCH = "launch_cvd_time"
 
 COMMAND_PS = ["ps", "aux"]
 CMD_CVD = "cvd"
@@ -219,6 +225,7 @@ LOG_TYPE_DIR = "DIR"
 LOG_TYPE_KERNEL_LOG = "KERNEL_LOG"
 LOG_TYPE_LOGCAT = "LOGCAT"
 LOG_TYPE_TEXT = "TEXT"
+LOG_TYPE_CUTTLEFISH_LOG = "CUTTLEFISH_LOG"
 
 # Stages for create progress
 STAGE_INIT = 0
@@ -245,6 +252,7 @@ ACLOUD_OXYGEN_RELEASE_ERROR = "ACLOUD_OXYGEN_RELEASE_ERROR"
 # Key words of error messages.
 ERROR_MSG_VNC_NOT_SUPPORT = "unknown command line flag 'start_vnc_server'"
 ERROR_MSG_WEBRTC_NOT_SUPPORT = "unknown command line flag 'start_webrtc'"
+ERROR_MSG_SSO_INVALID = "failed to load SSO"
 
 # The name of download image tool.
 FETCH_CVD = "fetch_cvd"

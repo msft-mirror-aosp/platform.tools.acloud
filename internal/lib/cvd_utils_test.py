@@ -28,6 +28,12 @@ from acloud.internal.lib import cvd_utils
 class CvdUtilsTest(unittest.TestCase):
     """Test the functions in cvd_utils."""
 
+    # Remote host instance name.
+    _PRODUCT_NAME = "aosp_cf_x86_64_phone"
+    _BUILD_ID = "2263051"
+    _REMOTE_HOST_IP = "192.0.2.1"
+    _REMOTE_HOST_INSTANCE_NAME = "host-192.0.2.1-2263051-aosp_cf_x86_64_phone"
+
     @staticmethod
     def _CreateFile(path, data=b""):
         """Create and write binary data to a file."""
@@ -51,7 +57,10 @@ class CvdUtilsTest(unittest.TestCase):
         """Test FindLocalLogs."""
         mock_isdir.return_value = False
         expected_logs = [
-            {"path": "/dir/launcher.log", "type": constants.LOG_TYPE_TEXT},
+            {
+                "path": "/dir/launcher.log",
+                "type": constants.LOG_TYPE_CUTTLEFISH_LOG
+            },
             {"path": "/dir/kernel.log", "type": constants.LOG_TYPE_KERNEL_LOG},
             {"path": "/dir/logcat", "type": constants.LOG_TYPE_LOGCAT},
         ]
@@ -62,7 +71,7 @@ class CvdUtilsTest(unittest.TestCase):
         expected_logs = [
             {
                 "path": "/dir/instances/cvd-2/logs/launcher.log",
-                "type": constants.LOG_TYPE_TEXT
+                "type": constants.LOG_TYPE_CUTTLEFISH_LOG
             },
             {
                 "path": "/dir/instances/cvd-2/logs/kernel.log",
@@ -189,6 +198,82 @@ class CvdUtilsTest(unittest.TestCase):
         mock_ssh.Run.assert_any_call("./bin/stop_cvd", retry=0)
         mock_ssh.Run.assert_any_call("'rm -rf ./*'")
 
+    def testFormatRemoteHostInstanceName(self):
+        """Test FormatRemoteHostInstanceName."""
+        name = cvd_utils.FormatRemoteHostInstanceName(
+            self._REMOTE_HOST_IP, self._BUILD_ID, self._PRODUCT_NAME)
+        self.assertEqual(name, self._REMOTE_HOST_INSTANCE_NAME)
+
+    def testParseRemoteHostAddress(self):
+        """Test ParseRemoteHostAddress."""
+        ip_addr = cvd_utils.ParseRemoteHostAddress(
+            self._REMOTE_HOST_INSTANCE_NAME)
+        self.assertEqual(ip_addr, self._REMOTE_HOST_IP)
+
+        ip_addr = cvd_utils.ParseRemoteHostAddress(
+            "host-goldfish-192.0.2.1-5554-123456-sdk_x86_64-sdk")
+        self.assertIsNone(ip_addr)
+
+    def testGetLaunchCvdArgs(self):
+        """Test GetLaunchCvdArgs."""
+        # Minimum arguments
+        hw_property = {
+            constants.HW_X_RES: "1080",
+            constants.HW_Y_RES: "1920",
+            constants.HW_ALIAS_DPI: "240"}
+        mock_avd_spec = mock.Mock(
+            spec=[],
+            hw_customize=False,
+            hw_property=hw_property,
+            connect_webrtc=False,
+            connect_vnc=False,
+            openwrt=False,
+            num_avds_per_instance=1,
+            base_instance_num=0,
+            launch_args="")
+        expected_args = [
+            "-x_res=1080", "-y_res=1920", "-dpi=240",
+            "-undefok=report_anonymous_usage_stats,config",
+            "-report_anonymous_usage_stats=y"]
+        launch_cvd_args = cvd_utils.GetLaunchCvdArgs(mock_avd_spec)
+        self.assertEqual(launch_cvd_args, expected_args)
+
+        # All arguments.
+        hw_property = {
+            constants.HW_X_RES: "1080",
+            constants.HW_Y_RES: "1920",
+            constants.HW_ALIAS_DPI: "240",
+            constants.HW_ALIAS_DISK: "10240",
+            constants.HW_ALIAS_CPUS: "2",
+            constants.HW_ALIAS_MEMORY: "4096"}
+        mock_avd_spec = mock.Mock(
+            spec=[],
+            hw_customize=True,
+            hw_property=hw_property,
+            connect_webrtc=True,
+            webrtc_device_id="pet-name",
+            connect_vnc=True,
+            openwrt=True,
+            num_avds_per_instance=2,
+            base_instance_num=3,
+            launch_args="--setupwizard_mode=REQUIRED")
+        expected_args = [
+            "-data_policy=create_if_missing", "-blank_data_image_mb=20480",
+            "-config=phone", "-x_res=1080", "-y_res=1920", "-dpi=240",
+            "-data_policy=always_create", "-blank_data_image_mb=10240",
+            "-cpus=2", "-memory_mb=4096",
+            "--start_webrtc", "--vm_manager=crosvm",
+            "--webrtc_device_id=pet-name",
+            "--start_vnc_server=true",
+            "-console=true",
+            "-num_instances=2", "--base-instance-num=3",
+            "--setupwizard_mode=REQUIRED",
+            "-undefok=report_anonymous_usage_stats,config",
+            "-report_anonymous_usage_stats=y"]
+        launch_cvd_args = cvd_utils.GetLaunchCvdArgs(
+            mock_avd_spec, blank_data_disk_size_gb=20, config="phone")
+        self.assertEqual(launch_cvd_args, expected_args)
+
     @mock.patch("acloud.internal.lib.cvd_utils.utils")
     def testFindRemoteLogs(self, mock_utils):
         """Test FindRemoteLogs with the runtime directories in Android 12."""
@@ -215,12 +300,12 @@ class CvdUtilsTest(unittest.TestCase):
             },
             {
                 "path": "/launcher.log",
-                "type": constants.LOG_TYPE_TEXT,
+                "type": constants.LOG_TYPE_CUTTLEFISH_LOG,
                 "name": "launcher.log"
             },
             {
                 "path": "/cuttlefish_config.json",
-                "type": constants.LOG_TYPE_TEXT,
+                "type": constants.LOG_TYPE_CUTTLEFISH_LOG,
                 "name": "cuttlefish_config.json"
             },
             {

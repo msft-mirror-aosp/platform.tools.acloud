@@ -147,6 +147,8 @@ class AVDSpec():
         self._use_launch_cvd = None
         self._remote_fetch = None
         self._webrtc_device_id = None
+        self._connect_hostname = None
+        self._fetch_cvd_wrapper = None
 
         # Create config instance for android_build_client to query build api.
         self._cfg = config.GetAcloudConfig(args)
@@ -385,6 +387,8 @@ class AVDSpec():
             list(filter(None, [self._cfg.launch_args, args.launch_args])))
         self._remote_fetch = args.remote_fetch
         self._webrtc_device_id = args.webrtc_device_id
+        self._connect_hostname = args.connect_hostname or self._cfg.connect_hostname
+        self._fetch_cvd_wrapper = args.fetch_cvd_wrapper
 
         if args.reuse_gce:
             if args.reuse_gce != constants.SELECT_ONE_GCE_INSTANCE:
@@ -623,8 +627,7 @@ class AVDSpec():
                                 constants.BUILD_TARGET: args.ota_build_target}
         self._kernel_build_info = {constants.BUILD_ID: args.kernel_build_id,
                                    constants.BUILD_BRANCH: args.kernel_branch,
-                                   constants.BUILD_TARGET: args.kernel_build_target,
-                                   constants.BUILD_ARTIFACT: args.kernel_artifact}
+                                   constants.BUILD_TARGET: args.kernel_build_target}
         self._boot_build_info = {constants.BUILD_ID: args.boot_build_id,
                                  constants.BUILD_BRANCH: args.boot_branch,
                                  constants.BUILD_TARGET: args.boot_build_target,
@@ -860,6 +863,14 @@ class AVDSpec():
         return self._remote_fetch is True
 
     @property
+    def fetch_cvd_wrapper(self):
+        """use fetch_cvd wrapper
+
+        Return: Boolean, whether fetch cvd in remote host.
+        """
+        return self._fetch_cvd_wrapper
+
+    @property
     def num(self):
         """Return num of instances."""
         return self._num_of_instances
@@ -1084,3 +1095,8 @@ class AVDSpec():
     def webrtc_device_id(self):
         """Return webrtc_device_id."""
         return self._webrtc_device_id
+
+    @property
+    def connect_hostname(self):
+        """Return connect_hostname"""
+        return self._connect_hostname

@@ -18,6 +18,7 @@ import glob
 import logging
 import os
 import posixpath as remote_path
+import re
 import subprocess
 
 from acloud import errors
@@ -30,7 +31,7 @@ from acloud.public import report
 
 logger = logging.getLogger(__name__)
 
-# bootloader and kernel are files required to launch AVD.
+# Local build artifacts to be uploaded.
 _ARTIFACT_FILES = ["*.img", "bootloader", "kernel"]
 _REMOTE_IMAGE_DIR = "acloud_cf"
 # The boot image name pattern corresponds to the use cases:
@@ -52,6 +53,25 @@ _REMOTE_INITRAMFS_IMAGE_PATH = remote_path.join(
     _REMOTE_IMAGE_DIR, _INITRAMFS_IMAGE_NAME)
 
 _ANDROID_BOOT_IMAGE_MAGIC = b"ANDROID!"
+
+# Remote host instance name
+_REMOTE_HOST_INSTANCE_NAME_FORMAT = (
+    constants.INSTANCE_TYPE_HOST +
+    "-%(ip_addr)s-%(build_id)s-%(build_target)s")
+_REMOTE_HOST_INSTANCE_NAME_PATTERN = re.compile(
+    constants.INSTANCE_TYPE_HOST + r"-(?P<ip_addr>[\d.]+)-.+")
+# launch_cvd arguments.
+_DATA_POLICY_CREATE_IF_MISSING = "create_if_missing"
+_DATA_POLICY_ALWAYS_CREATE = "always_create"
+_NUM_AVDS_ARG = "-num_instances=%(num_AVD)s"
+AGREEMENT_PROMPT_ARG = "-report_anonymous_usage_stats=y"
+UNDEFOK_ARG = "-undefok=report_anonymous_usage_stats,config"
+# Connect the OpenWrt device via console file.
+_ENABLE_CONSOLE_ARG = "-console=true"
+# WebRTC args
+_WEBRTC_ID = "--webrtc_device_id=%(instance)s"
+_WEBRTC_ARGS = ["--start_webrtc", "--vm_manager=crosvm"]
+_VNC_ARGS = ["--start_vnc_server=true"]
 
 # Cuttlefish runtime directory is specified by `-instance_dir <runtime_dir>`.
 # Cuttlefish tools may create a symbolic link at the specified path.
@@ -77,7 +97,7 @@ _REMOTE_LEGACY_RUNTIME_DIR_FORMAT = "cuttlefish_runtime.%(num)d"
 HOST_KERNEL_LOG = report.LogFile(
     "/var/log/kern.log", constants.LOG_TYPE_KERNEL_LOG, "host_kernel.log")
 FETCHER_CONFIG_JSON = report.LogFile(
-    "fetcher_config.json", constants.LOG_TYPE_TEXT)
+    "fetcher_config.json", constants.LOG_TYPE_CUTTLEFISH_LOG)
 
 
 def GetAdbPorts(base_instance_num, num_avds_per_instance):
@@ -327,6 +347,103 @@ def CleanUpRemoteCvd(ssh_obj, raise_error):
     ssh_obj.Run("'rm -rf ./*'")
 
 
+def FormatRemoteHostInstanceName(ip_addr, build_id, build_target):
+    """Convert an IP address and build info to an instance name.
+
+    Args:
+        ip_addr: String, the IP address of the remote host.
+        build_id: String, the build id.
+        build_target: String, the build target, e.g., aosp_cf_x86_64_phone.
+
+    Return:
+        String, the instance name.
+    """
+    return _REMOTE_HOST_INSTANCE_NAME_FORMAT % {
+        "ip_addr": ip_addr,
+        "build_id": build_id,
+        "build_target": build_target}
+
+
+def ParseRemoteHostAddress(instance_name):
+    """Parse IP address from a remote host instance name.
+
+    Args:
+        instance_name: String, the instance name.
+
+    Returns:
+        The IP address as a string.
+        None if the name does not represent a remote host instance.
+    """
+    match = _REMOTE_HOST_INSTANCE_NAME_PATTERN.fullmatch(instance_name)
+    return match.group("ip_addr") if match else None
+
+
+# pylint:disable=too-many-branches
+def GetLaunchCvdArgs(avd_spec, blank_data_disk_size_gb=None, config=None):
+    """Get launch_cvd arguments for remote instances.
+
+    Args:
+        avd_spec: An AVDSpec instance.
+        blank_data_disk_size_gb: An integer, the size of the blank data disk.
+        config: A string, the name of the predefined hardware config.
+                e.g., "auto", "phone", and "tv".
+
+    Returns:
+        A list of strings, arguments of launch_cvd.
+    """
+    launch_cvd_args = []
+    if blank_data_disk_size_gb and blank_data_disk_size_gb > 0:
+        launch_cvd_args.append(
+            "-data_policy=" + _DATA_POLICY_CREATE_IF_MISSING)
+        launch_cvd_args.append(
+            "-blank_data_image_mb=" + str(blank_data_disk_size_gb * 1024))
+
+    if config:
+        launch_cvd_args.append("-config=" + config)
+    if avd_spec.hw_customize or not config:
+        launch_cvd_args.append(
+            "-x_res=" + avd_spec.hw_property[constants.HW_X_RES])
+        launch_cvd_args.append(
+            "-y_res=" + avd_spec.hw_property[constants.HW_Y_RES])
+        launch_cvd_args.append(
+            "-dpi=" + avd_spec.hw_property[constants.HW_ALIAS_DPI])
+        if constants.HW_ALIAS_DISK in avd_spec.hw_property:
+            launch_cvd_args.append(
+                "-data_policy=" + _DATA_POLICY_ALWAYS_CREATE)
+            launch_cvd_args.append(
+                "-blank_data_image_mb="
+                + avd_spec.hw_property[constants.HW_ALIAS_DISK])
+        if constants.HW_ALIAS_CPUS in avd_spec.hw_property:
+            launch_cvd_args.append(
+                "-cpus=" + str(avd_spec.hw_property[constants.HW_ALIAS_CPUS]))
+        if constants.HW_ALIAS_MEMORY in avd_spec.hw_property:
+            launch_cvd_args.append(
+                "-memory_mb=" +
+                str(avd_spec.hw_property[constants.HW_ALIAS_MEMORY]))
+
+    if avd_spec.connect_webrtc:
+        launch_cvd_args.extend(_WEBRTC_ARGS)
+        if avd_spec.webrtc_device_id:
+            launch_cvd_args.append(
+                _WEBRTC_ID % {"instance": avd_spec.webrtc_device_id})
+    if avd_spec.connect_vnc:
+        launch_cvd_args.extend(_VNC_ARGS)
+    if avd_spec.openwrt:
+        launch_cvd_args.append(_ENABLE_CONSOLE_ARG)
+    if avd_spec.num_avds_per_instance > 1:
+        launch_cvd_args.append(
+            _NUM_AVDS_ARG % {"num_AVD": avd_spec.num_avds_per_instance})
+    if avd_spec.base_instance_num:
+        launch_cvd_args.append(
+            "--base-instance-num=" + str(avd_spec.base_instance_num))
+    if avd_spec.launch_args:
+        launch_cvd_args.append(avd_spec.launch_args)
+
+    launch_cvd_args.append(UNDEFOK_ARG)
+    launch_cvd_args.append(AGREEMENT_PROMPT_ARG)
+    return launch_cvd_args
+
+
 def _GetRemoteRuntimeDirs(ssh_obj, base_instance_num, num_avds_per_instance):
     """Get cuttlefish runtime directories on a remote host or a GCE instance.
 
@@ -393,7 +510,7 @@ def FindRemoteLogs(ssh_obj, base_instance_num, num_avds_per_instance):
             if log_path.startswith(runtime_dir + remote_path.sep):
                 index_str = "." + str(index) if index else ""
         log_name = base + index_str + ext
-        log_type = constants.LOG_TYPE_TEXT
+        log_type = constants.LOG_TYPE_CUTTLEFISH_LOG
 
         if file_name == "kernel.log":
             log_type = constants.LOG_TYPE_KERNEL_LOG
@@ -427,7 +544,7 @@ def FindLocalLogs(runtime_dir, instance_num):
         log_dir = runtime_dir
     return [report.LogFile(os.path.join(log_dir, name), log_type)
             for name, log_type in [
-                ("launcher.log", constants.LOG_TYPE_TEXT),
+                ("launcher.log", constants.LOG_TYPE_CUTTLEFISH_LOG),
                 ("kernel.log", constants.LOG_TYPE_KERNEL_LOG),
                 ("logcat", constants.LOG_TYPE_LOGCAT)]]
 

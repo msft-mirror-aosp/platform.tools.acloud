@@ -390,7 +390,10 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.args.kernel_branch = "kernel_branch"
         self.args.kernel_build_target = "kernel_build_target"
         self.args.kernel_build_id = "kernel_build_id"
-        self.args.kernel_artifact = "kernel_artifact"
+        self.args.boot_branch = "boot_branch"
+        self.args.boot_build_target = "boot_build_target"
+        self.args.boot_build_id = "boot_build_id"
+        self.args.boot_artifact = "boot_artifact"
         self.AvdSpec._ProcessRemoteBuildArgs(self.args)
         self.assertEqual(
             {constants.BUILD_BRANCH: "system_branch",
@@ -400,9 +403,14 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(
             {constants.BUILD_BRANCH: "kernel_branch",
              constants.BUILD_TARGET: "kernel_build_target",
-             constants.BUILD_ID: "kernel_build_id",
-             constants.BUILD_ARTIFACT: "kernel_artifact"},
+             constants.BUILD_ID: "kernel_build_id"},
             self.AvdSpec.kernel_build_info)
+        self.assertEqual(
+            {constants.BUILD_BRANCH: "boot_branch",
+             constants.BUILD_TARGET: "boot_build_target",
+             constants.BUILD_ID: "boot_build_id",
+             constants.BUILD_ARTIFACT: "boot_artifact"},
+            self.AvdSpec.boot_build_info)
         self.assertEqual(
             {constants.BUILD_BRANCH: "ota_branch",
              constants.BUILD_TARGET: "ota_build_target",
@@ -531,6 +539,14 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.args.cheeps_features = ['a', 'b', 'c']
         self.AvdSpec._ProcessMiscArgs(self.args)
         self.assertEqual(self.args.cheeps_features, ['a', 'b', 'c'])
+
+        # Verify connect_hostname
+        self.mock_config.connect_hostname = True
+        self.AvdSpec._ProcessMiscArgs(self.args)
+        self.assertTrue(self.AvdSpec.connect_hostname)
+        self.args.connect_hostname = True
+        self.mock_config.connect_hostname = False
+        self.assertTrue(self.AvdSpec.connect_hostname)
 
 
 if __name__ == "__main__":

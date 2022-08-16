@@ -55,27 +55,8 @@ from acloud.setup import mkcert
 
 logger = logging.getLogger(__name__)
 
-_CONFIG_ARG = "-config"
-_DECOMPRESS_KERNEL_ARG = "-decompress_kernel=true"
-_AGREEMENT_PROMPT_ARG = "-report_anonymous_usage_stats=y"
-_UNDEFOK_ARG = "-undefok=report_anonymous_usage_stats,config"
-_NUM_AVDS_ARG = "-num_instances=%(num_AVD)s"
-# Connect the OpenWrt device via console file.
-_ENABLE_CONSOLE_ARG = "-console=true"
-_DEFAULT_BRANCH = "aosp-master"
 _DEFAULT_WEBRTC_DEVICE_ID = "cvd-1"
-_FETCHER_BUILD_TARGET = "aosp_cf_x86_64_phone-userdebug"
 _FETCHER_NAME = "fetch_cvd"
-# Time info to write in report.
-_FETCH_ARTIFACT = "fetch_artifact_time"
-_GCE_CREATE = "gce_create_time"
-_LAUNCH_CVD = "launch_cvd_time"
-# WebRTC args for launching AVD
-_START_WEBRTC = "--start_webrtc"
-_WEBRTC_ID = "--webrtc_device_id=%(instance)s"
-_VM_MANAGER = "--vm_manager=crosvm"
-_WEBRTC_ARGS = [_START_WEBRTC, _VM_MANAGER]
-_VNC_ARGS = ["--start_vnc_server=true"]
 _NO_RETRY = 0
 # Launch cvd command for acloud report
 _LAUNCH_CVD_COMMAND = "launch_cvd_command"
@@ -84,11 +65,6 @@ _TRUST_REMOTE_INSTANCE_COMMAND = (
     f"\"sudo cp -p ~/{constants.WEBRTC_CERTS_PATH}/{constants.SSL_CA_NAME}.pem "
     f"{constants.SSL_TRUST_CA_DIR}/{constants.SSL_CA_NAME}.crt;"
     "sudo update-ca-certificates;\"")
-# Remote host instance name
-_HOST_INSTANCE_NAME_FORMAT = (constants.INSTANCE_TYPE_HOST +
-                              "-%(ip_addr)s-%(build_id)s-%(build_target)s")
-_HOST_INSTANCE_NAME_PATTERN = re.compile(constants.INSTANCE_TYPE_HOST +
-                                         r"-(?P<ip_addr>[\d.]+)-.+")
 
 
 class CvdComputeClient(android_compute_client.AndroidComputeClient):
@@ -137,38 +113,9 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         self._user = constants.GCE_USER
         self._openwrt = None
         self._stage = constants.STAGE_INIT
-        self._execution_time = {_FETCH_ARTIFACT: 0, _GCE_CREATE: 0, _LAUNCH_CVD: 0}
-
-    @staticmethod
-    def FormatRemoteHostInstanceName(ip_addr, build_id, build_target):
-        """Convert an IP address and build info to an instance name.
-
-        Args:
-            ip_addr: String, the IP address of the remote host.
-            build_id: String, the build id.
-            build_target: String, the build target, e.g., aosp_cf_x86_64_phone.
-
-        Return:
-            String, the instance name.
-        """
-        return _HOST_INSTANCE_NAME_FORMAT % {
-            "ip_addr": ip_addr,
-            "build_id": build_id,
-            "build_target": build_target}
-
-    @staticmethod
-    def ParseRemoteHostAddress(instance_name):
-        """Parse IP address from a remote host instance name.
-
-        Args:
-            instance_name: String, the instance name.
-
-        Returns:
-            The IP address as a string.
-            None if the name does not represent a remote host instance.
-        """
-        match = _HOST_INSTANCE_NAME_PATTERN.fullmatch(instance_name)
-        return match.group("ip_addr") if match else None
+        self._execution_time = {constants.TIME_ARTIFACT: 0,
+                                constants.TIME_GCE: 0,
+                                constants.TIME_LAUNCH: 0}
 
     def InitRemoteHost(self, ssh, ip, user):
         """Init remote host.
@@ -222,11 +169,14 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             self._ip = self._CreateGceInstance(instance, image_name, image_project,
                                                extra_scopes, boot_disk_size_gb,
                                                avd_spec)
+        if avd_spec.connect_hostname:
+            self._gce_hostname = self._GetGCEHostName(instance)
         self._ssh = Ssh(ip=self._ip,
                         user=constants.GCE_USER,
                         ssh_private_key_path=self._ssh_private_key_path,
                         extra_args_ssh_tunnel=self._extra_args_ssh_tunnel,
-                        report_internal_ip=self._report_internal_ip)
+                        report_internal_ip=self._report_internal_ip,
+                        gce_hostname=self._gce_hostname)
         try:
             self.SetStage(constants.STAGE_SSH_CONNECT)
             self._ssh.WaitForSsh(timeout=self._ins_timeout_secs)
@@ -235,6 +185,22 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         except Exception as e:
             self._all_failures[instance] = e
         return instance
+
+    def _GetGCEHostName(self, instance):
+        """Get the GCE host name with specific rule.
+
+        Args:
+            instance: Sting, instance name.
+
+        Returns:
+            One host name coverted by instance name, project name, and zone.
+        """
+        if ":" in self._project:
+            domain = self._project.split(":")[0]
+            project_no_domain = self._project.split(":")[1]
+            project = f"{project_no_domain}.{domain}"
+            return f"nic0.{instance}.{self._zone}.c.{project}.internal.gcpnode.com"
+        return f"nic0.{instance}.{self._zone}.c.{self._project}.internal.gcpnode.com"
 
     def _GetConfigFromAndroidInfo(self):
         """Get config value from android-info.txt.
@@ -245,97 +211,17 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             Strings of config value.
         """
         android_info = self._ssh.GetCmdOutput(
-            "cat %s" % constants.ANDROID_INFO_FILE)
+            f"cat {constants.ANDROID_INFO_FILE}")
         logger.debug("Android info: %s", android_info)
         config_match = _CONFIG_RE.match(android_info)
         if config_match:
             return config_match.group("config")
         return None
 
-    # pylint: disable=too-many-branches
-    def _GetLaunchCvdArgs(self, avd_spec=None, blank_data_disk_size_gb=None,
-                          decompress_kernel=None):
-        """Get launch_cvd args.
-
-        Args:
-            avd_spec: An AVDSpec instance.
-            blank_data_disk_size_gb: Size of the blank data disk in GB.
-            decompress_kernel: Boolean, if true decompress the kernel.
-
-        Returns:
-            String, args of launch_cvd.
-        """
-        launch_cvd_args = []
-        if blank_data_disk_size_gb and blank_data_disk_size_gb > 0:
-            # Policy 'create_if_missing' would create a blank userdata disk if
-            # missing. If already exist, reuse the disk.
-            launch_cvd_args.append(
-                "-data_policy=" + self.DATA_POLICY_CREATE_IF_MISSING)
-            launch_cvd_args.append(
-                "-blank_data_image_mb=%d" % (blank_data_disk_size_gb * 1024))
-        if avd_spec:
-            config = self._GetConfigFromAndroidInfo()
-            if config:
-                launch_cvd_args.append("-config=%s" % config)
-            if avd_spec.hw_customize or not config:
-                launch_cvd_args.append(
-                    "-x_res=" + avd_spec.hw_property[constants.HW_X_RES])
-                launch_cvd_args.append(
-                    "-y_res=" + avd_spec.hw_property[constants.HW_Y_RES])
-                launch_cvd_args.append(
-                    "-dpi=" + avd_spec.hw_property[constants.HW_ALIAS_DPI])
-                if constants.HW_ALIAS_DISK in avd_spec.hw_property:
-                    launch_cvd_args.append(
-                        "-data_policy=" + self.DATA_POLICY_ALWAYS_CREATE)
-                    launch_cvd_args.append(
-                        "-blank_data_image_mb="
-                        + avd_spec.hw_property[constants.HW_ALIAS_DISK])
-                if constants.HW_ALIAS_CPUS in avd_spec.hw_property:
-                    launch_cvd_args.append(
-                        "-cpus=%s" % avd_spec.hw_property[constants.HW_ALIAS_CPUS])
-                if constants.HW_ALIAS_MEMORY in avd_spec.hw_property:
-                    launch_cvd_args.append(
-                        "-memory_mb=%s" % avd_spec.hw_property[constants.HW_ALIAS_MEMORY])
-            if avd_spec.connect_webrtc:
-                launch_cvd_args.extend(_WEBRTC_ARGS)
-                if avd_spec.webrtc_device_id:
-                    launch_cvd_args.append(
-                        _WEBRTC_ID % {"instance": avd_spec.webrtc_device_id})
-            if avd_spec.connect_vnc:
-                launch_cvd_args.extend(_VNC_ARGS)
-            if avd_spec.openwrt:
-                launch_cvd_args.append(_ENABLE_CONSOLE_ARG)
-            if avd_spec.num_avds_per_instance > 1:
-                launch_cvd_args.append(
-                    _NUM_AVDS_ARG % {"num_AVD": avd_spec.num_avds_per_instance})
-            if avd_spec.base_instance_num:
-                launch_cvd_args.append(
-                    "--base-instance-num=%s" % avd_spec.base_instance_num)
-            if avd_spec.launch_args:
-                launch_cvd_args.append(avd_spec.launch_args)
-        else:
-            resolution = self._resolution.split("x")
-            launch_cvd_args.append("-x_res=" + resolution[0])
-            launch_cvd_args.append("-y_res=" + resolution[1])
-            launch_cvd_args.append("-dpi=" + resolution[3])
-
-        if not avd_spec and self._launch_args:
-            launch_cvd_args.append(self._launch_args)
-
-        if decompress_kernel:
-            launch_cvd_args.append(_DECOMPRESS_KERNEL_ARG)
-
-        launch_cvd_args.append(_UNDEFOK_ARG)
-        launch_cvd_args.append(_AGREEMENT_PROMPT_ARG)
-        return launch_cvd_args
-
     @utils.TimeExecute(function_description="Launching AVD(s) and waiting for boot up",
                        result_evaluator=utils.BootEvaluator)
-    def LaunchCvd(self, instance, avd_spec=None,
-                  blank_data_disk_size_gb=None,
-                  decompress_kernel=None,
-                  boot_timeout_secs=None,
-                  extra_args=()):
+    def LaunchCvd(self, instance, avd_spec, blank_data_disk_size_gb=None,
+                  boot_timeout_secs=None, extra_args=()):
         """Launch CVD.
 
         Launch AVD with launch_cvd. If the process is failed, acloud would show
@@ -345,7 +231,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             instance: String, instance name.
             avd_spec: An AVDSpec instance.
             blank_data_disk_size_gb: Size of the blank data disk in GB.
-            decompress_kernel: Boolean, if true decompress the kernel.
             boot_timeout_secs: Integer, the maximum time to wait for the
                                command to respond.
             extra_args: Collection of strings, the extra arguments generated by
@@ -359,22 +244,22 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         timestart = time.time()
         error_msg = ""
         launch_cvd_args = list(extra_args)
+        config = self._GetConfigFromAndroidInfo()
         launch_cvd_args.extend(
-            self._GetLaunchCvdArgs(avd_spec, blank_data_disk_size_gb,
-                                   decompress_kernel))
+            cvd_utils.GetLaunchCvdArgs(avd_spec, blank_data_disk_size_gb,
+                                       config))
+
         boot_timeout_secs = self._GetBootTimeout(
             boot_timeout_secs or constants.DEFAULT_CF_BOOT_TIMEOUT)
         ssh_command = "./bin/launch_cvd -daemon " + " ".join(launch_cvd_args)
         try:
-            if avd_spec and avd_spec.base_instance_num:
-                self.ExtendReportData(constants.BASE_INSTANCE_NUM, avd_spec.base_instance_num)
             self.ExtendReportData(_LAUNCH_CVD_COMMAND, ssh_command)
             self._ssh.Run(ssh_command, boot_timeout_secs, retry=_NO_RETRY)
             self._UpdateOpenWrtStatus(avd_spec)
         except (subprocess.CalledProcessError, errors.DeviceConnectionError,
                 errors.LaunchCVDFail) as e:
-            error_msg = ("Device %s did not finish on boot within timeout (%s secs)"
-                         % (instance, boot_timeout_secs))
+            error_msg = (f"Device {instance} did not finish on boot within "
+                         f"timeout ({boot_timeout_secs} secs)")
             if constants.ERROR_MSG_VNC_NOT_SUPPORT in str(e):
                 error_msg = (
                     "VNC is not supported in the current build. Please try WebRTC such "
@@ -385,7 +270,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                     "as '$acloud create --autoconnect vnc'")
             utils.PrintColorString(str(e), utils.TextColors.FAIL)
 
-        self._execution_time[_LAUNCH_CVD] = round(time.time() - timestart, 2)
+        self._execution_time[constants.TIME_LAUNCH] = time.time() - timestart
         return {instance: error_msg} if error_msg else {}
 
     def _GetBootTimeout(self, timeout_secs):
@@ -399,7 +284,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         Returns:
             The timeout values for device boots up.
         """
-        boot_timeout_secs = timeout_secs - self._execution_time[_FETCH_ARTIFACT]
+        boot_timeout_secs = timeout_secs - self._execution_time[constants.TIME_ARTIFACT]
         logger.debug("Timeout for boot: %s secs", boot_timeout_secs)
         return boot_timeout_secs
 
@@ -480,7 +365,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         logger.debug("'instance_ip': %s", ip.internal
                      if self._report_internal_ip else ip.external)
 
-        self._execution_time[_GCE_CREATE] = round(time.time() - timestart, 2)
+        self._execution_time[constants.TIME_GCE] = time.time() - timestart
         return ip
 
     @utils.TimeExecute(function_description="Uploading build fetcher to instance")
@@ -525,7 +410,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
 
         self._ssh.Run("./fetch_cvd " + " ".join(fetch_cvd_args),
                       timeout=constants.DEFAULT_SSH_TIMEOUT)
-        self._execution_time[_FETCH_ARTIFACT] = round(time.time() - timestart, 2)
+        self._execution_time[constants.TIME_ARTIFACT] = time.time() - timestart
 
     @utils.TimeExecute(function_description="Update instance's certificates")
     def UpdateCertificate(self):
@@ -565,7 +450,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         for extra_file in extra_files:
             if not os.path.exists(extra_file.source):
                 raise errors.CheckPathError(
-                    "The path doesn't exist: %s" % extra_file.source)
+                    f"The path doesn't exist: {extra_file.source}")
             self._ssh.ScpPushFile(extra_file.source, extra_file.target)
 
     def GetSshConnectCmd(self):

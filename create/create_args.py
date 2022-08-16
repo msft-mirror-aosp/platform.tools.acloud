@@ -199,13 +199,6 @@ def AddCommonCreateArgs(parser):
         default="kernel",
         help="Kernel build target, specify if different from 'kernel'")
     parser.add_argument(
-        "--kernel-artifact",
-        type=str,
-        dest="kernel_artifact",
-        required=False,
-        help="Goldfish remote host only. The name of the boot image to be "
-        "retrieved from Android build, e.g., boot-5.10.img.")
-    parser.add_argument(
         "--boot-build-id",
         type=str,
         dest="boot_build_id",
@@ -345,6 +338,13 @@ def AddCommonCreateArgs(parser):
         default=1,
         help="'cuttlefish only' Create multiple cuttlefish AVDs in one local "
              "instance.")
+    parser.add_argument(
+        "--connect-hostname",
+        action="store_true",
+        dest="connect_hostname",
+        required=False,
+        default=False,
+        help="Ssh connects to the GCE instance with hostname.")
     # Hide following args for users, it is only used in infra.
     parser.add_argument(
         "--local-instance-dir",
@@ -445,6 +445,15 @@ def AddCommonCreateArgs(parser):
         required=False,
         default=None,
         help="'cuttlefish only' Fetch artifacts in remote host.")
+    parser.add_argument(
+        "--fetch-cvd-wrapper",
+        dest="fetch_cvd_wrapper",
+        type=str,
+        required=False,
+        help="'cuttlefish only' Fetch artifacts in remote host by a"
+        " provided static executable fetch cvd wrapper file. "
+        " (Still in experiment, this flag only works on lab hosts"
+        " with special setup.)")
 
 
 def GetCreateArgParser(subparser):
@@ -809,27 +818,31 @@ def _VerifyGoldfishArgs(args):
         errors.UnsupportedCreateArgs: When a create arg is specified but
                                       unsupported for goldfish.
     """
-    goldfish_only_flags = [
-        args.emulator_build_id,
-        args.emulator_build_target,
-        args.kernel_artifact
-    ]
+    goldfish_only_flags = [args.emulator_build_id, args.emulator_build_target]
     if args.avd_type != constants.TYPE_GF and any(goldfish_only_flags):
         raise errors.UnsupportedCreateArgs(
-            "--emulator-* and --kernel-artifact are only valid with "
-            "avd_type == %s" % constants.TYPE_GF)
+            f"--emulator-* is only valid with avd_type == {constants.TYPE_GF}")
 
     # Exclude kernel_build_target because the default value isn't empty.
     remote_kernel_flags = [
         args.kernel_build_id,
         args.kernel_branch,
-        args.kernel_artifact,
     ]
-    if (args.avd_type == constants.TYPE_GF and any(remote_kernel_flags) and
-            not all(remote_kernel_flags)):
+    if args.avd_type == constants.TYPE_GF and any(remote_kernel_flags):
         raise errors.UnsupportedCreateArgs(
-            "Either none or all of --kernel-branch, --kernel-build-target, "
-            "--kernel-build-id, and --kernel-artifact must be specified for "
+            "--kernel-* is not supported for goldfish.")
+
+    remote_boot_flags = [
+        args.boot_build_id,
+        args.boot_build_target,
+        args.boot_branch,
+        args.boot_artifact,
+    ]
+    if (args.avd_type == constants.TYPE_GF and any(remote_boot_flags) and
+            not all(remote_boot_flags)):
+        raise errors.UnsupportedCreateArgs(
+            "Either none or all of --boot-branch, --boot-build-target, "
+            "--boot-build-id, and --boot-artifact must be specified for "
             "goldfish.")
 
     remote_system_flags = [
@@ -843,11 +856,11 @@ def _VerifyGoldfishArgs(args):
             "Either none or all of --system-branch, --system-build-target, "
             "and --system-build-id must be specified for goldfish.")
 
-    remote_host_only_flags = remote_kernel_flags + remote_system_flags
+    remote_host_only_flags = remote_boot_flags + remote_system_flags
     if args.avd_type == constants.TYPE_GF and args.remote_host is None and any(
             remote_host_only_flags):
         raise errors.UnsupportedCreateArgs(
-            "--kernel-* and --system-* for goldfish are only supported for "
+            "--boot-* and --system-* for goldfish are only supported for "
             "remote host.")
 
 

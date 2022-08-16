@@ -44,7 +44,10 @@ def _CreateArgs():
         kernel_branch=None,
         kernel_build_id=None,
         kernel_build_target="kernel",
-        kernel_artifact=None,
+        boot_branch=None,
+        boot_build_id=None,
+        boot_build_target=None,
+        boot_artifact=None,
         system_branch=None,
         system_build_id=None,
         system_build_target=None,
@@ -86,13 +89,21 @@ class CreateArgsTest(driver_test_lib.BaseDriverTest):
         mock_args.remote_host = "192.0.2.2"
         self.assertRaises(errors.UnsupportedCreateArgs,
                           create_args.VerifyArgs, mock_args)
+        mock_args.emulator_build_target = None
         # Incomplete system build info.
         mock_args.avd_type = constants.TYPE_GF
-        mock_args.emulator_build_target = None
         mock_args.system_build_target = "aosp_x86_64-userdebug"
         mock_args.remote_host = "192.0.2.2"
         self.assertRaises(errors.UnsupportedCreateArgs,
                           create_args.VerifyArgs, mock_args)
+        mock_args.system_build_target = None
+        # Incomplete boot build info.
+        mock_args.avd_type = constants.TYPE_GF
+        mock_args.boot_build_target = "gki_x86_64-userdebug"
+        mock_args.remote_host = "192.0.2.2"
+        self.assertRaises(errors.UnsupportedCreateArgs,
+                          create_args.VerifyArgs, mock_args)
+        mock_args.boot_build_target = None
         # System build info without remote_host.
         mock_args.system_branch = "aosp-master"
         mock_args.system_build_target = "aosp_x86_64-userdebug"
@@ -105,10 +116,10 @@ class CreateArgsTest(driver_test_lib.BaseDriverTest):
         mock_args.system_branch = "aosp-master"
         mock_args.system_build_target = "aosp_x86_64-userdebug"
         mock_args.system_build_id = "123456"
-        mock_args.kernel_branch = "aosp-master"
-        mock_args.kernel_build_target = "aosp_x86_64-userdebug"
-        mock_args.kernel_build_id = "123456"
-        mock_args.kernel_artifact = "boot-5.10.img"
+        mock_args.boot_branch = "aosp-master"
+        mock_args.boot_build_target = "aosp_x86_64-userdebug"
+        mock_args.boot_build_id = "123456"
+        mock_args.boot_artifact = "boot-5.10.img"
         mock_args.remote_host = "192.0.2.2"
         create_args.VerifyArgs(mock_args)
 

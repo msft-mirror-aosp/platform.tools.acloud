@@ -104,16 +104,19 @@ class DevicePool:
         for _ in range(num):
             instance = self._device_factory.CreateInstance()
             ip = self._compute_client.GetInstanceIP(instance)
-            time_info = self._compute_client.execution_time if hasattr(
-                self._compute_client, "execution_time") else {}
+            time_info = {
+                stage: round(exec_time, 2) for stage, exec_time in
+                getattr(self._compute_client, "execution_time", {}).items()}
             stage = self._compute_client.stage if hasattr(
                 self._compute_client, "stage") else 0
             openwrt = self._compute_client.openwrt if hasattr(
                 self._compute_client, "openwrt") else False
+            gce_hostname = self._compute_client.gce_hostname if hasattr(
+                self._compute_client, "gce_hostname") else None
             self.devices.append(
                 avd.AndroidVirtualDevice(ip=ip, instance_name=instance,
                                          time_info=time_info, stage=stage,
-                                         openwrt=openwrt))
+                                         openwrt=openwrt, gce_hostname=gce_hostname))
 
     @utils.TimeExecute(function_description="Waiting for AVD(s) to boot up",
                        result_evaluator=utils.BootEvaluator)
@@ -269,6 +272,7 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
         for device in device_pool.devices:
             ip = (device.ip.internal if report_internal_ip
                   else device.ip.external)
+            extra_args_ssh_tunnel=cfg.extra_args_ssh_tunnel
             # TODO(b/154175542): Report multiple devices.
             vnc_port = device_factory.GetVncPorts()[0]
             adb_port = device_factory.GetAdbPorts()[0]
@@ -285,16 +289,23 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
                 device_dict.update(device.time_info)
             if device.openwrt:
                 device_dict.update(device_factory.GetOpenWrtInfoDict())
+            if device.gce_hostname:
+                device_dict[constants.GCE_HOSTNAME] = device.gce_hostname
+                logger.debug(
+                    "To connect with hostname, erase the extra_args_ssh_tunnel: %s",
+                    extra_args_ssh_tunnel)
+                extra_args_ssh_tunnel=""
+
             if autoconnect and reporter.status == report.Status.SUCCESS:
                 forwarded_ports = utils.AutoConnect(
-                    ip_addr=ip,
+                    ip_addr=device.gce_hostname or ip,
                     rsa_key_file=(ssh_private_key_path or
                                   cfg.ssh_private_key_path),
                     target_vnc_port=vnc_port,
                     target_adb_port=adb_port,
                     ssh_user=ssh_user,
                     client_adb_port=client_adb_port,
-                    extra_args_ssh_tunnel=cfg.extra_args_ssh_tunnel)
+                    extra_args_ssh_tunnel=extra_args_ssh_tunnel)
                 device_dict[constants.VNC_PORT] = forwarded_ports.vnc_port
                 device_dict[constants.ADB_PORT] = forwarded_ports.adb_port
                 device_dict[constants.DEVICE_SERIAL] = (
@@ -306,12 +317,12 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
                 webrtc_local_port = utils.PickFreePort()
                 device_dict[constants.WEBRTC_PORT] = webrtc_local_port
                 utils.EstablishWebRTCSshTunnel(
-                    ip_addr=ip,
+                    ip_addr=device.gce_hostname or ip,
                     webrtc_local_port=webrtc_local_port,
                     rsa_key_file=(ssh_private_key_path or
                                   cfg.ssh_private_key_path),
                     ssh_user=ssh_user,
-                    extra_args_ssh_tunnel=cfg.extra_args_ssh_tunnel)
+                    extra_args_ssh_tunnel=extra_args_ssh_tunnel)
             if device.instance_name in logs:
                 device_dict[constants.LOGS] = logs[device.instance_name]
             if device.instance_name in failures:

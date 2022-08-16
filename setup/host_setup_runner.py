@@ -47,10 +47,10 @@ _LIST_OF_INTEL_MODULES = [_KVM_INTEL, "kvm"]
 _LIST_OF_AMD_MODULES = [_KVM_AMD, "kvm"]
 _DICT_MODULES = {_INTEL: _LIST_OF_INTEL_MODULES, _AMD: _LIST_OF_AMD_MODULES}
 _INTEL_COMMANDS = [
-    "sudo rmmod kvm_intel", "sudo rmmod kvm", "sudo modprobe kvm",
-    "sudo modprobe kvm_intel"]
+    "sudo rmmod kvm_intel || true", "sudo rmmod kvm || true",
+    "sudo modprobe kvm", "sudo modprobe kvm_intel"]
 _AMD_COMMANDS = [
-    "sudo rmmod kvm_amd", "sudo rmmod kvm", "sudo modprobe kvm",
+    "sudo rmmod kvm_amd || true", "sudo rmmod kvm|| true", "sudo modprobe kvm",
     "sudo modprobe kvm_amd"]
 _DICT_SETUP_CMDS = {_INTEL: _INTEL_COMMANDS, _AMD: _AMD_COMMANDS}
 _UPDATE_APT_GET_CMD = "sudo apt-get update"

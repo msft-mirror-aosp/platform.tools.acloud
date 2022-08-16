@@ -50,6 +50,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
     MACHINE_TYPE = "fake-machine-type"
     NETWORK = "fake-network"
     ZONE = "fake-zone"
+    PROJECT = "fake-project"
     BRANCH = "fake-branch"
     TARGET = "aosp_cf_x86_64_phone-userdebug"
     BUILD_ID = "2263051"
@@ -67,8 +68,6 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
     GPU = "fake-gpu"
     DISK_TYPE = "fake-disk-type"
     FAKE_IP = IP(external="1.1.1.1", internal="10.1.1.1")
-    REMOTE_HOST_IP = "192.0.2.1"
-    REMOTE_HOST_INSTANCE_NAME = "host-192.0.2.1-2263051-aosp_cf_x86_64_phone"
 
     def _GetFakeConfig(self):
         """Create a fake configuration object.
@@ -81,6 +80,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         fake_cfg.machine_type = self.MACHINE_TYPE
         fake_cfg.network = self.NETWORK
         fake_cfg.zone = self.ZONE
+        fake_cfg.project = self.PROJECT
         fake_cfg.resolution = "{x}x{y}x32x{dpi}".format(
             x=self.X_RES, y=self.Y_RES, dpi=self.DPI)
         fake_cfg.metadata_variable = self.METADATA
@@ -126,49 +126,6 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.args.disk_type = self.DISK_TYPE
         self.args.openwrt = False
         self.args.webrtc_device_id = "cvd-1"
-
-    # pylint: disable=protected-access
-    @mock.patch.object(utils, "GetBuildEnvironmentVariable", return_value="fake_env_cf_x86")
-    @mock.patch.object(glob, "glob", return_value=["fake.img"])
-    def testGetLaunchCvdArgs(self, _mock_check_img, _mock_env):
-        """test GetLaunchCvdArgs."""
-        # test GetLaunchCvdArgs with avd_spec
-        self.Patch(cvd_compute_client_multi_stage.CvdComputeClient,
-                   "_GetConfigFromAndroidInfo", return_value="phone")
-        fake_avd_spec = avd_spec.AVDSpec(self.args)
-        expected_args = ["-config=phone", "-x_res=1080", "-y_res=1920", "-dpi=240",
-                         "-data_policy=always_create", "-blank_data_image_mb=10240",
-                         "-cpus=2", "-memory_mb=4096", "-num_instances=2",
-                         "--setupwizard_mode=REQUIRED",
-                         "-undefok=report_anonymous_usage_stats,config",
-                         "-report_anonymous_usage_stats=y"]
-        launch_cvd_args = self.cvd_compute_client_multi_stage._GetLaunchCvdArgs(fake_avd_spec)
-        self.assertEqual(launch_cvd_args, expected_args)
-
-        self.args.openwrt = True
-        self.args.autoconnect = constants.INS_KEY_WEBRTC
-        self.args.webrtc_device_id = "pet-name"
-
-        fake_avd_spec = avd_spec.AVDSpec(self.args)
-        expected_args = ["-config=phone", "-x_res=1080", "-y_res=1920", "-dpi=240",
-                         "-data_policy=always_create", "-blank_data_image_mb=10240",
-                         "-cpus=2", "-memory_mb=4096", "--start_webrtc",
-                         "--vm_manager=crosvm", "--webrtc_device_id=pet-name",
-                         "-console=true", "-num_instances=2",
-                         "--setupwizard_mode=REQUIRED",
-                         "-undefok=report_anonymous_usage_stats,config",
-                         "-report_anonymous_usage_stats=y"]
-        launch_cvd_args = self.cvd_compute_client_multi_stage._GetLaunchCvdArgs(fake_avd_spec)
-        self.assertEqual(launch_cvd_args, expected_args)
-
-        # test GetLaunchCvdArgs without avd_spec
-        expected_args = ["-x_res=720", "-y_res=1280", "-dpi=160",
-                         "--setupwizard_mode=REQUIRED",
-                         "-undefok=report_anonymous_usage_stats,config",
-                         "-report_anonymous_usage_stats=y"]
-        launch_cvd_args = self.cvd_compute_client_multi_stage._GetLaunchCvdArgs(
-            avd_spec=None)
-        self.assertEqual(launch_cvd_args, expected_args)
 
     @mock.patch.object(utils, "GetBuildEnvironmentVariable", return_value="fake_env_cf_x86")
     @mock.patch.object(glob, "glob", return_value=["fake.img"])
@@ -218,22 +175,6 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
             gpu=self.GPU,
             disk_type=self.DISK_TYPE,
             disable_external_ip=False)
-
-    def testFormatRemoteHostInstanceName(self):
-        """Test FormatRemoteHostInstanceName."""
-        name = self.cvd_compute_client_multi_stage.FormatRemoteHostInstanceName(
-            self.REMOTE_HOST_IP, self.BUILD_ID, self.TARGET.split("-", maxsplit=1)[0])
-        self.assertEqual(name, self.REMOTE_HOST_INSTANCE_NAME)
-
-    def testParseRemoteHostAddress(self):
-        """Test ParseRemoteHostAddress."""
-        ip_addr = self.cvd_compute_client_multi_stage.ParseRemoteHostAddress(
-            self.REMOTE_HOST_INSTANCE_NAME)
-        self.assertEqual(ip_addr, self.REMOTE_HOST_IP)
-
-        ip_addr = self.cvd_compute_client_multi_stage.ParseRemoteHostAddress(
-            "host-goldfish-192.0.2.1-5554-123456-sdk_x86_64-sdk")
-        self.assertIsNone(ip_addr)
 
     def testSetStage(self):
         """Test SetStage"""
@@ -301,6 +242,20 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         fake_avd_spec.openwrt = True
         self.cvd_compute_client_multi_stage._UpdateOpenWrtStatus(fake_avd_spec)
         self.assertEqual(True, self.cvd_compute_client_multi_stage.openwrt)
+
+    def testGetGCEHostName(self):
+        """Test GetGCEHostName."""
+        instance_name = "instance_name"
+        expected = "nic0.instance_name.fake-zone.c.fake-project.internal.gcpnode.com"
+        self.assertEqual(expected,
+                         self.cvd_compute_client_multi_stage._GetGCEHostName(
+                             instance_name))
+
+        self.cvd_compute_client_multi_stage._project = "test.com:project"
+        expected = "nic0.instance_name.fake-zone.c.project.test.com.internal.gcpnode.com"
+        self.assertEqual(expected,
+                         self.cvd_compute_client_multi_stage._GetGCEHostName(
+                             instance_name))
 
 
 if __name__ == "__main__":
