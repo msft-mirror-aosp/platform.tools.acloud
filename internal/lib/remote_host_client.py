@@ -17,6 +17,7 @@ creation flow."""
 
 import time
 
+from acloud.internal import constants
 from acloud.internal.lib import ssh
 from acloud.public import config
 
@@ -32,12 +33,15 @@ class RemoteHostClient:
         ip_addr: A string, the IP address of the host.
         execution_time: A dictionary that records the execution time. The
                         possible keys are defined as TIME_* in constants.py.
+        stage: An integer. The possible values are defined as STAGE_* in
+               constants.py.
     """
 
     def __init__(self, ip_addr):
         """Initialize the attribtues."""
         self._ip_addr = ip_addr
         self._execution_time = {}
+        self._stage = constants.STAGE_INIT
 
     def RecordTime(self, key, start_time):
         """Record the interval between the start time and the current time.
@@ -52,6 +56,10 @@ class RemoteHostClient:
         current = time.time()
         self._execution_time[key] = current - start_time
         return current
+
+    def SetStage(self, stage):
+        """Set device creation progress."""
+        self._stage = stage
 
     # The following methods are called by common_operations.py.
     def GetInstanceIP(self, _instance_name):
@@ -73,6 +81,11 @@ class RemoteHostClient:
     def execution_time(self):
         """Return execution_time."""
         return self._execution_time
+
+    @property
+    def stage(self):
+        """Return stage."""
+        return self._stage
 
     @property
     def dict_report(self):
