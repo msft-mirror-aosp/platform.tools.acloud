@@ -105,6 +105,20 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             instance, instance in failures and not self._avd_spec.no_pull_log)
         return instance
 
+    @staticmethod
+    def _GetInstancePath(relative_path=""):
+        """Append a relative path to the remote base directory.
+
+        Args:
+            relative_path: The remote relative path.
+
+        Returns:
+            The remote base directory if relative_path is empty.
+            The remote path under the base directory otherwise.
+        """
+        # TODO(b/229812494): Return different path for each base_instance_num.
+        return relative_path or cvd_utils.GCE_BASE_DIR
+
     def _InitRemotehost(self):
         """Initialize remote host.
 
@@ -158,7 +172,7 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         self._compute_client.SetStage(constants.STAGE_ARTIFACT)
         if self._avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
             cvd_utils.UploadArtifacts(
-                self._ssh,
+                self._ssh, self._GetInstancePath(),
                 self._local_image_artifact or self._avd_spec.local_image_dir,
                 self._cvd_host_package_artifact)
         else:
@@ -179,7 +193,8 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             finally:
                 shutil.rmtree(artifacts_path)
 
-        return cvd_utils.UploadExtraImages(self._ssh, self._avd_spec)
+        return cvd_utils.UploadExtraImages(self._ssh, self._GetInstancePath(),
+                                           self._avd_spec)
 
     @utils.TimeExecute(function_description="Downloading artifacts on remote host by fetch cvd wrapper.")
     def _DownloadArtifactsByFetchWrapper(self):
@@ -305,7 +320,8 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         # TODO(b/182259589): Refactor upload image command into a function.
         cmd = (f"tar -cf - --lzop -S -C {images_dir} "
                f"{' '.join(artifact_files)} | "
-               f"{ssh_cmd} -- tar -xf - --lzop -S")
+               f"{ssh_cmd} -- "
+               f"tar -xf - --lzop -S -C {self._GetInstancePath()}")
         logger.debug("cmd:\n %s", cmd)
         ssh.ShellCmdWithRetry(cmd)
 
