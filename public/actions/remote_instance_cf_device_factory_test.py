@@ -78,7 +78,8 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_uploadca.assert_called_once()
         mock_uploadca.reset_mock()
         mock_cvd_utils.UploadArtifacts.assert_called_once_with(
-            mock.ANY, fake_image_name, fake_host_package_name)
+            mock.ANY, mock_cvd_utils.GCE_BASE_DIR, fake_image_name,
+            fake_host_package_name)
         mock_cvd_utils.UploadExtraImages.assert_called_once()
 
         # given autoconnect to vnc should not upload certificates
