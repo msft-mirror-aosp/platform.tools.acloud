@@ -92,6 +92,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         if avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
             cvd_utils.UploadArtifacts(
                 self._ssh,
+                cvd_utils.GCE_BASE_DIR,
                 self._local_image_artifact or avd_spec.local_image_dir,
                 self._cvd_host_package_artifact)
         elif avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
@@ -110,7 +111,8 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         if avd_spec.extra_files:
             self._compute_client.UploadExtraFiles(avd_spec.extra_files)
 
-        return cvd_utils.UploadExtraImages(self._ssh, avd_spec)
+        return cvd_utils.UploadExtraImages(
+            self._ssh, cvd_utils.GCE_BASE_DIR, avd_spec)
 
     def _FindLogFiles(self, instance, download):
         """Find and pull all log files from instance.
