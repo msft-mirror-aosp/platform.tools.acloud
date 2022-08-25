@@ -283,7 +283,9 @@ def CleanUpRemoteHost(cfg, remote_host, host_user,
         ssh_private_key_path=(
             host_ssh_private_key_path or cfg.ssh_private_key_path))
     try:
-        cvd_utils.CleanUpRemoteCvd(ssh_obj, raise_error=True)
+        # TODO(b/229812494): Get base directory from instance name.
+        cvd_utils.CleanUpRemoteCvd(ssh_obj, cvd_utils.GCE_BASE_DIR,
+                                   raise_error=True)
         delete_report.SetStatus(report.Status.SUCCESS)
         device_driver.AddDeletionResultToReport(
             delete_report, [remote_host], failed=[],
