@@ -21,6 +21,7 @@ import os
 import posixpath as remote_path
 import re
 import shutil
+import subprocess
 import tempfile
 import time
 import zipfile
@@ -141,31 +142,36 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         Returns:
             The instance name.
         """
-        client = self.GetComputeClient()
-        start_time = time.time()
-        self._InitRemoteHost()
-        start_time = client.RecordTime(constants.TIME_GCE, start_time)
-
-        remote_paths = self._PrepareArtifacts()
-        start_time = client.RecordTime(constants.TIME_ARTIFACT, start_time)
-
         instance_name = goldfish_utils.FormatRemoteHostInstanceName(
             self._avd_spec.remote_host,
             self._GetConsolePort(),
             self._avd_spec.remote_image)
-        self._logs[instance_name] = [
-            report.LogFile(self._GetInstancePath(_REMOTE_STDOUT_PATH),
-                           constants.LOG_TYPE_KERNEL_LOG),
-            report.LogFile(self._GetInstancePath(_REMOTE_STDERR_PATH),
-                           constants.LOG_TYPE_TEXT),
-            report.LogFile(self._GetInstancePath(_REMOTE_LOGCAT_PATH),
-                           constants.LOG_TYPE_LOGCAT)]
+
+        client = self.GetComputeClient()
+        timed_stage = constants.TIME_GCE
+        start_time = time.time()
         try:
+            client.SetStage(constants.STAGE_SSH_CONNECT)
+            self._InitRemoteHost()
+
+            start_time = client.RecordTime(timed_stage, start_time)
+            timed_stage = constants.TIME_ARTIFACT
+            client.SetStage(constants.STAGE_ARTIFACT)
+            remote_paths = self._PrepareArtifacts()
+
+            start_time = client.RecordTime(timed_stage, start_time)
+            timed_stage = constants.TIME_LAUNCH
+            client.SetStage(constants.STAGE_BOOT_UP)
+            self._logs[instance_name] = self._GetEmulatorLogs()
             self._StartEmulator(remote_paths)
             self._WaitForEmulator()
-        except errors.DeviceBootError as e:
+        except (errors.DriverError, subprocess.CalledProcessError) as e:
+            # Catch the generic runtime error and CalledProcessError which is
+            # raised by the ssh module.
             self._failures[instance_name] = e
-        client.RecordTime(constants.TIME_LAUNCH, start_time)
+        finally:
+            client.RecordTime(timed_stage, start_time)
+
         return instance_name
 
     def _InitRemoteHost(self):
@@ -580,6 +586,15 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
             self._ssh.ScpPushFile(ramdisk_path, remote_ramdisk_path)
 
         return remote_kernel_path, remote_ramdisk_path
+
+    def _GetEmulatorLogs(self):
+        """Return the logs created by the remote emulator command."""
+        return [report.LogFile(self._GetInstancePath(_REMOTE_STDOUT_PATH),
+                               constants.LOG_TYPE_KERNEL_LOG),
+                report.LogFile(self._GetInstancePath(_REMOTE_STDERR_PATH),
+                               constants.LOG_TYPE_TEXT),
+                report.LogFile(self._GetInstancePath(_REMOTE_LOGCAT_PATH),
+                               constants.LOG_TYPE_LOGCAT)]
 
     @utils.TimeExecute(function_description="Start emulator")
     def _StartEmulator(self, remote_paths):

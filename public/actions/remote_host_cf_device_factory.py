@@ -96,6 +96,7 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             self._avd_spec,
             self._avd_spec.cfg.extra_data_disk_size_gb,
             boot_timeout_secs=self._avd_spec.boot_timeout_secs,
+            base_dir=self._GetInstancePath(),
             extra_args=image_args)
         self._compute_client.execution_time[constants.TIME_LAUNCH] = (
             time.time() - launch_cvd_timestart)
@@ -104,6 +105,20 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         self._FindLogFiles(
             instance, instance in failures and not self._avd_spec.no_pull_log)
         return instance
+
+    @staticmethod
+    def _GetInstancePath(relative_path=""):
+        """Append a relative path to the remote base directory.
+
+        Args:
+            relative_path: The remote relative path.
+
+        Returns:
+            The remote base directory if relative_path is empty.
+            The remote path under the base directory otherwise.
+        """
+        # TODO(b/229812494): Return different path for each base_instance_num.
+        return relative_path or cvd_utils.GCE_BASE_DIR
 
     def _InitRemotehost(self):
         """Initialize remote host.
@@ -140,7 +155,7 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             extra_args_ssh_tunnel=self._avd_spec.cfg.extra_args_ssh_tunnel,
             report_internal_ip=self._avd_spec.report_internal_ip)
         self._compute_client.InitRemoteHost(
-            self._ssh, ip, self._avd_spec.host_user)
+            self._ssh, ip, self._avd_spec.host_user, self._GetInstancePath())
         return instance
 
     def _ProcessRemoteHostArtifacts(self):
@@ -158,7 +173,7 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         self._compute_client.SetStage(constants.STAGE_ARTIFACT)
         if self._avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
             cvd_utils.UploadArtifacts(
-                self._ssh,
+                self._ssh, self._GetInstancePath(),
                 self._local_image_artifact or self._avd_spec.local_image_dir,
                 self._cvd_host_package_artifact)
         else:
@@ -166,15 +181,48 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
                 artifacts_path = tempfile.mkdtemp()
                 logger.debug("Extracted path of artifacts: %s", artifacts_path)
                 if self._avd_spec.remote_fetch:
-                    self._UploadFetchCvd(artifacts_path)
-                    self._DownloadArtifactsRemotehost()
+                    # TODO: Check fetch cvd wrapper file is valid.
+                    if self._avd_spec.fetch_cvd_wrapper:
+                        self._UploadFetchCvd(artifacts_path)
+                        self._DownloadArtifactsByFetchWrapper()
+                    else:
+                        self._UploadFetchCvd(artifacts_path)
+                        self._DownloadArtifactsRemotehost()
                 else:
                     self._DownloadArtifacts(artifacts_path)
                     self._UploadRemoteImageArtifacts(artifacts_path)
             finally:
                 shutil.rmtree(artifacts_path)
 
-        return cvd_utils.UploadExtraImages(self._ssh, self._avd_spec)
+        return cvd_utils.UploadExtraImages(self._ssh, self._GetInstancePath(),
+                                           self._avd_spec)
+
+    @utils.TimeExecute(function_description="Downloading artifacts on remote host by fetch cvd wrapper.")
+    def _DownloadArtifactsByFetchWrapper(self):
+        """Generate fetch_cvd args and run fetch cvd wrapper on remote host to download artifacts.
+
+        Fetch cvd wrapper will fetch from cluster cached artifacts, and fallback to fetch_cvd if the artifacts not exist.
+        """
+        cfg = self._avd_spec.cfg
+
+        fetch_cvd_build_args = self._compute_client.build_api.GetFetchBuildArgs(
+            self._avd_spec.remote_image,
+            self._avd_spec.system_build_info,
+            self._avd_spec.kernel_build_info,
+            self._avd_spec.boot_build_info,
+            self._avd_spec.bootloader_build_info,
+            self._avd_spec.ota_build_info)
+        creds_cache_file = os.path.join(_HOME_FOLDER, cfg.creds_cache_file)
+        fetch_cvd_cert_arg = self._compute_client.build_api.GetFetchCertArg(
+            creds_cache_file, cfg.service_account_json_private_key_path)
+
+        fetch_cvd_args = [f'{self._avd_spec.fetch_cvd_wrapper}', "-directory=./", fetch_cvd_cert_arg]
+        fetch_cvd_args.extend(fetch_cvd_build_args)
+
+        ssh_cmd = self._ssh.GetBaseCmd(constants.SSH_BIN)
+        cmd = (f"{ssh_cmd} -- " + " ".join(fetch_cvd_args))
+        logger.debug("cmd:\n %s", cmd)
+        ssh.ShellCmdWithRetry(cmd)
 
     @utils.TimeExecute(function_description="Downloading artifacts on remote host")
     def _DownloadArtifactsRemotehost(self):
@@ -190,11 +238,7 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             self._avd_spec.ota_build_info)
         creds_cache_file = os.path.join(_HOME_FOLDER, cfg.creds_cache_file)
         fetch_cvd_cert_arg = self._compute_client.build_api.GetFetchCertArg(
-            creds_cache_file)
-
-        # Override certification when service account json private key is provided
-        if cfg.service_account_json_private_key_path:
-            fetch_cvd_cert_arg = f"-credential_source=./{constants.FETCH_CVD_CREDENTIAL_SOURCE}"
+            creds_cache_file, cfg.service_account_json_private_key_path)
 
         fetch_cvd_args = [f'./{constants.FETCH_CVD}', "-directory=./", fetch_cvd_cert_arg]
         fetch_cvd_args.extend(fetch_cvd_build_args)
@@ -277,7 +321,8 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         # TODO(b/182259589): Refactor upload image command into a function.
         cmd = (f"tar -cf - --lzop -S -C {images_dir} "
                f"{' '.join(artifact_files)} | "
-               f"{ssh_cmd} -- tar -xf - --lzop -S")
+               f"{ssh_cmd} -- "
+               f"tar -xf - --lzop -S -C {self._GetInstancePath()}")
         logger.debug("cmd:\n %s", cmd)
         ssh.ShellCmdWithRetry(cmd)
 

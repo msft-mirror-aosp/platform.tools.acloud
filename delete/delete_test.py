@@ -226,8 +226,8 @@ class DeleteTest(driver_test_lib.BaseDriverTest):
             ip=mock_ssh_ip,
             user="vsoc-01",
             ssh_private_key_path="cfg_key_path")
-        mock_cvd_utils.CleanUpRemoteCvd.assert_called_with(mock_ssh_obj,
-                                                           raise_error=True)
+        mock_cvd_utils.CleanUpRemoteCvd.assert_called_with(
+            mock_ssh_obj, mock_cvd_utils.GCE_BASE_DIR, raise_error=True)
         self.assertEqual(delete_report.status, "SUCCESS")
         self.assertEqual(delete_report.data, {
             "deleted": [
@@ -252,8 +252,8 @@ class DeleteTest(driver_test_lib.BaseDriverTest):
             ip=mock_ssh_ip,
             user="user",
             ssh_private_key_path="key_path")
-        mock_cvd_utils.CleanUpRemoteCvd.assert_called_with(mock_ssh_obj,
-                                                           raise_error=True)
+        mock_cvd_utils.CleanUpRemoteCvd.assert_called_with(
+            mock_ssh_obj, mock_cvd_utils.GCE_BASE_DIR, raise_error=True)
         self.assertEqual(delete_report.status, "FAIL")
         self.assertEqual(len(delete_report.errors), 1)
 
