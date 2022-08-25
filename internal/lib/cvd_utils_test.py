@@ -184,23 +184,24 @@ class CvdUtilsTest(unittest.TestCase):
     def testCleanUpRemoteCvd(self):
         """Test CleanUpRemoteCvd."""
         mock_ssh = mock.Mock()
-        cvd_utils.CleanUpRemoteCvd(mock_ssh, raise_error=True)
-        mock_ssh.Run.assert_any_call("./bin/stop_cvd")
-        mock_ssh.Run.assert_any_call("'rm -rf ./*'")
+        cvd_utils.CleanUpRemoteCvd(mock_ssh, "dir", raise_error=True)
+        mock_ssh.Run.assert_any_call("'HOME=$HOME/dir dir/bin/stop_cvd'")
+        mock_ssh.Run.assert_any_call("'rm -rf dir/*'")
 
         mock_ssh.reset_mock()
         mock_ssh.Run.side_effect = [
             subprocess.CalledProcessError(cmd="should raise", returncode=1)]
         with self.assertRaises(subprocess.CalledProcessError):
-            cvd_utils.CleanUpRemoteCvd(mock_ssh, raise_error=True)
+            cvd_utils.CleanUpRemoteCvd(mock_ssh, "dir", raise_error=True)
 
         mock_ssh.reset_mock()
         mock_ssh.Run.side_effect = [
             subprocess.CalledProcessError(cmd="should ignore", returncode=1),
             None]
-        cvd_utils.CleanUpRemoteCvd(mock_ssh, raise_error=False)
-        mock_ssh.Run.assert_any_call("./bin/stop_cvd", retry=0)
-        mock_ssh.Run.assert_any_call("'rm -rf ./*'")
+        cvd_utils.CleanUpRemoteCvd(mock_ssh, "dir", raise_error=False)
+        mock_ssh.Run.assert_any_call("'HOME=$HOME/dir dir/bin/stop_cvd'",
+                                     retry=0)
+        mock_ssh.Run.assert_any_call("'rm -rf dir/*'")
 
     def testFormatRemoteHostInstanceName(self):
         """Test FormatRemoteHostInstanceName."""
