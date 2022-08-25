@@ -343,18 +343,21 @@ def UploadExtraImages(ssh_obj, remote_dir, avd_spec):
     return []
 
 
-def CleanUpRemoteCvd(ssh_obj, raise_error):
+def CleanUpRemoteCvd(ssh_obj, remote_dir, raise_error):
     """Call stop_cvd and delete the files on a remote host or a GCE instance.
 
     Args:
         ssh_obj: An Ssh object.
+        remote_dir: The remote base directory.
         raise_error: Whether to raise an error if the remote instance is not
                      running.
 
     Raises:
         subprocess.CalledProcessError if any command fails.
     """
-    stop_cvd_cmd = "./bin/stop_cvd"
+    home = remote_path.join("$HOME", remote_dir)
+    stop_cvd_path = remote_path.join(remote_dir, "bin", "stop_cvd")
+    stop_cvd_cmd = f"'HOME={home} {stop_cvd_path}'"
     if raise_error:
         ssh_obj.Run(stop_cvd_cmd)
     else:
@@ -366,7 +369,7 @@ def CleanUpRemoteCvd(ssh_obj, raise_error):
 
     # This command deletes all files except hidden files under HOME.
     # It does not raise an error if no files can be deleted.
-    ssh_obj.Run("'rm -rf ./*'")
+    ssh_obj.Run(f"'rm -rf {remote_path.join(remote_dir, '*')}'")
 
 
 def FormatRemoteHostInstanceName(ip_addr, build_id, build_target):

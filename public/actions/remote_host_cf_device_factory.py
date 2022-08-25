@@ -96,6 +96,7 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             self._avd_spec,
             self._avd_spec.cfg.extra_data_disk_size_gb,
             boot_timeout_secs=self._avd_spec.boot_timeout_secs,
+            base_dir=self._GetInstancePath(),
             extra_args=image_args)
         self._compute_client.execution_time[constants.TIME_LAUNCH] = (
             time.time() - launch_cvd_timestart)
@@ -154,7 +155,7 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             extra_args_ssh_tunnel=self._avd_spec.cfg.extra_args_ssh_tunnel,
             report_internal_ip=self._avd_spec.report_internal_ip)
         self._compute_client.InitRemoteHost(
-            self._ssh, ip, self._avd_spec.host_user)
+            self._ssh, ip, self._avd_spec.host_user, self._GetInstancePath())
         return instance
 
     def _ProcessRemoteHostArtifacts(self):
