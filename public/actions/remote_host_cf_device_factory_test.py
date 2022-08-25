@@ -103,6 +103,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             mock_avd_spec,
             mock_avd_spec.cfg.extra_data_disk_size_gb,
             boot_timeout_secs=mock_avd_spec.boot_timeout_secs,
+            base_dir=mock_cvd_utils.GCE_BASE_DIR,
             extra_args=["extra"])
         mock_pull.GetAllLogFilePaths.assert_called_once()
         mock_pull.PullLogs.assert_called_once()
