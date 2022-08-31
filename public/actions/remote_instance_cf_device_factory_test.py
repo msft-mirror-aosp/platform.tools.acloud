@@ -257,12 +257,14 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         factory.CreateInstance()
         mock_create_gce_instance.assert_called_once()
         mock_cvd_utils.UploadArtifacts.assert_called_once()
-        mock_cvd_utils.FindRemoteLogs.assert_called_with(mock.ANY, None, None)
+        mock_cvd_utils.FindRemoteLogs.assert_called_with(
+            mock.ANY, mock_cvd_utils.GCE_BASE_DIR, None, None)
         compute_client.LaunchCvd.assert_called_once()
         self.assertEqual(
             ["-boot_image", "/boot/img"],
             compute_client.LaunchCvd.call_args[1].get("extra_args"))
-        mock_pull.GetAllLogFilePaths.assert_called_once()
+        mock_pull.GetAllLogFilePaths.assert_called_once_with(
+            mock.ANY, constants.REMOTE_LOG_FOLDER)
         mock_pull.PullLogs.assert_called_once()
 
         factory.GetAdbPorts()
@@ -302,7 +304,8 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         factory.CreateInstance()
 
         compute_client.FetchBuild.assert_called_once()
-        mock_cvd_utils.FindRemoteLogs.assert_called_with(mock.ANY, 2, 3)
+        mock_cvd_utils.FindRemoteLogs.assert_called_with(
+            mock.ANY, mock_cvd_utils.GCE_BASE_DIR, 2, 3)
         mock_pull.GetAllLogFilePaths.assert_not_called()
         mock_pull.PullLogs.assert_not_called()
 

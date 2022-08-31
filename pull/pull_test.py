@@ -128,13 +128,16 @@ class PullTest(driver_test_lib.BaseDriverTest):
                                return_value=["kernel.log", "logcat", "kernel"])
         # Filter out file name is "kernel".
         expected_result = ["kernel.log", "logcat"]
-        self.assertEqual(pull.GetAllLogFilePaths(mock.Mock()), expected_result)
+        self.assertEqual(pull.GetAllLogFilePaths(mock.Mock(), "unit/test"),
+                         expected_result)
+        mock_find.assert_called_with(mock.ANY, ["unit/test"])
 
         # Filter out file extension is ".img".
         mock_find.return_value = ["kernel.log", "system.img", "userdata.img",
                                   "launcher.log"]
         expected_result = ["kernel.log", "launcher.log"]
-        self.assertEqual(pull.GetAllLogFilePaths(mock.Mock()), expected_result)
+        self.assertEqual(pull.GetAllLogFilePaths(mock.Mock(), "unit/test"),
+                         expected_result)
 
     @mock.patch.object(pull, "PullFileFromInstance")
     def testRun(self, mock_pull_file):

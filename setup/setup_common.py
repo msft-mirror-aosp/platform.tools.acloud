@@ -27,7 +27,7 @@ from acloud.internal.lib import utils
 logger = logging.getLogger(__name__)
 
 PKG_INSTALL_CMD = "sudo apt-get --assume-yes install %s"
-APT_CHECK_CMD = "LANG=en_US.UTF-8 apt-cache policy %s"
+APT_CHECK_CMD = "LANG=en_US.UTF-8 LANGUAGE=en_US:en apt-cache policy %s"
 _INSTALLED_RE = re.compile(r"(.*\s*Installed:)(?P<installed_ver>.*\s?)")
 _CANDIDATE_RE = re.compile(r"(.*\s*Candidate:)(?P<candidate_ver>.*\s?)")
 

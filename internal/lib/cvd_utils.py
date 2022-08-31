@@ -102,8 +102,6 @@ _REMOTE_RUNTIME_DIR_FORMAT = remote_path.join(
 _REMOTE_LEGACY_RUNTIME_DIR_FORMAT = "cuttlefish_runtime.%(num)d"
 HOST_KERNEL_LOG = report.LogFile(
     "/var/log/kern.log", constants.LOG_TYPE_KERNEL_LOG, "host_kernel.log")
-FETCHER_CONFIG_JSON = report.LogFile(
-    "fetcher_config.json", constants.LOG_TYPE_CUTTLEFISH_LOG)
 
 
 def GetAdbPorts(base_instance_num, num_avds_per_instance):
@@ -469,30 +467,51 @@ def GetLaunchCvdArgs(avd_spec, blank_data_disk_size_gb=None, config=None):
     return launch_cvd_args
 
 
-def _GetRemoteRuntimeDirs(ssh_obj, base_instance_num, num_avds_per_instance):
+def _GetRemoteRuntimeDirs(ssh_obj, remote_dir, base_instance_num,
+                          num_avds_per_instance):
     """Get cuttlefish runtime directories on a remote host or a GCE instance.
 
     Args:
         ssh_obj: An Ssh object.
+        remote_dir: The remote base directory.
         base_instance_num: An integer, the instance number of the first device.
         num_avds_per_instance: An integer, the number of devices.
 
     Returns:
         A list of strings, the paths to the runtime directories.
     """
-    runtime_dir = _REMOTE_RUNTIME_DIR_FORMAT % {"num": base_instance_num}
+    runtime_dir = remote_path.join(
+        remote_dir, _REMOTE_RUNTIME_DIR_FORMAT % {"num": base_instance_num})
     try:
         ssh_obj.Run(f"test -d {runtime_dir}", retry=0)
-        return [_REMOTE_RUNTIME_DIR_FORMAT % {"num": base_instance_num + num}
+        return [remote_path.join(remote_dir,
+                                 _REMOTE_RUNTIME_DIR_FORMAT %
+                                 {"num": base_instance_num + num})
                 for num in range(num_avds_per_instance)]
     except subprocess.CalledProcessError:
         logger.debug("%s is not the runtime directory.", runtime_dir)
 
-    legacy_runtime_dirs = [constants.REMOTE_LOG_FOLDER]
-    legacy_runtime_dirs.extend(_REMOTE_LEGACY_RUNTIME_DIR_FORMAT %
-                               {"num": base_instance_num + num}
-                               for num in range(1, num_avds_per_instance))
+    legacy_runtime_dirs = [
+        remote_path.join(remote_dir, constants.REMOTE_LOG_FOLDER)]
+    legacy_runtime_dirs.extend(
+        remote_path.join(remote_dir,
+                         _REMOTE_LEGACY_RUNTIME_DIR_FORMAT %
+                         {"num": base_instance_num + num})
+        for num in range(1, num_avds_per_instance))
     return legacy_runtime_dirs
+
+
+def GetRemoteFetcherConfigJson(remote_dir):
+    """Get the config created by fetch_cvd on a remote host or a GCE instance.
+
+    Args:
+        remote_dir: The remote base directory.
+
+    Returns:
+        An object of report.LogFile.
+    """
+    return report.LogFile(remote_path.join(remote_dir, "fetcher_config.json"),
+                          constants.LOG_TYPE_CUTTLEFISH_LOG)
 
 
 def _GetRemoteTombstone(runtime_dir, name_suffix):
@@ -511,11 +530,13 @@ def _GetRemoteTombstone(runtime_dir, name_suffix):
                           "tombstones-zip" + name_suffix)
 
 
-def FindRemoteLogs(ssh_obj, base_instance_num, num_avds_per_instance):
+def FindRemoteLogs(ssh_obj, remote_dir, base_instance_num,
+                   num_avds_per_instance):
     """Find log objects on a remote host or a GCE instance.
 
     Args:
         ssh_obj: An Ssh object.
+        remote_dir: The remote base directory.
         base_instance_num: An integer or None, the instance number of the first
                            device.
         num_avds_per_instance: An integer or None, the number of devices.
@@ -524,7 +545,8 @@ def FindRemoteLogs(ssh_obj, base_instance_num, num_avds_per_instance):
         A list of report.LogFile objects.
     """
     runtime_dirs = _GetRemoteRuntimeDirs(
-        ssh_obj, (base_instance_num or 1), (num_avds_per_instance or 1))
+        ssh_obj, remote_dir,
+        (base_instance_num or 1), (num_avds_per_instance or 1))
     logs = []
     for log_path in utils.FindRemoteFiles(ssh_obj, runtime_dirs):
         file_name = remote_path.basename(log_path)
