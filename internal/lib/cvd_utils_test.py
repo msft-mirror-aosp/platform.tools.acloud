@@ -279,6 +279,13 @@ class CvdUtilsTest(unittest.TestCase):
             mock_avd_spec, blank_data_disk_size_gb=20, config="phone")
         self.assertEqual(launch_cvd_args, expected_args)
 
+    def testGetRemoteFetcherConfigJson(self):
+        """Test GetRemoteFetcherConfigJson."""
+        expected_log = {"path": "dir/fetcher_config.json",
+                        "type": constants.LOG_TYPE_CUTTLEFISH_LOG}
+        self.assertEqual(expected_log,
+                         cvd_utils.GetRemoteFetcherConfigJson("dir"))
+
     @mock.patch("acloud.internal.lib.cvd_utils.utils")
     def testFindRemoteLogs(self, mock_utils):
         """Test FindRemoteLogs with the runtime directories in Android 12."""
@@ -287,11 +294,11 @@ class CvdUtilsTest(unittest.TestCase):
             "/kernel.log", "/logcat", "/launcher.log", "/access-kregistry",
             "/cuttlefish_config.json"]
 
-        logs = cvd_utils.FindRemoteLogs(mock_ssh, None, None)
-        mock_ssh.Run.assert_called_with("test -d cuttlefish/instances/cvd-1",
-                                        retry=0)
+        logs = cvd_utils.FindRemoteLogs(mock_ssh, "dir", None, None)
+        mock_ssh.Run.assert_called_with(
+            "test -d dir/cuttlefish/instances/cvd-1", retry=0)
         mock_utils.FindRemoteFiles.assert_called_with(
-            mock_ssh, ["cuttlefish/instances/cvd-1"])
+            mock_ssh, ["dir/cuttlefish/instances/cvd-1"])
         expected_logs = [
             {
                 "path": "/kernel.log",
@@ -314,7 +321,7 @@ class CvdUtilsTest(unittest.TestCase):
                 "name": "cuttlefish_config.json"
             },
             {
-                "path": "cuttlefish/instances/cvd-1/tombstones",
+                "path": "dir/cuttlefish/instances/cvd-1/tombstones",
                 "type": constants.LOG_TYPE_DIR,
                 "name": "tombstones-zip"
             },
@@ -328,31 +335,33 @@ class CvdUtilsTest(unittest.TestCase):
         mock_ssh.Run.side_effect = subprocess.CalledProcessError(
             cmd="test", returncode=1)
         mock_utils.FindRemoteFiles.return_value = [
-            "cuttlefish_runtime/kernel.log", "cuttlefish_runtime.4/kernel.log"]
+            "dir/cuttlefish_runtime/kernel.log",
+            "dir/cuttlefish_runtime.4/kernel.log",
+        ]
 
-        logs = cvd_utils.FindRemoteLogs(mock_ssh, 3, 2)
-        mock_ssh.Run.assert_called_with("test -d cuttlefish/instances/cvd-3",
-                                        retry=0)
+        logs = cvd_utils.FindRemoteLogs(mock_ssh, "dir", 3, 2)
+        mock_ssh.Run.assert_called_with(
+            "test -d dir/cuttlefish/instances/cvd-3", retry=0)
         mock_utils.FindRemoteFiles.assert_called_with(
-            mock_ssh, ["cuttlefish_runtime", "cuttlefish_runtime.4"])
+            mock_ssh, ["dir/cuttlefish_runtime", "dir/cuttlefish_runtime.4"])
         expected_logs = [
             {
-                "path": "cuttlefish_runtime/kernel.log",
+                "path": "dir/cuttlefish_runtime/kernel.log",
                 "type": constants.LOG_TYPE_KERNEL_LOG,
                 "name": "kernel.log"
             },
             {
-                "path": "cuttlefish_runtime.4/kernel.log",
+                "path": "dir/cuttlefish_runtime.4/kernel.log",
                 "type": constants.LOG_TYPE_KERNEL_LOG,
                 "name": "kernel.1.log"
             },
             {
-                "path": "cuttlefish_runtime/tombstones",
+                "path": "dir/cuttlefish_runtime/tombstones",
                 "type": constants.LOG_TYPE_DIR,
                 "name": "tombstones-zip"
             },
             {
-                "path": "cuttlefish_runtime.4/tombstones",
+                "path": "dir/cuttlefish_runtime.4/tombstones",
                 "type": constants.LOG_TYPE_DIR,
                 "name": "tombstones-zip.1"
             },
