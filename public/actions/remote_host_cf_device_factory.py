@@ -337,16 +337,19 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         logs = []
         if (self._avd_spec.image_source == constants.IMAGE_SRC_REMOTE and
                 self._avd_spec.remote_fetch):
-            logs.append(cvd_utils.FETCHER_CONFIG_JSON)
+            logs.append(
+                cvd_utils.GetRemoteFetcherConfigJson(self._GetInstancePath()))
         logs.extend(cvd_utils.FindRemoteLogs(
             self._ssh,
+            self._GetInstancePath(),
             self._avd_spec.base_instance_num,
             self._avd_spec.num_avds_per_instance))
         self._all_logs[instance] = logs
 
         if download:
             # To avoid long download time, fetch from the first device only.
-            log_files = pull.GetAllLogFilePaths(self._ssh)
+            log_files = pull.GetAllLogFilePaths(
+                self._ssh, self._GetInstancePath(constants.REMOTE_LOG_FOLDER))
             error_log_folder = pull.PullLogs(self._ssh, log_files, instance)
             self._compute_client.ExtendReportData(constants.ERROR_LOG_FOLDER,
                                                   error_log_folder)

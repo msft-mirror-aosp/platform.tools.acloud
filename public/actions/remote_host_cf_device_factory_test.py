@@ -97,7 +97,8 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_cvd_utils.UploadArtifacts.assert_called_with(
             mock.ANY, mock_cvd_utils.GCE_BASE_DIR,
             "/mock/img", "/mock/cvd.tar.gz")
-        mock_cvd_utils.FindRemoteLogs.assert_called_with(mock.ANY, 2, 3)
+        mock_cvd_utils.FindRemoteLogs.assert_called_with(
+            mock.ANY, mock_cvd_utils.GCE_BASE_DIR, 2, 3)
         mock_client_obj.LaunchCvd.assert_called_with(
             "inst",
             mock_avd_spec,
@@ -141,7 +142,8 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_cvd_utils.UploadArtifacts.assert_called_with(
             mock.ANY, mock_cvd_utils.GCE_BASE_DIR,
             "/mock/img.zip", "/mock/cvd.tar.gz")
-        mock_cvd_utils.FindRemoteLogs.assert_called_with(mock.ANY, None, None)
+        mock_cvd_utils.FindRemoteLogs.assert_called_with(
+            mock.ANY, mock_cvd_utils.GCE_BASE_DIR, None, None)
         mock_client_obj.LaunchCvd.assert_called()
         mock_pull.GetAllLogFilePaths.assert_not_called()
         mock_pull.PullLogs.assert_not_called()
