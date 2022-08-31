@@ -143,7 +143,7 @@ def SelectLogFileToPull(ssh, file_name=None):
     Raises:
         errors.CheckPathError: Can't find log files.
     """
-    log_files = GetAllLogFilePaths(ssh)
+    log_files = GetAllLogFilePaths(ssh, constants.REMOTE_LOG_FOLDER)
     if file_name:
         file_path = os.path.join(constants.REMOTE_LOG_FOLDER, file_name)
         if file_path in log_files:
@@ -162,7 +162,7 @@ def SelectLogFileToPull(ssh, file_name=None):
                                 "remote instance." % constants.REMOTE_LOG_FOLDER)
 
 
-def GetAllLogFilePaths(ssh):
+def GetAllLogFilePaths(ssh, remote_log_folder):
     """Get all file paths under the log folder.
 
     Two rules to filter out files.
@@ -171,11 +171,12 @@ def GetAllLogFilePaths(ssh):
 
     Args:
         ssh: Ssh object.
+        remote_log_folder: The path to the remote log folder.
 
     Returns:
         List of strings, the log file paths.
     """
-    files = utils.FindRemoteFiles(ssh, [constants.REMOTE_LOG_FOLDER])
+    files = utils.FindRemoteFiles(ssh, [remote_log_folder])
     log_files = list(files)
     for file_path in files:
         file_name = os.path.basename(file_path)
