@@ -27,6 +27,7 @@ import stat
 import apiclient
 
 from acloud import errors
+from acloud.internal import constants
 from acloud.internal.lib import base_cloud_client
 from acloud.internal.lib import utils
 
@@ -134,17 +135,18 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
         os.chmod(local_dest, fetch_cvd_stat.st_mode | stat.S_IEXEC)
 
     @staticmethod
-    def ProcessBuild(build_id=None, branch=None, build_target=None):
+    def ProcessBuild(build_info):
         """Create a Cuttlefish fetch_cvd build string.
 
         Args:
-            build_id: A specific build number to load from. Takes precedence over `branch`.
-            branch: A manifest-branch at which to get the latest build.
-            build_target: A particular device to load at the desired build.
+            build_info: The dictionary that contains build information.
 
         Returns:
             A string, used in the fetch_cvd cmd or None if all args are None.
         """
+        build_id = build_info.get(constants.BUILD_ID)
+        build_target = build_info.get(constants.BUILD_TARGET)
+        branch = build_info.get(constants.BUILD_BRANCH)
         if not build_target:
             return build_id or branch
 
@@ -152,66 +154,66 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
             branch = _DEFAULT_BRANCH
         return (build_id or branch) + "/" + build_target
 
-    # pylint: disable=too-many-locals
-    def GetFetchBuildArgs(self, build_id, branch, build_target, system_build_id,
-                          system_branch, system_build_target, kernel_build_id,
-                          kernel_branch, kernel_build_target, bootloader_build_id,
-                          bootloader_branch, bootloader_build_target,
-                          ota_build_id, ota_branch, ota_build_target):
+    def GetFetchBuildArgs(self, default_build_info, system_build_info,
+                          kernel_build_info, boot_build_info,
+                          bootloader_build_info, ota_build_info):
         """Get args from build information for fetch_cvd.
 
+        Each build_info is a dictionary that contains 3 items, for example,
+        {
+            constants.BUILD_ID: "2263051",
+            constants.BUILD_TARGET: "aosp_cf_x86_64_phone-userdebug",
+            constants.BUILD_BRANCH: "aosp-master",
+        }
+
         Args:
-            build_id: String of build id, e.g. "2263051", "P2804227"
-            branch: String of branch name, e.g. "aosp-master"
-            build_target: String of target name.
-                          e.g. "aosp_cf_x86_64_phone-userdebug"
-            system_build_id: String of the system image build id.
-            system_branch: String of the system image branch name.
-            system_build_target: String of the system image target name,
-                                 e.g. "cf_x86_phone-userdebug"
-            kernel_build_id: String of the kernel image build id.
-            kernel_branch: String of the kernel image branch name.
-            kernel_build_target: String of the kernel image target name,
-            bootloader_build_id: String of the bootloader build id.
-            bootloader_branch: String of the bootloader branch name.
-            bootloader_build_target: String of the bootloader target name.
-            ota_build_id: String of the bootloader build id.
-            ota_branch: String of the bootloader branch name.
-            ota_build_target: String of the bootloader target name.
+            default_build_info: The build that provides full cuttlefish images.
+            system_build_info: The build that provides the system image.
+            kernel_build_info: The build that provides the kernel.
+            boot_build_info: The build that provides the boot image. This
+                             dictionary may contain an additional key
+                             constants.BUILD_ARTIFACT which is mapped to the
+                             boot image name.
+            bootloader_build_info: The build that provides the bootloader.
+            ota_build_info: The build that provides the OTA tools.
 
         Returns:
             List of string args for fetch_cvd.
         """
         fetch_cvd_args = []
 
-        default_build = self.ProcessBuild(build_id, branch, build_target)
+        default_build = self.ProcessBuild(default_build_info)
         if default_build:
-            fetch_cvd_args.append("-default_build=%s" % default_build)
-        system_build = self.ProcessBuild(
-            system_build_id, system_branch, system_build_target)
+            fetch_cvd_args.append(f"-default_build={default_build}")
+        system_build = self.ProcessBuild(system_build_info)
         if system_build:
-            fetch_cvd_args.append("-system_build=%s" % system_build)
-        bootloader_build = self.ProcessBuild(bootloader_build_id,
-                                             bootloader_branch,
-                                             bootloader_build_target)
+            fetch_cvd_args.append(f"-system_build={system_build}")
+        bootloader_build = self.ProcessBuild(bootloader_build_info)
         if bootloader_build:
-            fetch_cvd_args.append("-bootloader_build=%s" % bootloader_build)
-        kernel_build = self.GetKernelBuild(kernel_build_id,
-                                           kernel_branch,
-                                           kernel_build_target)
+            fetch_cvd_args.append(f"-bootloader_build={bootloader_build}")
+        kernel_build = self.GetKernelBuild(kernel_build_info)
         if kernel_build:
-            fetch_cvd_args.append("-kernel_build=%s" % kernel_build)
-        ota_build = self.ProcessBuild(
-            ota_build_id, ota_branch, ota_build_target)
+            fetch_cvd_args.append(f"-kernel_build={kernel_build}")
+        boot_build = self.ProcessBuild(boot_build_info)
+        if boot_build:
+            fetch_cvd_args.append(f"-boot_build={boot_build}")
+            boot_artifact = boot_build_info.get(constants.BUILD_ARTIFACT)
+            if boot_artifact:
+                fetch_cvd_args.append(f"-boot_artifact={boot_artifact}")
+        ota_build = self.ProcessBuild(ota_build_info)
         if ota_build:
-            fetch_cvd_args.append("-otatools_build=%s" % ota_build)
+            fetch_cvd_args.append(f"-otatools_build={ota_build}")
 
         return fetch_cvd_args
 
     @staticmethod
     # pylint: disable=broad-except
-    def GetFetchCertArg(certification_file):
-        """Get cert arg from certification file for fetch_cvd.
+    def GetFetchCertArg(certification_file,
+                        service_account_json_private_key_path = None):
+        """When service account json private key file is provided, use
+        the key file.
+
+        Otherwise, get cert arg from certification file for fetch_cvd.
 
         Parse the certification file to get access token of the latest
         credential data and pass it to fetch_cvd command.
@@ -231,11 +233,16 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
 
         Args:
             certification_file: String of certification file path.
+            service_account_json_private_key_path: String of service
+            account json private key path.
 
         Returns:
             String of certificate arg for fetch_cvd. If there is no
             certification file, return empty string for aosp branch.
         """
+        if service_account_json_private_key_path:
+            return f"-credential_source=./{constants.FETCH_CVD_CREDENTIAL_SOURCE}"
+
         cert_arg = ""
 
         try:
@@ -248,15 +255,14 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
             utils.PrintColorString(
                 "Fail to open the certification file(%s): %s" %
                 (certification_file, e), utils.TextColors.WARNING)
+
         return cert_arg
 
-    def GetKernelBuild(self, kernel_build_id, kernel_branch, kernel_build_target):
+    def GetKernelBuild(self, kernel_build_info):
         """Get kernel build args for fetch_cvd.
 
         Args:
-            kernel_branch: Kernel branch name, e.g. "kernel-common-android-4.14"
-            kernel_build_id: Kernel build id, a string, e.g. "223051", "P280427"
-            kernel_build_target: String, Kernel build target name.
+            kernel_build_info: The dictionary that contains build information.
 
         Returns:
             String of kernel build args for fetch_cvd.
@@ -264,8 +270,9 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
         """
         # kernel_target have default value "kernel". If user provide kernel_build_id
         # or kernel_branch, then start to process kernel image.
-        if kernel_build_id or kernel_branch:
-            return self.ProcessBuild(kernel_build_id, kernel_branch, kernel_build_target)
+        if (kernel_build_info.get(constants.BUILD_ID) or
+                kernel_build_info.get(constants.BUILD_BRANCH)):
+            return self.ProcessBuild(kernel_build_info)
         return None
 
     def CopyTo(self,

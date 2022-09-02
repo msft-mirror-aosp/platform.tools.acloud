@@ -40,8 +40,6 @@ import uuid
 import webbrowser
 import zipfile
 
-import six
-
 from acloud import errors
 from acloud.internal import constants
 
@@ -97,6 +95,9 @@ AVD_PORT_DICT = {
 }
 
 _VNC_BIN = "ssvnc"
+# search_dirs and the files can be symbolic links. The -H flag makes the
+# command skip the links except search_dirs. The returned files are unique.
+_CMD_FIND_FILES = "find -H %(search_dirs)s -type f"
 _CMD_KILL = ["pkill", "-9", "-f"]
 _CMD_SG = "sg "
 _CMD_START_VNC = "%(bin)s vnc://127.0.0.1:%(port)d"
@@ -330,7 +331,7 @@ def MakeTarFile(src_dict, dest):
     """
     logger.info("Compressing %s into %s.", src_dict.keys(), dest)
     with tarfile.open(dest, "w:gz") as tar:
-        for src, arcname in six.iteritems(src_dict):
+        for src, arcname in src_dict.items():
             tar.add(src, arcname=arcname)
 
 def CreateSshKeyPairIfNotExist(private_key_path, public_key_path):
@@ -427,7 +428,7 @@ def VerifyRsaPubKey(rsa):
 
     key_type, data, _ = elements
     try:
-        binary_data = base64.decodebytes(six.b(data))
+        binary_data = base64.decodebytes(data.encode())
         # number of bytes of int type
         int_length = 4
         # binary_data is like "7ssh-key..." in a binary format.
@@ -437,7 +438,7 @@ def VerifyRsaPubKey(rsa):
         # We will verify that the rsa conforms to this format.
         # ">I" in the following line means "big-endian unsigned integer".
         type_length = struct.unpack(">I", binary_data[:int_length])[0]
-        if binary_data[int_length:int_length + type_length] != six.b(key_type):
+        if binary_data[int_length:int_length + type_length] != key_type.encode():
             raise errors.DriverError("rsa key is invalid: %s" % rsa)
     except (struct.error, binascii.Error) as e:
         raise errors.DriverError(
@@ -514,7 +515,7 @@ def InteractWithQuestion(question, colors=TextColors.WARNING):
     Returns:
         String, input from user.
     """
-    return str(six.moves.input(colors + question + TextColors.ENDC).strip())
+    return str(input(colors + question + TextColors.ENDC).strip())
 
 
 def GetUserAnswerYes(question):
@@ -602,7 +603,7 @@ class BatchHttpRequestExecutor:
         self._final_results.update(results)
         # Clear pending_requests
         self._pending_requests.clear()
-        for request_id, result in six.iteritems(results):
+        for request_id, result in results.items():
             exception = result[1]
             if exception is not None and self._ShoudRetry(exception):
                 # If this is a retriable exception, put it in pending_requests
@@ -1013,6 +1014,29 @@ def AutoConnect(ip_addr, rsa_key_file, target_vnc_port, target_adb_port,
                           adb_port=local_adb_port)
 
 
+def FindRemoteFiles(ssh_obj, search_dirs):
+    """Get all files, except symbolic links, under remote directories.
+
+    Args:
+        ssh_obj: An Ssh object.
+        search_dirs: A list of strings, the remote directories.
+
+    Returns:
+        A list of strings, the file paths.
+    """
+    if not search_dirs:
+        return []
+    ssh_cmd = (ssh_obj.GetBaseCmd(constants.SSH_BIN) + " " +
+               _CMD_FIND_FILES % {"search_dirs": " ".join(search_dirs)})
+    proc = subprocess.run(ssh_cmd, shell=True, capture_output=True,
+                          check=False)
+    if proc.stderr:
+        logger.debug("`%s` stderr: %s", ssh_cmd, proc.stderr.decode())
+    if proc.stdout:
+        return proc.stdout.decode().splitlines()
+    return []
+
+
 def GetAnswerFromList(answer_list, enable_choose_all=False):
     """Get answer from a list.
 
@@ -1037,7 +1061,7 @@ def GetAnswerFromList(answer_list, enable_choose_all=False):
 
     while True:
         try:
-            choice = six.moves.input("Enter your choice[0-%d]: " % max_choice)
+            choice = input("Enter your choice[0-%d]: " % max_choice)
             choice = int(choice)
         except ValueError:
             print("'%s' is not a valid integer.", choice)
@@ -1471,11 +1495,9 @@ def GetDictItems(namedtuple_object):
         namedtuple_object: namedtuple object.
 
     Returns:
-        collections.namedtuple.__dict__.items() when using python2.
         collections.namedtuple._asdict().items() when using python3.
     """
-    return (namedtuple_object.__dict__.items() if six.PY2
-            else namedtuple_object._asdict().items())
+    return namedtuple_object._asdict().items()
 
 
 def CleanupSSVncviewer(vnc_port):

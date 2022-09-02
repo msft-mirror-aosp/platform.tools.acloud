@@ -18,8 +18,11 @@ import glob
 import logging
 import os
 import posixpath as remote_path
+import re
+import subprocess
 
 from acloud import errors
+from acloud.create import create_common
 from acloud.internal import constants
 from acloud.internal.lib import ssh
 from acloud.internal.lib import utils
@@ -28,35 +31,130 @@ from acloud.public import report
 
 logger = logging.getLogger(__name__)
 
-# bootloader and kernel are files required to launch AVD.
+# Local build artifacts to be uploaded.
 _ARTIFACT_FILES = ["*.img", "bootloader", "kernel"]
-_REMOTE_IMAGE_DIR = "acloud_cf"
-_BOOT_IMAGE_NAME = "boot.img"
+# The boot image name pattern corresponds to the use cases:
+# - In a cuttlefish build environment, ANDROID_PRODUCT_OUT conatins boot.img
+#   and boot-debug.img. The former is the default boot image. The latter is not
+#   useful for cuttlefish.
+# - In an officially released GKI (Generic Kernel Image) package, the image
+#   name is boot-<kernel version>.img.
+_BOOT_IMAGE_NAME_PATTERN = r"boot(-[\d.]+)?\.img"
 _VENDOR_BOOT_IMAGE_NAME = "vendor_boot.img"
-_REMOTE_BOOT_IMAGE_PATH = remote_path.join(_REMOTE_IMAGE_DIR, _BOOT_IMAGE_NAME)
+_KERNEL_IMAGE_NAMES = ("kernel", "bzImage", "Image")
+_INITRAMFS_IMAGE_NAME = "initramfs.img"
+
+# The relative path to the base directory containing cuttelfish images, tools,
+# and runtime files. On a GCE instance, the directory is the SSH user's HOME.
+GCE_BASE_DIR = "."
+# Relative paths in a base directory.
+_REMOTE_IMAGE_DIR = "acloud_cf"
+_REMOTE_BOOT_IMAGE_PATH = remote_path.join(_REMOTE_IMAGE_DIR, "boot.img")
 _REMOTE_VENDOR_BOOT_IMAGE_PATH = remote_path.join(
     _REMOTE_IMAGE_DIR, _VENDOR_BOOT_IMAGE_NAME)
+_REMOTE_KERNEL_IMAGE_PATH = remote_path.join(
+    _REMOTE_IMAGE_DIR, _KERNEL_IMAGE_NAMES[0])
+_REMOTE_INITRAMFS_IMAGE_PATH = remote_path.join(
+    _REMOTE_IMAGE_DIR, _INITRAMFS_IMAGE_NAME)
+
+_ANDROID_BOOT_IMAGE_MAGIC = b"ANDROID!"
+
+# Remote host instance name
+_REMOTE_HOST_INSTANCE_NAME_FORMAT = (
+    constants.INSTANCE_TYPE_HOST +
+    "-%(ip_addr)s-%(build_id)s-%(build_target)s")
+_REMOTE_HOST_INSTANCE_NAME_PATTERN = re.compile(
+    constants.INSTANCE_TYPE_HOST + r"-(?P<ip_addr>[\d.]+)-.+")
+# launch_cvd arguments.
+_DATA_POLICY_CREATE_IF_MISSING = "create_if_missing"
+_DATA_POLICY_ALWAYS_CREATE = "always_create"
+_NUM_AVDS_ARG = "-num_instances=%(num_AVD)s"
+AGREEMENT_PROMPT_ARG = "-report_anonymous_usage_stats=y"
+UNDEFOK_ARG = "-undefok=report_anonymous_usage_stats,config"
+# Connect the OpenWrt device via console file.
+_ENABLE_CONSOLE_ARG = "-console=true"
+# WebRTC args
+_WEBRTC_ID = "--webrtc_device_id=%(instance)s"
+_WEBRTC_ARGS = ["--start_webrtc", "--vm_manager=crosvm"]
+_VNC_ARGS = ["--start_vnc_server=true"]
+
+# Cuttlefish runtime directory is specified by `-instance_dir <runtime_dir>`.
+# Cuttlefish tools may create a symbolic link at the specified path.
+# The actual location of the runtime directory depends on the version:
+#
+# In Android 10, the directory is `<runtime_dir>`.
+#
+# In Android 11 and 12, the directory is `<runtime_dir>.<num>`.
+# `<runtime_dir>` is a symbolic link to the first device's directory.
+#
+# In the latest version, if `--instance-dir <runtime_dir>` is specified, the
+# directory is `<runtime_dir>/instances/cvd-<num>`.
+# `<runtime_dir>_runtime` and `<runtime_dir>.<num>` are symbolic links.
+#
+# If `--instance-dir <runtime_dir>` is not specified, the directory is
+# `~/cuttlefish/instances/cvd-<num>`.
+# `~/cuttlefish_runtime` and `~/cuttelfish_runtime.<num>` are symbolic links.
+_LOCAL_LOG_DIR_FORMAT = os.path.join(
+    "%(runtime_dir)s", "instances", "cvd-%(num)d", "logs")
+# Relative paths in a base directory.
+_REMOTE_RUNTIME_DIR_FORMAT = remote_path.join(
+    "cuttlefish", "instances", "cvd-%(num)d")
+_REMOTE_LEGACY_RUNTIME_DIR_FORMAT = "cuttlefish_runtime.%(num)d"
+HOST_KERNEL_LOG = report.LogFile(
+    "/var/log/kern.log", constants.LOG_TYPE_KERNEL_LOG, "host_kernel.log")
 
 
-def UploadImageZip(ssh_obj, image_zip):
+def GetAdbPorts(base_instance_num, num_avds_per_instance):
+    """Get ADB ports of cuttlefish.
+
+    Args:
+        base_instance_num: An integer or None, the instance number of the first
+                           device.
+        num_avds_per_instance: An integer or None, the number of devices.
+
+    Returns:
+        The port numbers as a list of integers.
+    """
+    return [constants.CF_ADB_PORT + (base_instance_num or 1) - 1 + index
+            for index in range(num_avds_per_instance or 1)]
+
+
+def GetVncPorts(base_instance_num, num_avds_per_instance):
+    """Get VNC ports of cuttlefish.
+
+    Args:
+        base_instance_num: An integer or None, the instance number of the first
+                           device.
+        num_avds_per_instance: An integer or None, the number of devices.
+
+    Returns:
+        The port numbers as a list of integers.
+    """
+    return [constants.CF_VNC_PORT + (base_instance_num or 1) - 1 + index
+            for index in range(num_avds_per_instance or 1)]
+
+
+def _UploadImageZip(ssh_obj, remote_dir, image_zip):
     """Upload an image zip to a remote host and a GCE instance.
 
     Args:
         ssh_obj: An Ssh object.
+        remote_dir: The remote base directory.
         image_zip: The path to the image zip.
     """
-    remote_cmd = f"/usr/bin/install_zip.sh . < {image_zip}"
+    remote_cmd = f"/usr/bin/install_zip.sh {remote_dir} < {image_zip}"
     logger.debug("remote_cmd:\n %s", remote_cmd)
     ssh_obj.Run(remote_cmd)
 
 
-def UploadImageDir(ssh_obj, image_dir):
+def _UploadImageDir(ssh_obj, remote_dir, image_dir):
     """Upload an image directory to a remote host or a GCE instance.
 
     The images are compressed for faster upload.
 
     Args:
         ssh_obj: An Ssh object.
+        remote_dir: The remote base directory.
         image_dir: The directory containing the files to be uploaded.
     """
     try:
@@ -74,24 +172,59 @@ def UploadImageDir(ssh_obj, image_dir):
     # Upload android-info.txt to parse config value.
     artifact_files.append(constants.ANDROID_INFO_FILE)
     cmd = (f"tar -cf - --lzop -S -C {image_dir} {' '.join(artifact_files)} | "
-           f"{ssh_obj.GetBaseCmd(constants.SSH_BIN)} -- tar -xf - --lzop -S")
+           f"{ssh_obj.GetBaseCmd(constants.SSH_BIN)} -- "
+           f"tar -xf - --lzop -S -C {remote_dir}")
     logger.debug("cmd:\n %s", cmd)
     ssh.ShellCmdWithRetry(cmd)
 
 
-def UploadCvdHostPackage(ssh_obj, cvd_host_package):
-    """Upload and a CVD host package to a remote host or a GCE instance.
+def _UploadCvdHostPackage(ssh_obj, remote_dir, cvd_host_package):
+    """Upload a CVD host package to a remote host or a GCE instance.
 
     Args:
         ssh_obj: An Ssh object.
-        cvd_host_package: The path tot the CVD host package.
+        remote_dir: The remote base directory.
+        cvd_host_package: The path to the CVD host package.
     """
-    remote_cmd = f"tar -x -z -f - < {cvd_host_package}"
+    remote_cmd = f"tar -xzf - -C {remote_dir} < {cvd_host_package}"
     logger.debug("remote_cmd:\n %s", remote_cmd)
     ssh_obj.Run(remote_cmd)
 
 
-def _FindBootImages(search_path):
+@utils.TimeExecute(function_description="Processing and uploading local images")
+def UploadArtifacts(ssh_obj, remote_dir, image_path, cvd_host_package):
+    """Upload images and a CVD host package to a remote host or a GCE instance.
+
+    Args:
+        ssh_obj: An Ssh object.
+        remote_dir: The remote base directory.
+        image_path: A string, the path to the image zip built by `m dist` or
+                    the directory containing the images built by `m`.
+        cvd_host_package: A string, the path to the CVD host package in gzip.
+    """
+    if os.path.isdir(image_path):
+        _UploadImageDir(ssh_obj, remote_dir, image_path)
+    else:
+        _UploadImageZip(ssh_obj, remote_dir, image_path)
+    _UploadCvdHostPackage(ssh_obj, remote_dir, cvd_host_package)
+
+
+def _IsBootImage(image_path):
+    """Check if a file is an Android boot image by reading the magic bytes.
+
+    Args:
+        image_path: The file path.
+
+    Returns:
+        A boolean, whether the file is a boot image.
+    """
+    if not os.path.isfile(image_path):
+        return False
+    with open(image_path, "rb") as image_file:
+        return image_file.read(8) == _ANDROID_BOOT_IMAGE_MAGIC
+
+
+def FindBootImages(search_path):
     """Find boot and vendor_boot images in a path.
 
     Args:
@@ -100,21 +233,52 @@ def _FindBootImages(search_path):
     Returns:
         The boot image path and the vendor_boot image path. Each value can be
         None if the path doesn't exist.
-    """
-    if os.path.isfile(search_path):
-        return search_path, None
 
-    paths = [os.path.join(search_path, name) for name in
-             (_BOOT_IMAGE_NAME, _VENDOR_BOOT_IMAGE_NAME)]
-    return [(path if os.path.isfile(path) else None) for path in paths]
+    Raises:
+        errors.GetLocalImageError if search_path contains more than one boot
+        image or the file format is not correct.
+    """
+    boot_image_path = create_common.FindLocalImage(
+        search_path, _BOOT_IMAGE_NAME_PATTERN, raise_error=False)
+    if boot_image_path and not _IsBootImage(boot_image_path):
+        raise errors.GetLocalImageError(
+            f"{boot_image_path} is not a boot image.")
+
+    vendor_boot_image_path = os.path.join(search_path, _VENDOR_BOOT_IMAGE_NAME)
+    if not os.path.isfile(vendor_boot_image_path):
+        vendor_boot_image_path = None
+
+    return boot_image_path, vendor_boot_image_path
+
+
+def FindKernelImages(search_path):
+    """Find kernel and initramfs images in a path.
+
+    Args:
+        search_path: A path to an image directory.
+
+    Returns:
+        The kernel image path and the initramfs image path. Each value can be
+        None if the path doesn't exist.
+    """
+    paths = [os.path.join(search_path, name) for name in _KERNEL_IMAGE_NAMES]
+    kernel_image_path = next((path for path in paths if os.path.isfile(path)),
+                             None)
+
+    initramfs_image_path = os.path.join(search_path, _INITRAMFS_IMAGE_NAME)
+    if not os.path.isfile(initramfs_image_path):
+        initramfs_image_path = None
+
+    return kernel_image_path, initramfs_image_path
 
 
 @utils.TimeExecute(function_description="Uploading local kernel images.")
-def _UploadKernelImages(ssh_obj, search_path):
+def _UploadKernelImages(ssh_obj, remote_dir, search_path):
     """Find and upload kernel images to a remote host or a GCE instance.
 
     Args:
         ssh_obj: An Ssh object.
+        remote_dir: The remote base directory.
         search_path: A path to an image file or an image directory.
 
     Returns:
@@ -125,28 +289,44 @@ def _UploadKernelImages(ssh_obj, search_path):
         images.
     """
     # Assume that the caller cleaned up the remote home directory.
-    ssh_obj.Run("mkdir -p " + _REMOTE_IMAGE_DIR)
+    ssh_obj.Run("mkdir -p " + remote_path.join(remote_dir, _REMOTE_IMAGE_DIR))
 
-    launch_cvd_args = []
-    boot_image_path, vendor_boot_image_path = _FindBootImages(search_path)
+    boot_image_path, vendor_boot_image_path = FindBootImages(search_path)
     if boot_image_path:
-        ssh_obj.ScpPushFile(boot_image_path, _REMOTE_BOOT_IMAGE_PATH)
-        launch_cvd_args.extend(["-boot_image", _REMOTE_BOOT_IMAGE_PATH])
+        remote_boot_image_path = remote_path.join(
+            remote_dir, _REMOTE_BOOT_IMAGE_PATH)
+        ssh_obj.ScpPushFile(boot_image_path, remote_boot_image_path)
+        launch_cvd_args = ["-boot_image", remote_boot_image_path]
         if vendor_boot_image_path:
+            remote_vendor_boot_image_path = remote_path.join(
+                remote_dir, _REMOTE_VENDOR_BOOT_IMAGE_PATH)
             ssh_obj.ScpPushFile(vendor_boot_image_path,
-                                _REMOTE_VENDOR_BOOT_IMAGE_PATH)
+                                remote_vendor_boot_image_path)
             launch_cvd_args.extend(["-vendor_boot_image",
-                                    _REMOTE_VENDOR_BOOT_IMAGE_PATH])
+                                    remote_vendor_boot_image_path])
         return launch_cvd_args
 
-    raise errors.GetLocalImageError(f"No kernel images in {search_path}.")
+    kernel_image_path, initramfs_image_path = FindKernelImages(search_path)
+    if kernel_image_path and initramfs_image_path:
+        remote_kernel_image_path = remote_path.join(
+            remote_dir, _REMOTE_KERNEL_IMAGE_PATH)
+        remote_initramfs_image_path = remote_path.join(
+            remote_dir, _REMOTE_INITRAMFS_IMAGE_PATH)
+        ssh_obj.ScpPushFile(kernel_image_path, remote_kernel_image_path)
+        ssh_obj.ScpPushFile(initramfs_image_path, remote_initramfs_image_path)
+        return ["-kernel_path", remote_kernel_image_path,
+                "-initramfs_path", remote_initramfs_image_path]
+
+    raise errors.GetLocalImageError(
+        f"{search_path} is not a boot image or a directory containing images.")
 
 
-def UploadExtraImages(ssh_obj, avd_spec):
+def UploadExtraImages(ssh_obj, remote_dir, avd_spec):
     """Find and upload the images specified in avd_spec.
 
     Args:
         ssh_obj: An Ssh object.
+        remote_dir: The remote base directory.
         avd_spec: An AvdSpec object containing extra image paths.
 
     Returns:
@@ -156,31 +336,264 @@ def UploadExtraImages(ssh_obj, avd_spec):
         errors.GetLocalImageError if any specified image path does not exist.
     """
     if avd_spec.local_kernel_image:
-        return _UploadKernelImages(ssh_obj, avd_spec.local_kernel_image)
+        return _UploadKernelImages(ssh_obj, remote_dir,
+                                   avd_spec.local_kernel_image)
     return []
 
 
-def ConvertRemoteLogs(log_paths):
-    """Convert paths on a remote host or a GCE instance to log objects.
+def CleanUpRemoteCvd(ssh_obj, remote_dir, raise_error):
+    """Call stop_cvd and delete the files on a remote host or a GCE instance.
 
     Args:
-        log_paths: A collection of strings, the remote paths to the logs.
+        ssh_obj: An Ssh object.
+        remote_dir: The remote base directory.
+        raise_error: Whether to raise an error if the remote instance is not
+                     running.
+
+    Raises:
+        subprocess.CalledProcessError if any command fails.
+    """
+    home = remote_path.join("$HOME", remote_dir)
+    stop_cvd_path = remote_path.join(remote_dir, "bin", "stop_cvd")
+    stop_cvd_cmd = f"'HOME={home} {stop_cvd_path}'"
+    if raise_error:
+        ssh_obj.Run(stop_cvd_cmd)
+    else:
+        try:
+            ssh_obj.Run(stop_cvd_cmd, retry=0)
+        except subprocess.CalledProcessError as e:
+            logger.debug(
+                "Failed to stop_cvd (possibly no running device): %s", e)
+
+    # This command deletes all files except hidden files under HOME.
+    # It does not raise an error if no files can be deleted.
+    ssh_obj.Run(f"'rm -rf {remote_path.join(remote_dir, '*')}'")
+
+
+def FormatRemoteHostInstanceName(ip_addr, build_id, build_target):
+    """Convert an IP address and build info to an instance name.
+
+    Args:
+        ip_addr: String, the IP address of the remote host.
+        build_id: String, the build id.
+        build_target: String, the build target, e.g., aosp_cf_x86_64_phone.
+
+    Return:
+        String, the instance name.
+    """
+    return _REMOTE_HOST_INSTANCE_NAME_FORMAT % {
+        "ip_addr": ip_addr,
+        "build_id": build_id,
+        "build_target": build_target}
+
+
+def ParseRemoteHostAddress(instance_name):
+    """Parse IP address from a remote host instance name.
+
+    Args:
+        instance_name: String, the instance name.
+
+    Returns:
+        The IP address as a string.
+        None if the name does not represent a remote host instance.
+    """
+    match = _REMOTE_HOST_INSTANCE_NAME_PATTERN.fullmatch(instance_name)
+    return match.group("ip_addr") if match else None
+
+
+# pylint:disable=too-many-branches
+def GetLaunchCvdArgs(avd_spec, blank_data_disk_size_gb=None, config=None):
+    """Get launch_cvd arguments for remote instances.
+
+    Args:
+        avd_spec: An AVDSpec instance.
+        blank_data_disk_size_gb: An integer, the size of the blank data disk.
+        config: A string, the name of the predefined hardware config.
+                e.g., "auto", "phone", and "tv".
+
+    Returns:
+        A list of strings, arguments of launch_cvd.
+    """
+    launch_cvd_args = []
+    if blank_data_disk_size_gb and blank_data_disk_size_gb > 0:
+        launch_cvd_args.append(
+            "-data_policy=" + _DATA_POLICY_CREATE_IF_MISSING)
+        launch_cvd_args.append(
+            "-blank_data_image_mb=" + str(blank_data_disk_size_gb * 1024))
+
+    if config:
+        launch_cvd_args.append("-config=" + config)
+    if avd_spec.hw_customize or not config:
+        launch_cvd_args.append(
+            "-x_res=" + avd_spec.hw_property[constants.HW_X_RES])
+        launch_cvd_args.append(
+            "-y_res=" + avd_spec.hw_property[constants.HW_Y_RES])
+        launch_cvd_args.append(
+            "-dpi=" + avd_spec.hw_property[constants.HW_ALIAS_DPI])
+        if constants.HW_ALIAS_DISK in avd_spec.hw_property:
+            launch_cvd_args.append(
+                "-data_policy=" + _DATA_POLICY_ALWAYS_CREATE)
+            launch_cvd_args.append(
+                "-blank_data_image_mb="
+                + avd_spec.hw_property[constants.HW_ALIAS_DISK])
+        if constants.HW_ALIAS_CPUS in avd_spec.hw_property:
+            launch_cvd_args.append(
+                "-cpus=" + str(avd_spec.hw_property[constants.HW_ALIAS_CPUS]))
+        if constants.HW_ALIAS_MEMORY in avd_spec.hw_property:
+            launch_cvd_args.append(
+                "-memory_mb=" +
+                str(avd_spec.hw_property[constants.HW_ALIAS_MEMORY]))
+
+    if avd_spec.connect_webrtc:
+        launch_cvd_args.extend(_WEBRTC_ARGS)
+        if avd_spec.webrtc_device_id:
+            launch_cvd_args.append(
+                _WEBRTC_ID % {"instance": avd_spec.webrtc_device_id})
+    if avd_spec.connect_vnc:
+        launch_cvd_args.extend(_VNC_ARGS)
+    if avd_spec.openwrt:
+        launch_cvd_args.append(_ENABLE_CONSOLE_ARG)
+    if avd_spec.num_avds_per_instance > 1:
+        launch_cvd_args.append(
+            _NUM_AVDS_ARG % {"num_AVD": avd_spec.num_avds_per_instance})
+    if avd_spec.base_instance_num:
+        launch_cvd_args.append(
+            "--base-instance-num=" + str(avd_spec.base_instance_num))
+    if avd_spec.launch_args:
+        launch_cvd_args.append(avd_spec.launch_args)
+
+    launch_cvd_args.append(UNDEFOK_ARG)
+    launch_cvd_args.append(AGREEMENT_PROMPT_ARG)
+    return launch_cvd_args
+
+
+def _GetRemoteRuntimeDirs(ssh_obj, remote_dir, base_instance_num,
+                          num_avds_per_instance):
+    """Get cuttlefish runtime directories on a remote host or a GCE instance.
+
+    Args:
+        ssh_obj: An Ssh object.
+        remote_dir: The remote base directory.
+        base_instance_num: An integer, the instance number of the first device.
+        num_avds_per_instance: An integer, the number of devices.
+
+    Returns:
+        A list of strings, the paths to the runtime directories.
+    """
+    runtime_dir = remote_path.join(
+        remote_dir, _REMOTE_RUNTIME_DIR_FORMAT % {"num": base_instance_num})
+    try:
+        ssh_obj.Run(f"test -d {runtime_dir}", retry=0)
+        return [remote_path.join(remote_dir,
+                                 _REMOTE_RUNTIME_DIR_FORMAT %
+                                 {"num": base_instance_num + num})
+                for num in range(num_avds_per_instance)]
+    except subprocess.CalledProcessError:
+        logger.debug("%s is not the runtime directory.", runtime_dir)
+
+    legacy_runtime_dirs = [
+        remote_path.join(remote_dir, constants.REMOTE_LOG_FOLDER)]
+    legacy_runtime_dirs.extend(
+        remote_path.join(remote_dir,
+                         _REMOTE_LEGACY_RUNTIME_DIR_FORMAT %
+                         {"num": base_instance_num + num})
+        for num in range(1, num_avds_per_instance))
+    return legacy_runtime_dirs
+
+
+def GetRemoteFetcherConfigJson(remote_dir):
+    """Get the config created by fetch_cvd on a remote host or a GCE instance.
+
+    Args:
+        remote_dir: The remote base directory.
+
+    Returns:
+        An object of report.LogFile.
+    """
+    return report.LogFile(remote_path.join(remote_dir, "fetcher_config.json"),
+                          constants.LOG_TYPE_CUTTLEFISH_LOG)
+
+
+def _GetRemoteTombstone(runtime_dir, name_suffix):
+    """Get log object for tombstones in a remote cuttlefish runtime directory.
+
+    Args:
+        runtime_dir: The path to the remote cuttlefish runtime directory.
+        name_suffix: The string appended to the log name. It is used to
+                     distinguish log files found in different runtime_dirs.
+
+    Returns:
+        A report.LogFile object.
+    """
+    return report.LogFile(remote_path.join(runtime_dir, "tombstones"),
+                          constants.LOG_TYPE_DIR,
+                          "tombstones-zip" + name_suffix)
+
+
+def FindRemoteLogs(ssh_obj, remote_dir, base_instance_num,
+                   num_avds_per_instance):
+    """Find log objects on a remote host or a GCE instance.
+
+    Args:
+        ssh_obj: An Ssh object.
+        remote_dir: The remote base directory.
+        base_instance_num: An integer or None, the instance number of the first
+                           device.
+        num_avds_per_instance: An integer or None, the number of devices.
 
     Returns:
         A list of report.LogFile objects.
     """
+    runtime_dirs = _GetRemoteRuntimeDirs(
+        ssh_obj, remote_dir,
+        (base_instance_num or 1), (num_avds_per_instance or 1))
     logs = []
-    for log_path in log_paths:
-        log = report.LogFile(log_path, constants.LOG_TYPE_TEXT)
-        if log_path.endswith("kernel.log"):
-            log = report.LogFile(log_path, constants.LOG_TYPE_KERNEL_LOG)
-        elif log_path.endswith("logcat"):
-            log = report.LogFile(log_path, constants.LOG_TYPE_LOGCAT,
-                                 "full_gce_logcat")
-        elif not (log_path.endswith(".log") or log_path.endswith(".json")):
+    for log_path in utils.FindRemoteFiles(ssh_obj, runtime_dirs):
+        file_name = remote_path.basename(log_path)
+        base, ext = remote_path.splitext(file_name)
+        # The index of the runtime_dir containing log_path.
+        index_str = ""
+        for index, runtime_dir in enumerate(runtime_dirs):
+            if log_path.startswith(runtime_dir + remote_path.sep):
+                index_str = "." + str(index) if index else ""
+        log_name = base + index_str + ext
+        log_type = constants.LOG_TYPE_CUTTLEFISH_LOG
+
+        if file_name == "kernel.log":
+            log_type = constants.LOG_TYPE_KERNEL_LOG
+        elif file_name == "logcat":
+            log_type = constants.LOG_TYPE_LOGCAT
+            log_name = "full_gce_logcat" + index_str
+        elif not (file_name.endswith(".log") or
+                  file_name == "cuttlefish_config.json"):
             continue
-        logs.append(log)
+        logs.append(report.LogFile(log_path, log_type, log_name))
+
+    logs.extend(_GetRemoteTombstone(runtime_dir,
+                                    ("." + str(index) if index else ""))
+                for index, runtime_dir in enumerate(runtime_dirs))
     return logs
+
+
+def FindLocalLogs(runtime_dir, instance_num):
+    """Find log objects in a local runtime directory.
+
+    Args:
+        runtime_dir: A string, the runtime directory path.
+        instance_num: An integer, the instance number.
+
+    Returns:
+        A list of report.LogFile.
+    """
+    log_dir = _LOCAL_LOG_DIR_FORMAT % {"runtime_dir": runtime_dir,
+                                       "num": instance_num}
+    if not os.path.isdir(log_dir):
+        log_dir = runtime_dir
+    return [report.LogFile(os.path.join(log_dir, name), log_type)
+            for name, log_type in [
+                ("launcher.log", constants.LOG_TYPE_CUTTLEFISH_LOG),
+                ("kernel.log", constants.LOG_TYPE_KERNEL_LOG),
+                ("logcat", constants.LOG_TYPE_LOGCAT)]]
 
 
 def GetRemoteBuildInfoDict(avd_spec):

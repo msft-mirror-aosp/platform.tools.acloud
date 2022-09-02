@@ -36,6 +36,7 @@ def _CreateArgs():
         username=None,
         password=None,
         cheeps_betty_image=None,
+        cheeps_features=[],
         local_image=None,
         local_kernel_image=None,
         local_system_image=None,
@@ -43,7 +44,10 @@ def _CreateArgs():
         kernel_branch=None,
         kernel_build_id=None,
         kernel_build_target="kernel",
-        kernel_artifact=None,
+        boot_branch=None,
+        boot_build_id=None,
+        boot_build_target=None,
+        boot_artifact=None,
         system_branch=None,
         system_build_id=None,
         system_build_target=None,
@@ -72,7 +76,7 @@ class CreateArgsTest(driver_test_lib.BaseDriverTest):
         """test goldfish arguments."""
         # emulator_build_id with wrong avd_type.
         mock_args = _CreateArgs()
-        mock_args.emulator_build_id = 123456
+        mock_args.emulator_build_id = "123456"
         self.assertRaises(errors.UnsupportedCreateArgs,
                           create_args.VerifyArgs, mock_args)
         # Valid emulator_build_id.
@@ -81,22 +85,25 @@ class CreateArgsTest(driver_test_lib.BaseDriverTest):
         # emulator_build_target with wrong avd_type.
         mock_args.avd_type = constants.TYPE_CF
         mock_args.emulator_build_id = None
-        mock_args.emulator_build_target = "sdk_tools_linux"
+        mock_args.emulator_build_target = "emulator-linux_x64_nolocationui"
         mock_args.remote_host = "192.0.2.2"
         self.assertRaises(errors.UnsupportedCreateArgs,
                           create_args.VerifyArgs, mock_args)
-        # emulator_build_target without remote_host.
-        mock_args.avd_type = constants.TYPE_GF
-        mock_args.emulator_build_target = "sdk_tools_linux"
-        mock_args.remote_host = None
-        self.assertRaises(errors.UnsupportedCreateArgs,
-                          create_args.VerifyArgs, mock_args)
-        # Incomplete system build info.
         mock_args.emulator_build_target = None
+        # Incomplete system build info.
+        mock_args.avd_type = constants.TYPE_GF
         mock_args.system_build_target = "aosp_x86_64-userdebug"
         mock_args.remote_host = "192.0.2.2"
         self.assertRaises(errors.UnsupportedCreateArgs,
                           create_args.VerifyArgs, mock_args)
+        mock_args.system_build_target = None
+        # Incomplete boot build info.
+        mock_args.avd_type = constants.TYPE_GF
+        mock_args.boot_build_target = "gki_x86_64-userdebug"
+        mock_args.remote_host = "192.0.2.2"
+        self.assertRaises(errors.UnsupportedCreateArgs,
+                          create_args.VerifyArgs, mock_args)
+        mock_args.boot_build_target = None
         # System build info without remote_host.
         mock_args.system_branch = "aosp-master"
         mock_args.system_build_target = "aosp_x86_64-userdebug"
@@ -105,14 +112,14 @@ class CreateArgsTest(driver_test_lib.BaseDriverTest):
         self.assertRaises(errors.UnsupportedCreateArgs,
                           create_args.VerifyArgs, mock_args)
         # Valid build info.
-        mock_args.emulator_build_target = "sdk_tools_linux"
+        mock_args.emulator_build_target = "emulator-linux_x64_nolocationui"
         mock_args.system_branch = "aosp-master"
         mock_args.system_build_target = "aosp_x86_64-userdebug"
         mock_args.system_build_id = "123456"
-        mock_args.kernel_branch = "aosp-master"
-        mock_args.kernel_build_target = "aosp_x86_64-userdebug"
-        mock_args.kernel_build_id = "123456"
-        mock_args.kernel_artifact = "boot-5.10.img"
+        mock_args.boot_branch = "aosp-master"
+        mock_args.boot_build_target = "aosp_x86_64-userdebug"
+        mock_args.boot_build_id = "123456"
+        mock_args.boot_artifact = "boot-5.10.img"
         mock_args.remote_host = "192.0.2.2"
         create_args.VerifyArgs(mock_args)
 

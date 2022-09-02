@@ -161,7 +161,8 @@ class ListTest(driver_test_lib.BaseDriverTest):
 
         local_ins = mock.MagicMock()
         local_ins.CvdStatus.return_value = True
-        self.Patch(instance, "LocalInstance", return_value=local_ins)
+        self.Patch(instance, "GetCuttleFishLocalInstances",
+                   return_value=[local_ins])
 
         ins_list = list_instance._GetLocalCuttlefishInstances(id_cfg_pairs)
         self.assertEqual(2, len(ins_list))
@@ -198,10 +199,13 @@ class ListTest(driver_test_lib.BaseDriverTest):
             y_res=728,
             dpi=240,
             instance_dir="fake_dir",
-            adb_ip_port="127.0.0.1:6520"
+            adb_ip_port="127.0.0.1:6520",
+            root_dir="root/cuttlefish_runtime"
         )
         self.Patch(cvd_runtime_config, "CvdRuntimeConfig",
                    return_value=cf_config)
+        self.Patch(instance.LocalInstance, "_GetDevidInfoFromCvdStatus",
+                   return_value=None)
 
         ins = instance.LocalInstance("fake_cf_path")
         list_instance.PrintInstancesDetails([ins], verbose=True)

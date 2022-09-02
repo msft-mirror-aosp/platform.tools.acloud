@@ -37,37 +37,57 @@ class LocalImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
 
     LAUNCH_CVD_CMD_WITH_DISK = """sg group1 <<EOF
 sg group2
-launch_cvd -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -cpus fake -x_res fake -y_res fake -dpi fake -memory_mb fake -blank_data_image_mb fake -data_policy always_create -start_vnc_server=true
+bin/cvd start -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -cpus fake -x_res fake -y_res fake -dpi fake -memory_mb fake -blank_data_image_mb fake -data_policy always_create -start_vnc_server=true
 EOF"""
 
     LAUNCH_CVD_CMD_NO_DISK = """sg group1 <<EOF
 sg group2
-launch_cvd -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -cpus fake -x_res fake -y_res fake -dpi fake -memory_mb fake -start_vnc_server=true
+bin/cvd start -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -cpus fake -x_res fake -y_res fake -dpi fake -memory_mb fake -start_vnc_server=true
 EOF"""
 
     LAUNCH_CVD_CMD_NO_DISK_WITH_GPU = """sg group1 <<EOF
 sg group2
-launch_cvd -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -cpus fake -x_res fake -y_res fake -dpi fake -memory_mb fake -start_vnc_server=true
+bin/cvd start -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -cpus fake -x_res fake -y_res fake -dpi fake -memory_mb fake -start_vnc_server=true
 EOF"""
 
     LAUNCH_CVD_CMD_WITH_WEBRTC = """sg group1 <<EOF
 sg group2
-launch_cvd -daemon -config=auto -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -start_webrtc=true
+bin/cvd start -daemon -config=auto -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -start_webrtc=true
 EOF"""
 
     LAUNCH_CVD_CMD_WITH_MIXED_IMAGES = """sg group1 <<EOF
 sg group2
-launch_cvd -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -start_vnc_server=true -super_image=fake_super_image -boot_image=fake_boot_image
+bin/cvd start -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -start_vnc_server=true -super_image=fake_super_image -boot_image=fake_boot_image -vendor_boot_image=fake_vendor_boot_image
+EOF"""
+
+    LAUNCH_CVD_CMD_WITH_KERNEL_IMAGES = """sg group1 <<EOF
+sg group2
+bin/cvd start -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -start_vnc_server=true -kernel_path=fake_kernel_image -initramfs_path=fake_initramfs_image
 EOF"""
 
     LAUNCH_CVD_CMD_WITH_ARGS = """sg group1 <<EOF
 sg group2
-launch_cvd -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -start_vnc_server=true -setupwizard_mode=REQUIRED
+bin/cvd start -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -start_vnc_server=true -setupwizard_mode=REQUIRED
 EOF"""
 
     LAUNCH_CVD_CMD_WITH_OPENWRT = """sg group1 <<EOF
 sg group2
-launch_cvd -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -start_vnc_server=true -console=true
+bin/launch_cvd -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -start_vnc_server=true -console=true
+EOF"""
+
+    LAUNCH_CVD_CMD_WITH_PET_NAME = """sg group1 <<EOF
+sg group2
+bin/cvd start -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -start_vnc_server=true -webrtc_device_id=pet-name
+EOF"""
+
+    LAUNCH_CVD_CMD_WITH_NO_CVD = """sg group1 <<EOF
+sg group2
+bin/launch_cvd -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -start_vnc_server=true
+EOF"""
+
+    LAUNCH_CVD_CMD_WITH_INS_IDS = """sg group1 <<EOF
+sg group2
+bin/cvd start -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config -report_anonymous_usage_stats=y -start_vnc_server=true -instance_nums=1,2
 EOF"""
 
     _EXPECTED_DEVICES_IN_REPORT = [
@@ -77,11 +97,7 @@ EOF"""
             "adb_port": 6520,
             "vnc_port": 6444,
             "webrtc_port": 8443,
-            'logs': [
-                {'path': '/log/launcher.log', 'type': 'TEXT'},
-                {'path': '/log/kernel.log', 'type': 'KERNEL_LOG'},
-                {'path': '/log/logcat', 'type': 'LOGCAT'}
-            ],
+            'logs': [{'path': '/log/launcher.log', 'type': 'TEXT'}],
             "screen_command": "screen /instances/cvd/console"
         }
     ]
@@ -90,11 +106,7 @@ EOF"""
         {
             "instance_name": "local-instance-1",
             "ip": "0.0.0.0",
-            'logs': [
-                {'path': '/log/launcher.log', 'type': 'TEXT'},
-                {'path': '/log/kernel.log', 'type': 'KERNEL_LOG'},
-                {'path': '/log/logcat', 'type': 'LOGCAT'}
-            ]
+            'logs': [{'path': '/log/launcher.log', 'type': 'TEXT'}],
         }
     ]
 
@@ -118,9 +130,11 @@ EOF"""
         """Test _CreateAVD."""
         mock_utils.IsSupportedPlatform.return_value = True
         mock_get_image.return_value = local_image_local_instance.ArtifactPaths(
-            "/image/path", "/host/bin/path", "host/usr/path", None, None, None, None)
+            "/image/path", "/host/bin/path", "host/usr/path",
+            None, None, None, None, None, None, None)
         mock_check_running_cvd.return_value = True
         mock_avd_spec = mock.Mock()
+        mock_avd_spec.num_avds_per_instance = 1
         mock_lock = mock.Mock()
         mock_lock.Unlock.return_value = False
         mock_lock_instance.return_value = (1, mock_lock)
@@ -151,6 +165,26 @@ EOF"""
         report = self.local_image_local_instance._CreateAVD(
             mock_avd_spec, no_prompts=True)
         self.assertEqual(report.errors, ["unit test"])
+
+    def testSelectAndLockInstances(self):
+        """test _SelectAndLockInstances."""
+        mock_avd_spec = mock.Mock(num_avds_per_instance=1)
+        mock_main_lock = mock.Mock()
+        self.Patch(local_image_local_instance.LocalImageLocalInstance,
+                   "_SelectAndLockInstance", return_value=(1, mock_main_lock))
+        ins_ids, ins_locks = self.local_image_local_instance._SelectAndLockInstances(
+            mock_avd_spec)
+        self.assertEqual([1], ins_ids)
+        self.assertEqual([mock_main_lock], ins_locks)
+
+        mock_avd_spec.num_avds_per_instance = 2
+        mock_second_lock = mock.Mock()
+        self.Patch(local_image_local_instance.LocalImageLocalInstance,
+                   "_SelectOneFreeInstance", return_value=(2, mock_second_lock))
+        ins_ids, ins_locks = self.local_image_local_instance._SelectAndLockInstances(
+            mock_avd_spec)
+        self.assertEqual([1,2], ins_ids)
+        self.assertEqual([mock_main_lock, mock_second_lock], ins_locks)
 
     def testSelectAndLockInstance(self):
         """test _SelectAndLockInstance."""
@@ -185,21 +219,27 @@ EOF"""
                        "_LaunchCvd")
     @mock.patch.object(local_image_local_instance.LocalImageLocalInstance,
                        "PrepareLaunchCVDCmd")
+    @mock.patch("acloud.create.local_image_local_instance.cvd_utils")
     @mock.patch("acloud.create.local_image_local_instance.instance")
-    def testCreateInstance(self, mock_instance,
+    def testCreateInstance(self, mock_instance, mock_cvd_utils,
                            _mock_prepare_cmd, mock_launch_cvd,
                            _mock_create_common, mock_ota_tools, _mock_utils,
-                           _mock_trust_certs):
+                           mock_trust_certs):
         """Test the report returned by _CreateInstance."""
         mock_instance.GetLocalInstanceHomeDir.return_value = (
             "/local-instance-1")
         mock_instance.GetLocalInstanceName.return_value = "local-instance-1"
-        mock_instance.GetLocalInstanceLogDir.return_value = "/log"
+        mock_instance.GetLocalInstanceRuntimeDir.return_value = (
+            "/instances/cvd")
         mock_instance.GetLocalInstanceConfig.return_value = (
             "/instances/cvd/config")
+        mock_cvd_utils.FindLocalLogs.return_value = [
+            {'path': '/log/launcher.log', 'type': 'TEXT'}]
         artifact_paths = local_image_local_instance.ArtifactPaths(
             "/image/path", "/host/bin/path", "/host/usr/path", "/misc/info/path",
-            "/ota/tools/dir", "/system/image/path", "/boot/image/path")
+            "/ota/tools/dir", "/system/image/path", "/boot/image/path",
+            "/vendor_boot/image/path", "/kernel/image/path",
+            "/initramfs/image/path")
         mock_ota_tools_object = mock.Mock()
         mock_ota_tools.OtaTools.return_value = mock_ota_tools_object
         mock_avd_spec = mock.Mock(
@@ -215,35 +255,41 @@ EOF"""
                    return_value=local_ins)
         self.Patch(os, "symlink")
 
+        ins_ids = [1]
         # Success
         report = self.local_image_local_instance._CreateInstance(
-            1, artifact_paths, mock_avd_spec, no_prompts=True)
+            ins_ids, artifact_paths, mock_avd_spec, no_prompts=True)
 
         self.assertEqual(report.data.get("devices"),
                          self._EXPECTED_DEVICES_IN_REPORT)
         mock_ota_tools.OtaTools.assert_called_with("/ota/tools/dir")
         mock_ota_tools_object.BuildSuperImage.assert_called_with(
             "/local-instance-1/mixed_super.img", "/misc/info/path", mock.ANY)
+        mock_cvd_utils.FindLocalLogs.assert_called_with(
+            "/instances/cvd", 1)
 
         # should call _TrustCertificatesForWebRTC
-        _mock_trust_certs.assert_called_once()
-        _mock_trust_certs.reset_mock()
+        mock_trust_certs.assert_called_once()
+        mock_trust_certs.reset_mock()
 
         # should not call _TrustCertificatesForWebRTC
         mock_avd_spec.connect_webrtc = False
         self.local_image_local_instance._CreateInstance(
-            1, artifact_paths, mock_avd_spec, no_prompts=True)
-        self.assertEqual(_mock_create_common.call_count, 0)
+            ins_ids, artifact_paths, mock_avd_spec, no_prompts=True)
+        mock_trust_certs.assert_not_called()
 
         # Failure
+        mock_cvd_utils.reset_mock()
         mock_launch_cvd.side_effect = errors.LaunchCVDFail("unit test")
 
         report = self.local_image_local_instance._CreateInstance(
-            1, artifact_paths, mock_avd_spec, no_prompts=True)
+            ins_ids, artifact_paths, mock_avd_spec, no_prompts=True)
 
         self.assertEqual(report.data.get("devices_failing_boot"),
                          self._EXPECTED_DEVICES_IN_FAILED_REPORT)
         self.assertIn("unit test", report.errors[0])
+        mock_cvd_utils.FindLocalLogs.assert_called_with(
+            "/instances/cvd", 1)
 
     # pylint: disable=protected-access
     @mock.patch("acloud.create.local_image_local_instance.os.path.isfile")
@@ -273,7 +319,7 @@ EOF"""
     def testGetImageArtifactsPath(self, mock_ota_tools):
         """Test GetImageArtifactsPath without system image dir."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            image_dir = "/unit/test"
+            image_dir = os.path.join(temp_dir, "image")
             cvd_dir = os.path.join(temp_dir, "cvd-host_package")
             self._CreateEmptyFile(os.path.join(cvd_dir, "bin", "launch_cvd"))
             self._CreateEmptyFile(os.path.join(cvd_dir, "usr/share/webrtc/certs", "server.crt"))
@@ -284,28 +330,42 @@ EOF"""
                 local_system_image=None,
                 local_tool_dirs=[cvd_dir])
 
+            with self.assertRaisesRegex(
+                    errors.GetLocalImageError,
+                    r"The directory is expected to be an extracted img zip "
+                    r"or ANDROID_PRODUCT_OUT\."):
+                self.local_image_local_instance.GetImageArtifactsPath(
+                    mock_avd_spec)
+
+            self._CreateEmptyFile(os.path.join(image_dir, "super.img"))
+
             paths = self.local_image_local_instance.GetImageArtifactsPath(
                 mock_avd_spec)
 
         mock_ota_tools.FindOtaToolsDir.assert_not_called()
-        self.assertEqual(paths, (image_dir, cvd_dir, cvd_dir, None, None, None, None))
+        self.assertEqual(paths, (image_dir, cvd_dir, cvd_dir,
+                                 None, None, None, None, None, None, None))
 
     @mock.patch("acloud.create.local_image_local_instance.ota_tools")
-    def testGetImageFromBuildEnvironment(self, mock_ota_tools):
+    @mock.patch("acloud.create.local_image_local_instance.cvd_utils")
+    def testGetImageFromBuildEnvironment(self, mock_cvd_utils, mock_ota_tools):
         """Test GetImageArtifactsPath with files in build environment."""
+        boot_image_path = "/mock/boot.img"
+        vendor_boot_image_path = "/mock/vendor_boot.img"
+        mock_cvd_utils.FindBootImages.return_value = (boot_image_path,
+                                                      vendor_boot_image_path)
+
         with tempfile.TemporaryDirectory() as temp_dir:
             image_dir = os.path.join(temp_dir, "image")
             cvd_dir = os.path.join(temp_dir, "cvd-host_package")
             mock_ota_tools.FindOtaToolsDir.return_value = cvd_dir
             extra_image_dir = os.path.join(temp_dir, "extra_image")
             system_image_path = os.path.join(extra_image_dir, "system.img")
-            boot_image_path = os.path.join(extra_image_dir, "boot.img")
             misc_info_path = os.path.join(image_dir, "misc_info.txt")
             self._CreateEmptyFile(os.path.join(image_dir, "vbmeta.img"))
             self._CreateEmptyFile(os.path.join(cvd_dir, "bin", "launch_cvd"))
             self._CreateEmptyFile(os.path.join(cvd_dir, "usr/share/webrtc/certs", "server.crt"))
             self._CreateEmptyFile(system_image_path)
-            self._CreateEmptyFile(boot_image_path)
             self._CreateEmptyFile(os.path.join(extra_image_dir,
                                                "boot-debug.img"))
             self._CreateEmptyFile(misc_info_path)
@@ -325,35 +385,51 @@ EOF"""
                     mock_avd_spec)
 
         mock_ota_tools.FindOtaToolsDir.assert_called_with([cvd_dir, "/cvd"])
+        mock_cvd_utils.FindBootImages.assert_called_with(extra_image_dir)
+        mock_cvd_utils.FindKernelImages.assert_not_called()
         self.assertEqual(paths,
                          (image_dir, cvd_dir, cvd_dir, misc_info_path, cvd_dir,
-                          system_image_path, boot_image_path))
+                          system_image_path, boot_image_path,
+                          vendor_boot_image_path, None, None))
 
     @mock.patch("acloud.create.local_image_local_instance.ota_tools")
-    def testGetImageFromTargetFiles(self, mock_ota_tools):
+    @mock.patch("acloud.create.local_image_local_instance.cvd_utils")
+    def testGetImageFromTargetFiles(self, mock_cvd_utils, mock_ota_tools):
         """Test GetImageArtifactsPath with extracted target files."""
         ota_tools_dir = "/mock_ota_tools"
         mock_ota_tools.FindOtaToolsDir.return_value = ota_tools_dir
+        kernel_image_path = "/mock/Image"
+        initramfs_image_path = "/mock/initramfs.img"
+        mock_cvd_utils.FindBootImages.return_value = (None, "vendor_boot.img")
+        mock_cvd_utils.FindKernelImages.return_value =(kernel_image_path,
+                                                       initramfs_image_path)
 
         with tempfile.TemporaryDirectory() as temp_dir:
             image_dir = os.path.join(temp_dir, "image")
             cvd_dir = os.path.join(temp_dir, "cvd-host_package")
             system_image_path = os.path.join(temp_dir, "system", "test.img")
-            misc_info_path = os.path.join(image_dir, "META", "misc_info.txt")
-            boot_image_path = os.path.join(temp_dir, "boot", "test.img")
+
             self._CreateEmptyFile(os.path.join(image_dir, "IMAGES",
                                                "vbmeta.img"))
             self._CreateEmptyFile(os.path.join(cvd_dir, "bin", "launch_cvd"))
             self._CreateEmptyFile(os.path.join(cvd_dir, "usr/share/webrtc/certs", "server.crt"))
             self._CreateEmptyFile(system_image_path)
-            self._CreateEmptyFile(misc_info_path)
-            self._CreateEmptyFile(boot_image_path)
 
             mock_avd_spec = mock.Mock(
                 local_image_dir=image_dir,
-                local_kernel_image=boot_image_path,
+                local_kernel_image=image_dir,
                 local_system_image=system_image_path,
                 local_tool_dirs=[ota_tools_dir, cvd_dir])
+
+            with self.assertRaisesRegex(
+                    errors.CheckPathError,
+                    r"The directory is expected to be an extracted target "
+                    r"files zip or ANDROID_PRODUCT_OUT."):
+                self.local_image_local_instance.GetImageArtifactsPath(
+                    mock_avd_spec)
+
+            misc_info_path = os.path.join(image_dir, "META", "misc_info.txt")
+            self._CreateEmptyFile(misc_info_path)
 
             with mock.patch.dict("acloud.create.local_image_local_instance."
                                  "os.environ",
@@ -363,63 +439,109 @@ EOF"""
 
         mock_ota_tools.FindOtaToolsDir.assert_called_with(
             [ota_tools_dir, cvd_dir])
+        mock_cvd_utils.FindBootImages.assert_called_with(image_dir)
+        mock_cvd_utils.FindKernelImages.assert_called_with(image_dir)
         self.assertEqual(paths,
                          (os.path.join(image_dir, "IMAGES"), cvd_dir, cvd_dir,
                           misc_info_path, ota_tools_dir, system_image_path,
-                          boot_image_path))
+                          None, None, kernel_image_path, initramfs_image_path))
 
     @mock.patch.object(utils, "CheckUserInGroups")
     def testPrepareLaunchCVDCmd(self, mock_usergroups):
         """test PrepareLaunchCVDCmd."""
         mock_usergroups.return_value = False
+        self.Patch(os.path, "isfile", return_value=True)
         hw_property = {"cpu": "fake", "x_res": "fake", "y_res": "fake",
                        "dpi":"fake", "memory": "fake", "disk": "fake"}
         constants.LIST_CF_USER_GROUPS = ["group1", "group2"]
+        mock_artifact_paths = mock.Mock(
+            spec=[],
+            image_dir="fake_image_dir",
+            host_bins="",
+            host_artifacts="host_artifacts",
+            misc_info=None,
+            ota_tools_dir=None,
+            system_image=None,
+            boot_image=None,
+            vendor_boot_image=None,
+            kernel_image=None,
+            initramfs_image=None)
 
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
-            constants.CMD_LAUNCH_CVD, hw_property, True, "fake_image_dir",
-            "fake_cvd_dir", False, True, None, None, None, "phone")
+            hw_property, True, mock_artifact_paths, "fake_cvd_dir", False,
+            True, None, None, "phone")
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_DISK)
 
         # "disk" doesn't exist in hw_property.
         hw_property = {"cpu": "fake", "x_res": "fake", "y_res": "fake",
                        "dpi": "fake", "memory": "fake"}
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
-            constants.CMD_LAUNCH_CVD, hw_property, True, "fake_image_dir",
-            "fake_cvd_dir", False, True, None, None, None, "phone")
+            hw_property, True, mock_artifact_paths, "fake_cvd_dir", False,
+            True, None, None, "phone")
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_NO_DISK)
 
         # "gpu" is enabled with "default"
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
-            constants.CMD_LAUNCH_CVD, hw_property, True, "fake_image_dir",
-            "fake_cvd_dir", False, True, None, None, None, "phone")
+            hw_property, True, mock_artifact_paths, "fake_cvd_dir", False,
+            True, None, None, "phone")
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_NO_DISK_WITH_GPU)
 
         # Following test with hw_property is None.
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
-            constants.CMD_LAUNCH_CVD, None, True, "fake_image_dir",
-            "fake_cvd_dir", True, False, None, None, None, "auto")
+            None, True, mock_artifact_paths, "fake_cvd_dir", True, False,
+            None, None, "auto")
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_WEBRTC)
 
+        # Mix super and boot images.
+        mock_artifact_paths.boot_image = "fake_boot_image"
+        mock_artifact_paths.vendor_boot_image = "fake_vendor_boot_image"
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
-            constants.CMD_LAUNCH_CVD, None, True, "fake_image_dir",
-            "fake_cvd_dir", False, True, "fake_super_image", "fake_boot_image",
-            None, "phone")
+            None, True, mock_artifact_paths, "fake_cvd_dir", False, True,
+            "fake_super_image", None, "phone")
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_MIXED_IMAGES)
+        mock_artifact_paths.boot_image = None
+        mock_artifact_paths.vendor_boot_image = None
+
+        # Mix kernel images.
+        mock_artifact_paths.kernel_image = "fake_kernel_image"
+        mock_artifact_paths.initramfs_image = "fake_initramfs_image"
+        launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
+            None, True, mock_artifact_paths, "fake_cvd_dir", False, True,
+            None, None, "phone")
+        self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_KERNEL_IMAGES)
+        mock_artifact_paths.kernel_image = None
+        mock_artifact_paths.initramfs_image = None
 
         # Add args into launch command with "-setupwizard_mode=REQUIRED"
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
-            constants.CMD_LAUNCH_CVD, None, True, "fake_image_dir",
-            "fake_cvd_dir", False, True, None, None,
-            "-setupwizard_mode=REQUIRED", "phone")
+            None, True, mock_artifact_paths, "fake_cvd_dir", False, True,
+            None, "-setupwizard_mode=REQUIRED", "phone")
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_ARGS)
 
-        # Test with "openwrt" is enabled.
+        # Test with "openwrt" and "use_launch_cvd" are enabled.
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
-            constants.CMD_LAUNCH_CVD, None, True, "fake_image_dir",
-            "fake_cvd_dir", False, True, None, None, None,
-            "phone", openwrt=True)
+            None, True, mock_artifact_paths, "fake_cvd_dir", False, True,
+            None, None, "phone", openwrt=True, use_launch_cvd=True)
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_OPENWRT)
+
+        # Test with instance_ids
+        launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
+            None, True, mock_artifact_paths, "fake_cvd_dir", False, True,
+            None, None, "phone", instance_ids=[1,2])
+        self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_INS_IDS)
+
+        # Test with "pet-name"
+        launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
+            None, True, mock_artifact_paths, "fake_cvd_dir", False, True,
+            None, None, "phone", webrtc_device_id="pet-name")
+        self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_PET_NAME)
+
+        # Test with "cvd" doesn't exist
+        self.Patch(os.path, "isfile", return_value=False)
+        launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
+            None, True, mock_artifact_paths, "fake_cvd_dir", False, True,
+            None, None, "phone", openwrt=False, use_launch_cvd=False)
+        self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_NO_CVD)
 
     @mock.patch.object(utils, "GetUserAnswerYes")
     @mock.patch.object(list_instance, "GetActiveCVD")

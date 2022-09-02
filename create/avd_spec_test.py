@@ -49,6 +49,12 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.args.launch_args = None
         self.Patch(list_instances, "ChooseOneRemoteInstance", return_value=mock.MagicMock())
         self.Patch(list_instances, "GetInstancesFromInstanceNames", return_value=mock.MagicMock())
+
+        # Setup mock Acloud config for usage in tests.
+        self.mock_config = mock.MagicMock()
+        self.mock_config.launch_args = None
+        self.Patch(config, 'GetAcloudConfig', return_value=self.mock_config)
+
         self.AvdSpec = avd_spec.AVDSpec(self.args)
 
     # pylint: disable=protected-access
@@ -384,7 +390,10 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.args.kernel_branch = "kernel_branch"
         self.args.kernel_build_target = "kernel_build_target"
         self.args.kernel_build_id = "kernel_build_id"
-        self.args.kernel_artifact = "kernel_artifact"
+        self.args.boot_branch = "boot_branch"
+        self.args.boot_build_target = "boot_build_target"
+        self.args.boot_build_id = "boot_build_id"
+        self.args.boot_artifact = "boot_artifact"
         self.AvdSpec._ProcessRemoteBuildArgs(self.args)
         self.assertEqual(
             {constants.BUILD_BRANCH: "system_branch",
@@ -394,9 +403,14 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(
             {constants.BUILD_BRANCH: "kernel_branch",
              constants.BUILD_TARGET: "kernel_build_target",
-             constants.BUILD_ID: "kernel_build_id",
-             constants.BUILD_ARTIFACT: "kernel_artifact"},
+             constants.BUILD_ID: "kernel_build_id"},
             self.AvdSpec.kernel_build_info)
+        self.assertEqual(
+            {constants.BUILD_BRANCH: "boot_branch",
+             constants.BUILD_TARGET: "boot_build_target",
+             constants.BUILD_ID: "boot_build_id",
+             constants.BUILD_ARTIFACT: "boot_artifact"},
+            self.AvdSpec.boot_build_info)
         self.assertEqual(
             {constants.BUILD_BRANCH: "ota_branch",
              constants.BUILD_TARGET: "ota_build_target",
@@ -410,26 +424,6 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.AvdSpec = avd_spec.AVDSpec(self.args)
         self.AvdSpec._ProcessRemoteBuildArgs(self.args)
         self.assertTrue(self.AvdSpec.avd_type == "cuttlefish")
-
-        # Setup acloud config with betty_image spec
-        cfg = mock.MagicMock()
-        cfg.betty_image = 'foobarbaz'
-        cfg.launch_args = None
-        self.Patch(config, 'GetAcloudConfig', return_value=cfg)
-        self.AvdSpec = avd_spec.AVDSpec(self.args)
-        # --betty-image from cmdline should override config
-        self.args.cheeps_betty_image = 'abcdefg'
-        self.AvdSpec._ProcessRemoteBuildArgs(self.args)
-        self.assertEqual(
-            self.AvdSpec.remote_image[constants.CHEEPS_BETTY_IMAGE],
-            self.args.cheeps_betty_image)
-        # acloud config value is used otherwise
-        self.args.cheeps_betty_image = None
-        self.AvdSpec._ProcessRemoteBuildArgs(self.args)
-        self.assertEqual(
-            self.AvdSpec.remote_image[constants.CHEEPS_BETTY_IMAGE],
-            cfg.betty_image)
-
 
     def testEscapeAnsi(self):
         """Test EscapeAnsi."""
@@ -529,6 +523,30 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.args.stable_host_image_name = "fake_host_image"
         self.AvdSpec._ProcessMiscArgs(self.args)
         self.assertEqual(self.AvdSpec.stable_host_image_name, "fake_host_image")
+
+        # Setup acloud config with betty_image spec
+        self.mock_config.betty_image = 'from-config'
+        # --betty-image from cmdline should override config
+        self.args.cheeps_betty_image = 'from-cmdline'
+        self.AvdSpec._ProcessMiscArgs(self.args)
+        self.assertEqual(self.AvdSpec.cheeps_betty_image, 'from-cmdline')
+        # acloud config value is used otherwise
+        self.args.cheeps_betty_image = None
+        self.AvdSpec._ProcessMiscArgs(self.args)
+        self.assertEqual(self.AvdSpec.cheeps_betty_image, 'from-config')
+
+        # Verify cheeps_features is assigned from args.
+        self.args.cheeps_features = ['a', 'b', 'c']
+        self.AvdSpec._ProcessMiscArgs(self.args)
+        self.assertEqual(self.args.cheeps_features, ['a', 'b', 'c'])
+
+        # Verify connect_hostname
+        self.mock_config.connect_hostname = True
+        self.AvdSpec._ProcessMiscArgs(self.args)
+        self.assertTrue(self.AvdSpec.connect_hostname)
+        self.args.connect_hostname = True
+        self.mock_config.connect_hostname = False
+        self.assertTrue(self.AvdSpec.connect_hostname)
 
 
 if __name__ == "__main__":

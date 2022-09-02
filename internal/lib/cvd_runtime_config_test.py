@@ -30,8 +30,14 @@ class CvdRuntimeconfigTest(driver_test_lib.BaseDriverTest):
 
     CF_RUNTIME_CONFIG = """
 {"x_display" : ":20",
- "x_res" : 720,
- "y_res" : 1280,
+ "display_configs" :
+ [
+  {
+   "dpi" : 320,
+   "x_res" : 720,
+   "y_res" : 1280
+  }
+ ],
  "instances": {
    "2":{
        "adb_ip_and_port": "127.0.0.1:6520",
@@ -45,9 +51,14 @@ class CvdRuntimeconfigTest(driver_test_lib.BaseDriverTest):
 
     CF_RUNTIME_CONFIG_WEBRTC = """
 {"x_display" : ":20",
- "x_res" : 720,
- "y_res" : 1280,
- "dpi" : 320,
+ "display_configs" :
+ [
+  {
+   "dpi" : 320,
+   "x_res" : 720,
+   "y_res" : 1280
+  }
+ ],
  "instances" : {
    "1":{
        "adb_ip_and_port": "127.0.0.1:6520",
@@ -76,15 +87,15 @@ class CvdRuntimeconfigTest(driver_test_lib.BaseDriverTest):
         self.Patch(os.path, "exists", return_value=False)
         # Verify return data.
         self.Patch(os.path, "exists", return_value=True)
-        expected_dict = {u'y_res': 1280,
-                         u'x_res': 720,
-                         u'x_display': u':20',
-                         u'instances':
-                             {u'2':
-                                  {u'adb_ip_and_port': u'127.0.0.1:6520',
-                                   u'adb_host_port': 6520,
-                                   u'instance_dir': u'/path-to-instance-dir',
-                                   u'vnc_server_port': 6444}
+        expected_dict = {
+                         'display_configs': [{'dpi': 320, 'x_res': 720, 'y_res': 1280}],
+                         'x_display': ':20',
+                         'instances':
+                             {'2':
+                                  {'adb_ip_and_port': '127.0.0.1:6520',
+                                   'adb_host_port': 6520,
+                                   'instance_dir': '/path-to-instance-dir',
+                                   'vnc_server_port': 6444}
                              },
                         }
         mock_open = mock.mock_open(read_data=self.CF_RUNTIME_CONFIG)
@@ -105,9 +116,8 @@ class CvdRuntimeconfigTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(fake_cvd_runtime_config_webrtc.config_path, None)
         self.assertEqual(fake_cvd_runtime_config_webrtc.instance_id, "1")
         self.assertEqual(fake_cvd_runtime_config_webrtc.enable_webrtc, True)
-        self.assertEqual(fake_cvd_runtime_config_webrtc.x_res, 720)
-        self.assertEqual(fake_cvd_runtime_config_webrtc.y_res, 1280)
-        self.assertEqual(fake_cvd_runtime_config_webrtc.dpi, 320)
+        self.assertEqual(fake_cvd_runtime_config_webrtc.display_configs,
+                         [{'dpi': 320, 'x_res': 720, 'y_res': 1280}])
         self.assertEqual(fake_cvd_runtime_config_webrtc.adb_ip_port, "127.0.0.1:6520")
         self.assertEqual(fake_cvd_runtime_config_webrtc.instance_dir, "/path-to-instance-dir")
         self.assertEqual(fake_cvd_runtime_config_webrtc.vnc_port, 6444)

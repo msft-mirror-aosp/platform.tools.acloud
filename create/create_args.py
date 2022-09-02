@@ -199,12 +199,31 @@ def AddCommonCreateArgs(parser):
         default="kernel",
         help="Kernel build target, specify if different from 'kernel'")
     parser.add_argument(
-        "--kernel-artifact",
+        "--boot-build-id",
         type=str,
-        dest="kernel_artifact",
+        dest="boot_build_id",
         required=False,
-        help="Goldfish remote host only. The name of the boot image to be "
-        "retrieved from Android build, e.g., boot-5.10.img.")
+        help="Boot image build ID, e.g., 8747889, 8748012.")
+    parser.add_argument(
+        "--boot-branch",
+        type=str,
+        dest="boot_branch",
+        required=False,
+        help="Boot image branch, e.g., aosp-gki13-boot-release, aosp-master.")
+    parser.add_argument(
+        "--boot-build-target",
+        type=str,
+        dest="boot_build_target",
+        required=False,
+        help="Boot image build target, "
+        "e.g., gki_x86_64-userdebug, aosp_cf_x86_64_phone-userdebug.")
+    parser.add_argument(
+        "--boot-artifact",
+        type=str,
+        dest="boot_artifact",
+        required=False,
+        help="The name of the boot image to be retrieved from Android build, "
+        "e.g., boot-5.10.img, boot.img.")
     parser.add_argument(
         "--ota-branch",
         type=str,
@@ -251,6 +270,13 @@ def AddCommonCreateArgs(parser):
         type=str,
         dest="launch_args",
         help="'cuttlefish only' Add extra args to launch_cvd command.",
+        required=False)
+    parser.add_argument(
+        "--pet-name",
+        "--webrtc_device_id",
+        type=str,
+        dest="webrtc_device_id",
+        help="'cuttlefish only' Give the pet name of the instance.",
         required=False)
     parser.add_argument(
         "--gce-metadata",
@@ -302,18 +328,28 @@ def AddCommonCreateArgs(parser):
         help="GPU accelerator to use if any. e.g. nvidia-tesla-k80. For local "
              "instances, this arg without assigning any value is to enable "
              "local gpu support.")
+    parser.add_argument(
+        "--num-avds-per-instance",
+        "--num-instances",
+        "--num_instances",
+        type=int,
+        dest="num_avds_per_instance",
+        required=False,
+        default=1,
+        help="'cuttlefish only' Create multiple cuttlefish AVDs in one local "
+             "instance.")
+    parser.add_argument(
+        "--connect-hostname",
+        action="store_true",
+        dest="connect_hostname",
+        required=False,
+        default=False,
+        help="Ssh connects to the GCE instance with hostname.")
     # Hide following args for users, it is only used in infra.
     parser.add_argument(
         "--local-instance-dir",
         dest="local_instance_dir",
         required=False,
-        help=argparse.SUPPRESS)
-    parser.add_argument(
-        "--num-avds-per-instance",
-        type=int,
-        dest="num_avds_per_instance",
-        required=False,
-        default=1,
         help=argparse.SUPPRESS)
     parser.add_argument(
         "--oxygen",
@@ -402,6 +438,22 @@ def AddCommonCreateArgs(parser):
         dest="bootloader_build_target",
         help=argparse.SUPPRESS,
         required=False)
+    parser.add_argument(
+        "--remote-fetch",
+        action="store_true",
+        dest="remote_fetch",
+        required=False,
+        default=None,
+        help="'cuttlefish only' Fetch artifacts in remote host.")
+    parser.add_argument(
+        "--fetch-cvd-wrapper",
+        dest="fetch_cvd_wrapper",
+        type=str,
+        required=False,
+        help="'cuttlefish only' Fetch artifacts in remote host by a"
+        " provided static executable fetch cvd wrapper file. "
+        " (Still in experiment, this flag only works on lab hosts"
+        " with special setup.)")
 
 
 def GetCreateArgParser(subparser):
@@ -475,11 +527,12 @@ def GetCreateArgParser(subparser):
         dest="local_kernel_image",
         nargs="?",
         required=False,
-        help="Use the locally built kernel image for the AVD. Look for "
-        "boot.img or boot-*.img if the argument is a directory. Look for the "
-        "image in $ANDROID_PRODUCT_OUT if no argument is provided. e.g., "
-        "--local-kernel-image, --local-kernel-image /path/to/dir, or "
-        "--local-kernel-image /path/to/img")
+        help="Use the locally built kernel and ramdisk for the AVD. Look "
+        "for boot.img, vendor_boot.img, kernel, initramfs.img, etc. if the "
+        "argument is a directory. Look for the images in $ANDROID_PRODUCT_OUT "
+        "if no argument is provided. e.g., --local-kernel-image, "
+        "--local-kernel-image /path/to/dir, or --local-kernel-image "
+        "/path/to/boot.img")
     create_parser.add_argument(
         "--local-system-image",
         const=constants.FIND_IN_BUILD_ENV,
@@ -540,6 +593,12 @@ def GetCreateArgParser(subparser):
         help="'cuttlefish only' Create OpenWrt device when launching cuttlefish "
         "device.")
     create_parser.add_argument(
+        "--use-launch_cvd",
+        action="store_true",
+        dest="use_launch_cvd",
+        required=False,
+        help="'cuttlefish only' Use launch_cvd to create cuttlefish devices.")
+    create_parser.add_argument(
         "--host",
         type=str,
         dest="remote_host",
@@ -598,7 +657,7 @@ def GetCreateArgParser(subparser):
     # Arguments for goldfish type.
     create_parser.add_argument(
         "--emulator-build-id",
-        type=int,
+        type=str,
         dest="emulator_build_id",
         required=False,
         help="'goldfish only' Emulator build ID used to run the images. "
@@ -608,7 +667,7 @@ def GetCreateArgParser(subparser):
         dest="emulator_build_target",
         required=False,
         help="'goldfish remote host only' Emulator build target used to run "
-        "the images. e.g. sdk_tools_linux.")
+        "the images. e.g. emulator-linux_x64_nolocationui.")
 
     # Arguments for cheeps type.
     create_parser.add_argument(
@@ -652,6 +711,14 @@ def GetCreateArgParser(subparser):
         help=("'cheeps only' The L1 betty version to use. Only makes sense "
               "when launching a controller image with "
               "stable-cheeps-host-image"))
+    create_parser.add_argument(
+        "--cheeps-feature",
+        type=str,
+        dest="cheeps_features",
+        required=False,
+        action="append",
+        default=[],
+        help=("'cheeps only' Cheeps feature to enable. Can be repeated."))
 
     AddCommonCreateArgs(create_parser)
     return create_parser
@@ -751,27 +818,31 @@ def _VerifyGoldfishArgs(args):
         errors.UnsupportedCreateArgs: When a create arg is specified but
                                       unsupported for goldfish.
     """
-    goldfish_only_flags = [
-        args.emulator_build_id,
-        args.emulator_build_target,
-        args.kernel_artifact
-    ]
+    goldfish_only_flags = [args.emulator_build_id, args.emulator_build_target]
     if args.avd_type != constants.TYPE_GF and any(goldfish_only_flags):
         raise errors.UnsupportedCreateArgs(
-            "--emulator-* and --kernel-artifact are only valid with "
-            "avd_type == %s" % constants.TYPE_GF)
+            f"--emulator-* is only valid with avd_type == {constants.TYPE_GF}")
 
     # Exclude kernel_build_target because the default value isn't empty.
     remote_kernel_flags = [
         args.kernel_build_id,
         args.kernel_branch,
-        args.kernel_artifact,
     ]
-    if (args.avd_type == constants.TYPE_GF and any(remote_kernel_flags) and
-            not all(remote_kernel_flags)):
+    if args.avd_type == constants.TYPE_GF and any(remote_kernel_flags):
         raise errors.UnsupportedCreateArgs(
-            "Either none or all of --kernel-branch, --kernel-build-target, "
-            "--kernel-build-id, and --kernel-artifact must be specified for "
+            "--kernel-* is not supported for goldfish.")
+
+    remote_boot_flags = [
+        args.boot_build_id,
+        args.boot_build_target,
+        args.boot_branch,
+        args.boot_artifact,
+    ]
+    if (args.avd_type == constants.TYPE_GF and any(remote_boot_flags) and
+            not all(remote_boot_flags)):
+        raise errors.UnsupportedCreateArgs(
+            "Either none or all of --boot-branch, --boot-build-target, "
+            "--boot-build-id, and --boot-artifact must be specified for "
             "goldfish.")
 
     remote_system_flags = [
@@ -785,13 +856,12 @@ def _VerifyGoldfishArgs(args):
             "Either none or all of --system-branch, --system-build-target, "
             "and --system-build-id must be specified for goldfish.")
 
-    remote_host_only_flags = ([args.emulator_build_target] +
-                              remote_kernel_flags + remote_system_flags)
+    remote_host_only_flags = remote_boot_flags + remote_system_flags
     if args.avd_type == constants.TYPE_GF and args.remote_host is None and any(
             remote_host_only_flags):
         raise errors.UnsupportedCreateArgs(
-            "--kernel-*, --system-*, and --emulator-build-target for goldfish "
-            "are only supported for remote host.")
+            "--boot-* and --system-* for goldfish are only supported for "
+            "remote host.")
 
 
 def VerifyArgs(args):
@@ -846,11 +916,13 @@ def VerifyArgs(args):
                          args.stable_cheeps_host_image_project,
                          args.username,
                          args.password,
-                         args.cheeps_betty_image]
+                         args.cheeps_betty_image,
+                         args.cheeps_features]
     if args.avd_type != constants.TYPE_CHEEPS and any(cheeps_only_flags):
         raise errors.UnsupportedCreateArgs(
-            "--stable-cheeps-*, --betty-image, --username and --password are "
-            "only valid with avd_type == %s" % constants.TYPE_CHEEPS)
+            "--stable-cheeps-*, --betty-image, --cheeps-feature, --username "
+            "and --password are only valid with avd_type == %s"
+            % constants.TYPE_CHEEPS)
     if (args.username or args.password) and not (args.username and args.password):
         raise ValueError("--username and --password must both be set")
     if not args.autoconnect and args.unlock_screen:

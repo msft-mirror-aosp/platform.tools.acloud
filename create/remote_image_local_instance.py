@@ -75,7 +75,6 @@ def DownloadAndProcessImageFiles(avd_spec):
     """
     cfg = avd_spec.cfg
     build_id = avd_spec.remote_image[constants.BUILD_ID]
-    build_branch = avd_spec.remote_image[constants.BUILD_BRANCH]
     build_target = avd_spec.remote_image[constants.BUILD_TARGET]
 
     extract_path = os.path.join(
@@ -96,19 +95,12 @@ def DownloadAndProcessImageFiles(avd_spec):
         fetch_cvd = os.path.join(extract_path, constants.FETCH_CVD)
         build_api.DownloadFetchcvd(fetch_cvd, cfg.fetch_cvd_version)
         fetch_cvd_build_args = build_api.GetFetchBuildArgs(
-            build_id, build_branch, build_target,
-            avd_spec.system_build_info.get(constants.BUILD_ID),
-            avd_spec.system_build_info.get(constants.BUILD_BRANCH),
-            avd_spec.system_build_info.get(constants.BUILD_TARGET),
-            avd_spec.kernel_build_info.get(constants.BUILD_ID),
-            avd_spec.kernel_build_info.get(constants.BUILD_BRANCH),
-            avd_spec.kernel_build_info.get(constants.BUILD_TARGET),
-            avd_spec.bootloader_build_info.get(constants.BUILD_ID),
-            avd_spec.bootloader_build_info.get(constants.BUILD_BRANCH),
-            avd_spec.bootloader_build_info.get(constants.BUILD_TARGET),
-            avd_spec.ota_build_info.get(constants.BUILD_ID),
-            avd_spec.ota_build_info.get(constants.BUILD_BRANCH),
-            avd_spec.ota_build_info.get(constants.BUILD_TARGET))
+            avd_spec.remote_image,
+            avd_spec.system_build_info,
+            avd_spec.kernel_build_info,
+            avd_spec.boot_build_info,
+            avd_spec.bootloader_build_info,
+            avd_spec.ota_build_info)
         creds_cache_file = os.path.join(_HOME_FOLDER, cfg.creds_cache_file)
         fetch_cvd_cert_arg = build_api.GetFetchCertArg(creds_cache_file)
         fetch_cvd_args = [fetch_cvd, "-directory=%s" % extract_path,
@@ -247,4 +239,7 @@ class RemoteImageLocalInstance(local_image_local_instance.LocalImageLocalInstanc
             misc_info=misc_info_path,
             ota_tools_dir=ota_tools_dir,
             system_image=system_image_path,
-            boot_image=None)
+            boot_image=None,
+            vendor_boot_image=None,
+            kernel_image=None,
+            initramfs_image=None)

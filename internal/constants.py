@@ -124,6 +124,8 @@ CHEEPS_VNC_PORT = 5900
 # For gce_x86_phones remote instances
 GCE_ADB_PORT = 5555
 GCE_VNC_PORT = 6444
+# For ssh connect with GCE hostname
+GCE_HOSTNAME = "gce_hostname"
 # For goldfish remote instances
 GF_ADB_PORT = 5555
 GF_VNC_PORT = 6444
@@ -131,8 +133,13 @@ GF_VNC_PORT = 6444
 FVP_ADB_PORT = 5555
 # Maximum port number
 MAX_PORT = 65535
+# Time info to write in report.
+TIME_ARTIFACT = "fetch_artifact_time"
+TIME_GCE = "gce_create_time"
+TIME_LAUNCH = "launch_cvd_time"
 
 COMMAND_PS = ["ps", "aux"]
+CMD_CVD = "cvd"
 CMD_LAUNCH_CVD = "launch_cvd"
 CMD_PGREP = "pgrep"
 CMD_STOP_CVD = "stop_cvd"
@@ -169,6 +176,7 @@ INS_KEY_ADB = "adb"
 INS_KEY_VNC = "vnc"
 INS_KEY_WEBRTC = "webrtc"
 INS_KEY_WEBRTC_PORT = "webrtc_port"
+INS_KEY_WEBRTC_DEVICE_ID = "webrtc_device_id"
 INS_KEY_CREATETIME = "creationTimestamp"
 INS_KEY_AVD_TYPE = "avd_type"
 INS_KEY_AVD_FLAVOR = "flavor"
@@ -206,19 +214,18 @@ SSL_CA_NAME = "ACloud-webRTC-CA"
 SSL_TRUST_CA_DIR = "/usr/local/share/ca-certificates"
 
 # Remote Log
-REMOTE_LOG_FOLDER = f"/home/{GCE_USER}/cuttlefish_runtime"
-
-# Cheeps specific stuff.
-CHEEPS_BETTY_IMAGE = "betty_image"
+REMOTE_LOG_FOLDER = "cuttlefish_runtime"
 
 # Key name in report
 ERROR_LOG_FOLDER = "error_log_folder"
 
 # Type of "logs" entries in report.
 # The values must be consistent with LogDataType in TradeFed.
+LOG_TYPE_DIR = "DIR"
 LOG_TYPE_KERNEL_LOG = "KERNEL_LOG"
 LOG_TYPE_LOGCAT = "LOGCAT"
 LOG_TYPE_TEXT = "TEXT"
+LOG_TYPE_CUTTLEFISH_LOG = "CUTTLEFISH_LOG"
 
 # Stages for create progress
 STAGE_INIT = 0
@@ -245,9 +252,14 @@ ACLOUD_OXYGEN_RELEASE_ERROR = "ACLOUD_OXYGEN_RELEASE_ERROR"
 # Key words of error messages.
 ERROR_MSG_VNC_NOT_SUPPORT = "unknown command line flag 'start_vnc_server'"
 ERROR_MSG_WEBRTC_NOT_SUPPORT = "unknown command line flag 'start_webrtc'"
+ERROR_MSG_SSO_INVALID = "failed to load SSO"
 
 # The name of download image tool.
 FETCH_CVD = "fetch_cvd"
+
+# The name of credential source key json file, a copy of
+# cfg.service_account_json_private_key_path for remote host case.
+FETCH_CVD_CREDENTIAL_SOURCE = "credential_key.json"
 
 # For setup and cleanup
 # Packages "devscripts" and "equivs" are required for "mk-build-deps".

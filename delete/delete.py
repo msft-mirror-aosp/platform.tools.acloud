@@ -25,12 +25,11 @@ import subprocess
 
 from acloud import errors
 from acloud.internal import constants
-from acloud.internal.lib import auth
-from acloud.internal.lib import cvd_compute_client_multi_stage
+from acloud.internal.lib import cvd_utils
 from acloud.internal.lib import emulator_console
-from acloud.internal.lib import goldfish_remote_host_client
+from acloud.internal.lib import goldfish_utils
 from acloud.internal.lib import oxygen_client
-from acloud.internal.lib import ssh as ssh_object
+from acloud.internal.lib import ssh
 from acloud.internal.lib import utils
 from acloud.list import list as list_instances
 from acloud.public import config
@@ -242,8 +241,7 @@ def DeleteHostGoldfishInstance(cfg, name, ssh_user,
     Returns:
         delete_report.
     """
-    ip_addr, port = goldfish_remote_host_client.ParseEmulatorConsoleAddress(
-        name)
+    ip_addr, port = goldfish_utils.ParseRemoteHostConsoleAddress(name)
     try:
         with emulator_console.RemoteEmulatorConsole(
                 ip_addr, port,
@@ -279,17 +277,15 @@ def CleanUpRemoteHost(cfg, remote_host, host_user,
     Returns:
         delete_report.
     """
-    credentials = auth.CreateCredentials(cfg)
-    compute_client = cvd_compute_client_multi_stage.CvdComputeClient(
-        acloud_config=cfg,
-        oauth2_credentials=credentials)
-    ssh = ssh_object.Ssh(
-        ip=ssh_object.IP(ip=remote_host),
+    ssh_obj = ssh.Ssh(
+        ip=ssh.IP(ip=remote_host),
         user=host_user,
         ssh_private_key_path=(
             host_ssh_private_key_path or cfg.ssh_private_key_path))
     try:
-        compute_client.InitRemoteHost(ssh, remote_host, host_user)
+        # TODO(b/229812494): Get base directory from instance name.
+        cvd_utils.CleanUpRemoteCvd(ssh_obj, cvd_utils.GCE_BASE_DIR,
+                                   raise_error=True)
         delete_report.SetStatus(report.Status.SUCCESS)
         device_driver.AddDeletionResultToReport(
             delete_report, [remote_host], failed=[],
@@ -326,11 +322,10 @@ def DeleteInstanceByNames(cfg, instances, host_user,
     local_names = set(name for name in instances if
                       name.startswith(_LOCAL_INSTANCE_PREFIX))
     remote_host_cf_names = set(
-        name for name in instances if
-        cvd_compute_client_multi_stage.CvdComputeClient.ParseRemoteHostAddress(name))
+        name for name in instances if cvd_utils.ParseRemoteHostAddress(name))
     remote_host_gf_names = set(
         name for name in instances if
-        goldfish_remote_host_client.ParseEmulatorConsoleAddress(name))
+        goldfish_utils.ParseRemoteHostConsoleAddress(name))
     remote_names = list(set(instances) - local_names - remote_host_cf_names -
                         remote_host_gf_names)
 
@@ -348,8 +343,7 @@ def DeleteInstanceByNames(cfg, instances, host_user,
 
     if remote_host_cf_names:
         for name in remote_host_cf_names:
-            ip_addr = cvd_compute_client_multi_stage.CvdComputeClient.ParseRemoteHostAddress(
-                name)
+            ip_addr = cvd_utils.ParseRemoteHostAddress(name)
             CleanUpRemoteHost(cfg, ip_addr, host_user,
                               host_ssh_private_key_path, delete_report)
 

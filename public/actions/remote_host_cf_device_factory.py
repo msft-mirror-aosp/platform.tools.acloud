@@ -21,6 +21,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
 
 from acloud import errors
 from acloud.internal import constants
@@ -79,18 +80,45 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         Returns:
             A string, representing instance name.
         """
+        init_remote_host_timestart = time.time()
         instance = self._InitRemotehost()
+        self._compute_client.execution_time[constants.TIME_GCE] = (
+            time.time() - init_remote_host_timestart)
+
+        process_artifacts_timestart = time.time()
         image_args = self._ProcessRemoteHostArtifacts()
+        self._compute_client.execution_time[constants.TIME_ARTIFACT] = (
+            time.time() - process_artifacts_timestart)
+
+        launch_cvd_timestart = time.time()
         failures = self._compute_client.LaunchCvd(
             instance,
             self._avd_spec,
             self._avd_spec.cfg.extra_data_disk_size_gb,
             boot_timeout_secs=self._avd_spec.boot_timeout_secs,
+            base_dir=self._GetInstancePath(),
             extra_args=image_args)
+        self._compute_client.execution_time[constants.TIME_LAUNCH] = (
+            time.time() - launch_cvd_timestart)
+
         self._all_failures.update(failures)
         self._FindLogFiles(
             instance, instance in failures and not self._avd_spec.no_pull_log)
         return instance
+
+    @staticmethod
+    def _GetInstancePath(relative_path=""):
+        """Append a relative path to the remote base directory.
+
+        Args:
+            relative_path: The remote relative path.
+
+        Returns:
+            The remote base directory if relative_path is empty.
+            The remote path under the base directory otherwise.
+        """
+        # TODO(b/229812494): Return different path for each base_instance_num.
+        return relative_path or cvd_utils.GCE_BASE_DIR
 
     def _InitRemotehost(self):
         """Initialize remote host.
@@ -116,7 +144,7 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         if self._avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
             build_id = self._avd_spec.remote_image[constants.BUILD_ID]
 
-        instance = self._compute_client.FormatRemoteHostInstanceName(
+        instance = cvd_utils.FormatRemoteHostInstanceName(
             self._avd_spec.remote_host, build_id, build_target)
         ip = ssh.IP(ip=self._avd_spec.remote_host)
         self._ssh = ssh.Ssh(
@@ -127,7 +155,7 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             extra_args_ssh_tunnel=self._avd_spec.cfg.extra_args_ssh_tunnel,
             report_internal_ip=self._avd_spec.report_internal_ip)
         self._compute_client.InitRemoteHost(
-            self._ssh, ip, self._avd_spec.host_user)
+            self._ssh, ip, self._avd_spec.host_user, self._GetInstancePath())
         return instance
 
     def _ProcessRemoteHostArtifacts(self):
@@ -144,19 +172,100 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         """
         self._compute_client.SetStage(constants.STAGE_ARTIFACT)
         if self._avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
-            self._UploadLocalImageArtifacts(
-                self._local_image_artifact, self._cvd_host_package_artifact,
-                self._avd_spec.local_image_dir)
+            cvd_utils.UploadArtifacts(
+                self._ssh, self._GetInstancePath(),
+                self._local_image_artifact or self._avd_spec.local_image_dir,
+                self._cvd_host_package_artifact)
         else:
             try:
                 artifacts_path = tempfile.mkdtemp()
                 logger.debug("Extracted path of artifacts: %s", artifacts_path)
-                self._DownloadArtifacts(artifacts_path)
-                self._UploadRemoteImageArtifacts(artifacts_path)
+                if self._avd_spec.remote_fetch:
+                    # TODO: Check fetch cvd wrapper file is valid.
+                    if self._avd_spec.fetch_cvd_wrapper:
+                        self._UploadFetchCvd(artifacts_path)
+                        self._DownloadArtifactsByFetchWrapper()
+                    else:
+                        self._UploadFetchCvd(artifacts_path)
+                        self._DownloadArtifactsRemotehost()
+                else:
+                    self._DownloadArtifacts(artifacts_path)
+                    self._UploadRemoteImageArtifacts(artifacts_path)
             finally:
                 shutil.rmtree(artifacts_path)
 
-        return cvd_utils.UploadExtraImages(self._ssh, self._avd_spec)
+        return cvd_utils.UploadExtraImages(self._ssh, self._GetInstancePath(),
+                                           self._avd_spec)
+
+    @utils.TimeExecute(function_description="Downloading artifacts on remote host by fetch cvd wrapper.")
+    def _DownloadArtifactsByFetchWrapper(self):
+        """Generate fetch_cvd args and run fetch cvd wrapper on remote host to download artifacts.
+
+        Fetch cvd wrapper will fetch from cluster cached artifacts, and fallback to fetch_cvd if the artifacts not exist.
+        """
+        cfg = self._avd_spec.cfg
+
+        fetch_cvd_build_args = self._compute_client.build_api.GetFetchBuildArgs(
+            self._avd_spec.remote_image,
+            self._avd_spec.system_build_info,
+            self._avd_spec.kernel_build_info,
+            self._avd_spec.boot_build_info,
+            self._avd_spec.bootloader_build_info,
+            self._avd_spec.ota_build_info)
+        creds_cache_file = os.path.join(_HOME_FOLDER, cfg.creds_cache_file)
+        fetch_cvd_cert_arg = self._compute_client.build_api.GetFetchCertArg(
+            creds_cache_file, cfg.service_account_json_private_key_path)
+
+        fetch_cvd_args = [f'{self._avd_spec.fetch_cvd_wrapper}', "-directory=./", fetch_cvd_cert_arg]
+        fetch_cvd_args.extend(fetch_cvd_build_args)
+
+        ssh_cmd = self._ssh.GetBaseCmd(constants.SSH_BIN)
+        cmd = (f"{ssh_cmd} -- " + " ".join(fetch_cvd_args))
+        logger.debug("cmd:\n %s", cmd)
+        ssh.ShellCmdWithRetry(cmd)
+
+    @utils.TimeExecute(function_description="Downloading artifacts on remote host")
+    def _DownloadArtifactsRemotehost(self):
+        """Generate fetch_cvd args and run fetch_cvd on remote host to download artifacts."""
+        cfg = self._avd_spec.cfg
+
+        fetch_cvd_build_args = self._compute_client.build_api.GetFetchBuildArgs(
+            self._avd_spec.remote_image,
+            self._avd_spec.system_build_info,
+            self._avd_spec.kernel_build_info,
+            self._avd_spec.boot_build_info,
+            self._avd_spec.bootloader_build_info,
+            self._avd_spec.ota_build_info)
+        creds_cache_file = os.path.join(_HOME_FOLDER, cfg.creds_cache_file)
+        fetch_cvd_cert_arg = self._compute_client.build_api.GetFetchCertArg(
+            creds_cache_file, cfg.service_account_json_private_key_path)
+
+        fetch_cvd_args = [f'./{constants.FETCH_CVD}', "-directory=./", fetch_cvd_cert_arg]
+        fetch_cvd_args.extend(fetch_cvd_build_args)
+        ssh_cmd = self._ssh.GetBaseCmd(constants.SSH_BIN)
+        cmd = (f"{ssh_cmd} -- " + " ".join(fetch_cvd_args))
+        logger.debug("cmd:\n %s", cmd)
+        ssh.ShellCmdWithRetry(cmd)
+
+    @utils.TimeExecute(function_description="Download and upload fetch_cvd")
+    def _UploadFetchCvd(self, extract_path):
+        """Download fetch_cvd, duplicate service account json private key when available and upload
+           to remote host.
+
+        Args:
+            extract_path: String, a path include extracted files.
+        """
+        cfg = self._avd_spec.cfg
+        fetch_cvd = os.path.join(extract_path, constants.FETCH_CVD)
+        self._compute_client.build_api.DownloadFetchcvd(fetch_cvd,
+                                                        cfg.fetch_cvd_version)
+        # Duplicate fetch_cvd API key when available
+        if cfg.service_account_json_private_key_path:
+            shutil.copyfile(
+                cfg.service_account_json_private_key_path,
+                os.path.join(extract_path, constants.FETCH_CVD_CREDENTIAL_SOURCE))
+
+        self._UploadRemoteImageArtifacts(extract_path)
 
     @utils.TimeExecute(function_description="Downloading Android Build artifact")
     def _DownloadArtifacts(self, extract_path):
@@ -172,28 +281,18 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             errors.GetRemoteImageError: Fails to download rom images.
         """
         cfg = self._avd_spec.cfg
-        build_id = self._avd_spec.remote_image[constants.BUILD_ID]
-        build_branch = self._avd_spec.remote_image[constants.BUILD_BRANCH]
-        build_target = self._avd_spec.remote_image[constants.BUILD_TARGET]
 
         # Download images with fetch_cvd
         fetch_cvd = os.path.join(extract_path, constants.FETCH_CVD)
         self._compute_client.build_api.DownloadFetchcvd(fetch_cvd,
                                                         cfg.fetch_cvd_version)
         fetch_cvd_build_args = self._compute_client.build_api.GetFetchBuildArgs(
-            build_id, build_branch, build_target,
-            self._avd_spec.system_build_info.get(constants.BUILD_ID),
-            self._avd_spec.system_build_info.get(constants.BUILD_BRANCH),
-            self._avd_spec.system_build_info.get(constants.BUILD_TARGET),
-            self._avd_spec.kernel_build_info.get(constants.BUILD_ID),
-            self._avd_spec.kernel_build_info.get(constants.BUILD_BRANCH),
-            self._avd_spec.kernel_build_info.get(constants.BUILD_TARGET),
-            self._avd_spec.bootloader_build_info.get(constants.BUILD_ID),
-            self._avd_spec.bootloader_build_info.get(constants.BUILD_BRANCH),
-            self._avd_spec.bootloader_build_info.get(constants.BUILD_TARGET),
-            self._avd_spec.ota_build_info.get(constants.BUILD_ID),
-            self._avd_spec.ota_build_info.get(constants.BUILD_BRANCH),
-            self._avd_spec.ota_build_info.get(constants.BUILD_TARGET))
+            self._avd_spec.remote_image,
+            self._avd_spec.system_build_info,
+            self._avd_spec.kernel_build_info,
+            self._avd_spec.boot_build_info,
+            self._avd_spec.bootloader_build_info,
+            self._avd_spec.ota_build_info)
         creds_cache_file = os.path.join(_HOME_FOLDER, cfg.creds_cache_file)
         fetch_cvd_cert_arg = self._compute_client.build_api.GetFetchCertArg(
             creds_cache_file)
@@ -205,26 +304,6 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             subprocess.check_call(fetch_cvd_args)
         except subprocess.CalledProcessError as e:
             raise errors.GetRemoteImageError(f"Fails to download images: {e}")
-
-    @utils.TimeExecute(function_description="Processing and uploading local images")
-    def _UploadLocalImageArtifacts(self,
-                                   local_image_zip,
-                                   cvd_host_package_artifact,
-                                   images_dir):
-        """Upload local images and avd local host package to instance.
-
-        Args:
-            local_image_zip: String, path to zip of local images which
-                             build from 'm dist'.
-            cvd_host_package_artifact: String, path to cvd host package.
-            images_dir: String, directory of local images which build
-                        from 'm'.
-        """
-        if local_image_zip:
-            cvd_utils.UploadImageZip(self._ssh, local_image_zip)
-        else:
-            cvd_utils.UploadImageDir(self._ssh, images_dir)
-        cvd_utils.UploadCvdHostPackage(self._ssh, cvd_host_package_artifact)
 
     @utils.TimeExecute(function_description="Uploading remote image artifacts")
     def _UploadRemoteImageArtifacts(self, images_dir):
@@ -242,7 +321,8 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         # TODO(b/182259589): Refactor upload image command into a function.
         cmd = (f"tar -cf - --lzop -S -C {images_dir} "
                f"{' '.join(artifact_files)} | "
-               f"{ssh_cmd} -- tar -xf - --lzop -S")
+               f"{ssh_cmd} -- "
+               f"tar -xf - --lzop -S -C {self._GetInstancePath()}")
         logger.debug("cmd:\n %s", cmd)
         ssh.ShellCmdWithRetry(cmd)
 
@@ -254,10 +334,22 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             download: Whether to download the files to a temporary directory
                       and show messages to the user.
         """
-        log_files = pull.GetAllLogFilePaths(self._ssh)
-        self._all_logs[instance] = cvd_utils.ConvertRemoteLogs(log_files)
+        logs = []
+        if (self._avd_spec.image_source == constants.IMAGE_SRC_REMOTE and
+                self._avd_spec.remote_fetch):
+            logs.append(
+                cvd_utils.GetRemoteFetcherConfigJson(self._GetInstancePath()))
+        logs.extend(cvd_utils.FindRemoteLogs(
+            self._ssh,
+            self._GetInstancePath(),
+            self._avd_spec.base_instance_num,
+            self._avd_spec.num_avds_per_instance))
+        self._all_logs[instance] = logs
 
         if download:
+            # To avoid long download time, fetch from the first device only.
+            log_files = pull.GetAllLogFilePaths(
+                self._ssh, self._GetInstancePath(constants.REMOTE_LOG_FOLDER))
             error_log_folder = pull.PullLogs(self._ssh, log_files, instance)
             self._compute_client.ExtendReportData(constants.ERROR_LOG_FOLDER,
                                                   error_log_folder)
@@ -282,6 +374,24 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         if self._avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
             return None
         return cvd_utils.GetRemoteBuildInfoDict(self._avd_spec)
+
+    def GetAdbPorts(self):
+        """Get ADB ports of the created devices.
+
+        Returns:
+            The port numbers as a list of integers.
+        """
+        return cvd_utils.GetAdbPorts(self._avd_spec.base_instance_num,
+                                     self._avd_spec.num_avds_per_instance)
+
+    def GetVncPorts(self):
+        """Get VNC ports of the created devices.
+
+        Returns:
+            The port numbers as a list of integers.
+        """
+        return cvd_utils.GetVncPorts(self._avd_spec.base_instance_num,
+                                     self._avd_spec.num_avds_per_instance)
 
     def GetFailures(self):
         """Get failures from all devices.
