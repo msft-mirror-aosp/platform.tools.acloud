@@ -56,7 +56,9 @@ _DICT_SETUP_CMDS = {_INTEL: _INTEL_COMMANDS, _AMD: _AMD_COMMANDS}
 _UPDATE_APT_GET_CMD = "sudo apt-get update"
 _INSTALL_CUTTLEFISH_COMMOM_CMD = [
     "git clone https://github.com/google/android-cuttlefish.git {git_folder}",
-    "cd {git_folder}",
+    "cd {git_folder}/base",
+    "debuild -i -us -uc -b",
+    "cd ../frontend",
     "debuild -i -us -uc -b",
     "sudo dpkg -i ../cuttlefish-base_*_*64.deb || sudo apt-get install -f",
     "sudo dpkg -i ../cuttlefish-user_*_*64.deb || sudo apt-get install -f",
