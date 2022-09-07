@@ -40,7 +40,8 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                              ssh_private_key_path="/mock/id_rsa",
                              extra_args_ssh_tunnel="extra args",
                              fetch_cvd_version="123456",
-                             creds_cache_file="credential")
+                             creds_cache_file="credential",
+                             service_account_json_private_key_path="/mock/key")
         return mock.Mock(spec=[],
                          remote_image={
                              "branch": "aosp-android12-gsi",
@@ -62,6 +63,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                          gpu="auto",
                          no_pull_log=False,
                          remote_fetch=False,
+                         fetch_cvd_wrapper=None,
                          base_instance_num=None,
                          num_avds_per_instance=None,
                          cfg=mock_cfg)
@@ -196,6 +198,54 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_pull.PullLogs.assert_not_called()
         self.assertFalse(factory.GetFailures())
         self.assertDictEqual({"inst": []}, factory.GetLogs())
+
+    @mock.patch("acloud.public.actions.remote_host_cf_device_factory."
+                "cvd_compute_client_multi_stage")
+    @mock.patch("acloud.public.actions.remote_host_cf_device_factory.ssh")
+    @mock.patch("acloud.public.actions.remote_host_cf_device_factory."
+                "cvd_utils")
+    @mock.patch("acloud.public.actions.remote_host_cf_device_factory.glob")
+    @mock.patch("acloud.public.actions.remote_host_cf_device_factory.shutil")
+    @mock.patch("acloud.public.actions.remote_host_cf_device_factory.pull")
+    def testCreateInstanceWithRemoteFetch(self, mock_pull, mock_shutil,
+                                          mock_glob, mock_cvd_utils, mock_ssh,
+                                          _mock_client):
+        """Test CreateInstance with remotely fetched images."""
+        mock_avd_spec = self._CreateMockAvdSpec()
+        mock_avd_spec.remote_fetch = True
+        mock_ssh_obj = mock.Mock()
+        mock_ssh.Ssh.return_value = mock_ssh_obj
+        mock_ssh_obj.GetBaseCmd.return_value = "/mock/ssh"
+        mock_glob.glob.return_value = ["/mock/fetch_cvd"]
+        factory = remote_host_cf_device_factory.RemoteHostDeviceFactory(
+            mock_avd_spec)
+
+        log = {"path": "/log.txt"}
+        mock_cvd_utils.FormatRemoteHostInstanceName.return_value = "inst"
+        mock_cvd_utils.FindRemoteLogs.return_value = []
+        mock_cvd_utils.GetRemoteFetcherConfigJson.return_value = log
+        mock_cvd_utils.GCE_BASE_DIR = "."
+
+        mock_client_obj = factory.GetComputeClient()
+        mock_client_obj.LaunchCvd.return_value = {}
+        mock_client_obj.build_api.GetFetchBuildArgs.return_value = ["-test"]
+
+        self.assertEqual("inst", factory.CreateInstance())
+        mock_ssh.Ssh.assert_called_once()
+        mock_client_obj.InitRemoteHost.assert_called_once()
+        mock_client_obj.build_api.DownloadFetchcvd.assert_called_once()
+        mock_shutil.copyfile.assert_called_with("/mock/key", mock.ANY)
+        self.assertRegex(mock_ssh.ShellCmdWithRetry.call_args_list[0][0][0],
+                         r"^tar -cf - --lzop -S -C \S+ fetch_cvd \| "
+                         r"/mock/ssh -- tar -xf - --lzop -S -C \.$")
+        self.assertRegex(mock_ssh.ShellCmdWithRetry.call_args_list[1][0][0],
+                         r"^/mock/ssh -- ./fetch_cvd -directory=. "
+                         r"-credential_source=credential_key.json -test$")
+        mock_client_obj.LaunchCvd.assert_called()
+        mock_pull.GetAllLogFilePaths.assert_not_called()
+        mock_pull.PullLogs.assert_not_called()
+        self.assertFalse(factory.GetFailures())
+        self.assertDictEqual({"inst": [log]}, factory.GetLogs())
 
 
 if __name__ == "__main__":
