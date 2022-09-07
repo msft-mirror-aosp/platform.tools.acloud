@@ -197,14 +197,30 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         return cvd_utils.UploadExtraImages(self._ssh, self._GetInstancePath(),
                                            self._avd_spec)
 
+    def _GetRemoteFetchCredentialArg(self):
+        """Get the credential source argument for remote fetch_cvd.
+
+        Remote fetch_cvd uses the service account key uploaded by
+        _UploadFetchCvd if it is available. Otherwise, fetch_cvd uses the
+        token extracted from the local credential file.
+
+        Returns:
+            A string, the credential source argument.
+        """
+        cfg = self._avd_spec.cfg
+        if cfg.service_account_json_private_key_path:
+            return "-credential_source=" + self._GetInstancePath(
+                constants.FETCH_CVD_CREDENTIAL_SOURCE)
+
+        return self._compute_client.build_api.GetFetchCertArg(
+            os.path.join(_HOME_FOLDER, cfg.creds_cache_file))
+
     @utils.TimeExecute(function_description="Downloading artifacts on remote host by fetch cvd wrapper.")
     def _DownloadArtifactsByFetchWrapper(self):
         """Generate fetch_cvd args and run fetch cvd wrapper on remote host to download artifacts.
 
         Fetch cvd wrapper will fetch from cluster cached artifacts, and fallback to fetch_cvd if the artifacts not exist.
         """
-        cfg = self._avd_spec.cfg
-
         fetch_cvd_build_args = self._compute_client.build_api.GetFetchBuildArgs(
             self._avd_spec.remote_image,
             self._avd_spec.system_build_info,
@@ -212,11 +228,10 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             self._avd_spec.boot_build_info,
             self._avd_spec.bootloader_build_info,
             self._avd_spec.ota_build_info)
-        creds_cache_file = os.path.join(_HOME_FOLDER, cfg.creds_cache_file)
-        fetch_cvd_cert_arg = self._compute_client.build_api.GetFetchCertArg(
-            creds_cache_file, cfg.service_account_json_private_key_path)
 
-        fetch_cvd_args = [f'{self._avd_spec.fetch_cvd_wrapper}', "-directory=./", fetch_cvd_cert_arg]
+        fetch_cvd_args = [self._avd_spec.fetch_cvd_wrapper,
+                          f"-directory={self._GetInstancePath()}",
+                          self._GetRemoteFetchCredentialArg()]
         fetch_cvd_args.extend(fetch_cvd_build_args)
 
         ssh_cmd = self._ssh.GetBaseCmd(constants.SSH_BIN)
@@ -227,8 +242,6 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
     @utils.TimeExecute(function_description="Downloading artifacts on remote host")
     def _DownloadArtifactsRemotehost(self):
         """Generate fetch_cvd args and run fetch_cvd on remote host to download artifacts."""
-        cfg = self._avd_spec.cfg
-
         fetch_cvd_build_args = self._compute_client.build_api.GetFetchBuildArgs(
             self._avd_spec.remote_image,
             self._avd_spec.system_build_info,
@@ -236,12 +249,12 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             self._avd_spec.boot_build_info,
             self._avd_spec.bootloader_build_info,
             self._avd_spec.ota_build_info)
-        creds_cache_file = os.path.join(_HOME_FOLDER, cfg.creds_cache_file)
-        fetch_cvd_cert_arg = self._compute_client.build_api.GetFetchCertArg(
-            creds_cache_file, cfg.service_account_json_private_key_path)
 
-        fetch_cvd_args = [f'./{constants.FETCH_CVD}', "-directory=./", fetch_cvd_cert_arg]
+        fetch_cvd_args = [f"./{self._GetInstancePath(constants.FETCH_CVD)}",
+                          f"-directory={self._GetInstancePath()}",
+                          self._GetRemoteFetchCredentialArg()]
         fetch_cvd_args.extend(fetch_cvd_build_args)
+
         ssh_cmd = self._ssh.GetBaseCmd(constants.SSH_BIN)
         cmd = (f"{ssh_cmd} -- " + " ".join(fetch_cvd_args))
         logger.debug("cmd:\n %s", cmd)
