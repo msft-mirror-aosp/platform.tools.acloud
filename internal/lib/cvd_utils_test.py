@@ -32,7 +32,10 @@ class CvdUtilsTest(unittest.TestCase):
     _PRODUCT_NAME = "aosp_cf_x86_64_phone"
     _BUILD_ID = "2263051"
     _REMOTE_HOST_IP = "192.0.2.1"
-    _REMOTE_HOST_INSTANCE_NAME = "host-192.0.2.1-2263051-aosp_cf_x86_64_phone"
+    _REMOTE_HOST_INSTANCE_NAME_1 = (
+        "host-192.0.2.1-1-2263051-aosp_cf_x86_64_phone")
+    _REMOTE_HOST_INSTANCE_NAME_2 = (
+        "host-192.0.2.1-2-2263051-aosp_cf_x86_64_phone")
 
     @staticmethod
     def _CreateFile(path, data=b""):
@@ -206,18 +209,26 @@ class CvdUtilsTest(unittest.TestCase):
     def testFormatRemoteHostInstanceName(self):
         """Test FormatRemoteHostInstanceName."""
         name = cvd_utils.FormatRemoteHostInstanceName(
-            self._REMOTE_HOST_IP, self._BUILD_ID, self._PRODUCT_NAME)
-        self.assertEqual(name, self._REMOTE_HOST_INSTANCE_NAME)
+            self._REMOTE_HOST_IP, None, self._BUILD_ID, self._PRODUCT_NAME)
+        self.assertEqual(name, self._REMOTE_HOST_INSTANCE_NAME_1)
+
+        name = cvd_utils.FormatRemoteHostInstanceName(
+            self._REMOTE_HOST_IP, 2, self._BUILD_ID, self._PRODUCT_NAME)
+        self.assertEqual(name, self._REMOTE_HOST_INSTANCE_NAME_2)
 
     def testParseRemoteHostAddress(self):
         """Test ParseRemoteHostAddress."""
-        ip_addr = cvd_utils.ParseRemoteHostAddress(
-            self._REMOTE_HOST_INSTANCE_NAME)
-        self.assertEqual(ip_addr, self._REMOTE_HOST_IP)
+        result = cvd_utils.ParseRemoteHostAddress(
+            self._REMOTE_HOST_INSTANCE_NAME_1)
+        self.assertEqual(result, (self._REMOTE_HOST_IP, "."))
 
-        ip_addr = cvd_utils.ParseRemoteHostAddress(
+        result = cvd_utils.ParseRemoteHostAddress(
+            self._REMOTE_HOST_INSTANCE_NAME_2)
+        self.assertEqual(result, (self._REMOTE_HOST_IP, "."))
+
+        result = cvd_utils.ParseRemoteHostAddress(
             "host-goldfish-192.0.2.1-5554-123456-sdk_x86_64-sdk")
-        self.assertIsNone(ip_addr)
+        self.assertIsNone(result)
 
     def testGetLaunchCvdArgs(self):
         """Test GetLaunchCvdArgs."""
