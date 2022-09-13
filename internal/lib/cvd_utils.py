@@ -62,9 +62,9 @@ _ANDROID_BOOT_IMAGE_MAGIC = b"ANDROID!"
 # Remote host instance name
 _REMOTE_HOST_INSTANCE_NAME_FORMAT = (
     constants.INSTANCE_TYPE_HOST +
-    "-%(ip_addr)s-%(build_id)s-%(build_target)s")
+    "-%(ip_addr)s-%(num)d-%(build_id)s-%(build_target)s")
 _REMOTE_HOST_INSTANCE_NAME_PATTERN = re.compile(
-    constants.INSTANCE_TYPE_HOST + r"-(?P<ip_addr>[\d.]+)-.+")
+    constants.INSTANCE_TYPE_HOST + r"-(?P<ip_addr>[\d.]+)-(?P<num>\d+)-.+")
 # launch_cvd arguments.
 _DATA_POLICY_CREATE_IF_MISSING = "create_if_missing"
 _DATA_POLICY_ALWAYS_CREATE = "always_create"
@@ -370,11 +370,26 @@ def CleanUpRemoteCvd(ssh_obj, remote_dir, raise_error):
     ssh_obj.Run(f"'rm -rf {remote_path.join(remote_dir, '*')}'")
 
 
-def FormatRemoteHostInstanceName(ip_addr, build_id, build_target):
+def GetRemoteHostBaseDir(_base_instance_num):
+    """Get remote base directory by instance number.
+
+    Args:
+        base_instance_num: Integer or None, the instance number of the device.
+
+    Returns:
+        The remote base directory.
+    """
+    # TODO(b/229812494): Return different path for each base_instance_num.
+    return GCE_BASE_DIR
+
+
+def FormatRemoteHostInstanceName(ip_addr, base_instance_num, build_id,
+                                 build_target):
     """Convert an IP address and build info to an instance name.
 
     Args:
         ip_addr: String, the IP address of the remote host.
+        base_instance_num: Integer or None, the instance number of the device.
         build_id: String, the build id.
         build_target: String, the build target, e.g., aosp_cf_x86_64_phone.
 
@@ -383,6 +398,7 @@ def FormatRemoteHostInstanceName(ip_addr, build_id, build_target):
     """
     return _REMOTE_HOST_INSTANCE_NAME_FORMAT % {
         "ip_addr": ip_addr,
+        "num": base_instance_num or 1,
         "build_id": build_id,
         "build_target": build_target}
 
@@ -394,11 +410,14 @@ def ParseRemoteHostAddress(instance_name):
         instance_name: String, the instance name.
 
     Returns:
-        The IP address as a string.
+        The IP address and the base directory as strings.
         None if the name does not represent a remote host instance.
     """
     match = _REMOTE_HOST_INSTANCE_NAME_PATTERN.fullmatch(instance_name)
-    return match.group("ip_addr") if match else None
+    if match:
+        return (match.group("ip_addr"),
+                GetRemoteHostBaseDir(int(match.group("num"))))
+    return None
 
 
 # pylint:disable=too-many-branches
