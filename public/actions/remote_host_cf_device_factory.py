@@ -18,6 +18,7 @@ cuttlefish instances on a remote host."""
 import glob
 import logging
 import os
+import posixpath as remote_path
 import shutil
 import subprocess
 import tempfile
@@ -106,8 +107,7 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             instance, instance in failures and not self._avd_spec.no_pull_log)
         return instance
 
-    @staticmethod
-    def _GetInstancePath(relative_path=""):
+    def _GetInstancePath(self, relative_path=""):
         """Append a relative path to the remote base directory.
 
         Args:
@@ -117,8 +117,10 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             The remote base directory if relative_path is empty.
             The remote path under the base directory otherwise.
         """
-        # TODO(b/229812494): Return different path for each base_instance_num.
-        return relative_path or cvd_utils.GCE_BASE_DIR
+        base_dir = cvd_utils.GetRemoteHostBaseDir(
+            self._avd_spec.base_instance_num)
+        return (remote_path.join(base_dir, relative_path) if relative_path else
+                base_dir)
 
     def _InitRemotehost(self):
         """Initialize remote host.
@@ -145,7 +147,8 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             build_id = self._avd_spec.remote_image[constants.BUILD_ID]
 
         instance = cvd_utils.FormatRemoteHostInstanceName(
-            self._avd_spec.remote_host, build_id, build_target)
+            self._avd_spec.remote_host, self._avd_spec.base_instance_num,
+            build_id, build_target)
         ip = ssh.IP(ip=self._avd_spec.remote_host)
         self._ssh = ssh.Ssh(
             ip=ip,
@@ -250,7 +253,7 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             self._avd_spec.bootloader_build_info,
             self._avd_spec.ota_build_info)
 
-        fetch_cvd_args = [f"./{self._GetInstancePath(constants.FETCH_CVD)}",
+        fetch_cvd_args = [self._GetInstancePath(constants.FETCH_CVD),
                           f"-directory={self._GetInstancePath()}",
                           self._GetRemoteFetchCredentialArg()]
         fetch_cvd_args.extend(fetch_cvd_build_args)
