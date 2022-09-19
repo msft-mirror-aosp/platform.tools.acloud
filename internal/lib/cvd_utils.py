@@ -56,6 +56,7 @@ _REMOTE_KERNEL_IMAGE_PATH = remote_path.join(
     _REMOTE_IMAGE_DIR, _KERNEL_IMAGE_NAMES[0])
 _REMOTE_INITRAMFS_IMAGE_PATH = remote_path.join(
     _REMOTE_IMAGE_DIR, _INITRAMFS_IMAGE_NAME)
+_REMOTE_SUPER_IMAGE_DIR = remote_path.join(_REMOTE_IMAGE_DIR, "super_image_dir")
 
 _ANDROID_BOOT_IMAGE_MAGIC = b"ANDROID!"
 
@@ -102,6 +103,12 @@ _REMOTE_RUNTIME_DIR_FORMAT = remote_path.join(
 _REMOTE_LEGACY_RUNTIME_DIR_FORMAT = "cuttlefish_runtime.%(num)d"
 HOST_KERNEL_LOG = report.LogFile(
     "/var/log/kern.log", constants.LOG_TYPE_KERNEL_LOG, "host_kernel.log")
+
+# Contents of the target_files archive.
+_DOWNLOAD_MIX_IMAGE_NAME = "{build_target}-target_files-{build_id}.zip"
+_TARGET_FILES_META_DIR_NAME = "META"
+_TARGET_FILES_IMAGES_DIR_NAME = "IMAGES"
+_MISC_INFO_FILE_NAME = "misc_info.txt"
 
 
 def GetAdbPorts(base_instance_num, num_avds_per_instance):
@@ -339,6 +346,34 @@ def UploadExtraImages(ssh_obj, remote_dir, avd_spec):
         return _UploadKernelImages(ssh_obj, remote_dir,
                                    avd_spec.local_kernel_image)
     return []
+
+
+@utils.TimeExecute(function_description="Uploading local super image")
+def UploadSuperImage(ssh_obj, remote_dir, super_image_path):
+    """Upload a super image to a remote host or a GCE instance.
+
+    Args:
+        ssh_obj: An Ssh object.
+        remote_dir: The remote base directory.
+        super_image_path: Path to the super image file.
+
+    Returns:
+        A list of strings, the launch_cvd arguments including the remote paths.
+    """
+    # Assume that the caller cleaned up the remote home directory.
+    super_image_stem = os.path.basename(super_image_path)
+    remote_super_image_dir = remote_path.join(
+        remote_dir, _REMOTE_SUPER_IMAGE_DIR)
+    remote_super_image_path = remote_path.join(
+        remote_super_image_dir, super_image_stem)
+    ssh_obj.Run(f"mkdir -p {remote_super_image_dir}")
+    cmd = (f"tar -cf - --lzop -S -C {os.path.dirname(super_image_path)} "
+           f"{super_image_stem} | "
+           f"{ssh_obj.GetBaseCmd(constants.SSH_BIN)} -- "
+           f"tar -xf - --lzop -S -C {remote_super_image_dir}")
+    ssh.ShellCmdWithRetry(cmd)
+    launch_cvd_args = ["-super_image", remote_super_image_path]
+    return launch_cvd_args
 
 
 def CleanUpRemoteCvd(ssh_obj, remote_dir, raise_error):
@@ -644,3 +679,68 @@ def GetRemoteBuildInfoDict(avd_spec):
          for key, val in avd_spec.bootloader_build_info.items() if val}
     )
     return build_info_dict
+
+
+def GetMixBuildTargetFilename(build_target, build_id):
+    """Get the mix build target filename.
+
+    Args:
+        build_id: String, Build id, e.g. "2263051", "P2804227"
+        build_target: String, the build target, e.g. cf_x86_phone-userdebug
+
+    Returns:
+        String, a file name, e.g. "cf_x86_phone-target_files-2263051.zip"
+    """
+    return _DOWNLOAD_MIX_IMAGE_NAME.format(
+        build_target=build_target.split('-')[0],
+        build_id=build_id)
+
+
+def FindMiscInfo(image_dir):
+    """Find misc info in build output dir or extracted target files.
+
+    Args:
+        image_dir: The directory to search for misc info.
+
+    Returns:
+        image_dir if the directory structure looks like an output directory
+        in build environment.
+        image_dir/META if it looks like extracted target files.
+
+    Raises:
+        errors.CheckPathError if this function cannot find misc info.
+    """
+    misc_info_path = os.path.join(image_dir, _MISC_INFO_FILE_NAME)
+    if os.path.isfile(misc_info_path):
+        return misc_info_path
+    misc_info_path = os.path.join(image_dir, _TARGET_FILES_META_DIR_NAME,
+                                  _MISC_INFO_FILE_NAME)
+    if os.path.isfile(misc_info_path):
+        return misc_info_path
+    raise errors.CheckPathError(
+        f"Cannot find {_MISC_INFO_FILE_NAME} in {image_dir}. The "
+        f"directory is expected to be an extracted target files zip or "
+        f"{constants.ENV_ANDROID_PRODUCT_OUT}.")
+
+
+def FindImageDir(image_dir):
+    """Find images in build output dir or extracted target files.
+
+    Args:
+        image_dir: The directory to search for images.
+
+    Returns:
+        image_dir if the directory structure looks like an output directory
+        in build environment.
+        image_dir/IMAGES if it looks like extracted target files.
+
+    Raises:
+        errors.GetLocalImageError if this function cannot find any image.
+    """
+    if glob.glob(os.path.join(image_dir, "*.img")):
+        return image_dir
+    subdir = os.path.join(image_dir, _TARGET_FILES_IMAGES_DIR_NAME)
+    if glob.glob(os.path.join(subdir, "*.img")):
+        return subdir
+    raise errors.GetLocalImageError(
+        "Cannot find images in %s." % image_dir)

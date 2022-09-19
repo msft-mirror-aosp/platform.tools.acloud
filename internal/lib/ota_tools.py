@@ -298,3 +298,17 @@ class OtaTools:
         utils.Popen(unpack_bootimg,
                     "--out", out_dir,
                     "--boot_img", boot_img)
+
+    def MixSuperImage(self, super_image, misc_info, image_dir, system_image):
+        """Create mixed super image from device images and a system image.
+
+        Args:
+            super_image: Path to the output super image.
+            misc_info: Path to the misc_info.txt.
+            image_dir: Path to image files excluding system image.
+            system_image: Path to the system image.
+        """
+        self.BuildSuperImage(
+            super_image, misc_info,
+            lambda partition: GetImageForPartition(
+                partition, image_dir, system=system_image))
