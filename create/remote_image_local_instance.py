@@ -30,6 +30,7 @@ from acloud.create import local_image_local_instance
 from acloud.internal import constants
 from acloud.internal.lib import android_build_client
 from acloud.internal.lib import auth
+from acloud.internal.lib import cvd_utils
 from acloud.internal.lib import ota_tools
 from acloud.internal.lib import utils
 from acloud.setup import setup_common
@@ -54,7 +55,6 @@ _REQUIRED_SPACE = 10
 
 _SYSTEM_IMAGE_NAME_PATTERN = r"system\.img"
 _SYSTEM_MIX_IMAGE_DIR = "mix_image_{build_id}"
-_DOWNLOAD_MIX_IMAGE_NAME = "{build_target}-target_files-{build_id}.zip"
 
 
 @utils.TimeExecute(function_description="Downloading Android Build image")
@@ -152,21 +152,6 @@ def ConfirmDownloadRemoteImageDir(download_dir):
             return download_dir
 
 
-def GetMixBuildTargetFilename(build_target, build_id):
-    """Get the mix build target filename.
-
-    Args:
-        build_id: String, Build id, e.g. "2263051", "P2804227"
-        build_target: String, the build target, e.g. cf_x86_phone-userdebug
-
-    Returns:
-        String, a file name, e.g. "cf_x86_phone-target_files-2263051.zip"
-    """
-    return _DOWNLOAD_MIX_IMAGE_NAME.format(
-        build_target=build_target.split('-')[0],
-        build_id=build_id)
-
-
 class RemoteImageLocalInstance(local_image_local_instance.LocalImageLocalInstance):
     """Create class for a remote image local instance AVD.
 
@@ -213,10 +198,10 @@ class RemoteImageLocalInstance(local_image_local_instance.LocalImageLocalInstanc
                 os.makedirs(mix_image_dir)
                 create_common.DownloadRemoteArtifact(
                     avd_spec.cfg, build_target, build_id,
-                    GetMixBuildTargetFilename(build_target, build_id),
+                    cvd_utils.GetMixBuildTargetFilename(build_target, build_id),
                     mix_image_dir, decompress=True)
-            misc_info_path = super().FindMiscInfo(mix_image_dir)
-            mix_image_dir = super().FindImageDir(mix_image_dir)
+            misc_info_path = cvd_utils.FindMiscInfo(mix_image_dir)
+            mix_image_dir = cvd_utils.FindImageDir(mix_image_dir)
             tool_dirs = (avd_spec.local_tool_dirs +
                          create_common.GetNonEmptyEnvVars(
                              constants.ENV_ANDROID_SOONG_HOST_OUT,
