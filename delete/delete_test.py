@@ -285,7 +285,7 @@ class DeleteTest(driver_test_lib.BaseDriverTest):
         mock_delete_host_gf_ins.assert_called_with(
             cfg, instances[0], "user", "key", mock.ANY)
         mock_clean_up_remote_host.assert_called_with(
-            cfg, "192.0.2.2", "user", "key", ".", mock.ANY)
+            cfg, "192.0.2.2", "user", "key", "acloud_cf_3", mock.ANY)
 
         # Test delete remote instances.
         instances = ["ins-id1-cf-x86-phone-userdebug",
