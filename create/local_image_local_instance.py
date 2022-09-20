@@ -50,7 +50,6 @@ required.
 """
 
 import collections
-import glob
 import logging
 import os
 import re
@@ -75,9 +74,6 @@ from acloud.setup import mkcert
 logger = logging.getLogger(__name__)
 
 _SYSTEM_IMAGE_NAME_PATTERN = r"system\.img"
-_MISC_INFO_FILE_NAME = "misc_info.txt"
-_TARGET_FILES_IMAGES_DIR_NAME = "IMAGES"
-_TARGET_FILES_META_DIR_NAME = "META"
 _SUPER_IMAGE_NAME = "super.img"
 _MIXED_SUPER_IMAGE_NAME = "mixed_super.img"
 _CMD_CVD_START = " start"
@@ -265,8 +261,12 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         create_common.PrepareLocalInstanceDir(cvd_home_dir, avd_spec)
         super_image_path = None
         if artifact_paths.system_image:
-            super_image_path = self._MixSuperImage(cvd_home_dir,
-                                                   artifact_paths)
+            super_image_path = os.path.join(cvd_home_dir,
+                                            _MIXED_SUPER_IMAGE_NAME)
+            ota = ota_tools.OtaTools(artifact_paths.ota_tools_dir)
+            ota.MixSuperImage(
+                super_image_path, artifact_paths.misc_info,
+                artifact_paths.image_dir, artifact_paths.system_image)
         runtime_dir = instance.GetLocalInstanceRuntimeDir(local_instance_id)
         # TODO(b/168171781): cvd_status of list/delete via the symbolic.
         self.PrepareLocalCvdToolsLink(cvd_home_dir, artifact_paths.host_bins)
@@ -381,56 +381,6 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             "set --local-tool to an extracted CVD host package.")
 
     @staticmethod
-    def FindMiscInfo(image_dir):
-        """Find misc info in build output dir or extracted target files.
-
-        Args:
-            image_dir: The directory to search for misc info.
-
-        Returns:
-            image_dir if the directory structure looks like an output directory
-            in build environment.
-            image_dir/META if it looks like extracted target files.
-
-        Raises:
-            errors.CheckPathError if this method cannot find misc info.
-        """
-        misc_info_path = os.path.join(image_dir, _MISC_INFO_FILE_NAME)
-        if os.path.isfile(misc_info_path):
-            return misc_info_path
-        misc_info_path = os.path.join(image_dir, _TARGET_FILES_META_DIR_NAME,
-                                      _MISC_INFO_FILE_NAME)
-        if os.path.isfile(misc_info_path):
-            return misc_info_path
-        raise errors.CheckPathError(
-            f"Cannot find {_MISC_INFO_FILE_NAME} in {image_dir}. The "
-            f"directory is expected to be an extracted target files zip or "
-            f"{constants.ENV_ANDROID_PRODUCT_OUT}.")
-
-    @staticmethod
-    def FindImageDir(image_dir):
-        """Find images in build output dir or extracted target files.
-
-        Args:
-            image_dir: The directory to search for images.
-
-        Returns:
-            image_dir if the directory structure looks like an output directory
-            in build environment.
-            image_dir/IMAGES if it looks like extracted target files.
-
-        Raises:
-            errors.GetLocalImageError if this method cannot find images.
-        """
-        if glob.glob(os.path.join(image_dir, "*.img")):
-            return image_dir
-        subdir = os.path.join(image_dir, _TARGET_FILES_IMAGES_DIR_NAME)
-        if glob.glob(os.path.join(subdir, "*.img")):
-            return subdir
-        raise errors.GetLocalImageError(
-            "Cannot find images in %s." % image_dir)
-
-    @staticmethod
     def _VerifyExtractedImgZip(image_dir):
         """Verify that a path is build output dir or extracted img zip.
 
@@ -515,8 +465,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         host_artifacts_path = self._FindCvdHostArtifactsPath(tool_dirs)
 
         if avd_spec.local_system_image:
-            misc_info_path = self.FindMiscInfo(image_dir)
-            image_dir = self.FindImageDir(image_dir)
+            misc_info_path = cvd_utils.FindMiscInfo(image_dir)
+            image_dir = cvd_utils.FindImageDir(image_dir)
             ota_tools_dir = os.path.abspath(
                 ota_tools.FindOtaToolsDir(tool_dirs))
             system_image_path = create_common.FindLocalImage(
@@ -550,26 +500,6 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                              vendor_boot_image=vendor_boot_image_path,
                              kernel_image=kernel_image_path,
                              initramfs_image=initramfs_image_path)
-
-    @staticmethod
-    def _MixSuperImage(output_dir, artifact_paths):
-        """Mix cuttlefish images and a system image into a super image.
-
-        Args:
-            output_dir: The path to the output directory.
-            artifact_paths: ArtifactPaths object.
-
-        Returns:
-            The path to the super image in output_dir.
-        """
-        ota = ota_tools.OtaTools(artifact_paths.ota_tools_dir)
-        super_image_path = os.path.join(output_dir, _MIXED_SUPER_IMAGE_NAME)
-        ota.BuildSuperImage(
-            super_image_path, artifact_paths.misc_info,
-            lambda partition: ota_tools.GetImageForPartition(
-                partition, artifact_paths.image_dir,
-                system=artifact_paths.system_image))
-        return super_image_path
 
     @staticmethod
     def _GetConfigFromAndroidInfo(android_info_path):
