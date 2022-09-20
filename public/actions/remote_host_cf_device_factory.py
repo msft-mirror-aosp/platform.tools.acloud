@@ -174,6 +174,7 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             A list of strings, the launch_cvd arguments.
         """
         self._compute_client.SetStage(constants.STAGE_ARTIFACT)
+        self._ssh.Run(f"mkdir -p {self._GetInstancePath()}")
         if self._avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
             cvd_utils.UploadArtifacts(
                 self._ssh, self._GetInstancePath(),
