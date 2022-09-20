@@ -47,8 +47,9 @@ _INITRAMFS_IMAGE_NAME = "initramfs.img"
 # The relative path to the base directory containing cuttelfish images, tools,
 # and runtime files. On a GCE instance, the directory is the SSH user's HOME.
 GCE_BASE_DIR = "."
+_REMOTE_HOST_BASE_DIR_FORMAT = "acloud_cf_%(num)d"
 # Relative paths in a base directory.
-_REMOTE_IMAGE_DIR = "acloud_cf"
+_REMOTE_IMAGE_DIR = "acloud_image"
 _REMOTE_BOOT_IMAGE_PATH = remote_path.join(_REMOTE_IMAGE_DIR, "boot.img")
 _REMOTE_VENDOR_BOOT_IMAGE_PATH = remote_path.join(
     _REMOTE_IMAGE_DIR, _VENDOR_BOOT_IMAGE_NAME)
@@ -405,7 +406,7 @@ def CleanUpRemoteCvd(ssh_obj, remote_dir, raise_error):
     ssh_obj.Run(f"'rm -rf {remote_path.join(remote_dir, '*')}'")
 
 
-def GetRemoteHostBaseDir(_base_instance_num):
+def GetRemoteHostBaseDir(base_instance_num):
     """Get remote base directory by instance number.
 
     Args:
@@ -414,8 +415,7 @@ def GetRemoteHostBaseDir(_base_instance_num):
     Returns:
         The remote base directory.
     """
-    # TODO(b/229812494): Return different path for each base_instance_num.
-    return GCE_BASE_DIR
+    return _REMOTE_HOST_BASE_DIR_FORMAT % {"num": base_instance_num or 1}
 
 
 def FormatRemoteHostInstanceName(ip_addr, base_instance_num, build_id,
