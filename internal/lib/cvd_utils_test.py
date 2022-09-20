@@ -143,16 +143,17 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
 
             mock_avd_spec = mock.Mock(local_kernel_image=boot_image_path)
             args = cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec)
-            self.assertEqual(["-boot_image", "dir/acloud_cf/boot.img"], args)
-            mock_ssh.Run.assert_called_once_with("mkdir -p dir/acloud_cf")
+            self.assertEqual(["-boot_image", "dir/acloud_image/boot.img"],
+                             args)
+            mock_ssh.Run.assert_called_once_with("mkdir -p dir/acloud_image")
             mock_ssh.ScpPushFile.assert_called_once()
 
             mock_ssh.reset_mock()
             mock_avd_spec.local_kernel_image = image_dir
             args = cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec)
             self.assertEqual(
-                ["-boot_image", "dir/acloud_cf/boot.img",
-                 "-vendor_boot_image", "dir/acloud_cf/vendor_boot.img"],
+                ["-boot_image", "dir/acloud_image/boot.img",
+                 "-vendor_boot_image", "dir/acloud_image/vendor_boot.img"],
                 args)
             mock_ssh.Run.assert_called_once()
             self.assertEqual(2, mock_ssh.ScpPushFile.call_count)
@@ -173,8 +174,8 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             mock_avd_spec.local_kernel_image = image_dir
             args = cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec)
             self.assertEqual(
-                ["-kernel_path", "dir/acloud_cf/kernel",
-                 "-initramfs_path", "dir/acloud_cf/initramfs.img"],
+                ["-kernel_path", "dir/acloud_image/kernel",
+                 "-initramfs_path", "dir/acloud_image/initramfs.img"],
                 args)
             mock_ssh.Run.assert_called_once()
             self.assertEqual(2, mock_ssh.ScpPushFile.call_count)
@@ -185,7 +186,7 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
         mock_ssh = mock.Mock()
         self.assertEqual(
             ["-super_image",
-             "/remote/cvd/dir/acloud_cf/super_image_dir/super.img"],
+             "/remote/cvd/dir/acloud_image/super_image_dir/super.img"],
             cvd_utils.UploadSuperImage(mock_ssh, "/remote/cvd/dir",
                                        "/local/path/to/super.img"))
         mock_shell_cmd_with_retry.assert_called_once()
@@ -193,7 +194,7 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(1, len(args))
         self.assertIn("/local/path/to", args[0])
         self.assertIn("super.img", args[0])
-        self.assertIn("/remote/cvd/dir/acloud_cf/super_image_dir", args[0])
+        self.assertIn("/remote/cvd/dir/acloud_image/super_image_dir", args[0])
 
     def testCleanUpRemoteCvd(self):
         """Test CleanUpRemoteCvd."""
@@ -217,6 +218,11 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
                                      retry=0)
         mock_ssh.Run.assert_any_call("'rm -rf dir/*'")
 
+    def testGetRemoteHostBaseDir(self):
+        """Test GetRemoteHostBaseDir."""
+        self.assertEqual("acloud_cf_1", cvd_utils.GetRemoteHostBaseDir(None))
+        self.assertEqual("acloud_cf_2", cvd_utils.GetRemoteHostBaseDir(2))
+
     def testFormatRemoteHostInstanceName(self):
         """Test FormatRemoteHostInstanceName."""
         name = cvd_utils.FormatRemoteHostInstanceName(
@@ -231,11 +237,11 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
         """Test ParseRemoteHostAddress."""
         result = cvd_utils.ParseRemoteHostAddress(
             self._REMOTE_HOST_INSTANCE_NAME_1)
-        self.assertEqual(result, (self._REMOTE_HOST_IP, "."))
+        self.assertEqual(result, (self._REMOTE_HOST_IP, "acloud_cf_1"))
 
         result = cvd_utils.ParseRemoteHostAddress(
             self._REMOTE_HOST_INSTANCE_NAME_2)
-        self.assertEqual(result, (self._REMOTE_HOST_IP, "."))
+        self.assertEqual(result, (self._REMOTE_HOST_IP, "acloud_cf_2"))
 
         result = cvd_utils.ParseRemoteHostAddress(
             "host-goldfish-192.0.2.1-5554-123456-sdk_x86_64-sdk")
