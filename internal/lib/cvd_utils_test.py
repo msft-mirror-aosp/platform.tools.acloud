@@ -23,9 +23,10 @@ from unittest import mock
 from acloud import errors
 from acloud.internal import constants
 from acloud.internal.lib import cvd_utils
+from acloud.internal.lib import driver_test_lib
 
 
-class CvdUtilsTest(unittest.TestCase):
+class CvdUtilsTest(driver_test_lib.BaseDriverTest):
     """Test the functions in cvd_utils."""
 
     # Remote host instance name.
@@ -36,12 +37,6 @@ class CvdUtilsTest(unittest.TestCase):
         "host-192.0.2.1-1-2263051-aosp_cf_x86_64_phone")
     _REMOTE_HOST_INSTANCE_NAME_2 = (
         "host-192.0.2.1-2-2263051-aosp_cf_x86_64_phone")
-
-    @staticmethod
-    def _CreateFile(path, data=b""):
-        """Create and write binary data to a file."""
-        with open(path, "wb") as file_obj:
-            file_obj.write(data)
 
     def testGetAdbPorts(self):
         """Test GetAdbPorts."""
@@ -143,8 +138,8 @@ class CvdUtilsTest(unittest.TestCase):
         mock_ssh = mock.Mock()
         with tempfile.TemporaryDirectory(prefix="cvd_utils") as image_dir:
             boot_image_path = os.path.join(image_dir, "boot.img")
-            self._CreateFile(boot_image_path, b"ANDROID!test")
-            self._CreateFile(os.path.join(image_dir, "vendor_boot.img"))
+            self.CreateFile(boot_image_path, b"ANDROID!test")
+            self.CreateFile(os.path.join(image_dir, "vendor_boot.img"))
 
             mock_avd_spec = mock.Mock(local_kernel_image=boot_image_path)
             args = cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec)
@@ -167,8 +162,8 @@ class CvdUtilsTest(unittest.TestCase):
         mock_ssh = mock.Mock()
         with tempfile.TemporaryDirectory(prefix="cvd_utils") as image_dir:
             kernel_image_path = os.path.join(image_dir, "Image")
-            self._CreateFile(kernel_image_path)
-            self._CreateFile(os.path.join(image_dir, "initramfs.img"))
+            self.CreateFile(kernel_image_path)
+            self.CreateFile(os.path.join(image_dir, "initramfs.img"))
 
             mock_avd_spec = mock.Mock(local_kernel_image=kernel_image_path)
             with self.assertRaises(errors.GetLocalImageError):
@@ -183,6 +178,22 @@ class CvdUtilsTest(unittest.TestCase):
                 args)
             mock_ssh.Run.assert_called_once()
             self.assertEqual(2, mock_ssh.ScpPushFile.call_count)
+
+    @mock.patch("acloud.internal.lib.cvd_utils.ssh.ShellCmdWithRetry")
+    def testUploadSuperImage(self, mock_shell_cmd_with_retry):
+        """Test UploadSuperImage."""
+        mock_ssh = mock.Mock()
+        self.assertEqual(
+            ["-super_image",
+             "/remote/cvd/dir/acloud_cf/super_image_dir/super.img"],
+            cvd_utils.UploadSuperImage(mock_ssh, "/remote/cvd/dir",
+                                       "/local/path/to/super.img"))
+        mock_shell_cmd_with_retry.assert_called_once()
+        args = mock_shell_cmd_with_retry.call_args[0]
+        self.assertEqual(1, len(args))
+        self.assertIn("/local/path/to", args[0])
+        self.assertIn("super.img", args[0])
+        self.assertIn("/remote/cvd/dir/acloud_cf/super_image_dir", args[0])
 
     def testCleanUpRemoteCvd(self):
         """Test CleanUpRemoteCvd."""
@@ -425,6 +436,24 @@ class CvdUtilsTest(unittest.TestCase):
             bootloader_build_info=bootloader_build_info)
         self.assertEqual(all_build_info,
                          cvd_utils.GetRemoteBuildInfoDict(mock_avd_spec))
+
+    def testFindMiscInfo(self):
+        """Test FindMiscInfo."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertRaises(errors.CheckPathError):
+                cvd_utils.FindMiscInfo(temp_dir)
+            misc_info_path = os.path.join(temp_dir, "META", "misc_info.txt")
+            self.CreateFile(misc_info_path, b"key=value")
+            self.assertEqual(misc_info_path, cvd_utils.FindMiscInfo(temp_dir))
+
+    def testFindImageDir(self):
+        """Test FindImageDir."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertRaises(errors.GetLocalImageError):
+                cvd_utils.FindImageDir(temp_dir)
+            image_dir = os.path.join(temp_dir, "IMAGES")
+            self.CreateFile(os.path.join(image_dir, "super.img"))
+            self.assertEqual(image_dir, cvd_utils.FindImageDir(temp_dir))
 
 
 if __name__ == "__main__":
