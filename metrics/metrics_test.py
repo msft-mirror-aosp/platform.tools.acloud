@@ -21,7 +21,6 @@ from unittest import mock
 # pylint: disable=import-error, no-name-in-module, wrong-import-position
 sys.modules["asuite"] = mock.MagicMock()
 sys.modules["asuite.metrics"] = mock.MagicMock()
-from asuite import atest_utils
 from asuite.metrics import metrics_utils
 from acloud.internal.lib import driver_test_lib
 from acloud.metrics import metrics
@@ -31,7 +30,7 @@ class MetricsTest(driver_test_lib.BaseDriverTest):
     """Test metrics methods."""
     def testLogUsage(self):
         """Test LogUsage."""
-        self.Patch(atest_utils, "print_data_collection_notice")
+        self.Patch(metrics_utils, "print_data_collection_notice")
         self.Patch(metrics_utils, "send_start_event")
         argv = ["create", "--local-instance"]
         self.assertTrue(metrics.LogUsage(argv))
