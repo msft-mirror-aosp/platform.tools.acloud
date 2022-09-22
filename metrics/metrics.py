@@ -49,9 +49,8 @@ def LogUsage(argv):
         return False
 
     try:
-        from asuite import atest_utils
         from asuite.metrics import metrics_utils
-        atest_utils.print_data_collection_notice()
+        metrics_utils.print_data_collection_notice()
         metrics_utils.send_start_event(tool_name=constants.TOOL_NAME,
                                        command_line=' '.join(argv),
                                        test_references=[argv[0]])
