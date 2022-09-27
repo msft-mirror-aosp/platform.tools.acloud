@@ -111,6 +111,9 @@ _TARGET_FILES_META_DIR_NAME = "META"
 _TARGET_FILES_IMAGES_DIR_NAME = "IMAGES"
 _MISC_INFO_FILE_NAME = "misc_info.txt"
 
+# ARM flavor build target pattern.
+_ARM_TARGET_PATTERN = "arm"
+
 
 def GetAdbPorts(base_instance_num, num_avds_per_instance):
     """Get ADB ports of cuttlefish.
@@ -744,3 +747,15 @@ def FindImageDir(image_dir):
         return subdir
     raise errors.GetLocalImageError(
         "Cannot find images in %s." % image_dir)
+
+
+def IsArmImage(image):
+    """Check if the image is built for ARM.
+
+    Args:
+        image: Image meta info.
+
+    Returns:
+        A boolean, whether the image is for ARM.
+    """
+    return _ARM_TARGET_PATTERN in image.get("build_target", "")
