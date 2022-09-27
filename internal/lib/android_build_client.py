@@ -67,6 +67,7 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
     # FETCH_CVD variables.
     FETCHER_NAME = "fetch_cvd"
     FETCHER_BUILD_TARGET = "aosp_cf_x86_64_phone-userdebug"
+    FETCHER_ARM_VERSION_BUILD_TARGET = "aosp_cf_arm64_phone-userdebug"
     MAX_RETRY = 3
     RETRY_SLEEP_SECS = 3
 
@@ -112,13 +113,18 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
             logger.error("Downloading artifact failed: %s", str(e))
             raise errors.DriverError(str(e))
 
-    def DownloadFetchcvd(self, local_dest, fetch_cvd_version):
+    def DownloadFetchcvd(
+            self,
+            local_dest,
+            fetch_cvd_version,
+            is_arm_version=False):
         """Get fetch_cvd from Android Build.
 
         Args:
             local_dest: A local path where the artifact should be stored.
                         e.g. "/tmp/fetch_cvd"
             fetch_cvd_version: String of fetch_cvd version.
+            is_arm_version: is ARM version fetch_cvd.
         """
         utils.RetryExceptionType(
             exception_types=ssl.SSLError,
@@ -126,7 +132,8 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
             functor=self.DownloadArtifact,
             sleep_multiplier=self.RETRY_SLEEP_SECS,
             retry_backoff_factor=utils.DEFAULT_RETRY_BACKOFF_FACTOR,
-            build_target=self.FETCHER_BUILD_TARGET,
+            build_target=(self.FETCHER_ARM_VERSION_BUILD_TARGET
+                        if is_arm_version else self.FETCHER_BUILD_TARGET),
             build_id=fetch_cvd_version,
             resource_id=self.FETCHER_NAME,
             local_dest=local_dest,
