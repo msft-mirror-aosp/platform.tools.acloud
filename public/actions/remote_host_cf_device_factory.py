@@ -219,11 +219,13 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         return self._compute_client.build_api.GetFetchCertArg(
             os.path.join(_HOME_FOLDER, cfg.creds_cache_file))
 
-    @utils.TimeExecute(function_description="Downloading artifacts on remote host by fetch cvd wrapper.")
+    @utils.TimeExecute(
+        function_description="Downloading artifacts on remote host by fetch cvd wrapper.")
     def _DownloadArtifactsByFetchWrapper(self):
         """Generate fetch_cvd args and run fetch cvd wrapper on remote host to download artifacts.
 
-        Fetch cvd wrapper will fetch from cluster cached artifacts, and fallback to fetch_cvd if the artifacts not exist.
+        Fetch cvd wrapper will fetch from cluster cached artifacts, and fallback to fetch_cvd if
+        the artifacts not exist.
         """
         fetch_cvd_build_args = self._compute_client.build_api.GetFetchBuildArgs(
             self._avd_spec.remote_image,
@@ -273,9 +275,12 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             extract_path: String, a path include extracted files.
         """
         cfg = self._avd_spec.cfg
+        is_arm_img = (cvd_utils.IsArmImage(self._avd_spec.remote_image)
+                        and self._avd_spec.remote_fetch)
         fetch_cvd = os.path.join(extract_path, constants.FETCH_CVD)
         self._compute_client.build_api.DownloadFetchcvd(fetch_cvd,
-                                                        cfg.fetch_cvd_version)
+                                                        cfg.fetch_cvd_version,
+                                                        is_arm_img)
         # Duplicate fetch_cvd API key when available
         if cfg.service_account_json_private_key_path:
             shutil.copyfile(
