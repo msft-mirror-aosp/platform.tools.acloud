@@ -505,12 +505,12 @@ def ParseRemoteHostAddress(instance_name):
 
 
 # pylint:disable=too-many-branches
-def GetLaunchCvdArgs(avd_spec, config=None):
+def _GetLaunchCvdArgs(avd_spec, config):
     """Get launch_cvd arguments for remote instances.
 
     Args:
         avd_spec: An AVDSpec instance.
-        config: A string, the name of the predefined hardware config.
+        config: A string or None, the name of the predefined hardware config.
                 e.g., "auto", "phone", and "tv".
 
     Returns:
@@ -569,6 +569,27 @@ def GetLaunchCvdArgs(avd_spec, config=None):
     launch_cvd_args.append(UNDEFOK_ARG)
     launch_cvd_args.append(AGREEMENT_PROMPT_ARG)
     return launch_cvd_args
+
+
+def GetRemoteLaunchCvdCmd(remote_dir, avd_spec, config, extra_args):
+    """Get launch_cvd command for remote instances.
+
+    Args:
+        remote_dir: The remote base directory.
+        avd_spec: An AVDSpec instance.
+        config: A string or None, the name of the predefined hardware config.
+                e.g., "auto", "phone", and "tv".
+        extra_args: Collection of strings, the extra arguments.
+
+    Returns:
+        A string, the launch_cvd command.
+    """
+    cmd = ["HOME=" + remote_path.join("$HOME", remote_dir),
+           remote_path.join(remote_dir, "bin", "launch_cvd"),
+           "-daemon"]
+    cmd.extend(extra_args)
+    cmd.extend(_GetLaunchCvdArgs(avd_spec, config))
+    return " ".join(cmd)
 
 
 def _GetRemoteRuntimeDirs(ssh_obj, remote_dir, base_instance_num,
