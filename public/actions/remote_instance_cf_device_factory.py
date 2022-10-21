@@ -68,11 +68,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         try:
             image_args = self._ProcessArtifacts()
             failures = self._compute_client.LaunchCvd(
-                instance,
-                self._avd_spec,
-                self._cfg.extra_data_disk_size_gb,
-                boot_timeout_secs=self._avd_spec.boot_timeout_secs,
-                extra_args=image_args)
+                instance, self._avd_spec, cvd_utils.GCE_BASE_DIR, image_args)
             for failing_instance, error_msg in failures.items():
                 self._SetFailures(failing_instance, error_msg)
         except Exception as e:
