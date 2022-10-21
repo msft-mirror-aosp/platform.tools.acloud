@@ -36,7 +36,6 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
     def _CreateMockAvdSpec():
         """Create a mock AvdSpec with necessary attributes."""
         mock_cfg = mock.Mock(spec=[],
-                             extra_data_disk_size_gb=10,
                              ssh_private_key_path="/mock/id_rsa",
                              extra_args_ssh_tunnel="extra args",
                              fetch_cvd_version="123456",
@@ -105,12 +104,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_cvd_utils.FindRemoteLogs.assert_called_with(
             mock.ANY, "acloud_cf_2", 2, 3)
         mock_client_obj.LaunchCvd.assert_called_with(
-            "inst",
-            mock_avd_spec,
-            mock_avd_spec.cfg.extra_data_disk_size_gb,
-            boot_timeout_secs=mock_avd_spec.boot_timeout_secs,
-            base_dir="acloud_cf_2",
-            extra_args=["extra"])
+            "inst", mock_avd_spec, "acloud_cf_2", ["extra"])
         mock_pull.GetAllLogFilePaths.assert_called_once()
         mock_pull.PullLogs.assert_called_once()
         factory.GetAdbPorts()

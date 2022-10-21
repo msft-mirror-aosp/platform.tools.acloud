@@ -250,12 +250,14 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
     def testGetLaunchCvdArgs(self):
         """Test GetLaunchCvdArgs."""
         # Minimum arguments
+        mock_cfg = mock.Mock(extra_data_disk_size_gb=0)
         hw_property = {
             constants.HW_X_RES: "1080",
             constants.HW_Y_RES: "1920",
             constants.HW_ALIAS_DPI: "240"}
         mock_avd_spec = mock.Mock(
             spec=[],
+            cfg=mock_cfg,
             hw_customize=False,
             hw_property=hw_property,
             connect_webrtc=False,
@@ -272,6 +274,7 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(launch_cvd_args, expected_args)
 
         # All arguments.
+        mock_cfg = mock.Mock(extra_data_disk_size_gb=20)
         hw_property = {
             constants.HW_X_RES: "1080",
             constants.HW_Y_RES: "1920",
@@ -281,6 +284,7 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             constants.HW_ALIAS_MEMORY: "4096"}
         mock_avd_spec = mock.Mock(
             spec=[],
+            cfg=mock_cfg,
             hw_customize=True,
             hw_property=hw_property,
             connect_webrtc=True,
@@ -304,7 +308,7 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             "-undefok=report_anonymous_usage_stats,config",
             "-report_anonymous_usage_stats=y"]
         launch_cvd_args = cvd_utils.GetLaunchCvdArgs(
-            mock_avd_spec, blank_data_disk_size_gb=20, config="phone")
+            mock_avd_spec, config="phone")
         self.assertEqual(launch_cvd_args, expected_args)
 
     def testGetRemoteFetcherConfigJson(self):
