@@ -459,12 +459,11 @@ def ParseRemoteHostAddress(instance_name):
 
 
 # pylint:disable=too-many-branches
-def GetLaunchCvdArgs(avd_spec, blank_data_disk_size_gb=None, config=None):
+def GetLaunchCvdArgs(avd_spec, config=None):
     """Get launch_cvd arguments for remote instances.
 
     Args:
         avd_spec: An AVDSpec instance.
-        blank_data_disk_size_gb: An integer, the size of the blank data disk.
         config: A string, the name of the predefined hardware config.
                 e.g., "auto", "phone", and "tv".
 
@@ -472,6 +471,8 @@ def GetLaunchCvdArgs(avd_spec, blank_data_disk_size_gb=None, config=None):
         A list of strings, arguments of launch_cvd.
     """
     launch_cvd_args = []
+
+    blank_data_disk_size_gb = avd_spec.cfg.extra_data_disk_size_gb
     if blank_data_disk_size_gb and blank_data_disk_size_gb > 0:
         launch_cvd_args.append(
             "-data_policy=" + _DATA_POLICY_CREATE_IF_MISSING)
