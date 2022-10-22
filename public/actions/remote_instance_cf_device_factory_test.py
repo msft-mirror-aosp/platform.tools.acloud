@@ -263,9 +263,8 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_cvd_utils.FindRemoteLogs.assert_called_with(
             mock.ANY, mock_cvd_utils.GCE_BASE_DIR, None, None)
         compute_client.LaunchCvd.assert_called_once()
-        self.assertEqual(
-            ["-boot_image", "/boot/img"],
-            compute_client.LaunchCvd.call_args[1].get("extra_args"))
+        self.assertIn(["-boot_image", "/boot/img"],
+                      compute_client.LaunchCvd.call_args[0])
         mock_pull.GetAllLogFilePaths.assert_called_once_with(
             mock.ANY, constants.REMOTE_LOG_FOLDER)
         mock_pull.PullLogs.assert_called_once()

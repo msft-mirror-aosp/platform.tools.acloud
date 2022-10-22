@@ -87,7 +87,6 @@ class GCEDeviceFactory(base_device_factory.BaseDeviceFactory):
             instance=instance,
             image_name=host_image_name,
             image_project=self._cfg.stable_host_image_project,
-            blank_data_disk_size_gb=self._cfg.extra_data_disk_size_gb,
             avd_spec=self._avd_spec)
         ip = self._compute_client.GetInstanceIP(instance)
         self._all_failures = self._compute_client.all_failures
