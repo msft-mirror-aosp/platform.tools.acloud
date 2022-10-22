@@ -93,12 +93,7 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
 
         launch_cvd_timestart = time.time()
         failures = self._compute_client.LaunchCvd(
-            instance,
-            self._avd_spec,
-            self._avd_spec.cfg.extra_data_disk_size_gb,
-            boot_timeout_secs=self._avd_spec.boot_timeout_secs,
-            base_dir=self._GetInstancePath(),
-            extra_args=image_args)
+            instance, self._avd_spec, self._GetInstancePath(), image_args)
         self._compute_client.execution_time[constants.TIME_LAUNCH] = (
             time.time() - launch_cvd_timestart)
 
