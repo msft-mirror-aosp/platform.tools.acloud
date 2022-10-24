@@ -360,6 +360,7 @@ class AndroidComputeClient(gcompute_client.ComputeClient):
             if e.code == 400:
                 logger.debug("CheckBoot: Instance is not ready yet %s", str(e))
                 return False
+            logger.error("Unexpected http status: %d, %s", e.code, e.message)
             raise
 
     def WaitForBoot(self, instance, boot_timeout_secs=None):
