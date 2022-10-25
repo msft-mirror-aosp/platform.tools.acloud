@@ -13,17 +13,19 @@
 # limitations under the License.
 """Tests for remote_image_local_instance."""
 
-import unittest
+import builtins
 from collections import namedtuple
 import os
 import shutil
 import subprocess
+import unittest
 
 from unittest import mock
 
 from acloud import errors
 from acloud.create import create_common
 from acloud.create import remote_image_local_instance
+from acloud.internal import constants
 from acloud.internal.lib import android_build_client
 from acloud.internal.lib import auth
 from acloud.internal.lib import cvd_utils
@@ -118,10 +120,15 @@ class RemoteImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
         self.Patch(os.path, "exists", side_effect=[True, False])
         self.Patch(os, "makedirs")
         self.Patch(subprocess, "check_call")
-        remote_image_local_instance.DownloadAndProcessImageFiles(avd_spec)
+        mock_open = self.Patch(builtins, "open")
+        fetch_dir = remote_image_local_instance.DownloadAndProcessImageFiles(
+            avd_spec)
         self.assertEqual(mock_rmtree.call_count, 1)
         self.assertEqual(self.build_client.GetFetchBuildArgs.call_count, 1)
         self.assertEqual(self.build_client.GetFetchCertArg.call_count, 1)
+        cvd_config_filename = os.path.join(fetch_dir,
+                                           constants.FETCH_CVD_ARGS_FILE)
+        mock_open.assert_called_once_with(cvd_config_filename, "w")
 
     def testConfirmDownloadRemoteImageDir(self):
         """Test confirm download remote image dir"""
