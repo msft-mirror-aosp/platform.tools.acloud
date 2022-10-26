@@ -167,6 +167,7 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
             "CUTTLEFISH_INSTANCE": "2",
             "HOME": "/tmp/acloud_cvd_temp/local-instance-2",
             "CUTTLEFISH_CONFIG_FILE": "fake_config_path",
+            "ANDROID_HOST_OUT": "",
             "ANDROID_SOONG_HOST_OUT": "",
         }
         mock_check_output.assert_called_with(

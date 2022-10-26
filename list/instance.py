@@ -547,6 +547,8 @@ class LocalInstance(Instance):
             os.environ with cuttlefish variables updated.
         """
         cvd_env = os.environ.copy()
+        cvd_env[constants.ENV_ANDROID_HOST_OUT] = os.path.dirname(
+            self._cf_runtime_cfg.cvd_tools_path)
         cvd_env[constants.ENV_ANDROID_SOONG_HOST_OUT] = os.path.dirname(
             self._cf_runtime_cfg.cvd_tools_path)
         cvd_env[constants.ENV_CUTTLEFISH_CONFIG_FILE] = self._cf_runtime_cfg.config_path
