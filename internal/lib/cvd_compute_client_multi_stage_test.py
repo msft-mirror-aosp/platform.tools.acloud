@@ -187,7 +187,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.Patch(Ssh, "GetCmdOutput", return_value="config=phone")
         expected = "phone"
         self.assertEqual(
-            self.cvd_compute_client_multi_stage._GetConfigFromAndroidInfo(),
+            self.cvd_compute_client_multi_stage._GetConfigFromAndroidInfo("dir"),
             expected)
 
     @mock.patch.object(Ssh, "Run")

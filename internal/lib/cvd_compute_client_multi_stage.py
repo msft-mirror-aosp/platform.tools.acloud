@@ -196,16 +196,19 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             return f"nic0.{instance}.{self._zone}.c.{project}.internal.gcpnode.com"
         return f"nic0.{instance}.{self._zone}.c.{self._project}.internal.gcpnode.com"
 
-    def _GetConfigFromAndroidInfo(self):
+    def _GetConfigFromAndroidInfo(self, base_dir):
         """Get config value from android-info.txt.
 
         The config in android-info.txt would like "config=phone".
+
+        Args:
+            base_dir: The remote directory containing the images.
 
         Returns:
             Strings of config value.
         """
         android_info = self._ssh.GetCmdOutput(
-            f"cat {constants.ANDROID_INFO_FILE}")
+            f"cat {base_dir}/{constants.ANDROID_INFO_FILE}")
         logger.debug("Android info: %s", android_info)
         config_match = _CONFIG_RE.match(android_info)
         if config_match:
@@ -235,7 +238,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         timestart = time.time()
         error_msg = ""
         launch_cvd_args = list(extra_args)
-        config = self._GetConfigFromAndroidInfo()
+        config = self._GetConfigFromAndroidInfo(base_dir)
         launch_cvd_args.extend(cvd_utils.GetLaunchCvdArgs(avd_spec, config))
 
         boot_timeout_secs = self._GetBootTimeout(

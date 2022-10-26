@@ -256,6 +256,7 @@ ERROR_MSG_SSO_INVALID = "stuck at SSO"
 
 # The name of download image tool.
 FETCH_CVD = "fetch_cvd"
+FETCH_CVD_ARGS_FILE = "fetch-cvd-args.txt"
 
 # The name of credential source key json file, a copy of
 # cfg.service_account_json_private_key_path for remote host case.

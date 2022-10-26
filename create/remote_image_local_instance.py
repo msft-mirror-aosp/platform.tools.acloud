@@ -57,12 +57,43 @@ _SYSTEM_IMAGE_NAME_PATTERN = r"system\.img"
 _SYSTEM_MIX_IMAGE_DIR = "mix_image_{build_id}"
 
 
+def _ShouldClearFetchDir(fetch_dir, avd_spec, fetch_cvd_args_str,
+                         fetch_cvd_args_file):
+    """Check if the previous fetch directory should be removed.
+
+    The fetch directory would be removed when the user explicitly sets the
+    --force-sync flag, or when the fetch_cvd_args_str changed.
+
+    Args:
+        fetch_dir: String, path to the fetch directory.
+        avd_spec: AVDSpec object that tells us what we're going to create.
+        fetch_cvd_args_str: String, args for current fetch_cvd command.
+        fetch_cvd_args_file: String, path to file of previous fetch_cvd args.
+
+    Returns:
+        Boolean. True if the fetch directory should be removed.
+    """
+    if not os.path.exists(fetch_dir):
+        return False
+    if avd_spec.force_sync:
+        return True
+
+    if not os.path.exists(fetch_cvd_args_file):
+        return True
+    with open(fetch_cvd_args_file, "r") as f:
+        return fetch_cvd_args_str != f.read()
+
+
 @utils.TimeExecute(function_description="Downloading Android Build image")
 def DownloadAndProcessImageFiles(avd_spec):
     """Download the CF image artifacts and process them.
 
     To download rom images, Acloud would download the tool fetch_cvd that can
-    help process mixed build images.
+    help process mixed build images, and store the fetch_cvd_build_args in
+    FETCH_CVD_ARGS_FILE when the fetch command executes successfully. Next
+    time when this function is called with the same image_download_dir, the
+    FETCH_CVD_ARGS_FILE would be used to check whether this image_download_dir
+    can be reused or not.
 
     Args:
         avd_spec: AVDSpec object that tells us what we're going to create.
@@ -84,23 +115,29 @@ def DownloadAndProcessImageFiles(avd_spec):
 
     logger.debug("Extract path: %s", extract_path)
 
-    if avd_spec.force_sync and os.path.exists(extract_path):
+    build_api = (
+        android_build_client.AndroidBuildClient(auth.CreateCredentials(cfg)))
+    fetch_cvd_build_args = build_api.GetFetchBuildArgs(
+        avd_spec.remote_image,
+        avd_spec.system_build_info,
+        avd_spec.kernel_build_info,
+        avd_spec.boot_build_info,
+        avd_spec.bootloader_build_info,
+        avd_spec.ota_build_info)
+
+    fetch_cvd_args_str = " ".join(fetch_cvd_build_args)
+    fetch_cvd_args_file = os.path.join(extract_path,
+                                       constants.FETCH_CVD_ARGS_FILE)
+    if _ShouldClearFetchDir(extract_path, avd_spec, fetch_cvd_args_str,
+                            fetch_cvd_args_file):
         shutil.rmtree(extract_path)
+
     if not os.path.exists(extract_path):
         os.makedirs(extract_path)
-        build_api = (
-            android_build_client.AndroidBuildClient(auth.CreateCredentials(cfg)))
 
         # Download rom images via fetch_cvd
         fetch_cvd = os.path.join(extract_path, constants.FETCH_CVD)
         build_api.DownloadFetchcvd(fetch_cvd, cfg.fetch_cvd_version)
-        fetch_cvd_build_args = build_api.GetFetchBuildArgs(
-            avd_spec.remote_image,
-            avd_spec.system_build_info,
-            avd_spec.kernel_build_info,
-            avd_spec.boot_build_info,
-            avd_spec.bootloader_build_info,
-            avd_spec.ota_build_info)
         creds_cache_file = os.path.join(_HOME_FOLDER, cfg.creds_cache_file)
         fetch_cvd_cert_arg = build_api.GetFetchCertArg(creds_cache_file)
         fetch_cvd_args = [fetch_cvd, "-directory=%s" % extract_path,
@@ -111,6 +148,10 @@ def DownloadAndProcessImageFiles(avd_spec):
             subprocess.check_call(fetch_cvd_args)
         except subprocess.CalledProcessError as e:
             raise errors.GetRemoteImageError("Fails to download images: %s" % e)
+
+        # Save the fetch cvd build args when the fetch command succeeds
+        with open(fetch_cvd_args_file, "w") as output:
+            output.write(fetch_cvd_args_str)
 
     return extract_path
 
