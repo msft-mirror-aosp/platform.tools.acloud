@@ -60,6 +60,8 @@ class RemoteImageRemoteInstance(base_avd_create.BaseAVDCreate):
         """
         if avd_spec.oxygen:
             return self._LeaseOxygenAVD(avd_spec)
+        if avd_spec.gce_only:
+            return self._CreateGceInstance(avd_spec)
         device_factory = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
             avd_spec)
         create_report = common_operations.CreateDevices(
@@ -156,3 +158,27 @@ class RemoteImageRemoteInstance(base_avd_create.BaseAVDCreate):
                 server_url = server_url_match.group("server_url")
                 break
         return session_id, server_url
+
+    @staticmethod
+    def _CreateGceInstance(avd_spec):
+        """Create the GCE instance.
+
+        Args:
+            avd_spec: AVDSpec object.
+
+        Returns:
+            A Report instance.
+        """
+        device_factory = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
+            avd_spec)
+        instance = device_factory.CreateGceInstance()
+        compute_client = device_factory.GetComputeClient()
+        ip = compute_client.GetInstanceIP(instance)
+        reporter = report.Report(command="create_cf")
+        reporter.SetStatus(report.Status.SUCCESS)
+        device_data = {"instance_name": instance,
+                       "ip": ip.internal if avd_spec.report_internal_ip
+                       else ip.external}
+        dict_devices = {_DEVICES: [device_data]}
+        reporter.UpdateData(dict_devices)
+        return reporter
