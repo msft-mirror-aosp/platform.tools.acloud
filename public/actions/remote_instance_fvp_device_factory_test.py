@@ -46,7 +46,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
     @staticmethod
     @mock.patch.object(
         remote_instance_fvp_device_factory.RemoteInstanceDeviceFactory,
-        "_CreateGceInstance")
+        "CreateGceInstance")
     @mock.patch.object(ssh, "ShellCmdWithRetry")
     @mock.patch.dict(os.environ, {
         constants.ENV_BUILD_TARGET:'fvp',

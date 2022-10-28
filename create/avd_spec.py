@@ -138,6 +138,7 @@ class AVDSpec():
         self._hw_customize = False
         self._remote_host = None
         self._gce_metadata = None
+        self._gce_only = None
         self._host_user = None
         self._host_ssh_private_key_path = None
         self._gpu = None
@@ -369,6 +370,7 @@ class AVDSpec():
         self._gpu = args.gpu
         self._disk_type = (args.disk_type or self._cfg.disk_type)
         self._base_instance_num = args.base_instance_num
+        self._gce_only = args.gce_only
         self._gce_metadata = create_common.ParseKeyValuePairArgs(args.gce_metadata)
         self._stable_host_image_name = (
             args.stable_host_image_name or self._cfg.stable_host_image_name)
@@ -1055,6 +1057,11 @@ class AVDSpec():
     def gce_metadata(self):
         """Return gce_metadata."""
         return self._gce_metadata
+
+    @property
+    def gce_only(self):
+        """Return gce_only."""
+        return self._gce_only
 
     @property
     def oxygen(self):
