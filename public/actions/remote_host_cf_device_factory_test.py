@@ -249,6 +249,64 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.assertFalse(factory.GetFailures())
         self.assertDictEqual({"inst": [log]}, factory.GetLogs())
 
+    @mock.patch("acloud.public.actions.remote_host_cf_device_factory."
+                "cvd_compute_client_multi_stage")
+    @mock.patch("acloud.public.actions.remote_host_cf_device_factory.ssh")
+    @mock.patch("acloud.public.actions.remote_host_cf_device_factory."
+                "cvd_utils")
+    @mock.patch("acloud.public.actions.remote_host_cf_device_factory.glob")
+    @mock.patch("acloud.public.actions.remote_host_cf_device_factory.shutil")
+    @mock.patch("acloud.public.actions.remote_host_cf_device_factory.pull")
+    def testCreateInstanceWithFetchCvdWrapper(self, mock_pull, mock_shutil,
+                                              mock_glob, mock_cvd_utils, mock_ssh,
+                                              _mock_client):
+        """Test CreateInstance with remotely fetched images."""
+        mock_avd_spec = self._CreateMockAvdSpec()
+        mock_avd_spec.remote_fetch = True
+        mock_avd_spec.fetch_cvd_wrapper = (
+            r"GOOGLE_APPLICATION_CREDENTIALS=/fake_key.json,"
+            r"CACHE_CONFIG=/home/shared/cache.properties,"
+            r"java,-jar,/home/shared/FetchCvdWrapper.jar"
+        )
+        mock_ssh_obj = mock.Mock()
+        mock_ssh.Ssh.return_value = mock_ssh_obj
+        mock_ssh_obj.GetBaseCmd.return_value = "/mock/ssh"
+        mock_glob.glob.return_value = ["/mock/fetch_cvd"]
+        factory = remote_host_cf_device_factory.RemoteHostDeviceFactory(
+            mock_avd_spec)
+
+        log = {"path": "/log.txt"}
+        mock_cvd_utils.GetRemoteHostBaseDir.return_value = "acloud_cf_1"
+        mock_cvd_utils.FormatRemoteHostInstanceName.return_value = "inst"
+        mock_cvd_utils.FindRemoteLogs.return_value = []
+        mock_cvd_utils.GetRemoteFetcherConfigJson.return_value = log
+
+        mock_client_obj = factory.GetComputeClient()
+        mock_client_obj.LaunchCvd.return_value = {}
+        mock_client_obj.build_api.GetFetchBuildArgs.return_value = ["-test"]
+
+        self.assertEqual("inst", factory.CreateInstance())
+        mock_client_obj.InitRemoteHost.assert_called_once()
+        mock_ssh_obj.Run.assert_called_with("mkdir -p acloud_cf_1")
+        mock_client_obj.build_api.DownloadFetchcvd.assert_called_once()
+        mock_shutil.copyfile.assert_called_with("/mock/key", mock.ANY)
+        self.assertRegex(mock_ssh.ShellCmdWithRetry.call_args_list[0][0][0],
+                         r"^tar -cf - --lzop -S -C \S+ fetch_cvd \| "
+                         r"/mock/ssh -- tar -xf - --lzop -S -C acloud_cf_1$")
+        self.assertRegex(mock_ssh.ShellCmdWithRetry.call_args_list[1][0][0],
+                         r"^/mock/ssh -- "
+                         r"GOOGLE_APPLICATION_CREDENTIALS=/fake_key.json "
+                         r"CACHE_CONFIG=/home/shared/cache.properties "
+                         r"java -jar /home/shared/FetchCvdWrapper.jar "
+                         r"-directory=acloud_cf_1 "
+                         r"-fetch_cvd_path=acloud_cf_1/fetch_cvd "
+                         r"-credential_source=acloud_cf_1/credential_key.json "
+                         r"-test$")
+        mock_client_obj.LaunchCvd.assert_called()
+        mock_pull.GetAllLogFilePaths.assert_not_called()
+        mock_pull.PullLogs.assert_not_called()
+        self.assertFalse(factory.GetFailures())
+        self.assertDictEqual({"inst": [log]}, factory.GetLogs())
 
 if __name__ == "__main__":
     unittest.main()
