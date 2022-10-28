@@ -345,6 +345,13 @@ def AddCommonCreateArgs(parser):
         required=False,
         default=False,
         help="Ssh connects to the GCE instance with hostname.")
+    parser.add_argument(
+        "--gce-only",
+        action="store_true",
+        dest="gce_only",
+        required=False,
+        default=False,
+        help="Only create the GCE instance. It won't create virtual devices.")
     # Hide following args for users, it is only used in infra.
     parser.add_argument(
         "--local-instance-dir",
