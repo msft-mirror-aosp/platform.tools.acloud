@@ -51,7 +51,7 @@ class GCEDeviceFactory(base_device_factory.BaseDeviceFactory):
         super().__init__(compute_client)
         self._ssh = None
 
-    def _CreateGceInstance(self):
+    def CreateGceInstance(self):
         """Create a single configured GCE instance.
 
         build_target: The format is like "aosp_cf_x86_phone". We only get info

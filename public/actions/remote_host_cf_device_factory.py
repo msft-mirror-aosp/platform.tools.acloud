@@ -230,9 +230,10 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             self._avd_spec.bootloader_build_info,
             self._avd_spec.ota_build_info)
 
-        fetch_cvd_args = [self._avd_spec.fetch_cvd_wrapper,
-                          f"-directory={self._GetInstancePath()}",
-                          self._GetRemoteFetchCredentialArg()]
+        fetch_cvd_args = self._avd_spec.fetch_cvd_wrapper.split(',') + [
+                        f"-directory={self._GetInstancePath()}",
+                        f"-fetch_cvd_path={self._GetInstancePath(constants.FETCH_CVD)}",
+                        self._GetRemoteFetchCredentialArg()]
         fetch_cvd_args.extend(fetch_cvd_build_args)
 
         ssh_cmd = self._ssh.GetBaseCmd(constants.SSH_BIN)
