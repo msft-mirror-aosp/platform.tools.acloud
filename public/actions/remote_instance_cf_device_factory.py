@@ -61,7 +61,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         Returns:
             A string, representing instance name.
         """
-        instance = self._CreateGceInstance()
+        instance = self.CreateGceInstance()
         # If instance is failed, no need to go next step.
         if instance in self.GetFailures():
             return instance
