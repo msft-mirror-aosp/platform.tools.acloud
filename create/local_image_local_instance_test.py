@@ -265,7 +265,7 @@ EOF"""
         mock_ota_tools.OtaTools.assert_called_with("/ota/tools/dir")
         mock_ota_tools_object.MixSuperImage.assert_called_with(
             "/local-instance-1/mixed_super.img", "/misc/info/path",
-            "/image/path", "/system/image/path")
+            "/image/path", system_image="/system/image/path")
         mock_cvd_utils.FindLocalLogs.assert_called_with(
             "/instances/cvd", 1)
 
