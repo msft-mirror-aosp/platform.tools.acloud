@@ -60,6 +60,7 @@ class RemoteImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
         mock_proc.return_value = "/unit/test"
         avd_spec = mock.MagicMock()
         avd_spec.local_system_image = None
+        avd_spec.local_vendor_image = None
         # raise errors.NoCuttlefishCommonInstalled
         self.Patch(setup_common, "PackageInstalled", return_value=False)
         self.assertRaises(errors.NoCuttlefishCommonInstalled,
