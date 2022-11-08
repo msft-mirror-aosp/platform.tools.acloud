@@ -46,6 +46,7 @@ from acloud.internal.lib import utils
 from acloud.internal.lib.adb_tools import AdbTools
 from acloud.internal.lib.local_instance_lock import LocalInstanceLock
 from acloud.internal.lib.gcompute_client import GetInstanceIP
+from acloud.internal.lib.gcompute_client import GetGCEHostName
 
 
 logger = logging.getLogger(__name__)
@@ -74,7 +75,7 @@ _RE_GROUP_ADB = "local_adb_port"
 _RE_GROUP_VNC = "local_vnc_port"
 _RE_SSH_TUNNEL_PATTERN = (r"((.*\s*-L\s)(?P<%s>\d+):127.0.0.1:%s)"
                           r"((.*\s*-L\s)(?P<%s>\d+):127.0.0.1:%s)"
-                          r"(.+%s)")
+                          r"(.+(%s|%s))")
 _RE_TIMEZONE = re.compile(r"^(?P<time>[0-9\-\.:T]*)(?P<timezone>[+-]\d+:\d+)$")
 _RE_DEVICE_INFO = re.compile(r"(?s).*(?P<device_info>[{][\s\w\W]+})")
 
@@ -85,6 +86,7 @@ _Y_RES = "y_res"
 _DPI = "dpi"
 _DISPLAY_STRING = "%(x_res)sx%(y_res)s (%(dpi)s)"
 _RE_ZONE = re.compile(r".+/zones/(?P<zone>.+)$")
+_RE_PROJECT = re.compile(r".+/projects/(?P<project>.+)/zones/.+$")
 _LOCAL_ZONE = "local"
 _INDENT = " " * 3
 LocalPorts = collections.namedtuple("LocalPorts", [constants.VNC_PORT,
@@ -903,6 +905,8 @@ class RemoteInstance(Instance):
 
         instance_ip = GetInstanceIP(gce_instance)
         ip = instance_ip.external or instance_ip.internal
+        project = self._GetProjectName(gce_instance.get(constants.INS_KEY_ZONE))
+        hostname = GetGCEHostName(project, name, zone)
 
         # Get metadata, webrtc_port will be removed if "cvd fleet" show it.
         display = None
@@ -933,7 +937,7 @@ class RemoteInstance(Instance):
         webrtc_forward_port = None
         device_information = None
         if ip:
-            forwarded_ports = self.GetAdbVncPortFromSSHTunnel(ip, avd_type)
+            forwarded_ports = self.GetAdbVncPortFromSSHTunnel(ip, hostname, avd_type)
             adb_port = forwarded_ports.adb_port
             vnc_port = forwarded_ports.vnc_port
             ssh_tunnel_is_connected = adb_port is not None
@@ -985,11 +989,33 @@ class RemoteInstance(Instance):
         return None
 
     @staticmethod
-    def GetAdbVncPortFromSSHTunnel(ip, avd_type):
+    def _GetProjectName(zone_info):
+        """Get the project name from the zone information of gce instance.
+
+        Zone information is like:
+        "https://www.googleapis.com/compute/v1/projects/project/zones/us-central1-c"
+        We want to get "project" as project name.
+
+        Args:
+            zone_info: String, zone information of gce instance.
+
+        Returns:
+            Project name of gce instance. None if project name can't find.
+        """
+        project_match = _RE_PROJECT.match(zone_info)
+        if project_match:
+            return project_match.group("project")
+
+        logger.debug("Can't get project name from %s.", zone_info)
+        return None
+
+    @staticmethod
+    def GetAdbVncPortFromSSHTunnel(ip, hostname, avd_type):
         """Get forwarding adb and vnc port from ssh tunnel.
 
         Args:
             ip: String, ip address.
+            hostname: String, hostname of GCE instance.
             avd_type: String, the AVD type.
 
         Returns:
@@ -1005,7 +1031,7 @@ class RemoteInstance(Instance):
         # vnc port.
         re_pattern = re.compile(_RE_SSH_TUNNEL_PATTERN %
                                 (_RE_GROUP_ADB, default_adb_port,
-                                 _RE_GROUP_VNC, default_vnc_port, ip))
+                                 _RE_GROUP_VNC, default_vnc_port, ip, hostname))
         adb_port = None
         vnc_port = None
         process_output = utils.CheckOutput(constants.COMMAND_PS)
