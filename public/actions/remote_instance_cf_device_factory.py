@@ -178,7 +178,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
                     constants.ENV_ANDROID_SOONG_HOST_OUT,
                     constants.ENV_ANDROID_HOST_OUT))
         ota.MixSuperImage(super_image_path, misc_info_path, image_dir,
-                          system_image_path)
+                          system_image=system_image_path)
 
     def _FindLogFiles(self, instance, download):
         """Find and pull all log files from instance.
