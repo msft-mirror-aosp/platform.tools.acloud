@@ -230,7 +230,14 @@ class RemoteImageLocalInstance(local_image_local_instance.LocalImageLocalInstanc
                 % image_dir)
 
         mix_image_dir = None
-        if avd_spec.local_system_image:
+        misc_info_path = None
+        ota_tools_dir = None
+        system_image_path = None
+        vendor_image_path = None
+        vendor_dlkm_image_path = None
+        odm_image_path = None
+        odm_dlkm_image_path = None
+        if avd_spec.local_system_image or avd_spec.local_vendor_image:
             build_id = avd_spec.remote_image[constants.BUILD_ID]
             build_target = avd_spec.remote_image[constants.BUILD_TARGET]
             mix_image_dir =os.path.join(
@@ -249,12 +256,17 @@ class RemoteImageLocalInstance(local_image_local_instance.LocalImageLocalInstanc
                              constants.ENV_ANDROID_HOST_OUT))
             ota_tools_dir = os.path.abspath(
                 ota_tools.FindOtaToolsDir(tool_dirs))
+        if avd_spec.local_system_image:
             system_image_path = create_common.FindLocalImage(
                 avd_spec.local_system_image, _SYSTEM_IMAGE_NAME_PATTERN)
-        else:
-            misc_info_path = None
-            ota_tools_dir = None
-            system_image_path = None
+        if avd_spec.local_vendor_image:
+            vendor_image_paths = cvd_utils.FindVendorImages(
+                avd_spec.local_vendor_image)
+            vendor_image_path = vendor_image_paths.vendor
+            vendor_dlkm_image_path = vendor_image_paths.vendor_dlkm
+            odm_image_path = vendor_image_paths.odm
+            odm_dlkm_image_path = vendor_image_paths.odm_dlkm
+
 
         # This method does not set the optional fields because launch_cvd loads
         # the paths from the fetcher config in image_dir.
@@ -265,6 +277,10 @@ class RemoteImageLocalInstance(local_image_local_instance.LocalImageLocalInstanc
             misc_info=misc_info_path,
             ota_tools_dir=ota_tools_dir,
             system_image=system_image_path,
+            vendor_image=vendor_image_path,
+            vendor_dlkm_image=vendor_dlkm_image_path,
+            odm_image=odm_image_path,
+            odm_dlkm_image=odm_dlkm_image_path,
             boot_image=None,
             vendor_boot_image=None,
             kernel_image=None,
