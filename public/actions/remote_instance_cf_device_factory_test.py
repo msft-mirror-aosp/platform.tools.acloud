@@ -66,6 +66,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.flavor = "phone"
         args.local_image = constants.FIND_IN_BUILD_ENV
         args.local_system_image = None
+        args.local_vendor_image = None
         args.launch_args = None
         args.autoconnect = constants.INS_KEY_WEBRTC
         avd_spec_local_img = avd_spec.AVDSpec(args)
@@ -244,6 +245,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         fake_avd_spec.base_instance_num = None
         fake_avd_spec.num_avds_per_instance = None
         fake_avd_spec.local_system_image = None
+        fake_avd_spec.local_vendor_image = None
 
         mock_cvd_utils.FindRemoteLogs.return_value = [{"path": "/logcat"}]
         mock_cvd_utils.UploadExtraImages.return_value = [
@@ -278,7 +280,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
 
     @mock.patch("acloud.public.actions.remote_instance_cf_device_factory."
                 "ota_tools")
-    def testLocalSystemImageCreateInstance(self, mock_ota_tools):
+    def testLocalSystemAndVendorImageCreateInstance(self, mock_ota_tools):
         """Test CreateInstance with local system image."""
         with tempfile.TemporaryDirectory() as temp_dir:
             local_image_dir = os.path.join(temp_dir, "cf")
@@ -286,9 +288,21 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             local_system_image_dir = os.path.join(temp_dir, "system")
             local_system_image_path = os.path.join(
                 local_system_image_dir, "system.img")
-            self.CreateFile(os.path.join(local_image_dir, "vendor.img"))
+            local_vendor_image_dir = os.path.join(temp_dir, "vendor")
+            local_vendor_image_path = os.path.join(
+                local_vendor_image_dir, "vendor.img")
+            local_vendor_dlkm_image_path = os.path.join(
+                local_vendor_image_dir, "vendor_dlkm.img")
+            local_odm_image_path = os.path.join(
+                local_vendor_image_dir, "odm.img")
+            local_odm_dlkm_image_path = os.path.join(
+                local_vendor_image_dir, "odm_dlkm.img")
             self.CreateFile(misc_info_path, b"key=value")
             self.CreateFile(local_system_image_path)
+            self.CreateFile(local_vendor_image_path)
+            self.CreateFile(local_vendor_dlkm_image_path)
+            self.CreateFile(local_odm_image_path)
+            self.CreateFile(local_odm_dlkm_image_path)
 
             self.Patch(cvd_utils, "UploadArtifacts")
             self.Patch(cvd_utils, "UploadSuperImage")
@@ -308,6 +322,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             args.flavor = "phone"
             args.local_image = local_image_dir
             args.local_system_image = local_system_image_dir
+            args.local_vendor_image = local_vendor_image_dir
             args.local_tool = ["/ota/tools/dir"]
             args.launch_args = None
             args.no_pull_log = True
@@ -323,7 +338,11 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                 mock.ANY, mock.ANY, local_image_dir, mock.ANY)
             mock_ota_tools_object.MixSuperImage.assert_called_once_with(
                 mock.ANY, misc_info_path, local_image_dir,
-                system_image=local_system_image_path)
+                system_image=local_system_image_path,
+                vendor_image=local_vendor_image_path,
+                vendor_dlkm_image=local_vendor_dlkm_image_path,
+                odm_image=local_odm_image_path,
+                odm_dlkm_image=local_odm_dlkm_image_path)
             cvd_utils.UploadSuperImage.assert_called_once()
 
     @mock.patch.object(remote_instance_cf_device_factory.RemoteInstanceDeviceFactory,
@@ -346,6 +365,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         fake_avd_spec.base_instance_num = 2
         fake_avd_spec.num_avds_per_instance = 3
         fake_avd_spec.local_system_image = None
+        fake_avd_spec.local_vendor_image = None
 
         mock_cvd_utils.FindRemoteLogs.return_value = [{"path": "/logcat"}]
         mock_cvd_utils.UploadExtraImages.return_value = []
