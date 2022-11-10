@@ -323,7 +323,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                 mock.ANY, mock.ANY, local_image_dir, mock.ANY)
             mock_ota_tools_object.MixSuperImage.assert_called_once_with(
                 mock.ANY, misc_info_path, local_image_dir,
-                local_system_image_path)
+                system_image=local_system_image_path)
             cvd_utils.UploadSuperImage.assert_called_once()
 
     @mock.patch.object(remote_instance_cf_device_factory.RemoteInstanceDeviceFactory,

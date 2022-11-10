@@ -266,7 +266,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             ota = ota_tools.OtaTools(artifact_paths.ota_tools_dir)
             ota.MixSuperImage(
                 super_image_path, artifact_paths.misc_info,
-                artifact_paths.image_dir, artifact_paths.system_image)
+                artifact_paths.image_dir,
+                system_image=artifact_paths.system_image)
         runtime_dir = instance.GetLocalInstanceRuntimeDir(local_instance_id)
         # TODO(b/168171781): cvd_status of list/delete via the symbolic.
         self.PrepareLocalCvdToolsLink(cvd_home_dir, artifact_paths.host_bins)
