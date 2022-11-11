@@ -109,7 +109,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
                 avd_spec.ota_build_info)
 
         launch_cvd_args = []
-        if avd_spec.local_system_image:
+        if avd_spec.local_system_image or avd_spec.local_vendor_image:
             with tempfile.TemporaryDirectory() as temp_dir:
                 super_image_path = os.path.join(temp_dir,
                                                 _MIXED_SUPER_IMAGE_NAME)
@@ -170,15 +170,36 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         avd_spec = self._avd_spec
         misc_info_path = cvd_utils.FindMiscInfo(target_files_dir)
         image_dir = cvd_utils.FindImageDir(target_files_dir)
-        system_image_path = create_common.FindLocalImage(
-            avd_spec.local_system_image, _SYSTEM_IMAGE_NAME_PATTERN)
         ota = ota_tools.FindOtaTools(
             avd_spec.local_tool_dirs +
                 create_common.GetNonEmptyEnvVars(
                     constants.ENV_ANDROID_SOONG_HOST_OUT,
                     constants.ENV_ANDROID_HOST_OUT))
+
+        system_image_path=None
+        vendor_image_path=None
+        vendor_dlkm_image_path=None
+        odm_image_path=None
+        odm_dlkm_image_path=None
+
+        if avd_spec.local_system_image:
+            system_image_path = create_common.FindLocalImage(
+                avd_spec.local_system_image, _SYSTEM_IMAGE_NAME_PATTERN)
+
+        if avd_spec.local_vendor_image:
+            vendor_image_paths = cvd_utils.FindVendorImages(
+                avd_spec.local_vendor_image)
+            vendor_image_path = vendor_image_paths.vendor
+            vendor_dlkm_image_path = vendor_image_paths.vendor_dlkm
+            odm_image_path = vendor_image_paths.odm
+            odm_dlkm_image_path = vendor_image_paths.odm_dlkm
+
         ota.MixSuperImage(super_image_path, misc_info_path, image_dir,
-                          system_image=system_image_path)
+                          system_image=system_image_path,
+                          vendor_image=vendor_image_path,
+                          vendor_dlkm_image=vendor_dlkm_image_path,
+                          odm_image=odm_image_path,
+                          odm_dlkm_image=odm_dlkm_image_path)
 
     def _FindLogFiles(self, instance, download):
         """Find and pull all log files from instance.

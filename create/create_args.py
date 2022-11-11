@@ -552,6 +552,18 @@ def GetCreateArgParser(subparser):
         "e.g., --local-system-image, --local-system-image /path/to/dir, or "
         "--local-system-image /path/to/img")
     create_parser.add_argument(
+        "--local-vendor-image",
+        const=constants.FIND_IN_BUILD_ENV,
+        type=str,
+        dest="local_vendor_image",
+        nargs="?",
+        required=False,
+        help="'cuttlefish only' Use the locally built vendor images for the "
+        "AVD. Look for vendor.img, vendor_dlkm.img, odm.img, and odm_dlkm.img "
+        "if the argument is a directory. Look for the images in "
+        "$ANDROID_PRODUCT_OUT if no argument is provided. e.g., "
+        "--local-vendor-image, or --local-vendor-image /path/to/dir")
+    create_parser.add_argument(
         "--local-tool",
         type=str,
         dest="local_tool",

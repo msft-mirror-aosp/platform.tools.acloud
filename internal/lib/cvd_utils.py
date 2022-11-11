@@ -14,16 +14,19 @@
 
 """Utility functions that process cuttlefish images."""
 
+import collections
 import glob
 import logging
 import os
 import posixpath as remote_path
 import re
 import subprocess
+import tempfile
 
 from acloud import errors
 from acloud.create import create_common
 from acloud.internal import constants
+from acloud.internal.lib import ota_tools
 from acloud.internal.lib import ssh
 from acloud.internal.lib import utils
 from acloud.public import report
@@ -43,6 +46,11 @@ _BOOT_IMAGE_NAME_PATTERN = r"boot(-[\d.]+)?\.img"
 _VENDOR_BOOT_IMAGE_NAME = "vendor_boot.img"
 _KERNEL_IMAGE_NAMES = ("kernel", "bzImage", "Image")
 _INITRAMFS_IMAGE_NAME = "initramfs.img"
+_VENDOR_IMAGE_NAMES = ("vendor.img", "vendor_dlkm.img", "odm.img",
+                       "odm_dlkm.img")
+VendorImagePaths = collections.namedtuple(
+    "VendorImagePaths",
+    ["vendor", "vendor_dlkm", "odm", "odm_dlkm"])
 
 # The relative path to the base directory containing cuttelfish images, tools,
 # and runtime files. On a GCE instance, the directory is the SSH user's HOME.
@@ -53,11 +61,13 @@ _REMOTE_IMAGE_DIR = "acloud_image"
 _REMOTE_BOOT_IMAGE_PATH = remote_path.join(_REMOTE_IMAGE_DIR, "boot.img")
 _REMOTE_VENDOR_BOOT_IMAGE_PATH = remote_path.join(
     _REMOTE_IMAGE_DIR, _VENDOR_BOOT_IMAGE_NAME)
+_REMOTE_VBMETA_IMAGE_PATH = remote_path.join(_REMOTE_IMAGE_DIR, "vbmeta.img")
 _REMOTE_KERNEL_IMAGE_PATH = remote_path.join(
     _REMOTE_IMAGE_DIR, _KERNEL_IMAGE_NAMES[0])
 _REMOTE_INITRAMFS_IMAGE_PATH = remote_path.join(
     _REMOTE_IMAGE_DIR, _INITRAMFS_IMAGE_NAME)
-_REMOTE_SUPER_IMAGE_DIR = remote_path.join(_REMOTE_IMAGE_DIR, "super_image_dir")
+_REMOTE_SUPER_IMAGE_DIR = remote_path.join(_REMOTE_IMAGE_DIR,
+                                           "super_image_dir")
 
 _ANDROID_BOOT_IMAGE_MAGIC = b"ANDROID!"
 
@@ -332,6 +342,38 @@ def _UploadKernelImages(ssh_obj, remote_dir, search_path):
         f"{search_path} is not a boot image or a directory containing images.")
 
 
+@utils.TimeExecute(function_description="Uploading disabled vbmeta image.")
+def _UploadDisabledVbmetaImage(ssh_obj, remote_dir, local_tool_dirs):
+    """Upload disabled vbmeta image to a remote host or a GCE instance.
+
+    Args:
+        ssh_obj: An Ssh object.
+        remote_dir: The remote base directory.
+        local_tool_dirs: A list of local directories containing tools.
+
+    Returns:
+        A list of strings, the launch_cvd arguments including the remote paths.
+
+    Raises:
+        CheckPathError if local_tool_dirs do not contain OTA tools.
+    """
+    # Assume that the caller cleaned up the remote home directory.
+    ssh_obj.Run("mkdir -p " + remote_path.join(remote_dir, _REMOTE_IMAGE_DIR))
+
+    remote_vbmeta_image_path = remote_path.join(remote_dir,
+                                                _REMOTE_VBMETA_IMAGE_PATH)
+    with tempfile.NamedTemporaryFile(prefix="vbmeta",
+                                     suffix=".img") as temp_file:
+        tool_dirs = local_tool_dirs + create_common.GetNonEmptyEnvVars(
+                constants.ENV_ANDROID_SOONG_HOST_OUT,
+                constants.ENV_ANDROID_HOST_OUT)
+        ota = ota_tools.FindOtaTools(tool_dirs)
+        ota.MakeDisabledVbmetaImage(temp_file.name)
+        ssh_obj.ScpPushFile(temp_file.name, remote_vbmeta_image_path)
+
+    return ["-vbmeta_image", remote_vbmeta_image_path]
+
+
 def UploadExtraImages(ssh_obj, remote_dir, avd_spec):
     """Find and upload the images specified in avd_spec.
 
@@ -346,10 +388,14 @@ def UploadExtraImages(ssh_obj, remote_dir, avd_spec):
     Raises:
         errors.GetLocalImageError if any specified image path does not exist.
     """
+    extra_img_args = []
     if avd_spec.local_kernel_image:
-        return _UploadKernelImages(ssh_obj, remote_dir,
-                                   avd_spec.local_kernel_image)
-    return []
+        extra_img_args += _UploadKernelImages(ssh_obj, remote_dir,
+                                              avd_spec.local_kernel_image)
+    if avd_spec.local_vendor_image:
+        extra_img_args += _UploadDisabledVbmetaImage(ssh_obj, remote_dir,
+                                                     avd_spec.local_tool_dirs)
+    return extra_img_args
 
 
 @utils.TimeExecute(function_description="Uploading local super image")
@@ -760,3 +806,27 @@ def IsArmImage(image):
         A boolean, whether the image is for ARM.
     """
     return _ARM_TARGET_PATTERN in image.get("build_target", "")
+
+
+def FindVendorImages(image_dir):
+    """Find vendor, vendor_dlkm, odm, and odm_dlkm image in build output dir.
+
+    Args:
+        image_dir: The directory to search for images.
+
+    Returns:
+        An object of VendorImagePaths.
+
+    Raises:
+        errors.GetLocalImageError if this function cannot find images.
+    """
+
+    image_paths = []
+    for image_name in _VENDOR_IMAGE_NAMES:
+        image_path = os.path.join(image_dir, image_name)
+        if not os.path.isfile(image_path):
+            raise errors.GetLocalImageError(
+                f"Cannot find {image_path} in {image_dir}.")
+        image_paths.append(image_path)
+
+    return VendorImagePaths(*image_paths)
