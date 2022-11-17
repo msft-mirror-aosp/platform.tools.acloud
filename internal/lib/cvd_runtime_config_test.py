@@ -74,7 +74,6 @@ class CvdRuntimeconfigTest(driver_test_lib.BaseDriverTest):
  "webrtc_assets_dir" : "/home/vsoc-01/usr/share/webrtc/assets",
  "webrtc_binary" : "/home/vsoc-01/bin/webRTC",
  "webrtc_certs_dir" : "/home/vsoc-01/usr/share/webrtc/certs",
- "webrtc_enable_adb_websocket" : false,
  "webrtc_public_ip" : "127.0.0.1"
 }
 """
