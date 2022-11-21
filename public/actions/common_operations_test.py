@@ -79,6 +79,9 @@ class CommonOperationsTest(driver_test_lib.BaseDriverTest):
                                  "gcs_bucket_build_id": self.BUILD_ID})
         self.Patch(self.device_factory, "GetLogs",
                    return_value={self.INSTANCE: self.LOGS})
+        self.Patch(
+            self.device_factory,
+            "GetFetchCvdWrapperLogIfExist", return_value={})
 
     @staticmethod
     def _CreateCfg():
@@ -259,6 +262,32 @@ class CommonOperationsTest(driver_test_lib.BaseDriverTest):
         error = errors.DriverError("ZONE_RESOURCE_POOL_EXHAUSTED_WITH_DETAILS")
         expected_result = constants.GCE_QUOTA_ERROR
         self.assertEqual(common_operations._GetErrorType(error), expected_result)
+
+    def testCreateDevicesWithFetchCvdWrapper(self):
+        """Test Create Devices with FetchCvdWrapper."""
+        self.Patch(
+            self.device_factory,
+            "GetFetchCvdWrapperLogIfExist", return_value={"fetch_log": "abc"})
+        cfg = self._CreateCfg()
+        _report = common_operations.CreateDevices(self.CMD, cfg,
+                                                  self.device_factory, 1,
+                                                  constants.TYPE_CF)
+        self.assertEqual(_report.command, self.CMD)
+        self.assertEqual(_report.status, report.Status.SUCCESS)
+        self.assertEqual(
+            _report.data,
+            {"devices": [{
+                "ip": self.IP.external + ":6520",
+                "instance_name": self.INSTANCE,
+                "branch": self.BRANCH,
+                "build_id": self.BUILD_ID,
+                "build_target": self.BUILD_TARGET,
+                "gcs_bucket_build_id": self.BUILD_ID,
+                "logs": self.LOGS,
+                "fetch_cvd_wrapper_log": {
+                    "fetch_log": "abc"
+                },
+            }]})
 
 
 if __name__ == "__main__":
