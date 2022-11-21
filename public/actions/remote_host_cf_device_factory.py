@@ -16,6 +16,7 @@
 cuttlefish instances on a remote host."""
 
 import glob
+import json
 import logging
 import os
 import posixpath as remote_path
@@ -428,3 +429,24 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             A dictionary that maps instance names to lists of report.LogFile.
         """
         return self._all_logs
+
+    def GetFetchCvdWrapperLogIfExist(self):
+        """Get FetchCvdWrapper log if exist.
+
+        Returns:
+            A dictionary that includes FetchCvdWrapper logs.
+        """
+        if not self._avd_spec.fetch_cvd_wrapper:
+            return {}
+        path = os.path.join(self._GetInstancePath(), "fetch_cvd_wrapper_log.json")
+        ssh_cmd = self._ssh.GetBaseCmd(constants.SSH_BIN) + " cat " + path
+        proc = subprocess.run(ssh_cmd, shell=True, capture_output=True,
+                              check=False)
+        if proc.stderr:
+            logger.debug("`%s` stderr: %s", ssh_cmd, proc.stderr.decode())
+        if proc.stdout:
+            try:
+                return json.loads(proc.stdout)
+            except ValueError as e:
+                return {"status": "FETCH_WRAPPER_REPORT_PARSE_ERROR"}
+        return {}
