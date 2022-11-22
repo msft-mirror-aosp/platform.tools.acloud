@@ -295,7 +295,6 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
                     "To connect with hostname, erase the extra_args_ssh_tunnel: %s",
                     extra_args_ssh_tunnel)
                 extra_args_ssh_tunnel=""
-
             if autoconnect and reporter.status == report.Status.SUCCESS:
                 forwarded_ports = _EstablishAdbVncConnections(
                     device.gce_hostname or ip, vnc_ports, adb_ports,
@@ -323,6 +322,10 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
                     extra_args_ssh_tunnel=extra_args_ssh_tunnel)
             if device.instance_name in logs:
                 device_dict[constants.LOGS] = logs[device.instance_name]
+            if hasattr(device_factory, 'GetFetchCvdWrapperLogIfExist'):
+                fetch_cvd_wrapper_log = device_factory.GetFetchCvdWrapperLogIfExist()
+                if fetch_cvd_wrapper_log:
+                    device_dict["fetch_cvd_wrapper_log"] = fetch_cvd_wrapper_log
             if device.instance_name in failures:
                 reporter.SetErrorType(constants.ACLOUD_BOOT_UP_ERROR)
                 if device.stage:
