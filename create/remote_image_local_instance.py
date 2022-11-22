@@ -237,6 +237,7 @@ class RemoteImageLocalInstance(local_image_local_instance.LocalImageLocalInstanc
         vendor_dlkm_image_path = None
         odm_image_path = None
         odm_dlkm_image_path = None
+        host_bins_path = image_dir
         if avd_spec.local_system_image or avd_spec.local_vendor_image:
             build_id = avd_spec.remote_image[constants.BUILD_ID]
             build_target = avd_spec.remote_image[constants.BUILD_TARGET]
@@ -256,6 +257,15 @@ class RemoteImageLocalInstance(local_image_local_instance.LocalImageLocalInstanc
                              constants.ENV_ANDROID_HOST_OUT))
             ota_tools_dir = os.path.abspath(
                 ota_tools.FindOtaToolsDir(tool_dirs))
+
+            # When using local vendor image, use cvd in local-tool if it
+            # exists. Fall back to downloaded tools in case it's missing
+
+            if avd_spec.local_vendor_image and avd_spec.local_tool_dirs:
+                try:
+                    host_bins_path = self._FindCvdHostBinaries(tool_dirs)
+                except errors.GetCvdLocalHostPackageError:
+                    logger.debug("fall back to downloaded cvd host binaries")
         if avd_spec.local_system_image:
             system_image_path = create_common.FindLocalImage(
                 avd_spec.local_system_image, _SYSTEM_IMAGE_NAME_PATTERN)
@@ -272,7 +282,7 @@ class RemoteImageLocalInstance(local_image_local_instance.LocalImageLocalInstanc
         # the paths from the fetcher config in image_dir.
         return local_image_local_instance.ArtifactPaths(
             image_dir=mix_image_dir or image_dir,
-            host_bins=image_dir,
+            host_bins=host_bins_path,
             host_artifacts=image_dir,
             misc_info=misc_info_path,
             ota_tools_dir=ota_tools_dir,
