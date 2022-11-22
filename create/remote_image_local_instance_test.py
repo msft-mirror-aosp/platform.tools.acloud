@@ -92,6 +92,8 @@ class RemoteImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
                    return_value="/mix_image_1234/IMAGES")
         self.Patch(ota_tools, "FindOtaToolsDir", return_value="/ota_tools_dir")
         self.Patch(create_common, "FindLocalImage", return_value="/system_image_path")
+        self.Patch(self.RemoteImageLocalInstance, "_FindCvdHostBinaries",
+                   side_effect=errors.GetCvdLocalHostPackageError("not found"))
         paths = self.RemoteImageLocalInstance.GetImageArtifactsPath(avd_spec)
         create_common.DownloadRemoteArtifact.assert_called_with(
             avd_spec.cfg, "aosp_cf_x86_64_phone-userdebug", "1234",
@@ -102,6 +104,28 @@ class RemoteImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(paths.host_bins, "/unit/test")
         self.assertEqual(paths.ota_tools_dir, "/ota_tools_dir")
         self.assertEqual(paths.system_image, "/system_image_path")
+        self.RemoteImageLocalInstance._FindCvdHostBinaries.assert_not_called()
+
+        # local vendor image, local tool including host bins
+        avd_spec.local_vendor_image = "/test_local_vendor_image_dir"
+        vendor_image_paths = cvd_utils.VendorImagePaths(
+            "vendor.img", "vendor_dlkm.img", "odm.img", "odm_dlkm.img")
+        self.Patch(cvd_utils, "FindVendorImages",
+                   return_value=vendor_image_paths)
+        self.Patch(os.path, "exists", side_effect=[True, False])
+        self.Patch(self.RemoteImageLocalInstance, "_FindCvdHostBinaries",
+                   return_value="/test_local_tool_dirs")
+        paths = self.RemoteImageLocalInstance.GetImageArtifactsPath(avd_spec)
+        self.assertEqual(paths.host_bins, "/test_local_tool_dirs")
+
+        # local vendor image, local tool without host bins
+        avd_spec.local_vendor_image = "/test_local_vendor_image_dir"
+        self.Patch(os.path, "exists", side_effect=[True, False])
+        self.Patch(self.RemoteImageLocalInstance, "_FindCvdHostBinaries",
+                   side_effect=errors.GetCvdLocalHostPackageError("not found"))
+        paths = self.RemoteImageLocalInstance.GetImageArtifactsPath(avd_spec)
+        self.assertEqual(paths.host_bins, "/unit/test")
+
         create_common.DownloadRemoteArtifact.reset_mock()
 
         self.Patch(os.path, "exists", side_effect=[True, True])
