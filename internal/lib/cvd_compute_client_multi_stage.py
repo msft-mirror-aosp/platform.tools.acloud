@@ -57,7 +57,6 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_WEBRTC_DEVICE_ID = "cvd-1"
 _FETCHER_NAME = "fetch_cvd"
-_NO_RETRY = 0
 # Launch cvd command for acloud report
 _LAUNCH_CVD_COMMAND = "launch_cvd_command"
 _CONFIG_RE = re.compile(r"^config=(?P<config>.+)")
@@ -236,32 +235,21 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         """
         self.SetStage(constants.STAGE_BOOT_UP)
         timestart = time.time()
-        error_msg = ""
         config = self._GetConfigFromAndroidInfo(base_dir)
         cmd = cvd_utils.GetRemoteLaunchCvdCmd(
             base_dir, avd_spec, config, extra_args)
         boot_timeout_secs = self._GetBootTimeout(
             avd_spec.boot_timeout_secs or constants.DEFAULT_CF_BOOT_TIMEOUT)
-        try:
-            self.ExtendReportData(_LAUNCH_CVD_COMMAND, cmd)
-            self._ssh.Run(f"'{cmd}'", boot_timeout_secs, retry=_NO_RETRY)
-            self._UpdateOpenWrtStatus(avd_spec)
-        except (subprocess.CalledProcessError, errors.DeviceConnectionError,
-                errors.LaunchCVDFail) as e:
-            error_msg = (f"Device {instance} did not finish on boot within "
-                         f"timeout ({boot_timeout_secs} secs)")
-            if constants.ERROR_MSG_VNC_NOT_SUPPORT in str(e):
-                error_msg = (
-                    "VNC is not supported in the current build. Please try WebRTC such "
-                    "as '$acloud create' or '$acloud create --autoconnect webrtc'")
-            if constants.ERROR_MSG_WEBRTC_NOT_SUPPORT in str(e):
-                error_msg = (
-                    "WEBRTC is not supported in the current build. Please try VNC such "
-                    "as '$acloud create --autoconnect vnc'")
-            utils.PrintColorString(str(e), utils.TextColors.FAIL)
 
+        self.ExtendReportData(_LAUNCH_CVD_COMMAND, cmd)
+        error_msg = cvd_utils.ExecuteRemoteLaunchCvd(
+            self._ssh, cmd, boot_timeout_secs)
         self._execution_time[constants.TIME_LAUNCH] = time.time() - timestart
-        return {instance: error_msg} if error_msg else {}
+
+        if error_msg:
+            return {instance: error_msg}
+        self._openwrt = avd_spec.openwrt
+        return {}
 
     def _GetBootTimeout(self, timeout_secs):
         """Get boot timeout.
@@ -505,14 +493,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             stage: Integer, the stage would like STAGE_INIT, STAGE_GCE.
         """
         self._stage = stage
-
-    def _UpdateOpenWrtStatus(self, avd_spec):
-        """Update the OpenWrt device status.
-
-        Args:
-            avd_spec: An AVDSpec instance.
-        """
-        self._openwrt = avd_spec.openwrt if avd_spec else False
 
     @property
     def all_failures(self):
