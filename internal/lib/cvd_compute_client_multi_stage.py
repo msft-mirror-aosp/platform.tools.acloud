@@ -163,7 +163,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                                                extra_scopes, boot_disk_size_gb,
                                                avd_spec)
         if avd_spec.connect_hostname:
-            self._gce_hostname = self._GetGCEHostName(instance)
+            self._gce_hostname = gcompute_client.GetGCEHostName(
+                self._project, instance, self._zone)
         self._ssh = Ssh(ip=self._ip,
                         user=constants.GCE_USER,
                         ssh_private_key_path=self._ssh_private_key_path,
