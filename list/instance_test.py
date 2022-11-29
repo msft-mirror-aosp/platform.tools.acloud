@@ -30,6 +30,7 @@ import dateutil.tz
 from acloud.internal import constants
 from acloud.internal.lib import cvd_runtime_config
 from acloud.internal.lib import driver_test_lib
+from acloud.internal.lib import gcompute_client
 from acloud.internal.lib import utils
 from acloud.internal.lib.adb_tools import AdbTools
 from acloud.list import instance
@@ -255,16 +256,20 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         self.Patch(subprocess, "check_output", return_value=self.PS_SSH_TUNNEL)
         self.Patch(instance, "_GetElapsedTime", return_value="fake_time")
         self.Patch(instance.RemoteInstance, "_GetZoneName", return_value="fake_zone")
+        self.Patch(instance.RemoteInstance,
+                   "_GetProjectName",
+                   return_value="fake_project")
+        self.Patch(gcompute_client, "GetGCEHostName", return_value="fake_hostname")
         forwarded_ports = instance.RemoteInstance(
             mock.MagicMock()).GetAdbVncPortFromSSHTunnel(
-                "1.1.1.1", constants.TYPE_CF)
+                "1.1.1.1", "fake_hostname", constants.TYPE_CF)
         self.assertEqual(54321, forwarded_ports.adb_port)
         self.assertEqual(12345, forwarded_ports.vnc_port)
 
         # If avd_type is undefined in utils.AVD_PORT_DICT.
         forwarded_ports = instance.RemoteInstance(
             mock.MagicMock()).GetAdbVncPortFromSSHTunnel(
-                "1.1.1.1", "undefined_avd_type")
+                "1.1.1.1", "fake_hostname", "undefined_avd_type")
         self.assertEqual(None, forwarded_ports.adb_port)
         self.assertEqual(None, forwarded_ports.vnc_port)
 
@@ -276,6 +281,9 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         forwarded_ports = collections.namedtuple("ForwardedPorts",
                                                  [constants.VNC_PORT,
                                                   constants.ADB_PORT])
+        self.Patch(instance.RemoteInstance,
+                   "_GetProjectName",
+                   return_value="fake_project")
         self.Patch(
             instance.RemoteInstance,
             "GetAdbVncPortFromSSHTunnel",
@@ -324,6 +332,9 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         forwarded_ports = collections.namedtuple("ForwardedPorts",
                                                  [constants.VNC_PORT,
                                                   constants.ADB_PORT])
+        self.Patch(instance.RemoteInstance,
+                   "_GetProjectName",
+                   return_value="fake_project")
         self.Patch(
             instance.RemoteInstance,
             "GetAdbVncPortFromSSHTunnel",
@@ -382,6 +393,13 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         # Test can't get zone name from zone info.
         zone_info = "v1/projects/project/us-central1-c"
         self.assertEqual(instance.RemoteInstance._GetZoneName(zone_info), None)
+
+    def testGetProjectName(self):
+        """Test GetProjectName."""
+        zone_info = "v1/projects/fake_project/zones/us-central1-c"
+        expected_result = "fake_project"
+        self.assertEqual(instance.RemoteInstance._GetProjectName(zone_info),
+                         expected_result)
 
     def testGetLocalInstanceConfig(self):
         """Test GetLocalInstanceConfig."""
