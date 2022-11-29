@@ -45,6 +45,7 @@ class ListTest(driver_test_lib.BaseDriverTest):
         super().setUp()
         self.Patch(instance, "_GetElapsedTime", return_value=0)
         self.Patch(instance.RemoteInstance, "_GetZoneName")
+        self.Patch(instance.RemoteInstance, "_GetProjectName")
         self.Patch(instance, "GetInstanceIP", return_value=ssh.IP())
         self.Patch(instance.RemoteInstance, "GetAdbVncPortFromSSHTunnel")
         self.Patch(adb_tools, "AdbTools")
