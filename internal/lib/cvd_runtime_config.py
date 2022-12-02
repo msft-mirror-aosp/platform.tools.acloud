@@ -107,7 +107,6 @@ class CvdRuntimeConfig():
     "webrtc_assets_dir" : "/home/vsoc-01/usr/share/webrtc/assets",
     "webrtc_binary" : "/home/vsoc-01/bin/webRTC",
     "webrtc_certs_dir" : "/home/vsoc-01/usr/share/webrtc/certs",
-    "webrtc_enable_adb_websocket" : false,
     "webrtc_public_ip" : "0.0.0.0",
     }
 
@@ -122,7 +121,8 @@ class CvdRuntimeConfig():
         self._config_dict = self._GetCuttlefishRuntimeConfig(config_path,
                                                              raw_data)
         self._instances = self._config_dict.get(_CFG_KEY_INSTANCES)
-        self._instance_ids = self._instances.keys()
+        # Old runtime config doesn't have "instances" information.
+        self._instance_ids = list(self._instances.keys()) if self._instances else ["1"]
         self._display_configs = self._config_dict.get(_CFG_KEY_DISPLAY_CONFIGS, {})
         self._root_dir = self._config_dict.get(_CFG_KEY_ROOT_DIR)
         crosvm_bin = self._config_dict.get(_CFG_KEY_CROSVM_BINARY)

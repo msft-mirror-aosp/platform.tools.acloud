@@ -94,7 +94,7 @@ def _SshCall(cmd, timeout=None):
     return process.returncode
 
 
-def _SshLogOutput(cmd, timeout=None, show_output=False):
+def _SshLogOutput(cmd, timeout=None, show_output=False, hide_error_msg=False):
     """Runs a single SSH command while logging its output and processes its return code.
 
     Output is streamed to the log at the debug level for more interactive debugging.
@@ -106,6 +106,7 @@ def _SshLogOutput(cmd, timeout=None, show_output=False):
         cmd: String of the full SSH command to run, including the SSH binary and its arguments.
         timeout: Optional integer, number of seconds to give.
         show_output: Boolean, True to show command output in screen.
+        hide_error_msg: Boolean, True to hide error message.
 
     Raises:
         errors.DeviceConnectionError: Failed to connect to the GCE instance.
@@ -125,7 +126,7 @@ def _SshLogOutput(cmd, timeout=None, show_output=False):
         timer.start()
     stdout, _ = process.communicate()
     if stdout:
-        if show_output or process.returncode != 0:
+        if (show_output or process.returncode != 0) and not hide_error_msg:
             print(stdout.strip(), file=sys.stderr)
         else:
             # fetch_cvd and launch_cvd can be noisy, so left at debug
@@ -339,7 +340,7 @@ class Ssh():
         remote_cmd = [self.GetBaseCmd(constants.SSH_BIN)]
         remote_cmd.append("uptime")
         try:
-            _SshLogOutput(" ".join(remote_cmd), timeout)
+            _SshLogOutput(" ".join(remote_cmd), timeout, hide_error_msg=True)
         except subprocess.CalledProcessError as e:
             raise errors.DeviceConnectionError(
                 "Ssh isn't ready in the remote instance.") from e

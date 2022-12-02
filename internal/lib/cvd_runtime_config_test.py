@@ -74,8 +74,22 @@ class CvdRuntimeconfigTest(driver_test_lib.BaseDriverTest):
  "webrtc_assets_dir" : "/home/vsoc-01/usr/share/webrtc/assets",
  "webrtc_binary" : "/home/vsoc-01/bin/webRTC",
  "webrtc_certs_dir" : "/home/vsoc-01/usr/share/webrtc/certs",
- "webrtc_enable_adb_websocket" : false,
  "webrtc_public_ip" : "127.0.0.1"
+}
+"""
+
+    CF_RUNTIME_CONFIG_NO_INSTANCES = """
+{"x_display" : ":20",
+ "display_configs" :
+ [
+  {
+   "dpi" : 320,
+   "x_res" : 720,
+   "y_res" : 1280
+  }
+ ],
+ "instance_dir" : "fake_instance_dir",
+ "instances": {}
 }
 """
 
@@ -115,6 +129,7 @@ class CvdRuntimeconfigTest(driver_test_lib.BaseDriverTest):
         cf_cfg._GetIdFromInstanceDirStr.assert_not_called()
         self.assertEqual(fake_cvd_runtime_config_webrtc.config_path, None)
         self.assertEqual(fake_cvd_runtime_config_webrtc.instance_id, "1")
+        self.assertEqual(fake_cvd_runtime_config_webrtc.instance_ids, ["1"])
         self.assertEqual(fake_cvd_runtime_config_webrtc.enable_webrtc, True)
         self.assertEqual(fake_cvd_runtime_config_webrtc.display_configs,
                          [{'dpi': 320, 'x_res': 720, 'y_res': 1280}])
@@ -124,6 +139,12 @@ class CvdRuntimeconfigTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(fake_cvd_runtime_config_webrtc.adb_port, 6520)
         self.assertEqual(fake_cvd_runtime_config_webrtc.virtual_disk_paths, ['/path-to-image'])
         self.assertEqual(fake_cvd_runtime_config_webrtc.cvd_tools_path, "/home/vsoc-01/bin")
+
+        # Test read runtime config with no instances data.
+        fake_cvd_runtime_config_no_instances = cf_cfg.CvdRuntimeConfig(
+            raw_data=self.CF_RUNTIME_CONFIG_NO_INSTANCES)
+        self.assertEqual(fake_cvd_runtime_config_no_instances.instance_id, "1")
+        self.assertEqual(fake_cvd_runtime_config_no_instances.instance_ids, ["1"])
 
         # Test exception with no config file and no raw_data.
         self.assertRaises(errors.ConfigError,

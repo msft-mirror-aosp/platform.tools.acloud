@@ -158,8 +158,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
             fake_avd_spec.hw_property[constants.HW_ALIAS_DPI]))
         self.cvd_compute_client_multi_stage.CreateInstance(
             self.INSTANCE, self.IMAGE, self.IMAGE_PROJECT,
-            fake_avd_spec, self.EXTRA_DATA_DISK_SIZE_GB,
-            extra_scopes=self.EXTRA_SCOPES)
+            fake_avd_spec, self.EXTRA_SCOPES)
 
         mock_create.assert_called_with(
             self.cvd_compute_client_multi_stage,
@@ -188,7 +187,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.Patch(Ssh, "GetCmdOutput", return_value="config=phone")
         expected = "phone"
         self.assertEqual(
-            self.cvd_compute_client_multi_stage._GetConfigFromAndroidInfo(),
+            self.cvd_compute_client_multi_stage._GetConfigFromAndroidInfo("dir"),
             expected)
 
     @mock.patch.object(Ssh, "Run")
@@ -242,20 +241,6 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         fake_avd_spec.openwrt = True
         self.cvd_compute_client_multi_stage._UpdateOpenWrtStatus(fake_avd_spec)
         self.assertEqual(True, self.cvd_compute_client_multi_stage.openwrt)
-
-    def testGetGCEHostName(self):
-        """Test GetGCEHostName."""
-        instance_name = "instance_name"
-        expected = "nic0.instance_name.fake-zone.c.fake-project.internal.gcpnode.com"
-        self.assertEqual(expected,
-                         self.cvd_compute_client_multi_stage._GetGCEHostName(
-                             instance_name))
-
-        self.cvd_compute_client_multi_stage._project = "test.com:project"
-        expected = "nic0.instance_name.fake-zone.c.project.test.com.internal.gcpnode.com"
-        self.assertEqual(expected,
-                         self.cvd_compute_client_multi_stage._GetGCEHostName(
-                             instance_name))
 
 
 if __name__ == "__main__":

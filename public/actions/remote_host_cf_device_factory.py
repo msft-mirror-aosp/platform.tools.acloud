@@ -16,8 +16,10 @@
 cuttlefish instances on a remote host."""
 
 import glob
+import json
 import logging
 import os
+import posixpath as remote_path
 import shutil
 import subprocess
 import tempfile
@@ -92,12 +94,7 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
 
         launch_cvd_timestart = time.time()
         failures = self._compute_client.LaunchCvd(
-            instance,
-            self._avd_spec,
-            self._avd_spec.cfg.extra_data_disk_size_gb,
-            boot_timeout_secs=self._avd_spec.boot_timeout_secs,
-            base_dir=self._GetInstancePath(),
-            extra_args=image_args)
+            instance, self._avd_spec, self._GetInstancePath(), image_args)
         self._compute_client.execution_time[constants.TIME_LAUNCH] = (
             time.time() - launch_cvd_timestart)
 
@@ -106,8 +103,7 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             instance, instance in failures and not self._avd_spec.no_pull_log)
         return instance
 
-    @staticmethod
-    def _GetInstancePath(relative_path=""):
+    def _GetInstancePath(self, relative_path=""):
         """Append a relative path to the remote base directory.
 
         Args:
@@ -117,8 +113,10 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             The remote base directory if relative_path is empty.
             The remote path under the base directory otherwise.
         """
-        # TODO(b/229812494): Return different path for each base_instance_num.
-        return relative_path or cvd_utils.GCE_BASE_DIR
+        base_dir = cvd_utils.GetRemoteHostBaseDir(
+            self._avd_spec.base_instance_num)
+        return (remote_path.join(base_dir, relative_path) if relative_path else
+                base_dir)
 
     def _InitRemotehost(self):
         """Initialize remote host.
@@ -145,7 +143,8 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             build_id = self._avd_spec.remote_image[constants.BUILD_ID]
 
         instance = cvd_utils.FormatRemoteHostInstanceName(
-            self._avd_spec.remote_host, build_id, build_target)
+            self._avd_spec.remote_host, self._avd_spec.base_instance_num,
+            build_id, build_target)
         ip = ssh.IP(ip=self._avd_spec.remote_host)
         self._ssh = ssh.Ssh(
             ip=ip,
@@ -171,6 +170,7 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             A list of strings, the launch_cvd arguments.
         """
         self._compute_client.SetStage(constants.STAGE_ARTIFACT)
+        self._ssh.Run(f"mkdir -p {self._GetInstancePath()}")
         if self._avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
             cvd_utils.UploadArtifacts(
                 self._ssh, self._GetInstancePath(),
@@ -215,11 +215,13 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         return self._compute_client.build_api.GetFetchCertArg(
             os.path.join(_HOME_FOLDER, cfg.creds_cache_file))
 
-    @utils.TimeExecute(function_description="Downloading artifacts on remote host by fetch cvd wrapper.")
+    @utils.TimeExecute(
+        function_description="Downloading artifacts on remote host by fetch cvd wrapper.")
     def _DownloadArtifactsByFetchWrapper(self):
         """Generate fetch_cvd args and run fetch cvd wrapper on remote host to download artifacts.
 
-        Fetch cvd wrapper will fetch from cluster cached artifacts, and fallback to fetch_cvd if the artifacts not exist.
+        Fetch cvd wrapper will fetch from cluster cached artifacts, and fallback to fetch_cvd if
+        the artifacts not exist.
         """
         fetch_cvd_build_args = self._compute_client.build_api.GetFetchBuildArgs(
             self._avd_spec.remote_image,
@@ -229,9 +231,10 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             self._avd_spec.bootloader_build_info,
             self._avd_spec.ota_build_info)
 
-        fetch_cvd_args = [self._avd_spec.fetch_cvd_wrapper,
-                          f"-directory={self._GetInstancePath()}",
-                          self._GetRemoteFetchCredentialArg()]
+        fetch_cvd_args = self._avd_spec.fetch_cvd_wrapper.split(',') + [
+                        f"-directory={self._GetInstancePath()}",
+                        f"-fetch_cvd_path={self._GetInstancePath(constants.FETCH_CVD)}",
+                        self._GetRemoteFetchCredentialArg()]
         fetch_cvd_args.extend(fetch_cvd_build_args)
 
         ssh_cmd = self._ssh.GetBaseCmd(constants.SSH_BIN)
@@ -250,7 +253,7 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             self._avd_spec.bootloader_build_info,
             self._avd_spec.ota_build_info)
 
-        fetch_cvd_args = [f"./{self._GetInstancePath(constants.FETCH_CVD)}",
+        fetch_cvd_args = [self._GetInstancePath(constants.FETCH_CVD),
                           f"-directory={self._GetInstancePath()}",
                           self._GetRemoteFetchCredentialArg()]
         fetch_cvd_args.extend(fetch_cvd_build_args)
@@ -269,9 +272,12 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             extract_path: String, a path include extracted files.
         """
         cfg = self._avd_spec.cfg
+        is_arm_img = (cvd_utils.IsArmImage(self._avd_spec.remote_image)
+                        and self._avd_spec.remote_fetch)
         fetch_cvd = os.path.join(extract_path, constants.FETCH_CVD)
         self._compute_client.build_api.DownloadFetchcvd(fetch_cvd,
-                                                        cfg.fetch_cvd_version)
+                                                        cfg.fetch_cvd_version,
+                                                        is_arm_img)
         # Duplicate fetch_cvd API key when available
         if cfg.service_account_json_private_key_path:
             shutil.copyfile(
@@ -423,3 +429,24 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             A dictionary that maps instance names to lists of report.LogFile.
         """
         return self._all_logs
+
+    def GetFetchCvdWrapperLogIfExist(self):
+        """Get FetchCvdWrapper log if exist.
+
+        Returns:
+            A dictionary that includes FetchCvdWrapper logs.
+        """
+        if not self._avd_spec.fetch_cvd_wrapper:
+            return {}
+        path = os.path.join(self._GetInstancePath(), "fetch_cvd_wrapper_log.json")
+        ssh_cmd = self._ssh.GetBaseCmd(constants.SSH_BIN) + " cat " + path
+        proc = subprocess.run(ssh_cmd, shell=True, capture_output=True,
+                              check=False)
+        if proc.stderr:
+            logger.debug("`%s` stderr: %s", ssh_cmd, proc.stderr.decode())
+        if proc.stdout:
+            try:
+                return json.loads(proc.stdout)
+            except ValueError as e:
+                return {"status": "FETCH_WRAPPER_REPORT_PARSE_ERROR"}
+        return {}

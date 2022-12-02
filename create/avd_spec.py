@@ -120,6 +120,7 @@ class AVDSpec():
         self._local_instance_dir = None
         self._local_kernel_image = None
         self._local_system_image = None
+        self._local_vendor_image = None
         self._local_tool_dirs = None
         self._image_download_dir = None
         self._num_of_instances = None
@@ -138,6 +139,7 @@ class AVDSpec():
         self._hw_customize = False
         self._remote_host = None
         self._gce_metadata = None
+        self._gce_only = None
         self._host_user = None
         self._host_ssh_private_key_path = None
         self._gpu = None
@@ -250,6 +252,10 @@ class AVDSpec():
         if args.local_system_image is not None:
             self._local_system_image = self._GetLocalImagePath(
                 args.local_system_image)
+
+        if args.local_vendor_image is not None:
+            self._local_vendor_image = self._GetLocalImagePath(
+                args.local_vendor_image)
 
         self.image_download_dir = (
             args.image_download_dir if args.image_download_dir
@@ -369,6 +375,7 @@ class AVDSpec():
         self._gpu = args.gpu
         self._disk_type = (args.disk_type or self._cfg.disk_type)
         self._base_instance_num = args.base_instance_num
+        self._gce_only = args.gce_only
         self._gce_metadata = create_common.ParseKeyValuePairArgs(args.gce_metadata)
         self._stable_host_image_name = (
             args.stable_host_image_name or self._cfg.stable_host_image_name)
@@ -801,6 +808,11 @@ class AVDSpec():
         return self._local_system_image
 
     @property
+    def local_vendor_image(self):
+        """Return local vendor image path."""
+        return self._local_vendor_image
+
+    @property
     def local_tool_dirs(self):
         """Return a list of local tool directories."""
         return self._local_tool_dirs
@@ -1055,6 +1067,11 @@ class AVDSpec():
     def gce_metadata(self):
         """Return gce_metadata."""
         return self._gce_metadata
+
+    @property
+    def gce_only(self):
+        """Return gce_only."""
+        return self._gce_only
 
     @property
     def oxygen(self):

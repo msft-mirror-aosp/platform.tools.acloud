@@ -14,16 +14,19 @@
 
 """Utility functions that process cuttlefish images."""
 
+import collections
 import glob
 import logging
 import os
 import posixpath as remote_path
 import re
 import subprocess
+import tempfile
 
 from acloud import errors
 from acloud.create import create_common
 from acloud.internal import constants
+from acloud.internal.lib import ota_tools
 from acloud.internal.lib import ssh
 from acloud.internal.lib import utils
 from acloud.public import report
@@ -43,28 +46,37 @@ _BOOT_IMAGE_NAME_PATTERN = r"boot(-[\d.]+)?\.img"
 _VENDOR_BOOT_IMAGE_NAME = "vendor_boot.img"
 _KERNEL_IMAGE_NAMES = ("kernel", "bzImage", "Image")
 _INITRAMFS_IMAGE_NAME = "initramfs.img"
+_VENDOR_IMAGE_NAMES = ("vendor.img", "vendor_dlkm.img", "odm.img",
+                       "odm_dlkm.img")
+VendorImagePaths = collections.namedtuple(
+    "VendorImagePaths",
+    ["vendor", "vendor_dlkm", "odm", "odm_dlkm"])
 
 # The relative path to the base directory containing cuttelfish images, tools,
 # and runtime files. On a GCE instance, the directory is the SSH user's HOME.
 GCE_BASE_DIR = "."
+_REMOTE_HOST_BASE_DIR_FORMAT = "acloud_cf_%(num)d"
 # Relative paths in a base directory.
-_REMOTE_IMAGE_DIR = "acloud_cf"
+_REMOTE_IMAGE_DIR = "acloud_image"
 _REMOTE_BOOT_IMAGE_PATH = remote_path.join(_REMOTE_IMAGE_DIR, "boot.img")
 _REMOTE_VENDOR_BOOT_IMAGE_PATH = remote_path.join(
     _REMOTE_IMAGE_DIR, _VENDOR_BOOT_IMAGE_NAME)
+_REMOTE_VBMETA_IMAGE_PATH = remote_path.join(_REMOTE_IMAGE_DIR, "vbmeta.img")
 _REMOTE_KERNEL_IMAGE_PATH = remote_path.join(
     _REMOTE_IMAGE_DIR, _KERNEL_IMAGE_NAMES[0])
 _REMOTE_INITRAMFS_IMAGE_PATH = remote_path.join(
     _REMOTE_IMAGE_DIR, _INITRAMFS_IMAGE_NAME)
+_REMOTE_SUPER_IMAGE_DIR = remote_path.join(_REMOTE_IMAGE_DIR,
+                                           "super_image_dir")
 
 _ANDROID_BOOT_IMAGE_MAGIC = b"ANDROID!"
 
 # Remote host instance name
 _REMOTE_HOST_INSTANCE_NAME_FORMAT = (
     constants.INSTANCE_TYPE_HOST +
-    "-%(ip_addr)s-%(build_id)s-%(build_target)s")
+    "-%(ip_addr)s-%(num)d-%(build_id)s-%(build_target)s")
 _REMOTE_HOST_INSTANCE_NAME_PATTERN = re.compile(
-    constants.INSTANCE_TYPE_HOST + r"-(?P<ip_addr>[\d.]+)-.+")
+    constants.INSTANCE_TYPE_HOST + r"-(?P<ip_addr>[\d.]+)-(?P<num>\d+)-.+")
 # launch_cvd arguments.
 _DATA_POLICY_CREATE_IF_MISSING = "create_if_missing"
 _DATA_POLICY_ALWAYS_CREATE = "always_create"
@@ -102,6 +114,15 @@ _REMOTE_RUNTIME_DIR_FORMAT = remote_path.join(
 _REMOTE_LEGACY_RUNTIME_DIR_FORMAT = "cuttlefish_runtime.%(num)d"
 HOST_KERNEL_LOG = report.LogFile(
     "/var/log/kern.log", constants.LOG_TYPE_KERNEL_LOG, "host_kernel.log")
+
+# Contents of the target_files archive.
+_DOWNLOAD_MIX_IMAGE_NAME = "{build_target}-target_files-{build_id}.zip"
+_TARGET_FILES_META_DIR_NAME = "META"
+_TARGET_FILES_IMAGES_DIR_NAME = "IMAGES"
+_MISC_INFO_FILE_NAME = "misc_info.txt"
+
+# ARM flavor build target pattern.
+_ARM_TARGET_PATTERN = "arm"
 
 
 def GetAdbPorts(base_instance_num, num_avds_per_instance):
@@ -321,6 +342,38 @@ def _UploadKernelImages(ssh_obj, remote_dir, search_path):
         f"{search_path} is not a boot image or a directory containing images.")
 
 
+@utils.TimeExecute(function_description="Uploading disabled vbmeta image.")
+def _UploadDisabledVbmetaImage(ssh_obj, remote_dir, local_tool_dirs):
+    """Upload disabled vbmeta image to a remote host or a GCE instance.
+
+    Args:
+        ssh_obj: An Ssh object.
+        remote_dir: The remote base directory.
+        local_tool_dirs: A list of local directories containing tools.
+
+    Returns:
+        A list of strings, the launch_cvd arguments including the remote paths.
+
+    Raises:
+        CheckPathError if local_tool_dirs do not contain OTA tools.
+    """
+    # Assume that the caller cleaned up the remote home directory.
+    ssh_obj.Run("mkdir -p " + remote_path.join(remote_dir, _REMOTE_IMAGE_DIR))
+
+    remote_vbmeta_image_path = remote_path.join(remote_dir,
+                                                _REMOTE_VBMETA_IMAGE_PATH)
+    with tempfile.NamedTemporaryFile(prefix="vbmeta",
+                                     suffix=".img") as temp_file:
+        tool_dirs = local_tool_dirs + create_common.GetNonEmptyEnvVars(
+                constants.ENV_ANDROID_SOONG_HOST_OUT,
+                constants.ENV_ANDROID_HOST_OUT)
+        ota = ota_tools.FindOtaTools(tool_dirs)
+        ota.MakeDisabledVbmetaImage(temp_file.name)
+        ssh_obj.ScpPushFile(temp_file.name, remote_vbmeta_image_path)
+
+    return ["-vbmeta_image", remote_vbmeta_image_path]
+
+
 def UploadExtraImages(ssh_obj, remote_dir, avd_spec):
     """Find and upload the images specified in avd_spec.
 
@@ -335,10 +388,42 @@ def UploadExtraImages(ssh_obj, remote_dir, avd_spec):
     Raises:
         errors.GetLocalImageError if any specified image path does not exist.
     """
+    extra_img_args = []
     if avd_spec.local_kernel_image:
-        return _UploadKernelImages(ssh_obj, remote_dir,
-                                   avd_spec.local_kernel_image)
-    return []
+        extra_img_args += _UploadKernelImages(ssh_obj, remote_dir,
+                                              avd_spec.local_kernel_image)
+    if avd_spec.local_vendor_image:
+        extra_img_args += _UploadDisabledVbmetaImage(ssh_obj, remote_dir,
+                                                     avd_spec.local_tool_dirs)
+    return extra_img_args
+
+
+@utils.TimeExecute(function_description="Uploading local super image")
+def UploadSuperImage(ssh_obj, remote_dir, super_image_path):
+    """Upload a super image to a remote host or a GCE instance.
+
+    Args:
+        ssh_obj: An Ssh object.
+        remote_dir: The remote base directory.
+        super_image_path: Path to the super image file.
+
+    Returns:
+        A list of strings, the launch_cvd arguments including the remote paths.
+    """
+    # Assume that the caller cleaned up the remote home directory.
+    super_image_stem = os.path.basename(super_image_path)
+    remote_super_image_dir = remote_path.join(
+        remote_dir, _REMOTE_SUPER_IMAGE_DIR)
+    remote_super_image_path = remote_path.join(
+        remote_super_image_dir, super_image_stem)
+    ssh_obj.Run(f"mkdir -p {remote_super_image_dir}")
+    cmd = (f"tar -cf - --lzop -S -C {os.path.dirname(super_image_path)} "
+           f"{super_image_stem} | "
+           f"{ssh_obj.GetBaseCmd(constants.SSH_BIN)} -- "
+           f"tar -xf - --lzop -S -C {remote_super_image_dir}")
+    ssh.ShellCmdWithRetry(cmd)
+    launch_cvd_args = ["-super_image", remote_super_image_path]
+    return launch_cvd_args
 
 
 def CleanUpRemoteCvd(ssh_obj, remote_dir, raise_error):
@@ -370,11 +455,25 @@ def CleanUpRemoteCvd(ssh_obj, remote_dir, raise_error):
     ssh_obj.Run(f"'rm -rf {remote_path.join(remote_dir, '*')}'")
 
 
-def FormatRemoteHostInstanceName(ip_addr, build_id, build_target):
+def GetRemoteHostBaseDir(base_instance_num):
+    """Get remote base directory by instance number.
+
+    Args:
+        base_instance_num: Integer or None, the instance number of the device.
+
+    Returns:
+        The remote base directory.
+    """
+    return _REMOTE_HOST_BASE_DIR_FORMAT % {"num": base_instance_num or 1}
+
+
+def FormatRemoteHostInstanceName(ip_addr, base_instance_num, build_id,
+                                 build_target):
     """Convert an IP address and build info to an instance name.
 
     Args:
         ip_addr: String, the IP address of the remote host.
+        base_instance_num: Integer or None, the instance number of the device.
         build_id: String, the build id.
         build_target: String, the build target, e.g., aosp_cf_x86_64_phone.
 
@@ -383,6 +482,7 @@ def FormatRemoteHostInstanceName(ip_addr, build_id, build_target):
     """
     return _REMOTE_HOST_INSTANCE_NAME_FORMAT % {
         "ip_addr": ip_addr,
+        "num": base_instance_num or 1,
         "build_id": build_id,
         "build_target": build_target}
 
@@ -394,20 +494,22 @@ def ParseRemoteHostAddress(instance_name):
         instance_name: String, the instance name.
 
     Returns:
-        The IP address as a string.
+        The IP address and the base directory as strings.
         None if the name does not represent a remote host instance.
     """
     match = _REMOTE_HOST_INSTANCE_NAME_PATTERN.fullmatch(instance_name)
-    return match.group("ip_addr") if match else None
+    if match:
+        return (match.group("ip_addr"),
+                GetRemoteHostBaseDir(int(match.group("num"))))
+    return None
 
 
 # pylint:disable=too-many-branches
-def GetLaunchCvdArgs(avd_spec, blank_data_disk_size_gb=None, config=None):
+def GetLaunchCvdArgs(avd_spec, config=None):
     """Get launch_cvd arguments for remote instances.
 
     Args:
         avd_spec: An AVDSpec instance.
-        blank_data_disk_size_gb: An integer, the size of the blank data disk.
         config: A string, the name of the predefined hardware config.
                 e.g., "auto", "phone", and "tv".
 
@@ -415,6 +517,8 @@ def GetLaunchCvdArgs(avd_spec, blank_data_disk_size_gb=None, config=None):
         A list of strings, arguments of launch_cvd.
     """
     launch_cvd_args = []
+
+    blank_data_disk_size_gb = avd_spec.cfg.extra_data_disk_size_gb
     if blank_data_disk_size_gb and blank_data_disk_size_gb > 0:
         launch_cvd_args.append(
             "-data_policy=" + _DATA_POLICY_CREATE_IF_MISSING)
@@ -625,3 +729,104 @@ def GetRemoteBuildInfoDict(avd_spec):
          for key, val in avd_spec.bootloader_build_info.items() if val}
     )
     return build_info_dict
+
+
+def GetMixBuildTargetFilename(build_target, build_id):
+    """Get the mix build target filename.
+
+    Args:
+        build_id: String, Build id, e.g. "2263051", "P2804227"
+        build_target: String, the build target, e.g. cf_x86_phone-userdebug
+
+    Returns:
+        String, a file name, e.g. "cf_x86_phone-target_files-2263051.zip"
+    """
+    return _DOWNLOAD_MIX_IMAGE_NAME.format(
+        build_target=build_target.split('-')[0],
+        build_id=build_id)
+
+
+def FindMiscInfo(image_dir):
+    """Find misc info in build output dir or extracted target files.
+
+    Args:
+        image_dir: The directory to search for misc info.
+
+    Returns:
+        image_dir if the directory structure looks like an output directory
+        in build environment.
+        image_dir/META if it looks like extracted target files.
+
+    Raises:
+        errors.CheckPathError if this function cannot find misc info.
+    """
+    misc_info_path = os.path.join(image_dir, _MISC_INFO_FILE_NAME)
+    if os.path.isfile(misc_info_path):
+        return misc_info_path
+    misc_info_path = os.path.join(image_dir, _TARGET_FILES_META_DIR_NAME,
+                                  _MISC_INFO_FILE_NAME)
+    if os.path.isfile(misc_info_path):
+        return misc_info_path
+    raise errors.CheckPathError(
+        f"Cannot find {_MISC_INFO_FILE_NAME} in {image_dir}. The "
+        f"directory is expected to be an extracted target files zip or "
+        f"{constants.ENV_ANDROID_PRODUCT_OUT}.")
+
+
+def FindImageDir(image_dir):
+    """Find images in build output dir or extracted target files.
+
+    Args:
+        image_dir: The directory to search for images.
+
+    Returns:
+        image_dir if the directory structure looks like an output directory
+        in build environment.
+        image_dir/IMAGES if it looks like extracted target files.
+
+    Raises:
+        errors.GetLocalImageError if this function cannot find any image.
+    """
+    if glob.glob(os.path.join(image_dir, "*.img")):
+        return image_dir
+    subdir = os.path.join(image_dir, _TARGET_FILES_IMAGES_DIR_NAME)
+    if glob.glob(os.path.join(subdir, "*.img")):
+        return subdir
+    raise errors.GetLocalImageError(
+        "Cannot find images in %s." % image_dir)
+
+
+def IsArmImage(image):
+    """Check if the image is built for ARM.
+
+    Args:
+        image: Image meta info.
+
+    Returns:
+        A boolean, whether the image is for ARM.
+    """
+    return _ARM_TARGET_PATTERN in image.get("build_target", "")
+
+
+def FindVendorImages(image_dir):
+    """Find vendor, vendor_dlkm, odm, and odm_dlkm image in build output dir.
+
+    Args:
+        image_dir: The directory to search for images.
+
+    Returns:
+        An object of VendorImagePaths.
+
+    Raises:
+        errors.GetLocalImageError if this function cannot find images.
+    """
+
+    image_paths = []
+    for image_name in _VENDOR_IMAGE_NAMES:
+        image_path = os.path.join(image_dir, image_name)
+        if not os.path.isfile(image_path):
+            raise errors.GetLocalImageError(
+                f"Cannot find {image_path} in {image_dir}.")
+        image_paths.append(image_path)
+
+    return VendorImagePaths(*image_paths)
