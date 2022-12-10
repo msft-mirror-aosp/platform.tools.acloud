@@ -611,10 +611,13 @@ def GetCreateArgParser(subparser):
         required=False,
         help="'cuttlefish only' Create OpenWrt device when launching cuttlefish "
         "device.")
+    # TODO(b/261140164): Failed to create cuttlefish instance via cvd.
+    # Workaround to use launch_cvd as default option.
     create_parser.add_argument(
         "--use-launch_cvd",
         action="store_true",
         dest="use_launch_cvd",
+        default=True,
         required=False,
         help="'cuttlefish only' Use launch_cvd to create cuttlefish devices.")
     create_parser.add_argument(
