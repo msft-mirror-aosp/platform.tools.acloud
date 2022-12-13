@@ -43,6 +43,7 @@ class CvdRuntimeconfigTest(driver_test_lib.BaseDriverTest):
        "adb_ip_and_port": "127.0.0.1:6520",
        "adb_host_port": 6520,
        "instance_dir": "/path-to-instance-dir",
+       "crosvm_binary" : "/home/vsoc-01/bin/crosvm",
        "vnc_server_port": 6444
    }
  }
@@ -107,6 +108,7 @@ class CvdRuntimeconfigTest(driver_test_lib.BaseDriverTest):
                          'instances':
                              {'2':
                                   {'adb_ip_and_port': '127.0.0.1:6520',
+                                   'crosvm_binary': '/home/vsoc-01/bin/crosvm',
                                    'adb_host_port': 6520,
                                    'instance_dir': '/path-to-instance-dir',
                                    'vnc_server_port': 6444}
