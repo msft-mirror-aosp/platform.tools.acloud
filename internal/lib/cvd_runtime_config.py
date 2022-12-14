@@ -151,6 +151,9 @@ class CvdRuntimeConfig():
                               ins_dict.get(_CFG_KEY_ADB_HOST_PORT))
             self._adb_ip_port = ins_dict.get(_CFG_KEY_ADB_IP_PORT)
             self._virtual_disk_paths = ins_dict.get(_CFG_KEY_VIRTUAL_DISK_PATHS)
+            if not self._cvd_tools_path:
+                self._cvd_tools_path = os.path.dirname(
+                    ins_dict.get(_CFG_KEY_CROSVM_BINARY))
 
     @staticmethod
     def _GetCuttlefishRuntimeConfig(runtime_cf_config_path, raw_data=None):
