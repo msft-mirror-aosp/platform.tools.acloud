@@ -25,6 +25,7 @@ from acloud.internal.lib import auth
 from acloud.internal.lib import android_compute_client
 from acloud.internal.lib import cvd_runtime_config
 from acloud.internal.lib import driver_test_lib
+from acloud.internal.lib import gcompute_client
 from acloud.internal.lib import utils
 from acloud.internal.lib import ssh as ssh_object
 from acloud.internal.lib.adb_tools import AdbTools
@@ -368,6 +369,20 @@ class ReconnectTest(driver_test_lib.BaseDriverTest):
                    return_value=[fake_ins1, fake_ins2])
         reconnect.Run(fake_args)
         self.assertEqual(reconnect.ReconnectInstance.call_count, 1)
+
+    def testGetSshConnectHostname(self):
+        """Test GetSshConnectHostname."""
+        self.Patch(gcompute_client, "GetGCEHostName", return_value="fake_host")
+        instance = mock.MagicMock()
+        instance.islocal = True
+        cfg = mock.MagicMock()
+        self.assertEqual(None, reconnect.GetSshConnectHostname(cfg, instance))
+
+        # Remote instance will get the GCE hostname.
+        instance.islocal = False
+        cfg.connect_hostname = True
+        self.assertEqual("fake_host",
+                         reconnect.GetSshConnectHostname(cfg, instance))
 
 
 if __name__ == "__main__":
