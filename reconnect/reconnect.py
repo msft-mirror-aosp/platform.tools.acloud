@@ -28,6 +28,7 @@ from acloud.internal import constants
 from acloud.internal.lib import auth
 from acloud.internal.lib import android_compute_client
 from acloud.internal.lib import cvd_runtime_config
+from acloud.internal.lib import gcompute_client
 from acloud.internal.lib import utils
 from acloud.internal.lib import ssh as ssh_object
 from acloud.internal.lib.adb_tools import AdbTools
@@ -121,7 +122,8 @@ def ReconnectInstance(ssh_private_key_path,
                       instance,
                       reconnect_report,
                       extra_args_ssh_tunnel=None,
-                      autoconnect=None):
+                      autoconnect=None,
+                      connect_hostname=None):
     """Reconnect to the specified instance.
 
     It will:
@@ -137,6 +139,7 @@ def ReconnectInstance(ssh_private_key_path,
         reconnect_report: Report object.
         extra_args_ssh_tunnel: String, extra args for ssh tunnel connection.
         autoconnect: String, for decide whether to launch vnc/browser or not.
+        connect_hostname: String, the hostname for ssh connect.
 
     Raises:
         errors.UnknownAvdType: Unable to reconnect to instance of unknown avd
@@ -159,7 +162,7 @@ def ReconnectInstance(ssh_private_key_path,
     elif not instance.ssh_tunnel_is_connected and not instance.islocal:
         adb_cmd.DisconnectAdb()
         forwarded_ports = utils.AutoConnect(
-            ip_addr=instance.ip,
+            ip_addr=connect_hostname or instance.ip,
             rsa_key_file=ssh_private_key_path,
             target_vnc_port=utils.AVD_PORT_DICT[instance.avd_type].vnc_port,
             target_adb_port=utils.AVD_PORT_DICT[instance.avd_type].adb_port,
@@ -173,7 +176,7 @@ def ReconnectInstance(ssh_private_key_path,
             if not webrtc_port:
                 webrtc_port = utils.PickFreePort()
                 utils.EstablishWebRTCSshTunnel(
-                    ip_addr=instance.ip,
+                    ip_addr=connect_hostname or instance.ip,
                     webrtc_local_port=webrtc_port,
                     rsa_key_file=ssh_private_key_path,
                     ssh_user=constants.GCE_USER,
@@ -201,6 +204,27 @@ def ReconnectInstance(ssh_private_key_path,
         # adb_port found.
         reconnect_report.AddData(key="device_failing_reconnect", value=device_dict)
         reconnect_report.AddError(instance.name)
+
+
+def GetSshConnectHostname(cfg, instance):
+    """Get ssh connect hostname.
+
+    Get GCE hostname with specific rule for cloudtop users.
+
+    Args:
+        cfg: AcloudConfig object.
+        instance: list.Instance() object.
+
+    Returns:
+        String of hostname for ssh connect. None is for not connect with
+        hostname such as local instance mode.
+    """
+    if instance.islocal:
+        return None
+    if cfg.connect_hostname:
+        return gcompute_client.GetGCEHostName(
+            cfg.project, instance.name, cfg.zone)
+    return None
 
 
 def Run(args):
@@ -232,6 +256,7 @@ def Run(args):
                           instance,
                           reconnect_report,
                           cfg.extra_args_ssh_tunnel,
-                          autoconnect=(args.autoconnect or instance.autoconnect))
+                          autoconnect=(args.autoconnect or instance.autoconnect),
+                          connect_hostname=GetSshConnectHostname(cfg, instance))
 
     utils.PrintDeviceSummary(reconnect_report)
