@@ -21,6 +21,7 @@ import unittest
 from unittest import mock
 
 from acloud import errors
+from acloud.create import create_common
 from acloud.internal import constants
 from acloud.internal.lib import cvd_utils
 from acloud.internal.lib import driver_test_lib
@@ -187,6 +188,7 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
     @mock.patch("acloud.internal.lib.ota_tools.FindOtaTools")
     def testUploadVbmetaImages(self, mock_find_ota_tools):
         """Test UploadExtraImages."""
+        self.Patch(create_common, "GetNonEmptyEnvVars", return_value=[])
         mock_ssh = mock.Mock()
         mock_ota_tools_object = mock.Mock()
         mock_find_ota_tools.return_value = mock_ota_tools_object
