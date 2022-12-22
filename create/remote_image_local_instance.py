@@ -137,7 +137,7 @@ def DownloadAndProcessImageFiles(avd_spec):
 
         # Download rom images via fetch_cvd
         fetch_cvd = os.path.join(extract_path, constants.FETCH_CVD)
-        build_api.DownloadFetchcvd(fetch_cvd, cfg.fetch_cvd_version)
+        build_api.DownloadFetchcvd(fetch_cvd, avd_spec.fetch_cvd_version)
         creds_cache_file = os.path.join(_HOME_FOLDER, cfg.creds_cache_file)
         fetch_cvd_cert_arg = build_api.GetFetchCertArg(creds_cache_file)
         fetch_cvd_args = [fetch_cvd, "-directory=%s" % extract_path,
