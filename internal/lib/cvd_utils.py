@@ -446,7 +446,7 @@ def CleanUpRemoteCvd(ssh_obj, remote_dir, raise_error):
     else:
         try:
             ssh_obj.Run(stop_cvd_cmd, retry=0)
-        except subprocess.CalledProcessError as e:
+        except Exception as e:
             logger.debug(
                 "Failed to stop_cvd (possibly no running device): %s", e)
 
