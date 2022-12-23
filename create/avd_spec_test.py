@@ -552,6 +552,12 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.mock_config.connect_hostname = False
         self.assertTrue(self.AvdSpec.connect_hostname)
 
+        # Verify fetch_cvd_version
+        self.mock_config.fetch_cvd_version = "12345"
+        self.args.fetch_cvd_build_id = "23456"
+        self.AvdSpec._ProcessMiscArgs(self.args)
+        self.assertEqual(self.AvdSpec.fetch_cvd_version, "23456")
+
 
 if __name__ == "__main__":
     unittest.main()

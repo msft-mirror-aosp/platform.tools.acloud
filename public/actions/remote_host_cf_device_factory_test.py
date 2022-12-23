@@ -65,6 +65,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                          fetch_cvd_wrapper=None,
                          base_instance_num=None,
                          num_avds_per_instance=None,
+                         fetch_cvd_version="123456",
                          cfg=mock_cfg)
 
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory."

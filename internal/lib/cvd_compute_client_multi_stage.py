@@ -93,7 +93,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         """
         super().__init__(acloud_config, oauth2_credentials)
 
-        self._fetch_cvd_version = acloud_config.fetch_cvd_version
         self._build_api = (
             android_build_client.AndroidBuildClient(oauth2_credentials))
         self._ssh_private_key_path = acloud_config.ssh_private_key_path
@@ -364,17 +363,20 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         return ip
 
     @utils.TimeExecute(function_description="Uploading build fetcher to instance")
-    def UpdateFetchCvd(self):
+    def UpdateFetchCvd(self, fetch_cvd_version):
         """Download fetch_cvd from the Build API, and upload it to a remote instance.
 
         The version of fetch_cvd to use is retrieved from the configuration file. Once fetch_cvd
         is on the instance, future commands can use it to download relevant Cuttlefish files from
         the Build API on the instance itself.
+
+        Args:
+            fetch_cvd_version: String. The build id of fetch_cvd.
         """
         self.SetStage(constants.STAGE_ARTIFACT)
         download_dir = tempfile.mkdtemp()
         download_target = os.path.join(download_dir, _FETCHER_NAME)
-        self._build_api.DownloadFetchcvd(download_target, self._fetch_cvd_version)
+        self._build_api.DownloadFetchcvd(download_target, fetch_cvd_version)
         self._ssh.ScpPushFile(src_file=download_target, dst_file=_FETCHER_NAME)
         os.remove(download_target)
         os.rmdir(download_dir)
