@@ -285,6 +285,12 @@ def AddCommonCreateArgs(parser):
         default=None,
         help="'GCE instance only' Record data into GCE instance metadata with "
         "key-value pair format. e.g. id:12,name:unknown.")
+    parser.add_argument(
+        "--fetch_cvd-build-id",
+        type=str,
+        dest="fetch_cvd_build_id",
+        required=False,
+        help="'cuttlefish only' Build id of fetch_cvd, e.g. 2145099, P2804227")
     # TODO(146314062): Remove --multi-stage-launch after infra don't use this
     # args.
     parser.add_argument(
@@ -443,6 +449,12 @@ def AddCommonCreateArgs(parser):
         "--bootloader_build_target",
         type=str,
         dest="bootloader_build_target",
+        help=argparse.SUPPRESS,
+        required=False)
+    parser.add_argument(
+        "--fetch_cvd_build_id",
+        type=str,
+        dest="fetch_cvd_build_id",
         help=argparse.SUPPRESS,
         required=False)
     parser.add_argument(
