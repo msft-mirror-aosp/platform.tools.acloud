@@ -30,6 +30,7 @@ from acloud.list import list as list_instance
 from acloud.internal import constants
 from acloud.internal.lib import driver_test_lib
 from acloud.internal.lib import utils
+from acloud.public import report
 
 
 class LocalImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
@@ -140,12 +141,15 @@ EOF"""
         mock_check_running_cvd.return_value = True
         mock_avd_spec = mock.Mock()
         mock_avd_spec.num_avds_per_instance = 1
+        mock_avd_spec.local_instance_dir = None
         mock_lock = mock.Mock()
         mock_lock.Unlock.return_value = False
         mock_lock_instance.return_value = (1, mock_lock)
+        mock_report = mock.Mock()
+        mock_create.return_value = mock_report
 
         # Success
-        mock_create.return_value = mock.Mock()
+        mock_report.status = report.Status.SUCCESS
         self.local_image_local_instance._CreateAVD(
             mock_avd_spec, no_prompts=True)
         mock_lock_instance.assert_called_once()
@@ -156,6 +160,17 @@ EOF"""
         mock_lock.SetInUse.reset_mock()
         mock_lock.Unlock.reset_mock()
 
+        # Failure with report
+        mock_report.status = report.Status.BOOT_FAIL
+        self.local_image_local_instance._CreateAVD(
+            mock_avd_spec, no_prompts=True)
+        mock_lock_instance.assert_called_once()
+        mock_lock.SetInUse.assert_not_called()
+        mock_lock.Unlock.assert_called_once()
+
+        mock_lock_instance.reset_mock()
+        mock_lock.Unlock.reset_mock()
+
         # Failure with no report
         mock_create.side_effect = ValueError("unit test")
         with self.assertRaises(ValueError):
@@ -164,12 +179,6 @@ EOF"""
         mock_lock_instance.assert_called_once()
         mock_lock.SetInUse.assert_not_called()
         mock_lock.Unlock.assert_called_once()
-
-        # Failure with report
-        mock_lock_instance.side_effect = errors.CreateError("unit test")
-        report = self.local_image_local_instance._CreateAVD(
-            mock_avd_spec, no_prompts=True)
-        self.assertEqual(report.errors, ["unit test"])
 
     def testSelectAndLockInstances(self):
         """test _SelectAndLockInstances."""
@@ -264,10 +273,10 @@ EOF"""
 
         ins_ids = [1]
         # Success
-        report = self.local_image_local_instance._CreateInstance(
+        result_report = self.local_image_local_instance._CreateInstance(
             ins_ids, artifact_paths, mock_avd_spec, no_prompts=True)
 
-        self.assertEqual(report.data.get("devices"),
+        self.assertEqual(result_report.data.get("devices"),
                          self._EXPECTED_DEVICES_IN_REPORT)
         mock_ota_tools.OtaTools.assert_called_with("/ota/tools/dir")
         mock_ota_tools_object.MixSuperImage.assert_called_with(
@@ -296,12 +305,12 @@ EOF"""
         mock_cvd_utils.reset_mock()
         mock_launch_cvd.side_effect = errors.LaunchCVDFail("unit test")
 
-        report = self.local_image_local_instance._CreateInstance(
+        result_report = self.local_image_local_instance._CreateInstance(
             ins_ids, artifact_paths, mock_avd_spec, no_prompts=True)
 
-        self.assertEqual(report.data.get("devices_failing_boot"),
+        self.assertEqual(result_report.data.get("devices_failing_boot"),
                          self._EXPECTED_DEVICES_IN_FAILED_REPORT)
-        self.assertIn("unit test", report.errors[0])
+        self.assertIn("unit test", result_report.errors[0])
         mock_cvd_utils.FindLocalLogs.assert_called_with(
             "/instances/cvd", 1)
 
