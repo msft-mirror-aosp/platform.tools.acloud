@@ -173,11 +173,16 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
 
             result_report = self._CreateInstance(ins_ids, artifact_paths,
                                                  avd_spec, no_prompts)
-            # The infrastructure is able to delete the instance only if the
-            # instance name is reported. This method changes the state to
-            # in-use after creating the report.
-            for ins_lock in ins_locks:
-                ins_lock.SetInUse(True)
+            # Set the state to in-use if the instances start successfully.
+            # Failing instances are not set to in-use so that the user can
+            # restart them with the same IDs.
+            # TODO(b/261109137): Remove the condition of local_instance_dir
+            #                    when the testing infrastructure supports
+            #                    allocating instance IDs.
+            if (result_report.status == report.Status.SUCCESS or
+                    avd_spec.local_instance_dir):
+                for ins_lock in ins_locks:
+                    ins_lock.SetInUse(True)
             return result_report
         finally:
             for ins_lock in ins_locks:
