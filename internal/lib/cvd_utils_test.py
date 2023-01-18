@@ -27,6 +27,7 @@ from acloud.internal.lib import cvd_utils
 from acloud.internal.lib import driver_test_lib
 
 
+# pylint: disable=too-many-public-methods
 class CvdUtilsTest(driver_test_lib.BaseDriverTest):
     """Test the functions in cvd_utils."""
 
@@ -50,38 +51,6 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
         self.assertEqual([6444], cvd_utils.GetVncPorts(None, None))
         self.assertEqual([6444], cvd_utils.GetVncPorts(1, 1))
         self.assertEqual([6445, 6446], cvd_utils.GetVncPorts(2, 2))
-
-    @mock.patch("acloud.internal.lib.cvd_utils.os.path.isdir")
-    def testFindLocalLogs(self, mock_isdir):
-        """Test FindLocalLogs."""
-        mock_isdir.return_value = False
-        expected_logs = [
-            {
-                "path": "/dir/launcher.log",
-                "type": constants.LOG_TYPE_CUTTLEFISH_LOG
-            },
-            {"path": "/dir/kernel.log", "type": constants.LOG_TYPE_KERNEL_LOG},
-            {"path": "/dir/logcat", "type": constants.LOG_TYPE_LOGCAT},
-        ]
-        self.assertEqual(expected_logs, cvd_utils.FindLocalLogs("/dir", 1))
-
-        expected_path = "/dir/instances/cvd-2/logs"
-        mock_isdir.side_effect = lambda path: path == expected_path
-        expected_logs = [
-            {
-                "path": "/dir/instances/cvd-2/logs/launcher.log",
-                "type": constants.LOG_TYPE_CUTTLEFISH_LOG
-            },
-            {
-                "path": "/dir/instances/cvd-2/logs/kernel.log",
-                "type": constants.LOG_TYPE_KERNEL_LOG
-            },
-            {
-                "path": "/dir/instances/cvd-2/logs/logcat",
-                "type": constants.LOG_TYPE_LOGCAT
-            },
-        ]
-        self.assertEqual(expected_logs, cvd_utils.FindLocalLogs("/dir", 2))
 
     @staticmethod
     @mock.patch("acloud.internal.lib.cvd_utils.os.path.isdir",
@@ -346,7 +315,7 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
 
     @mock.patch("acloud.internal.lib.cvd_utils.utils")
     def testFindRemoteLogs(self, mock_utils):
-        """Test FindRemoteLogs with the runtime directories in Android 12."""
+        """Test FindRemoteLogs with the runtime directories in Android 13."""
         mock_ssh = mock.Mock()
         mock_utils.FindRemoteFiles.return_value = [
             "/kernel.log", "/logcat", "/launcher.log", "/access-kregistry",
@@ -425,6 +394,58 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             },
         ]
         self.assertEqual(expected_logs, logs)
+
+    def testFindLocalLogs(self):
+        """Test FindLocalLogs with the runtime directory in Android 13."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            log_dir = os.path.join(temp_dir, "instances", "cvd-2", "logs")
+            kernel_log = os.path.join(os.path.join(log_dir, "kernel.log"))
+            launcher_log = os.path.join(os.path.join(log_dir, "launcher.log"))
+            logcat = os.path.join(os.path.join(log_dir, "logcat"))
+            self.CreateFile(kernel_log)
+            self.CreateFile(launcher_log)
+            self.CreateFile(logcat)
+            self.CreateFile(os.path.join(temp_dir, "legacy.log"))
+            self.CreateFile(os.path.join(log_dir, "log.txt"))
+            os.symlink(os.path.join(log_dir, "launcher.log"),
+                       os.path.join(log_dir, "link.log"))
+
+            logs = cvd_utils.FindLocalLogs(temp_dir, 2)
+            expected_logs = [
+                {
+                    "path": kernel_log,
+                    "type": constants.LOG_TYPE_KERNEL_LOG,
+                },
+                {
+                    "path": launcher_log,
+                    "type": constants.LOG_TYPE_CUTTLEFISH_LOG,
+                },
+                {
+                    "path": logcat,
+                    "type": constants.LOG_TYPE_LOGCAT,
+                },
+            ]
+            self.assertEqual(expected_logs,
+                             sorted(logs, key=lambda log: log["path"]))
+
+    def testFindLocalLogsWithLegacyDir(self):
+        """Test FindLocalLogs with the runtime directory in Android 11."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            log_dir = os.path.join(temp_dir, "cuttlefish_runtime.2")
+            log_dir_link = os.path.join(temp_dir, "cuttlefish_runtime")
+            os.mkdir(log_dir)
+            os.symlink(log_dir, log_dir_link, target_is_directory=True)
+            launcher_log = os.path.join(log_dir_link, "launcher.log")
+            self.CreateFile(launcher_log)
+
+            logs = cvd_utils.FindLocalLogs(log_dir_link, 2)
+            expected_logs = [
+                {
+                    "path": launcher_log,
+                    "type": constants.LOG_TYPE_CUTTLEFISH_LOG,
+                },
+            ]
+            self.assertEqual(expected_logs, logs)
 
     def testGetRemoteBuildInfoDict(self):
         """Test GetRemoteBuildInfoDict."""
