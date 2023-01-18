@@ -397,8 +397,7 @@ class AVDSpec():
         self._webrtc_device_id = args.webrtc_device_id
         self._connect_hostname = args.connect_hostname or self._cfg.connect_hostname
         self._fetch_cvd_wrapper = args.fetch_cvd_wrapper
-        self._fetch_cvd_version = (
-            args.fetch_cvd_build_id or self._cfg.fetch_cvd_version)
+        self._fetch_cvd_version = self._GetFetchCVDVersion(args)
 
         if args.reuse_gce:
             if args.reuse_gce != constants.SELECT_ONE_GCE_INSTANCE:
@@ -408,6 +407,23 @@ class AVDSpec():
             if self._instance_name_to_reuse is None:
                 instance = list_instance.ChooseOneRemoteInstance(self._cfg)
                 self._instance_name_to_reuse = instance.name
+
+    def _GetFetchCVDVersion(self, args):
+        """Get the fetch_cvd version.
+
+        Acloud will get the LKGB of fetch_cvd if no version specified.
+
+        Args:
+            args: Namespace object from argparse.parse_args.
+
+        Returns:
+            The build id of fetch_cvd.
+        """
+        if args.fetch_cvd_build_id:
+            return args.fetch_cvd_build_id
+        build_client = android_build_client.AndroidBuildClient(
+            auth.CreateCredentials(self._cfg))
+        return build_client.GetFetcherVersion()
 
     @staticmethod
     def _GetFlavorFromString(flavor_string):
