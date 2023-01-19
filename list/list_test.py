@@ -47,7 +47,7 @@ class ListTest(driver_test_lib.BaseDriverTest):
         self.Patch(instance.RemoteInstance, "_GetZoneName")
         self.Patch(instance.RemoteInstance, "_GetProjectName")
         self.Patch(instance, "GetInstanceIP", return_value=ssh.IP())
-        self.Patch(instance.RemoteInstance, "GetAdbVncPortFromSSHTunnel")
+        self.Patch(instance.RemoteInstance, "GetForwardedPortsFromSSHTunnel")
         self.Patch(adb_tools, "AdbTools")
         self.Patch(adb_tools.AdbTools, "IsAdbConnected", return_value=False)
         self.Patch(auth, "CreateCredentials")

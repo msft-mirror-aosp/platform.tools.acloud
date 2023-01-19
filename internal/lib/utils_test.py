@@ -390,15 +390,17 @@ class UtilsTest(driver_test_lib.BaseDriverTest):
         fake_rsa_key_file = "/tmp/rsa_file"
         fake_target_vnc_port = 8888
         target_adb_port = 9999
+        target_fastboot_port = 7777
         ssh_user = "fake_user"
         call_side_effect = subprocess.CalledProcessError(123, "fake",
                                                          "fake error")
-        result = utils.ForwardedPorts(vnc_port=None, adb_port=None)
+        result = utils.ForwardedPorts(vnc_port=None, adb_port=None, fastboot_port=None)
         self.Patch(utils, "EstablishSshTunnel", side_effect=call_side_effect)
         self.assertEqual(result, utils.AutoConnect(fake_ip_addr,
                                                    fake_rsa_key_file,
                                                    fake_target_vnc_port,
                                                    target_adb_port,
+                                                   target_fastboot_port,
                                                    ssh_user))
 
     def testAutoConnectWithExtraArgs(self):
@@ -407,6 +409,7 @@ class UtilsTest(driver_test_lib.BaseDriverTest):
         fake_rsa_key_file = "/tmp/rsa_file"
         fake_target_vnc_port = 8888
         target_adb_port = 9999
+        target_fastboot_port = 7777
         ssh_user = "fake_user"
         fake_port = 12345
         self.Patch(utils, "PickFreePort", return_value=fake_port)
@@ -417,14 +420,17 @@ class UtilsTest(driver_test_lib.BaseDriverTest):
                           rsa_key_file=fake_rsa_key_file,
                           target_vnc_port=fake_target_vnc_port,
                           target_adb_port=target_adb_port,
+                          target_fastboot_port=target_fastboot_port,
                           ssh_user=ssh_user,
                           client_adb_port=fake_port,
+                          client_fastboot_port=fake_port,
                           extra_args_ssh_tunnel=extra_args_ssh_tunnel)
         mock_establish_ssh_tunnel.assert_called_with(
             fake_ip_addr,
             fake_rsa_key_file,
             ssh_user,
             [utils.PortMapping(fake_port, target_adb_port),
+             utils.PortMapping(fake_port, target_fastboot_port),
              utils.PortMapping(fake_port, fake_target_vnc_port)],
             extra_args_ssh_tunnel)
         mock_execute_command.assert_called_with(
@@ -586,6 +592,7 @@ class UtilsTest(driver_test_lib.BaseDriverTest):
         """test base_instance_num."""
         utils.SetCvdPorts(2)
         self.assertEqual(utils.GetCvdPorts().adb_port, 6521)
+        self.assertEqual(utils.GetCvdPorts().fastboot_port, 7521)
         self.assertEqual(utils.GetCvdPorts().vnc_port, 6445)
         utils.SetCvdPorts(None)
 
