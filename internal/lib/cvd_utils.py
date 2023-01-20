@@ -139,6 +139,19 @@ def GetAdbPorts(base_instance_num, num_avds_per_instance):
     return [constants.CF_ADB_PORT + (base_instance_num or 1) - 1 + index
             for index in range(num_avds_per_instance or 1)]
 
+def GetFastbootPorts(base_instance_num, num_avds_per_instance):
+    """Get Fastboot ports of cuttlefish.
+
+    Args:
+        base_instance_num: An integer or None, the instance number of the first
+                           device.
+        num_avds_per_instance: An integer or None, the number of devices.
+
+    Returns:
+        The port numbers as a list of integers.
+    """
+    return [constants.CF_FASTBOOT_PORT + (base_instance_num or 1) - 1 + index
+            for index in range(num_avds_per_instance or 1)]
 
 def GetVncPorts(base_instance_num, num_avds_per_instance):
     """Get VNC ports of cuttlefish.
