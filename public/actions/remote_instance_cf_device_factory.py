@@ -248,6 +248,15 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         return cvd_utils.GetAdbPorts(self._avd_spec.base_instance_num,
                                      self._avd_spec.num_avds_per_instance)
 
+    def GetFastbootPorts(self):
+        """Get Fastboot ports of the created devices.
+
+        Returns:
+            The port numbers as a list of integers.
+        """
+        return cvd_utils.GetFastbootPorts(self._avd_spec.base_instance_num,
+                                          self._avd_spec.num_avds_per_instance)
+
     def GetVncPorts(self):
         """Get VNC ports of the created devices.
 
