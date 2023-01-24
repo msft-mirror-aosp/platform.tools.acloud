@@ -856,7 +856,15 @@ class AVDSpec():
     def connect_adb(self):
         """Auto-connect to adb.
 
-        Return: Boolean, whether autoconnect is enabled.
+        Return: Boolean, whether adb autoconnect is enabled.
+        """
+        return self._autoconnect is not False
+
+    @property
+    def connect_fastboot(self):
+        """Auto-connect to fastboot.
+
+        Return: Boolean, whether fastboot autoconnect is enabled.
         """
         return self._autoconnect is not False
 
