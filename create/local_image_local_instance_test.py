@@ -497,7 +497,7 @@ EOF"""
             odm_dlkm_image=None)
 
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
-            hw_property, True, mock_artifact_paths, "fake_cvd_dir", False,
+            hw_property, True, True, mock_artifact_paths, "fake_cvd_dir", False,
             True, None, None, "phone")
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_DISK)
 
@@ -505,19 +505,19 @@ EOF"""
         hw_property = {"cpu": "fake", "x_res": "fake", "y_res": "fake",
                        "dpi": "fake", "memory": "fake"}
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
-            hw_property, True, mock_artifact_paths, "fake_cvd_dir", False,
+            hw_property, True, True, mock_artifact_paths, "fake_cvd_dir", False,
             True, None, None, "phone")
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_NO_DISK)
 
         # "gpu" is enabled with "default"
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
-            hw_property, True, mock_artifact_paths, "fake_cvd_dir", False,
+            hw_property, True, True, mock_artifact_paths, "fake_cvd_dir", False,
             True, None, None, "phone")
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_NO_DISK_WITH_GPU)
 
         # Following test with hw_property is None.
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
-            None, True, mock_artifact_paths, "fake_cvd_dir", True, False,
+            None, True, True, mock_artifact_paths, "fake_cvd_dir", True, False,
             None, None, "auto")
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_WEBRTC)
 
@@ -525,7 +525,7 @@ EOF"""
         mock_artifact_paths.boot_image = "fake_boot_image"
         mock_artifact_paths.vendor_boot_image = "fake_vendor_boot_image"
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
-            None, True, mock_artifact_paths, "fake_cvd_dir", False, True,
+            None, True, True, mock_artifact_paths, "fake_cvd_dir", False, True,
             "fake_super_image", None, "phone")
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_MIXED_IMAGES)
         mock_artifact_paths.boot_image = None
@@ -535,7 +535,7 @@ EOF"""
         mock_artifact_paths.kernel_image = "fake_kernel_image"
         mock_artifact_paths.initramfs_image = "fake_initramfs_image"
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
-            None, True, mock_artifact_paths, "fake_cvd_dir", False, True,
+            None, True, True, mock_artifact_paths, "fake_cvd_dir", False, True,
             None, None, "phone")
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_KERNEL_IMAGES)
         mock_artifact_paths.kernel_image = None
@@ -543,39 +543,39 @@ EOF"""
 
         # Specify vbmeta image.
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
-            None, True, mock_artifact_paths, "fake_cvd_dir", False, True,
+            None, True, True, mock_artifact_paths, "fake_cvd_dir", False, True,
             None, None, "phone", vbmeta_image_path="fake_vbmeta_image"
         )
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_VBMETA_IMAGE)
 
         # Add args into launch command with "-setupwizard_mode=REQUIRED"
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
-            None, True, mock_artifact_paths, "fake_cvd_dir", False, True,
+            None, True, True, mock_artifact_paths, "fake_cvd_dir", False, True,
             None, "-setupwizard_mode=REQUIRED", "phone")
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_ARGS)
 
         # Test with "openwrt" and "use_launch_cvd" are enabled.
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
-            None, True, mock_artifact_paths, "fake_cvd_dir", False, True,
+            None, True, True, mock_artifact_paths, "fake_cvd_dir", False, True,
             None, None, "phone", openwrt=True, use_launch_cvd=True)
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_OPENWRT)
 
         # Test with instance_ids
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
-            None, True, mock_artifact_paths, "fake_cvd_dir", False, True,
+            None, True, True, mock_artifact_paths, "fake_cvd_dir", False, True,
             None, None, "phone", instance_ids=[1,2])
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_INS_IDS)
 
         # Test with "pet-name"
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
-            None, True, mock_artifact_paths, "fake_cvd_dir", False, True,
+            None, True, True, mock_artifact_paths, "fake_cvd_dir", False, True,
             None, None, "phone", webrtc_device_id="pet-name")
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_PET_NAME)
 
         # Test with "cvd" doesn't exist
         self.Patch(os.path, "isfile", return_value=False)
         launch_cmd = self.local_image_local_instance.PrepareLaunchCVDCmd(
-            None, True, mock_artifact_paths, "fake_cvd_dir", False, True,
+            None, True, True, mock_artifact_paths, "fake_cvd_dir", False, True,
             None, None, "phone", openwrt=False, use_launch_cvd=False)
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_NO_CVD)
 
