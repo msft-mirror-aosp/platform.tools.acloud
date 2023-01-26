@@ -127,6 +127,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.local_image = constants.FIND_IN_BUILD_ENV
         args.local_system_image = None
         args.adb_port = None
+        args.fastboot_port = None
         args.launch_args = None
         fake_avd_spec = avd_spec.AVDSpec(args)
         fake_avd_spec.cfg.enable_multi_stage = True
@@ -171,6 +172,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.local_image = constants.FIND_IN_BUILD_ENV
         args.local_system_image = None
         args.adb_port = None
+        args.fastboot_port = None
         args.launch_args = None
         fake_avd_spec = avd_spec.AVDSpec(args)
         fake_avd_spec.cfg.enable_multi_stage = True
@@ -202,6 +204,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.local_image = "fake_local_image"
         args.local_system_image = None
         args.adb_port = None
+        args.fastboot_port = None
         args.cheeps_betty_image = None
         args.launch_args = None
         avd_spec_local_image = avd_spec.AVDSpec(args)
