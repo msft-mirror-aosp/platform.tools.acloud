@@ -243,8 +243,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
 
         boot_timeout_secs = self._GetBootTimeout(
             avd_spec.boot_timeout_secs or constants.DEFAULT_CF_BOOT_TIMEOUT)
-        ssh_command = (f"'HOME=$HOME/{base_dir} "
-                       f"{base_dir}/bin/launch_cvd -daemon "
+        ssh_command = (f"'cd {base_dir} && HOME=$HOME/{base_dir} "
+                       f"bin/launch_cvd -daemon "
                        f"{' '.join(launch_cvd_args)}'")
         try:
             self.ExtendReportData(_LAUNCH_CVD_COMMAND, ssh_command)
