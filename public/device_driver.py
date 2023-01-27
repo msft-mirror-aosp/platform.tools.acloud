@@ -406,6 +406,7 @@ def CreateGCETypeAVD(cfg,
                     target_adb_port=constants.GCE_ADB_PORT,
                     ssh_user=_SSH_USER,
                     client_adb_port=avd_spec.client_adb_port,
+                    client_fastboot_port=avd_spec.client_fastboot_port,
                     extra_args_ssh_tunnel=cfg.extra_args_ssh_tunnel)
                 device_dict[constants.VNC_PORT] = forwarded_ports.vnc_port
                 device_dict[constants.ADB_PORT] = forwarded_ports.adb_port
