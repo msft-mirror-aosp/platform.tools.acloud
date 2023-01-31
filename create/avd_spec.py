@@ -422,9 +422,7 @@ class AVDSpec():
         """
         if args.fetch_cvd_build_id:
             return args.fetch_cvd_build_id
-        build_client = android_build_client.AndroidBuildClient(
-            auth.CreateCredentials(self._cfg))
-        return build_client.GetFetcherVersion()
+        return constants.LKGB
 
     @staticmethod
     def _GetFlavorFromString(flavor_string):
