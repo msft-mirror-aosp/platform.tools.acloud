@@ -77,6 +77,7 @@ logger = logging.getLogger(__name__)
 _SYSTEM_IMAGE_NAME_PATTERN = r"system\.img"
 _SUPER_IMAGE_NAME = "super.img"
 _MIXED_SUPER_IMAGE_NAME = "mixed_super.img"
+_CMD_CVD_SELECTOR_ARGS_ = " --acquire_file_lock=false"
 _CMD_CVD_START = " start"
 _CMD_LAUNCH_CVD_ARGS = (
     " -daemon -config=%s -system_image_dir %s -instance_dir %s "
@@ -603,7 +604,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         """
         bin_dir = os.path.join(artifact_paths.host_bins, "bin")
         cvd_path = os.path.join(bin_dir, constants.CMD_CVD)
-        start_cvd_cmd = cvd_path + _CMD_CVD_START
+        start_cvd_cmd = cvd_path + _CMD_CVD_SELECTOR_ARGS_ + _CMD_CVD_START
         if use_launch_cvd or not os.path.isfile(cvd_path):
             start_cvd_cmd = os.path.join(bin_dir, constants.CMD_LAUNCH_CVD)
         launch_cvd_w_args = start_cvd_cmd + _CMD_LAUNCH_CVD_ARGS % (
