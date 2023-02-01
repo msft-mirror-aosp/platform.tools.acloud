@@ -102,6 +102,7 @@ class AVDSpec():
         # Let's define the private class vars here and then process the user
         # args afterwards.
         self._client_adb_port = args.adb_port
+        self._client_fastboot_port = args.fastboot_port
         self._autoconnect = None
         self._cvd_host_package = None
         self._instance_name_to_reuse = None
@@ -120,6 +121,7 @@ class AVDSpec():
         self._local_instance_dir = None
         self._local_kernel_image = None
         self._local_system_image = None
+        self._local_vendor_image = None
         self._local_tool_dirs = None
         self._image_download_dir = None
         self._num_of_instances = None
@@ -138,6 +140,7 @@ class AVDSpec():
         self._hw_customize = False
         self._remote_host = None
         self._gce_metadata = None
+        self._gce_only = None
         self._host_user = None
         self._host_ssh_private_key_path = None
         self._gpu = None
@@ -149,6 +152,7 @@ class AVDSpec():
         self._webrtc_device_id = None
         self._connect_hostname = None
         self._fetch_cvd_wrapper = None
+        self._fetch_cvd_version = None
 
         # Create config instance for android_build_client to query build api.
         self._cfg = config.GetAcloudConfig(args)
@@ -250,6 +254,10 @@ class AVDSpec():
         if args.local_system_image is not None:
             self._local_system_image = self._GetLocalImagePath(
                 args.local_system_image)
+
+        if args.local_vendor_image is not None:
+            self._local_vendor_image = self._GetLocalImagePath(
+                args.local_vendor_image)
 
         self.image_download_dir = (
             args.image_download_dir if args.image_download_dir
@@ -369,6 +377,7 @@ class AVDSpec():
         self._gpu = args.gpu
         self._disk_type = (args.disk_type or self._cfg.disk_type)
         self._base_instance_num = args.base_instance_num
+        self._gce_only = args.gce_only
         self._gce_metadata = create_common.ParseKeyValuePairArgs(args.gce_metadata)
         self._stable_host_image_name = (
             args.stable_host_image_name or self._cfg.stable_host_image_name)
@@ -389,6 +398,7 @@ class AVDSpec():
         self._webrtc_device_id = args.webrtc_device_id
         self._connect_hostname = args.connect_hostname or self._cfg.connect_hostname
         self._fetch_cvd_wrapper = args.fetch_cvd_wrapper
+        self._fetch_cvd_version = self._GetFetchCVDVersion(args)
 
         if args.reuse_gce:
             if args.reuse_gce != constants.SELECT_ONE_GCE_INSTANCE:
@@ -398,6 +408,21 @@ class AVDSpec():
             if self._instance_name_to_reuse is None:
                 instance = list_instance.ChooseOneRemoteInstance(self._cfg)
                 self._instance_name_to_reuse = instance.name
+
+    def _GetFetchCVDVersion(self, args):
+        """Get the fetch_cvd version.
+
+        Acloud will get the LKGB of fetch_cvd if no version specified.
+
+        Args:
+            args: Namespace object from argparse.parse_args.
+
+        Returns:
+            The build id of fetch_cvd.
+        """
+        if args.fetch_cvd_build_id:
+            return args.fetch_cvd_build_id
+        return constants.LKGB
 
     @staticmethod
     def _GetFlavorFromString(flavor_string):
@@ -801,6 +826,11 @@ class AVDSpec():
         return self._local_system_image
 
     @property
+    def local_vendor_image(self):
+        """Return local vendor image path."""
+        return self._local_vendor_image
+
+    @property
     def local_tool_dirs(self):
         """Return a list of local tool directories."""
         return self._local_tool_dirs
@@ -824,7 +854,15 @@ class AVDSpec():
     def connect_adb(self):
         """Auto-connect to adb.
 
-        Return: Boolean, whether autoconnect is enabled.
+        Return: Boolean, whether adb autoconnect is enabled.
+        """
+        return self._autoconnect is not False
+
+    @property
+    def connect_fastboot(self):
+        """Auto-connect to fastboot.
+
+        Return: Boolean, whether fastboot autoconnect is enabled.
         """
         return self._autoconnect is not False
 
@@ -869,6 +907,11 @@ class AVDSpec():
         Return: Boolean, whether fetch cvd in remote host.
         """
         return self._fetch_cvd_wrapper
+
+    @property
+    def fetch_cvd_version(self):
+        """Return fetch_cvd_version."""
+        return self._fetch_cvd_version
 
     @property
     def num(self):
@@ -959,6 +1002,11 @@ class AVDSpec():
     def client_adb_port(self):
         """Return the client adb port."""
         return self._client_adb_port
+
+    @property
+    def client_fastboot_port(self):
+        """Return the client fastboot port."""
+        return self._client_fastboot_port
 
     @property
     def stable_host_image_name(self):
@@ -1055,6 +1103,11 @@ class AVDSpec():
     def gce_metadata(self):
         """Return gce_metadata."""
         return self._gce_metadata
+
+    @property
+    def gce_only(self):
+        """Return gce_only."""
+        return self._gce_only
 
     @property
     def oxygen(self):

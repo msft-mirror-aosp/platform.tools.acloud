@@ -262,8 +262,8 @@ def DeleteHostGoldfishInstance(cfg, name, ssh_user,
 @utils.TimeExecute(function_description=("Deleting remote host cuttlefish "
                                          "instance"),
                    result_evaluator=utils.ReportEvaluator)
-def CleanUpRemoteHost(cfg, remote_host, host_user,
-                      host_ssh_private_key_path, delete_report):
+def CleanUpRemoteHost(cfg, remote_host, host_user, host_ssh_private_key_path,
+                      base_dir, delete_report):
     """Clean up the remote host.
 
     Args:
@@ -272,6 +272,7 @@ def CleanUpRemoteHost(cfg, remote_host, host_user,
         host_user: String of user login into the instance.
         host_ssh_private_key_path: String of host key for logging in to the
                                    host.
+        base_dir: String, the base directory on the remote host.
         delete_report: A Report object.
 
     Returns:
@@ -283,7 +284,7 @@ def CleanUpRemoteHost(cfg, remote_host, host_user,
         ssh_private_key_path=(
             host_ssh_private_key_path or cfg.ssh_private_key_path))
     try:
-        cvd_utils.CleanUpRemoteCvd(ssh_obj, raise_error=True)
+        cvd_utils.CleanUpRemoteCvd(ssh_obj, base_dir, raise_error=True)
         delete_report.SetStatus(report.Status.SUCCESS)
         device_driver.AddDeletionResultToReport(
             delete_report, [remote_host], failed=[],
@@ -341,9 +342,10 @@ def DeleteInstanceByNames(cfg, instances, host_user,
 
     if remote_host_cf_names:
         for name in remote_host_cf_names:
-            ip_addr = cvd_utils.ParseRemoteHostAddress(name)
+            ip_addr, base_dir = cvd_utils.ParseRemoteHostAddress(name)
             CleanUpRemoteHost(cfg, ip_addr, host_user,
-                              host_ssh_private_key_path, delete_report)
+                              host_ssh_private_key_path, base_dir,
+                              delete_report)
 
     if remote_host_gf_names:
         for name in remote_host_gf_names:
@@ -418,7 +420,9 @@ def Run(args):
     if args.remote_host:
         delete_report = report.Report(command="delete")
         CleanUpRemoteHost(cfg, args.remote_host, args.host_user,
-                          args.host_ssh_private_key_path, delete_report)
+                          args.host_ssh_private_key_path,
+                          cvd_utils.GetRemoteHostBaseDir(1),
+                          delete_report)
         return delete_report
 
     instances = list_instances.GetLocalInstances()

@@ -46,6 +46,7 @@ from acloud.internal.lib import utils
 from acloud.internal.lib.adb_tools import AdbTools
 from acloud.internal.lib.local_instance_lock import LocalInstanceLock
 from acloud.internal.lib.gcompute_client import GetInstanceIP
+from acloud.internal.lib.gcompute_client import GetGCEHostName
 
 
 logger = logging.getLogger(__name__)
@@ -60,6 +61,7 @@ _CVD_STOP_ERROR_KEYWORDS = "cvd_internal_stop E"
 _CVD_TIMEOUT = 30
 # Keywords read from runtime config.
 _ADB_HOST_PORT = "adb_host_port"
+_FASTBOOT_HOST_PORT = "fastboot_host_port"
 # Keywords read from the output of "cvd status".
 _DISPLAYS = "displays"
 _WEBRTC_PORT = "webrtc_port"
@@ -71,10 +73,12 @@ _ACLOUDWEB_INSTANCE_START_STRING = "cf-"
 _MSG_UNABLE_TO_CALCULATE = "Unable to calculate"
 _NO_ANDROID_ENV = "android source not available"
 _RE_GROUP_ADB = "local_adb_port"
+_RE_GROUP_FASTBOOT = "local_fastboot_port"
 _RE_GROUP_VNC = "local_vnc_port"
 _RE_SSH_TUNNEL_PATTERN = (r"((.*\s*-L\s)(?P<%s>\d+):127.0.0.1:%s)"
                           r"((.*\s*-L\s)(?P<%s>\d+):127.0.0.1:%s)"
-                          r"(.+%s)")
+                          r"((.*\s*-L\s)(?P<%s>\d+):127.0.0.1:%s)"
+                          r"(.+(%s|%s))")
 _RE_TIMEZONE = re.compile(r"^(?P<time>[0-9\-\.:T]*)(?P<timezone>[+-]\d+:\d+)$")
 _RE_DEVICE_INFO = re.compile(r"(?s).*(?P<device_info>[{][\s\w\W]+})")
 
@@ -85,6 +89,7 @@ _Y_RES = "y_res"
 _DPI = "dpi"
 _DISPLAY_STRING = "%(x_res)sx%(y_res)s (%(dpi)s)"
 _RE_ZONE = re.compile(r".+/zones/(?P<zone>.+)$")
+_RE_PROJECT = re.compile(r".+/projects/(?P<project>.+)/zones/.+$")
 _LOCAL_ZONE = "local"
 _INDENT = " " * 3
 LocalPorts = collections.namedtuple("LocalPorts", [constants.VNC_PORT,
@@ -315,8 +320,8 @@ class Instance(object):
 
     # pylint: disable=too-many-locals
     def __init__(self, name, fullname, display, ip, status=None, adb_port=None,
-                 vnc_port=None, ssh_tunnel_is_connected=None, createtime=None,
-                 elapsed_time=None, avd_type=None, avd_flavor=None,
+                 fastboot_port=None, vnc_port=None, ssh_tunnel_is_connected=None,
+                 createtime=None, elapsed_time=None, avd_type=None, avd_flavor=None,
                  is_local=False, device_information=None, zone=None,
                  webrtc_port=None, webrtc_forward_port=None):
         self._name = name
@@ -324,8 +329,9 @@ class Instance(object):
         self._status = status
         self._display = display  # Resolution and dpi
         self._ip = ip
-        self._adb_port = adb_port  # adb port which is forwarding to remote
-        self._vnc_port = vnc_port  # vnc port which is forwarding to remote
+        self._adb_port = adb_port           # adb port which is forwarding to remote
+        self._fastboot_port = fastboot_port # fastboot port which is forwarding to remote
+        self._vnc_port = vnc_port           # vnc port which is forwarding to remote
         self._webrtc_port = webrtc_port
         self._webrtc_forward_port = webrtc_forward_port
         # True if ssh tunnel is still connected
@@ -399,6 +405,8 @@ class Instance(object):
             return constants.INS_KEY_VNC
         if self._adb_port:
             return constants.INS_KEY_ADB
+        if self._fastboot_port:
+            return constants.INS_KEY_FASTBOOT
         return None
 
     @property
@@ -457,6 +465,11 @@ class Instance(object):
         return self._adb_port
 
     @property
+    def fastboot_port(self):
+        """Return fastboot_port."""
+        return self._fastboot_port
+
+    @property
     def vnc_port(self):
         """Return vnc_port."""
         return self._vnc_port
@@ -501,6 +514,7 @@ class LocalInstance(Instance):
 
         ins_info = self._cf_runtime_cfg.instances.get(ins_id, {})
         adb_port = ins_info.get(_ADB_HOST_PORT) or self._cf_runtime_cfg.adb_port
+        fastboot_port = ins_info.get(_FASTBOOT_HOST_PORT) or self._cf_runtime_cfg.fastboot_port
         webrtc_device_id = (ins_info.get(constants.INS_KEY_WEBRTC_DEVICE_ID)
                             or f"cvd-{self._local_instance_id}")
         adb_serial = f"0.0.0.0:{adb_port}"
@@ -530,6 +544,7 @@ class LocalInstance(Instance):
             name=name, fullname=fullname, display=display, ip="0.0.0.0",
             status=constants.INS_STATUS_RUNNING,
             adb_port=adb_port,
+            fastboot_port=fastboot_port,
             vnc_port=self._cf_runtime_cfg.vnc_port,
             createtime=None, elapsed_time=None, avd_type=constants.TYPE_CF,
             is_local=True, device_information=device_information,
@@ -547,6 +562,8 @@ class LocalInstance(Instance):
             os.environ with cuttlefish variables updated.
         """
         cvd_env = os.environ.copy()
+        cvd_env[constants.ENV_ANDROID_HOST_OUT] = os.path.dirname(
+            self._cf_runtime_cfg.cvd_tools_path)
         cvd_env[constants.ENV_ANDROID_SOONG_HOST_OUT] = os.path.dirname(
             self._cf_runtime_cfg.cvd_tools_path)
         cvd_env[constants.ENV_CUTTLEFISH_CONFIG_FILE] = self._cf_runtime_cfg.config_path
@@ -901,6 +918,8 @@ class RemoteInstance(Instance):
 
         instance_ip = GetInstanceIP(gce_instance)
         ip = instance_ip.external or instance_ip.internal
+        project = self._GetProjectName(gce_instance.get(constants.INS_KEY_ZONE))
+        hostname = GetGCEHostName(project, name, zone)
 
         # Get metadata, webrtc_port will be removed if "cvd fleet" show it.
         display = None
@@ -927,12 +946,14 @@ class RemoteInstance(Instance):
 
         # Find ssl tunnel info.
         adb_port = None
+        fastboot_port = None
         vnc_port = None
         webrtc_forward_port = None
         device_information = None
         if ip:
-            forwarded_ports = self.GetAdbVncPortFromSSHTunnel(ip, avd_type)
+            forwarded_ports = self.GetForwardedPortsFromSSHTunnel(ip, hostname, avd_type)
             adb_port = forwarded_ports.adb_port
+            fastboot_port = forwarded_ports.fastboot_port
             vnc_port = forwarded_ports.vnc_port
             ssh_tunnel_is_connected = adb_port is not None
             webrtc_forward_port = utils.GetWebrtcPortFromSSHTunnel(ip)
@@ -953,7 +974,7 @@ class RemoteInstance(Instance):
 
         super().__init__(
             name=name, fullname=fullname, display=display, ip=ip, status=status,
-            adb_port=adb_port, vnc_port=vnc_port,
+            adb_port=adb_port, fastboot_port=fastboot_port, vnc_port=vnc_port,
             ssh_tunnel_is_connected=ssh_tunnel_is_connected,
             createtime=create_time, elapsed_time=elapsed_time, avd_type=avd_type,
             avd_flavor=avd_flavor, is_local=False,
@@ -983,34 +1004,60 @@ class RemoteInstance(Instance):
         return None
 
     @staticmethod
-    def GetAdbVncPortFromSSHTunnel(ip, avd_type):
+    def _GetProjectName(zone_info):
+        """Get the project name from the zone information of gce instance.
+
+        Zone information is like:
+        "https://www.googleapis.com/compute/v1/projects/project/zones/us-central1-c"
+        We want to get "project" as project name.
+
+        Args:
+            zone_info: String, zone information of gce instance.
+
+        Returns:
+            Project name of gce instance. None if project name can't find.
+        """
+        project_match = _RE_PROJECT.match(zone_info)
+        if project_match:
+            return project_match.group("project")
+
+        logger.debug("Can't get project name from %s.", zone_info)
+        return None
+
+    @staticmethod
+    def GetForwardedPortsFromSSHTunnel(ip, hostname, avd_type):
         """Get forwarding adb and vnc port from ssh tunnel.
 
         Args:
             ip: String, ip address.
+            hostname: String, hostname of GCE instance.
             avd_type: String, the AVD type.
 
         Returns:
-            NamedTuple ForwardedPorts(vnc_port, adb_port) holding the ports
+            NamedTuple ForwardedPorts(vnc_port, adb_port, fastboot_port) holding the ports
             used in the ssh forwarded call. Both fields are integers.
         """
         if avd_type not in utils.AVD_PORT_DICT:
-            return utils.ForwardedPorts(vnc_port=None, adb_port=None)
+            return utils.ForwardedPorts(vnc_port=None, adb_port=None, fastboot_port=None)
 
         default_vnc_port = utils.AVD_PORT_DICT[avd_type].vnc_port
         default_adb_port = utils.AVD_PORT_DICT[avd_type].adb_port
+        default_fastboot_port = utils.AVD_PORT_DICT[avd_type].fastboot_port
         # TODO(165888525): Align the SSH tunnel for the order of adb port and
         # vnc port.
         re_pattern = re.compile(_RE_SSH_TUNNEL_PATTERN %
                                 (_RE_GROUP_ADB, default_adb_port,
-                                 _RE_GROUP_VNC, default_vnc_port, ip))
+                                 _RE_GROUP_FASTBOOT, default_fastboot_port,
+                                 _RE_GROUP_VNC, default_vnc_port, ip, hostname))
         adb_port = None
+        fastboot_port = None
         vnc_port = None
         process_output = utils.CheckOutput(constants.COMMAND_PS)
         for line in process_output.splitlines():
             match = re_pattern.match(line)
             if match:
                 adb_port = int(match.group(_RE_GROUP_ADB))
+                fastboot_port = int(match.group(_RE_GROUP_FASTBOOT))
                 vnc_port = int(match.group(_RE_GROUP_VNC))
                 break
 
@@ -1018,4 +1065,6 @@ class RemoteInstance(Instance):
                       "IP:%s, forwarding (adb:%s, vnc:%s)"), ip, adb_port,
                      vnc_port)
 
-        return utils.ForwardedPorts(vnc_port=vnc_port, adb_port=adb_port)
+        return utils.ForwardedPorts(vnc_port=vnc_port,
+                                    adb_port=adb_port,
+                                    fastboot_port=fastboot_port)

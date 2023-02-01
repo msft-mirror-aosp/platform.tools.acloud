@@ -302,7 +302,7 @@ def CreateDevices(avd_spec=None,
     # Example: require version-emulator=5292001
     if not emulator_build_id and not emulator_branch:
         logger.info("emulator_build_id not provided. "
-                    "Try to get %s from build %s/%s.", _EMULATOR_INFO_FILENAME,
+                    "Attempting to get %s from build %s/%s.", _EMULATOR_INFO_FILENAME,
                     build_id, build_target)
         emulator_build_id = _FetchBuildIdFromFile(cfg,
                                                   build_target,
@@ -327,12 +327,12 @@ def CreateDevices(avd_spec=None,
                                      "in %s" % _SYSIMAGE_INFO_FILENAME)
     logger.info(
         "Creating a goldfish device in project %s, build_target: %s, "
-        "build_id: %s, emulator_bid: %s, kernel_build_id: %s, "
+        "build_id: %s, emulator_bid: %s, emulator_branch: %s, kernel_build_id: %s, "
         "kernel_branch: %s, kernel_build_target: %s, GPU: %s, num: %s, "
         "serial_log_file: %s, "
         "autoconnect: %s", cfg.project, build_target, build_id,
-        emulator_build_id, kernel_build_id, kernel_branch, kernel_build_target,
-        gpu, num, serial_log_file, autoconnect)
+        emulator_build_id, emulator_branch, kernel_build_id, kernel_branch,
+        kernel_build_target, gpu, num, serial_log_file, autoconnect)
 
     device_factory = GoldfishDeviceFactory(
         cfg, build_target, build_id,

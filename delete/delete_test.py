@@ -218,16 +218,16 @@ class DeleteTest(driver_test_lib.BaseDriverTest):
         cfg_attrs = {"ssh_private_key_path": "cfg_key_path"}
         mock_cfg = mock.Mock(spec_set=list(cfg_attrs.keys()), **cfg_attrs)
         delete_report = report.Report(command="delete")
-        delete.CleanUpRemoteHost(mock_cfg, "192.0.2.1", "vsoc-01",
-                                 None, delete_report)
+        delete.CleanUpRemoteHost(mock_cfg, "192.0.2.1", "vsoc-01", None, ".",
+                                 delete_report)
 
         mock_ssh.IP.assert_called_with(ip="192.0.2.1")
         mock_ssh.Ssh.assert_called_with(
             ip=mock_ssh_ip,
             user="vsoc-01",
             ssh_private_key_path="cfg_key_path")
-        mock_cvd_utils.CleanUpRemoteCvd.assert_called_with(mock_ssh_obj,
-                                                           raise_error=True)
+        mock_cvd_utils.CleanUpRemoteCvd.assert_called_with(
+            mock_ssh_obj, ".", raise_error=True)
         self.assertEqual(delete_report.status, "SUCCESS")
         self.assertEqual(delete_report.data, {
             "deleted": [
@@ -245,15 +245,15 @@ class DeleteTest(driver_test_lib.BaseDriverTest):
             subprocess.CalledProcessError(cmd="test", returncode=1))
         delete_report = report.Report(command="delete")
 
-        delete.CleanUpRemoteHost(mock_cfg, "192.0.2.2", "user",
-                                 "key_path", delete_report)
+        delete.CleanUpRemoteHost(mock_cfg, "192.0.2.2", "user", "key_path",
+                                 "acloud_cf_1", delete_report)
         mock_ssh.IP.assert_called_with(ip="192.0.2.2")
         mock_ssh.Ssh.assert_called_with(
             ip=mock_ssh_ip,
             user="user",
             ssh_private_key_path="key_path")
-        mock_cvd_utils.CleanUpRemoteCvd.assert_called_with(mock_ssh_obj,
-                                                           raise_error=True)
+        mock_cvd_utils.CleanUpRemoteCvd.assert_called_with(
+            mock_ssh_obj, "acloud_cf_1", raise_error=True)
         self.assertEqual(delete_report.status, "FAIL")
         self.assertEqual(len(delete_report.errors), 1)
 
@@ -280,12 +280,12 @@ class DeleteTest(driver_test_lib.BaseDriverTest):
 
         # Test delete remote host instances.
         instances = ["host-goldfish-192.0.2.1-5554-123456-sdk_x86_64-sdk",
-                     "host-192.0.2.2-123456-aosp_cf_x86_64_phone"]
+                     "host-192.0.2.2-3-123456-aosp_cf_x86_64_phone"]
         delete.DeleteInstanceByNames(cfg, instances, "user", "key")
         mock_delete_host_gf_ins.assert_called_with(
             cfg, instances[0], "user", "key", mock.ANY)
         mock_clean_up_remote_host.assert_called_with(
-            cfg, "192.0.2.2", "user", "key", mock.ANY)
+            cfg, "192.0.2.2", "user", "key", "acloud_cf_3", mock.ANY)
 
         # Test delete remote instances.
         instances = ["ins-id1-cf-x86-phone-userdebug",
@@ -384,6 +384,7 @@ class DeleteTest(driver_test_lib.BaseDriverTest):
         args.remote_host = None
         args.local_only = True
         args.adb_port = None
+        args.fastboot_port = None
         args.all = True
 
         self.Patch(delete, "_ReleaseOxygenDevice")

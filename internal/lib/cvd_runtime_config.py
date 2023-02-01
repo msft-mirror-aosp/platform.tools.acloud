@@ -30,6 +30,7 @@ _CFG_KEY_VNC_PORT = "vnc_server_port"
 # The adb port field name changes from "host_port" to "adb_host_port".
 _CFG_KEY_ADB_PORT = "host_port"
 _CFG_KEY_ADB_HOST_PORT = "adb_host_port"
+_CFG_KEY_FASTBOOT_HOST_PORT = "fastboot_host_port"
 _CFG_KEY_ENABLE_WEBRTC = "enable_webrtc"
 # TODO(148648620): Check instance_home_[id] for backward compatible.
 _RE_LOCAL_INSTANCE_ID = re.compile(r".+(?:local-instance-|instance_home_)"
@@ -107,7 +108,6 @@ class CvdRuntimeConfig():
     "webrtc_assets_dir" : "/home/vsoc-01/usr/share/webrtc/assets",
     "webrtc_binary" : "/home/vsoc-01/bin/webRTC",
     "webrtc_certs_dir" : "/home/vsoc-01/usr/share/webrtc/certs",
-    "webrtc_enable_adb_websocket" : false,
     "webrtc_public_ip" : "0.0.0.0",
     }
 
@@ -122,7 +122,8 @@ class CvdRuntimeConfig():
         self._config_dict = self._GetCuttlefishRuntimeConfig(config_path,
                                                              raw_data)
         self._instances = self._config_dict.get(_CFG_KEY_INSTANCES)
-        self._instance_ids = self._instances.keys()
+        # Old runtime config doesn't have "instances" information.
+        self._instance_ids = list(self._instances.keys()) if self._instances else ["1"]
         self._display_configs = self._config_dict.get(_CFG_KEY_DISPLAY_CONFIGS, {})
         self._root_dir = self._config_dict.get(_CFG_KEY_ROOT_DIR)
         crosvm_bin = self._config_dict.get(_CFG_KEY_CROSVM_BINARY)
@@ -150,7 +151,11 @@ class CvdRuntimeConfig():
             self._adb_port = (ins_dict.get(_CFG_KEY_ADB_PORT) or
                               ins_dict.get(_CFG_KEY_ADB_HOST_PORT))
             self._adb_ip_port = ins_dict.get(_CFG_KEY_ADB_IP_PORT)
+            self._fastboot_port = ins_dict.get(_CFG_KEY_FASTBOOT_HOST_PORT)
             self._virtual_disk_paths = ins_dict.get(_CFG_KEY_VIRTUAL_DISK_PATHS)
+            if not self._cvd_tools_path:
+                self._cvd_tools_path = os.path.dirname(
+                    ins_dict.get(_CFG_KEY_CROSVM_BINARY))
 
     @staticmethod
     def _GetCuttlefishRuntimeConfig(runtime_cf_config_path, raw_data=None):
@@ -216,6 +221,11 @@ class CvdRuntimeConfig():
     def adb_port(self):
         """Return adb_port."""
         return self._adb_port
+
+    @property
+    def fastboot_port(self):
+        """Return fastboot_port"""
+        return self._fastboot_port
 
     @property
     def config_path(self):

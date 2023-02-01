@@ -21,24 +21,24 @@ import unittest
 from unittest import mock
 
 from acloud import errors
+from acloud.create import create_common
 from acloud.internal import constants
 from acloud.internal.lib import cvd_utils
+from acloud.internal.lib import driver_test_lib
 
 
-class CvdUtilsTest(unittest.TestCase):
+# pylint: disable=too-many-public-methods
+class CvdUtilsTest(driver_test_lib.BaseDriverTest):
     """Test the functions in cvd_utils."""
 
     # Remote host instance name.
     _PRODUCT_NAME = "aosp_cf_x86_64_phone"
     _BUILD_ID = "2263051"
     _REMOTE_HOST_IP = "192.0.2.1"
-    _REMOTE_HOST_INSTANCE_NAME = "host-192.0.2.1-2263051-aosp_cf_x86_64_phone"
-
-    @staticmethod
-    def _CreateFile(path, data=b""):
-        """Create and write binary data to a file."""
-        with open(path, "wb") as file_obj:
-            file_obj.write(data)
+    _REMOTE_HOST_INSTANCE_NAME_1 = (
+        "host-192.0.2.1-1-2263051-aosp_cf_x86_64_phone")
+    _REMOTE_HOST_INSTANCE_NAME_2 = (
+        "host-192.0.2.1-2-2263051-aosp_cf_x86_64_phone")
 
     def testGetAdbPorts(self):
         """Test GetAdbPorts."""
@@ -46,43 +46,17 @@ class CvdUtilsTest(unittest.TestCase):
         self.assertEqual([6520], cvd_utils.GetAdbPorts(1, 1))
         self.assertEqual([6521, 6522], cvd_utils.GetAdbPorts(2, 2))
 
+    def testGetFastbootPorts(self):
+        """Test GetFastbootPorts."""
+        self.assertEqual([7520], cvd_utils.GetFastbootPorts(None, None))
+        self.assertEqual([7520], cvd_utils.GetFastbootPorts(1, 1))
+        self.assertEqual([7521, 7522], cvd_utils.GetFastbootPorts(2, 2))
+
     def testGetVncPorts(self):
         """Test GetVncPorts."""
         self.assertEqual([6444], cvd_utils.GetVncPorts(None, None))
         self.assertEqual([6444], cvd_utils.GetVncPorts(1, 1))
         self.assertEqual([6445, 6446], cvd_utils.GetVncPorts(2, 2))
-
-    @mock.patch("acloud.internal.lib.cvd_utils.os.path.isdir")
-    def testFindLocalLogs(self, mock_isdir):
-        """Test FindLocalLogs."""
-        mock_isdir.return_value = False
-        expected_logs = [
-            {
-                "path": "/dir/launcher.log",
-                "type": constants.LOG_TYPE_CUTTLEFISH_LOG
-            },
-            {"path": "/dir/kernel.log", "type": constants.LOG_TYPE_KERNEL_LOG},
-            {"path": "/dir/logcat", "type": constants.LOG_TYPE_LOGCAT},
-        ]
-        self.assertEqual(expected_logs, cvd_utils.FindLocalLogs("/dir", 1))
-
-        expected_path = "/dir/instances/cvd-2/logs"
-        mock_isdir.side_effect = lambda path: path == expected_path
-        expected_logs = [
-            {
-                "path": "/dir/instances/cvd-2/logs/launcher.log",
-                "type": constants.LOG_TYPE_CUTTLEFISH_LOG
-            },
-            {
-                "path": "/dir/instances/cvd-2/logs/kernel.log",
-                "type": constants.LOG_TYPE_KERNEL_LOG
-            },
-            {
-                "path": "/dir/instances/cvd-2/logs/logcat",
-                "type": constants.LOG_TYPE_LOGCAT
-            },
-        ]
-        self.assertEqual(expected_logs, cvd_utils.FindLocalLogs("/dir", 2))
 
     @staticmethod
     @mock.patch("acloud.internal.lib.cvd_utils.os.path.isdir",
@@ -90,10 +64,11 @@ class CvdUtilsTest(unittest.TestCase):
     def testUploadImageZip(_mock_isdir):
         """Test UploadArtifacts with image zip."""
         mock_ssh = mock.Mock()
-        cvd_utils.UploadArtifacts(mock_ssh, "/mock/img.zip", "/mock/cvd.tgz")
-        mock_ssh.Run.assert_any_call("/usr/bin/install_zip.sh . < "
+        cvd_utils.UploadArtifacts(mock_ssh, "dir", "/mock/img.zip",
+                                  "/mock/cvd.tgz")
+        mock_ssh.Run.assert_any_call("/usr/bin/install_zip.sh dir < "
                                      "/mock/img.zip")
-        mock_ssh.Run.assert_any_call("tar -x -z -f - < /mock/cvd.tgz")
+        mock_ssh.Run.assert_any_call("tar -xzf - -C dir < /mock/cvd.tgz")
 
     @staticmethod
     @mock.patch("acloud.internal.lib.cvd_utils.glob")
@@ -104,16 +79,18 @@ class CvdUtilsTest(unittest.TestCase):
         """Test UploadArtifacts with image directory."""
         mock_ssh = mock.Mock()
         mock_ssh.GetBaseCmd.return_value = "/mock/ssh"
-        expected_shell_cmd = ("tar -cf - --lzop -S -C /mock/dir "
+        expected_shell_cmd = ("tar -cf - --lzop -S -C local/dir "
                               "super.img bootloader kernel android-info.txt | "
-                              "/mock/ssh -- tar -xf - --lzop -S")
-        expected_ssh_cmd = "tar -x -z -f - < /mock/cvd.tgz"
+                              "/mock/ssh -- "
+                              "tar -xf - --lzop -S -C remote/dir")
+        expected_ssh_cmd = "tar -xzf - -C remote/dir < /mock/cvd.tgz"
 
         # Test with required_images file.
         mock_open = mock.mock_open(read_data="super.img\nbootloader\nkernel")
         with mock.patch("acloud.internal.lib.cvd_utils.open", mock_open):
-            cvd_utils.UploadArtifacts(mock_ssh, "/mock/dir", "/mock/cvd.tgz")
-        mock_open.assert_called_with("/mock/dir/required_images", "r",
+            cvd_utils.UploadArtifacts(mock_ssh, "remote/dir","local/dir",
+                                      "/mock/cvd.tgz")
+        mock_open.assert_called_with("local/dir/required_images", "r",
                                      encoding="utf-8")
         mock_glob.glob.assert_not_called()
         mock_shell.assert_called_with(expected_shell_cmd)
@@ -126,7 +103,8 @@ class CvdUtilsTest(unittest.TestCase):
             lambda path: [path.replace("*", "super")])
         with mock.patch("acloud.internal.lib.cvd_utils.open",
                         side_effect=IOError("file does not exist")):
-            cvd_utils.UploadArtifacts(mock_ssh, "/mock/dir", "/mock/cvd.tgz")
+            cvd_utils.UploadArtifacts(mock_ssh, "remote/dir", "local/dir",
+                                      "/mock/cvd.tgz")
         mock_glob.glob.assert_called()
         mock_shell.assert_called_with(expected_shell_cmd)
         mock_ssh.Run.assert_called_with(expected_ssh_cmd)
@@ -136,21 +114,24 @@ class CvdUtilsTest(unittest.TestCase):
         mock_ssh = mock.Mock()
         with tempfile.TemporaryDirectory(prefix="cvd_utils") as image_dir:
             boot_image_path = os.path.join(image_dir, "boot.img")
-            self._CreateFile(boot_image_path, b"ANDROID!test")
-            self._CreateFile(os.path.join(image_dir, "vendor_boot.img"))
+            self.CreateFile(boot_image_path, b"ANDROID!test")
+            self.CreateFile(os.path.join(image_dir, "vendor_boot.img"))
 
-            mock_avd_spec = mock.Mock(local_kernel_image=boot_image_path)
-            args = cvd_utils.UploadExtraImages(mock_ssh, mock_avd_spec)
-            self.assertEqual(["-boot_image", "acloud_cf/boot.img"], args)
-            mock_ssh.Run.assert_called_once_with("mkdir -p acloud_cf")
+            mock_avd_spec = mock.Mock(local_kernel_image=boot_image_path,
+                                      local_vendor_image=None)
+            args = cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec)
+            self.assertEqual(["-boot_image", "dir/acloud_image/boot.img"],
+                             args)
+            mock_ssh.Run.assert_called_once_with("mkdir -p dir/acloud_image")
             mock_ssh.ScpPushFile.assert_called_once()
 
             mock_ssh.reset_mock()
             mock_avd_spec.local_kernel_image = image_dir
-            args = cvd_utils.UploadExtraImages(mock_ssh, mock_avd_spec)
+            mock_avd_spec.local_vendor_image = None
+            args = cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec)
             self.assertEqual(
-                ["-boot_image", "acloud_cf/boot.img",
-                 "-vendor_boot_image", "acloud_cf/vendor_boot.img"],
+                ["-boot_image", "dir/acloud_image/boot.img",
+                 "-vendor_boot_image", "dir/acloud_image/vendor_boot.img"],
                 args)
             mock_ssh.Run.assert_called_once()
             self.assertEqual(2, mock_ssh.ScpPushFile.call_count)
@@ -160,69 +141,124 @@ class CvdUtilsTest(unittest.TestCase):
         mock_ssh = mock.Mock()
         with tempfile.TemporaryDirectory(prefix="cvd_utils") as image_dir:
             kernel_image_path = os.path.join(image_dir, "Image")
-            self._CreateFile(kernel_image_path)
-            self._CreateFile(os.path.join(image_dir, "initramfs.img"))
+            self.CreateFile(kernel_image_path)
+            self.CreateFile(os.path.join(image_dir, "initramfs.img"))
 
-            mock_avd_spec = mock.Mock(local_kernel_image=kernel_image_path)
+            mock_avd_spec = mock.Mock(local_kernel_image=kernel_image_path,
+                                      local_vendor_image=None)
             with self.assertRaises(errors.GetLocalImageError):
-                cvd_utils.UploadExtraImages(mock_ssh, mock_avd_spec)
+                cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec)
 
             mock_ssh.reset_mock()
             mock_avd_spec.local_kernel_image = image_dir
-            args = cvd_utils.UploadExtraImages(mock_ssh, mock_avd_spec)
+            mock_avd_spec.local_vendor_image = None
+            args = cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec)
             self.assertEqual(
-                ["-kernel_path", "acloud_cf/kernel",
-                 "-initramfs_path", "acloud_cf/initramfs.img"],
+                ["-kernel_path", "dir/acloud_image/kernel",
+                 "-initramfs_path", "dir/acloud_image/initramfs.img"],
                 args)
             mock_ssh.Run.assert_called_once()
             self.assertEqual(2, mock_ssh.ScpPushFile.call_count)
 
+    @mock.patch("acloud.internal.lib.ota_tools.FindOtaTools")
+    def testUploadVbmetaImages(self, mock_find_ota_tools):
+        """Test UploadExtraImages."""
+        self.Patch(create_common, "GetNonEmptyEnvVars", return_value=[])
+        mock_ssh = mock.Mock()
+        mock_ota_tools_object = mock.Mock()
+        mock_find_ota_tools.return_value = mock_ota_tools_object
+        mock_avd_spec = mock.Mock(
+            local_kernel_image=None,
+            local_vendor_image="vendor.img",
+            local_tool_dirs=[])
+
+        args = cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec)
+        self.assertEqual(
+            ["-vbmeta_image", "dir/acloud_image/vbmeta.img"],
+            args)
+        mock_ssh.Run.assert_called_once()
+        mock_ssh.ScpPushFile.assert_called_once()
+        mock_find_ota_tools.assert_called_once_with([])
+        mock_ota_tools_object.MakeDisabledVbmetaImage.assert_called_once()
+
+    @mock.patch("acloud.internal.lib.cvd_utils.ssh.ShellCmdWithRetry")
+    def testUploadSuperImage(self, mock_shell_cmd_with_retry):
+        """Test UploadSuperImage."""
+        mock_ssh = mock.Mock()
+        self.assertEqual(
+            ["-super_image",
+             "/remote/cvd/dir/acloud_image/super_image_dir/super.img"],
+            cvd_utils.UploadSuperImage(mock_ssh, "/remote/cvd/dir",
+                                       "/local/path/to/super.img"))
+        mock_shell_cmd_with_retry.assert_called_once()
+        args = mock_shell_cmd_with_retry.call_args[0]
+        self.assertEqual(1, len(args))
+        self.assertIn("/local/path/to", args[0])
+        self.assertIn("super.img", args[0])
+        self.assertIn("/remote/cvd/dir/acloud_image/super_image_dir", args[0])
+
     def testCleanUpRemoteCvd(self):
         """Test CleanUpRemoteCvd."""
         mock_ssh = mock.Mock()
-        cvd_utils.CleanUpRemoteCvd(mock_ssh, raise_error=True)
-        mock_ssh.Run.assert_any_call("./bin/stop_cvd")
-        mock_ssh.Run.assert_any_call("'rm -rf ./*'")
+        cvd_utils.CleanUpRemoteCvd(mock_ssh, "dir", raise_error=True)
+        mock_ssh.Run.assert_any_call("'HOME=$HOME/dir dir/bin/stop_cvd'")
+        mock_ssh.Run.assert_any_call("'rm -rf dir/*'")
 
         mock_ssh.reset_mock()
         mock_ssh.Run.side_effect = [
             subprocess.CalledProcessError(cmd="should raise", returncode=1)]
         with self.assertRaises(subprocess.CalledProcessError):
-            cvd_utils.CleanUpRemoteCvd(mock_ssh, raise_error=True)
+            cvd_utils.CleanUpRemoteCvd(mock_ssh, "dir", raise_error=True)
 
         mock_ssh.reset_mock()
         mock_ssh.Run.side_effect = [
             subprocess.CalledProcessError(cmd="should ignore", returncode=1),
             None]
-        cvd_utils.CleanUpRemoteCvd(mock_ssh, raise_error=False)
-        mock_ssh.Run.assert_any_call("./bin/stop_cvd", retry=0)
-        mock_ssh.Run.assert_any_call("'rm -rf ./*'")
+        cvd_utils.CleanUpRemoteCvd(mock_ssh, "dir", raise_error=False)
+        mock_ssh.Run.assert_any_call("'HOME=$HOME/dir dir/bin/stop_cvd'",
+                                     retry=0)
+        mock_ssh.Run.assert_any_call("'rm -rf dir/*'")
+
+    def testGetRemoteHostBaseDir(self):
+        """Test GetRemoteHostBaseDir."""
+        self.assertEqual("acloud_cf_1", cvd_utils.GetRemoteHostBaseDir(None))
+        self.assertEqual("acloud_cf_2", cvd_utils.GetRemoteHostBaseDir(2))
 
     def testFormatRemoteHostInstanceName(self):
         """Test FormatRemoteHostInstanceName."""
         name = cvd_utils.FormatRemoteHostInstanceName(
-            self._REMOTE_HOST_IP, self._BUILD_ID, self._PRODUCT_NAME)
-        self.assertEqual(name, self._REMOTE_HOST_INSTANCE_NAME)
+            self._REMOTE_HOST_IP, None, self._BUILD_ID, self._PRODUCT_NAME)
+        self.assertEqual(name, self._REMOTE_HOST_INSTANCE_NAME_1)
+
+        name = cvd_utils.FormatRemoteHostInstanceName(
+            self._REMOTE_HOST_IP, 2, self._BUILD_ID, self._PRODUCT_NAME)
+        self.assertEqual(name, self._REMOTE_HOST_INSTANCE_NAME_2)
 
     def testParseRemoteHostAddress(self):
         """Test ParseRemoteHostAddress."""
-        ip_addr = cvd_utils.ParseRemoteHostAddress(
-            self._REMOTE_HOST_INSTANCE_NAME)
-        self.assertEqual(ip_addr, self._REMOTE_HOST_IP)
+        result = cvd_utils.ParseRemoteHostAddress(
+            self._REMOTE_HOST_INSTANCE_NAME_1)
+        self.assertEqual(result, (self._REMOTE_HOST_IP, "acloud_cf_1"))
 
-        ip_addr = cvd_utils.ParseRemoteHostAddress(
+        result = cvd_utils.ParseRemoteHostAddress(
+            self._REMOTE_HOST_INSTANCE_NAME_2)
+        self.assertEqual(result, (self._REMOTE_HOST_IP, "acloud_cf_2"))
+
+        result = cvd_utils.ParseRemoteHostAddress(
             "host-goldfish-192.0.2.1-5554-123456-sdk_x86_64-sdk")
-        self.assertIsNone(ip_addr)
+        self.assertIsNone(result)
 
     def testGetLaunchCvdArgs(self):
         """Test GetLaunchCvdArgs."""
         # Minimum arguments
+        mock_cfg = mock.Mock(extra_data_disk_size_gb=0)
         hw_property = {
             constants.HW_X_RES: "1080",
             constants.HW_Y_RES: "1920",
             constants.HW_ALIAS_DPI: "240"}
         mock_avd_spec = mock.Mock(
             spec=[],
+            cfg=mock_cfg,
             hw_customize=False,
             hw_property=hw_property,
             connect_webrtc=False,
@@ -239,6 +275,7 @@ class CvdUtilsTest(unittest.TestCase):
         self.assertEqual(launch_cvd_args, expected_args)
 
         # All arguments.
+        mock_cfg = mock.Mock(extra_data_disk_size_gb=20)
         hw_property = {
             constants.HW_X_RES: "1080",
             constants.HW_Y_RES: "1920",
@@ -248,6 +285,7 @@ class CvdUtilsTest(unittest.TestCase):
             constants.HW_ALIAS_MEMORY: "4096"}
         mock_avd_spec = mock.Mock(
             spec=[],
+            cfg=mock_cfg,
             hw_customize=True,
             hw_property=hw_property,
             connect_webrtc=True,
@@ -271,22 +309,29 @@ class CvdUtilsTest(unittest.TestCase):
             "-undefok=report_anonymous_usage_stats,config",
             "-report_anonymous_usage_stats=y"]
         launch_cvd_args = cvd_utils.GetLaunchCvdArgs(
-            mock_avd_spec, blank_data_disk_size_gb=20, config="phone")
+            mock_avd_spec, config="phone")
         self.assertEqual(launch_cvd_args, expected_args)
+
+    def testGetRemoteFetcherConfigJson(self):
+        """Test GetRemoteFetcherConfigJson."""
+        expected_log = {"path": "dir/fetcher_config.json",
+                        "type": constants.LOG_TYPE_CUTTLEFISH_LOG}
+        self.assertEqual(expected_log,
+                         cvd_utils.GetRemoteFetcherConfigJson("dir"))
 
     @mock.patch("acloud.internal.lib.cvd_utils.utils")
     def testFindRemoteLogs(self, mock_utils):
-        """Test FindRemoteLogs with the runtime directories in Android 12."""
+        """Test FindRemoteLogs with the runtime directories in Android 13."""
         mock_ssh = mock.Mock()
         mock_utils.FindRemoteFiles.return_value = [
             "/kernel.log", "/logcat", "/launcher.log", "/access-kregistry",
             "/cuttlefish_config.json"]
 
-        logs = cvd_utils.FindRemoteLogs(mock_ssh, None, None)
-        mock_ssh.Run.assert_called_with("test -d cuttlefish/instances/cvd-1",
-                                        retry=0)
+        logs = cvd_utils.FindRemoteLogs(mock_ssh, "dir", None, None)
+        mock_ssh.Run.assert_called_with(
+            "test -d dir/cuttlefish/instances/cvd-1", retry=0)
         mock_utils.FindRemoteFiles.assert_called_with(
-            mock_ssh, ["cuttlefish/instances/cvd-1"])
+            mock_ssh, ["dir/cuttlefish/instances/cvd-1"])
         expected_logs = [
             {
                 "path": "/kernel.log",
@@ -309,7 +354,7 @@ class CvdUtilsTest(unittest.TestCase):
                 "name": "cuttlefish_config.json"
             },
             {
-                "path": "cuttlefish/instances/cvd-1/tombstones",
+                "path": "dir/cuttlefish/instances/cvd-1/tombstones",
                 "type": constants.LOG_TYPE_DIR,
                 "name": "tombstones-zip"
             },
@@ -323,36 +368,90 @@ class CvdUtilsTest(unittest.TestCase):
         mock_ssh.Run.side_effect = subprocess.CalledProcessError(
             cmd="test", returncode=1)
         mock_utils.FindRemoteFiles.return_value = [
-            "cuttlefish_runtime/kernel.log", "cuttlefish_runtime.4/kernel.log"]
+            "dir/cuttlefish_runtime/kernel.log",
+            "dir/cuttlefish_runtime.4/kernel.log",
+        ]
 
-        logs = cvd_utils.FindRemoteLogs(mock_ssh, 3, 2)
-        mock_ssh.Run.assert_called_with("test -d cuttlefish/instances/cvd-3",
-                                        retry=0)
+        logs = cvd_utils.FindRemoteLogs(mock_ssh, "dir", 3, 2)
+        mock_ssh.Run.assert_called_with(
+            "test -d dir/cuttlefish/instances/cvd-3", retry=0)
         mock_utils.FindRemoteFiles.assert_called_with(
-            mock_ssh, ["cuttlefish_runtime", "cuttlefish_runtime.4"])
+            mock_ssh, ["dir/cuttlefish_runtime", "dir/cuttlefish_runtime.4"])
         expected_logs = [
             {
-                "path": "cuttlefish_runtime/kernel.log",
+                "path": "dir/cuttlefish_runtime/kernel.log",
                 "type": constants.LOG_TYPE_KERNEL_LOG,
                 "name": "kernel.log"
             },
             {
-                "path": "cuttlefish_runtime.4/kernel.log",
+                "path": "dir/cuttlefish_runtime.4/kernel.log",
                 "type": constants.LOG_TYPE_KERNEL_LOG,
                 "name": "kernel.1.log"
             },
             {
-                "path": "cuttlefish_runtime/tombstones",
+                "path": "dir/cuttlefish_runtime/tombstones",
                 "type": constants.LOG_TYPE_DIR,
                 "name": "tombstones-zip"
             },
             {
-                "path": "cuttlefish_runtime.4/tombstones",
+                "path": "dir/cuttlefish_runtime.4/tombstones",
                 "type": constants.LOG_TYPE_DIR,
                 "name": "tombstones-zip.1"
             },
         ]
         self.assertEqual(expected_logs, logs)
+
+    def testFindLocalLogs(self):
+        """Test FindLocalLogs with the runtime directory in Android 13."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            log_dir = os.path.join(temp_dir, "instances", "cvd-2", "logs")
+            kernel_log = os.path.join(os.path.join(log_dir, "kernel.log"))
+            launcher_log = os.path.join(os.path.join(log_dir, "launcher.log"))
+            logcat = os.path.join(os.path.join(log_dir, "logcat"))
+            self.CreateFile(kernel_log)
+            self.CreateFile(launcher_log)
+            self.CreateFile(logcat)
+            self.CreateFile(os.path.join(temp_dir, "legacy.log"))
+            self.CreateFile(os.path.join(log_dir, "log.txt"))
+            os.symlink(os.path.join(log_dir, "launcher.log"),
+                       os.path.join(log_dir, "link.log"))
+
+            logs = cvd_utils.FindLocalLogs(temp_dir, 2)
+            expected_logs = [
+                {
+                    "path": kernel_log,
+                    "type": constants.LOG_TYPE_KERNEL_LOG,
+                },
+                {
+                    "path": launcher_log,
+                    "type": constants.LOG_TYPE_CUTTLEFISH_LOG,
+                },
+                {
+                    "path": logcat,
+                    "type": constants.LOG_TYPE_LOGCAT,
+                },
+            ]
+            self.assertEqual(expected_logs,
+                             sorted(logs, key=lambda log: log["path"]))
+
+    def testFindLocalLogsWithLegacyDir(self):
+        """Test FindLocalLogs with the runtime directory in Android 11."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            log_dir = os.path.join(temp_dir, "cuttlefish_runtime.2")
+            log_dir_link = os.path.join(temp_dir, "cuttlefish_runtime")
+            os.mkdir(log_dir)
+            os.symlink(log_dir, log_dir_link, target_is_directory=True)
+            launcher_log = os.path.join(log_dir_link, "launcher.log")
+            self.CreateFile(launcher_log)
+
+            logs = cvd_utils.FindLocalLogs(log_dir_link, 2)
+            expected_logs = [
+                {
+                    "path": launcher_log,
+                    "type": constants.LOG_TYPE_CUTTLEFISH_LOG,
+                },
+            ]
+            self.assertEqual(expected_logs, logs)
 
     def testGetRemoteBuildInfoDict(self):
         """Test GetRemoteBuildInfoDict."""
@@ -400,6 +499,24 @@ class CvdUtilsTest(unittest.TestCase):
             bootloader_build_info=bootloader_build_info)
         self.assertEqual(all_build_info,
                          cvd_utils.GetRemoteBuildInfoDict(mock_avd_spec))
+
+    def testFindMiscInfo(self):
+        """Test FindMiscInfo."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertRaises(errors.CheckPathError):
+                cvd_utils.FindMiscInfo(temp_dir)
+            misc_info_path = os.path.join(temp_dir, "META", "misc_info.txt")
+            self.CreateFile(misc_info_path, b"key=value")
+            self.assertEqual(misc_info_path, cvd_utils.FindMiscInfo(temp_dir))
+
+    def testFindImageDir(self):
+        """Test FindImageDir."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertRaises(errors.GetLocalImageError):
+                cvd_utils.FindImageDir(temp_dir)
+            image_dir = os.path.join(temp_dir, "IMAGES")
+            self.CreateFile(os.path.join(image_dir, "super.img"))
+            self.assertEqual(image_dir, cvd_utils.FindImageDir(temp_dir))
 
 
 if __name__ == "__main__":

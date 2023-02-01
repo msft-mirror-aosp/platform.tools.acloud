@@ -116,6 +116,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.args.avd_type = constants.TYPE_CF
         self.args.flavor = "phone"
         self.args.adb_port = None
+        self.args.fastboot_port = None
         self.args.base_instance_num = None
         self.args.hw_property = "cpu:2,resolution:1080x1920,dpi:240,memory:4g,disk:10g"
         self.args.num_avds_per_instance = 2
@@ -158,8 +159,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
             fake_avd_spec.hw_property[constants.HW_ALIAS_DPI]))
         self.cvd_compute_client_multi_stage.CreateInstance(
             self.INSTANCE, self.IMAGE, self.IMAGE_PROJECT,
-            fake_avd_spec, self.EXTRA_DATA_DISK_SIZE_GB,
-            extra_scopes=self.EXTRA_SCOPES)
+            fake_avd_spec, self.EXTRA_SCOPES)
 
         mock_create.assert_called_with(
             self.cvd_compute_client_multi_stage,
@@ -188,7 +188,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.Patch(Ssh, "GetCmdOutput", return_value="config=phone")
         expected = "phone"
         self.assertEqual(
-            self.cvd_compute_client_multi_stage._GetConfigFromAndroidInfo(),
+            self.cvd_compute_client_multi_stage._GetConfigFromAndroidInfo("dir"),
             expected)
 
     @mock.patch.object(Ssh, "Run")
@@ -242,20 +242,6 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         fake_avd_spec.openwrt = True
         self.cvd_compute_client_multi_stage._UpdateOpenWrtStatus(fake_avd_spec)
         self.assertEqual(True, self.cvd_compute_client_multi_stage.openwrt)
-
-    def testGetGCEHostName(self):
-        """Test GetGCEHostName."""
-        instance_name = "instance_name"
-        expected = "nic0.instance_name.fake-zone.c.fake-project.internal.gcpnode.com"
-        self.assertEqual(expected,
-                         self.cvd_compute_client_multi_stage._GetGCEHostName(
-                             instance_name))
-
-        self.cvd_compute_client_multi_stage._project = "test.com:project"
-        expected = "nic0.instance_name.fake-zone.c.project.test.com.internal.gcpnode.com"
-        self.assertEqual(expected,
-                         self.cvd_compute_client_multi_stage._GetGCEHostName(
-                             instance_name))
 
 
 if __name__ == "__main__":

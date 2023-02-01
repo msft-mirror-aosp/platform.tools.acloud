@@ -30,10 +30,16 @@ import dateutil.tz
 from acloud.internal import constants
 from acloud.internal.lib import cvd_runtime_config
 from acloud.internal.lib import driver_test_lib
+from acloud.internal.lib import gcompute_client
 from acloud.internal.lib import utils
 from acloud.internal.lib.adb_tools import AdbTools
 from acloud.list import instance
 
+
+ForwardedPorts = collections.namedtuple("ForwardedPorts",
+                                        [constants.VNC_PORT,
+                                         constants.ADB_PORT,
+                                         constants.FASTBOOT_PORT])
 
 class InstanceTest(driver_test_lib.BaseDriverTest):
     """Test instance."""
@@ -41,7 +47,7 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
                      "/fake_ps_2 --fake arg \n"
                      "/usr/bin/ssh -i ~/.ssh/acloud_rsa "
                      "-o UserKnownHostsFile=/dev/null "
-                     "-o StrictHostKeyChecking=no -L 54321:127.0.0.1:6520 "
+                     "-o StrictHostKeyChecking=no -L 54321:127.0.0.1:6520 -L 6789:127.0.0.1:7520"
                      "-L 12345:127.0.0.1:6444 -N -f -l user 1.1.1.1").encode()
     GCE_INSTANCE = {
         constants.INS_KEY_NAME: "fake_ins_name",
@@ -167,6 +173,7 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
             "CUTTLEFISH_INSTANCE": "2",
             "HOME": "/tmp/acloud_cvd_temp/local-instance-2",
             "CUTTLEFISH_CONFIG_FILE": "fake_config_path",
+            "ANDROID_HOST_OUT": "",
             "ANDROID_SOONG_HOST_OUT": "",
         }
         mock_check_output.assert_called_with(
@@ -249,36 +256,46 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
             datetime.timedelta(hours=2), instance._GetElapsedTime(start_time))
 
     # pylint: disable=protected-access
-    def testGetAdbVncPortFromSSHTunnel(self):
+    def testGetForwardedPortsFromSSHTunnel(self):
         """"Test Get forwarding adb and vnc port from ssh tunnel."""
         self.Patch(subprocess, "check_output", return_value=self.PS_SSH_TUNNEL)
         self.Patch(instance, "_GetElapsedTime", return_value="fake_time")
         self.Patch(instance.RemoteInstance, "_GetZoneName", return_value="fake_zone")
+        self.Patch(instance.RemoteInstance,
+                   "_GetProjectName",
+                   return_value="fake_project")
+        self.Patch(gcompute_client, "GetGCEHostName", return_value="fake_hostname")
         forwarded_ports = instance.RemoteInstance(
-            mock.MagicMock()).GetAdbVncPortFromSSHTunnel(
-                "1.1.1.1", constants.TYPE_CF)
+            mock.MagicMock()).GetForwardedPortsFromSSHTunnel(
+                "1.1.1.1", "fake_hostname", constants.TYPE_CF)
         self.assertEqual(54321, forwarded_ports.adb_port)
+        self.assertEqual(6789, forwarded_ports.fastboot_port)
         self.assertEqual(12345, forwarded_ports.vnc_port)
 
         # If avd_type is undefined in utils.AVD_PORT_DICT.
         forwarded_ports = instance.RemoteInstance(
-            mock.MagicMock()).GetAdbVncPortFromSSHTunnel(
-                "1.1.1.1", "undefined_avd_type")
+            mock.MagicMock()).GetForwardedPortsFromSSHTunnel(
+                "1.1.1.1", "fake_hostname", "undefined_avd_type")
         self.assertEqual(None, forwarded_ports.adb_port)
+        self.assertEqual(None, forwarded_ports.fastboot_port)
         self.assertEqual(None, forwarded_ports.vnc_port)
 
     # pylint: disable=protected-access
     def testProcessGceInstance(self):
         """"Test process instance detail."""
         fake_adb = 123456
+        fake_fastboot = 654321
         fake_vnc = 654321
-        forwarded_ports = collections.namedtuple("ForwardedPorts",
-                                                 [constants.VNC_PORT,
-                                                  constants.ADB_PORT])
+
+        self.Patch(instance.RemoteInstance,
+                   "_GetProjectName",
+                   return_value="fake_project")
         self.Patch(
             instance.RemoteInstance,
-            "GetAdbVncPortFromSSHTunnel",
-            return_value=forwarded_ports(vnc_port=fake_vnc, adb_port=fake_adb))
+            "GetForwardedPortsFromSSHTunnel",
+            return_value=ForwardedPorts(vnc_port=fake_vnc,
+                                        adb_port=fake_adb,
+                                        fastboot_port=fake_fastboot))
         self.Patch(utils, "GetWebrtcPortFromSSHTunnel",
                    return_value="fake_webrtc_port")
         self.Patch(instance, "_GetElapsedTime", return_value="fake_time")
@@ -308,8 +325,8 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         # test ssh_tunnel_is_connected will be false if ssh tunnel connection is not found
         self.Patch(
             instance.RemoteInstance,
-            "GetAdbVncPortFromSSHTunnel",
-            return_value=forwarded_ports(vnc_port=None, adb_port=None))
+            "GetForwardedPortsFromSSHTunnel",
+            return_value=ForwardedPorts(vnc_port=None, adb_port=None, fastboot_port=None))
         instance_info = instance.RemoteInstance(self.GCE_INSTANCE)
         self.assertFalse(instance_info.ssh_tunnel_is_connected)
         expected_full_name = "device serial: not connected (%s) elapsed time: %s" % (
@@ -319,14 +336,17 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
     def testInstanceSummary(self):
         """Test instance summary."""
         fake_adb = 123456
+        fake_fastboot = 654321
         fake_vnc = 654321
-        forwarded_ports = collections.namedtuple("ForwardedPorts",
-                                                 [constants.VNC_PORT,
-                                                  constants.ADB_PORT])
+        self.Patch(instance.RemoteInstance,
+                   "_GetProjectName",
+                   return_value="fake_project")
         self.Patch(
             instance.RemoteInstance,
-            "GetAdbVncPortFromSSHTunnel",
-            return_value=forwarded_ports(vnc_port=fake_vnc, adb_port=fake_adb))
+            "GetForwardedPortsFromSSHTunnel",
+            return_value=ForwardedPorts(vnc_port=fake_vnc,
+                                        adb_port=fake_adb,
+                                        fastboot_port=fake_fastboot))
         self.Patch(utils, "GetWebrtcPortFromSSHTunnel", return_value=8443)
         self.Patch(instance, "_GetElapsedTime", return_value="fake_time")
         self.Patch(AdbTools, "IsAdbConnected", return_value=True)
@@ -352,8 +372,8 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
 
         self.Patch(
             instance.RemoteInstance,
-            "GetAdbVncPortFromSSHTunnel",
-            return_value=forwarded_ports(vnc_port=None, adb_port=None))
+            "GetForwardedPortsFromSSHTunnel",
+            return_value=ForwardedPorts(vnc_port=None, adb_port=None, fastboot_port=None))
         self.Patch(instance, "_GetElapsedTime", return_value="fake_time")
         self.Patch(AdbTools, "IsAdbConnected", return_value=False)
         remote_instance = instance.RemoteInstance(self.GCE_INSTANCE)
@@ -381,6 +401,13 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         # Test can't get zone name from zone info.
         zone_info = "v1/projects/project/us-central1-c"
         self.assertEqual(instance.RemoteInstance._GetZoneName(zone_info), None)
+
+    def testGetProjectName(self):
+        """Test GetProjectName."""
+        zone_info = "v1/projects/fake_project/zones/us-central1-c"
+        expected_result = "fake_project"
+        self.assertEqual(instance.RemoteInstance._GetProjectName(zone_info),
+                         expected_result)
 
     def testGetLocalInstanceConfig(self):
         """Test GetLocalInstanceConfig."""
@@ -413,6 +440,10 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
         ins_webrtc = instance.Instance(
             name, fullname, display, ip, adb_port=6666)
         self.assertEqual(ins_webrtc._GetAutoConnect(), constants.INS_KEY_ADB)
+
+        ins_webrtc = instance.Instance(
+            name, fullname, display, ip, fastboot_port=6666)
+        self.assertEqual(ins_webrtc._GetAutoConnect(), constants.INS_KEY_FASTBOOT)
 
         ins_webrtc = instance.Instance(name, fullname, display, ip)
         self.assertEqual(ins_webrtc._GetAutoConnect(), None)

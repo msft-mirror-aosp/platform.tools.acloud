@@ -66,7 +66,9 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
     LATEST = "latest"
     # FETCH_CVD variables.
     FETCHER_NAME = "fetch_cvd"
+    FETCHER_BRANCH = "aosp-master"
     FETCHER_BUILD_TARGET = "aosp_cf_x86_64_phone-userdebug"
+    FETCHER_ARM_VERSION_BUILD_TARGET = "aosp_cf_arm64_phone-userdebug"
     MAX_RETRY = 3
     RETRY_SLEEP_SECS = 3
 
@@ -112,21 +114,29 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
             logger.error("Downloading artifact failed: %s", str(e))
             raise errors.DriverError(str(e))
 
-    def DownloadFetchcvd(self, local_dest, fetch_cvd_version):
+    def DownloadFetchcvd(
+            self,
+            local_dest,
+            fetch_cvd_version,
+            is_arm_version=False):
         """Get fetch_cvd from Android Build.
 
         Args:
             local_dest: A local path where the artifact should be stored.
                         e.g. "/tmp/fetch_cvd"
             fetch_cvd_version: String of fetch_cvd version.
+            is_arm_version: is ARM version fetch_cvd.
         """
+        if fetch_cvd_version == constants.LKGB:
+            fetch_cvd_version = self.GetFetcherVersion()
         utils.RetryExceptionType(
             exception_types=ssl.SSLError,
             max_retries=self.MAX_RETRY,
             functor=self.DownloadArtifact,
             sleep_multiplier=self.RETRY_SLEEP_SECS,
             retry_backoff_factor=utils.DEFAULT_RETRY_BACKOFF_FACTOR,
-            build_target=self.FETCHER_BUILD_TARGET,
+            build_target=(self.FETCHER_ARM_VERSION_BUILD_TARGET
+                        if is_arm_version else self.FETCHER_BUILD_TARGET),
             build_id=fetch_cvd_version,
             resource_id=self.FETCHER_NAME,
             local_dest=local_dest,
@@ -206,14 +216,18 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
 
         return fetch_cvd_args
 
+    def GetFetcherVersion(self):
+        """Get fetch_cvd build id from LKGB.
+
+        Returns:
+            The build id of fetch_cvd.
+        """
+        return self.GetLKGB(self.FETCHER_BUILD_TARGET, self.FETCHER_BRANCH)
+
     @staticmethod
     # pylint: disable=broad-except
-    def GetFetchCertArg(certification_file,
-                        service_account_json_private_key_path = None):
-        """When service account json private key file is provided, use
-        the key file.
-
-        Otherwise, get cert arg from certification file for fetch_cvd.
+    def GetFetchCertArg(certification_file):
+        """Get cert arg from certification file for fetch_cvd.
 
         Parse the certification file to get access token of the latest
         credential data and pass it to fetch_cvd command.
@@ -233,29 +247,23 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
 
         Args:
             certification_file: String of certification file path.
-            service_account_json_private_key_path: String of service
-            account json private key path.
 
         Returns:
             String of certificate arg for fetch_cvd. If there is no
             certification file, return empty string for aosp branch.
         """
-        if service_account_json_private_key_path:
-            return f"-credential_source=./{constants.FETCH_CVD_CREDENTIAL_SOURCE}"
-
         cert_arg = ""
-
         try:
             with open(certification_file) as cert_file:
                 auth_token = json.load(cert_file).get("data")[-1].get(
                     "credential").get("access_token")
                 if auth_token:
-                    cert_arg = "-credential_source=%s" % auth_token
+                    cert_arg = f"-credential_source={auth_token}"
         except Exception as e:
             utils.PrintColorString(
-                "Fail to open the certification file(%s): %s" %
-                (certification_file, e), utils.TextColors.WARNING)
-
+                f"Fail to open the certification file "
+                f"({certification_file}): {e}",
+                utils.TextColors.WARNING)
         return cert_arg
 
     def GetKernelBuild(self, kernel_build_info):

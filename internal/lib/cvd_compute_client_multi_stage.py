@@ -77,7 +77,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
     def __init__(self,
                  acloud_config,
                  oauth2_credentials,
-                 boot_timeout_secs=None,
                  ins_timeout_secs=None,
                  report_internal_ip=None,
                  gpu=None):
@@ -86,8 +85,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         Args:
             acloud_config: An AcloudConfig object.
             oauth2_credentials: An oauth2client.OAuth2Credentials instance.
-            boot_timeout_secs: Integer, the maximum time to wait for the AVD
-                               to boot up.
             ins_timeout_secs: Integer, the maximum time to wait for the
                               instance ready.
             report_internal_ip: Boolean to report the internal ip instead of
@@ -96,11 +93,9 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         """
         super().__init__(acloud_config, oauth2_credentials)
 
-        self._fetch_cvd_version = acloud_config.fetch_cvd_version
         self._build_api = (
             android_build_client.AndroidBuildClient(oauth2_credentials))
         self._ssh_private_key_path = acloud_config.ssh_private_key_path
-        self._boot_timeout_secs = boot_timeout_secs
         self._ins_timeout_secs = ins_timeout_secs
         self._report_internal_ip = report_internal_ip
         self._gpu = gpu
@@ -117,7 +112,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                                 constants.TIME_GCE: 0,
                                 constants.TIME_LAUNCH: 0}
 
-    def InitRemoteHost(self, ssh, ip, user):
+    def InitRemoteHost(self, ssh, ip, user, base_dir):
         """Init remote host.
 
         Check if we can ssh to the remote host, stop any cf instances running
@@ -128,19 +123,18 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             ip: namedtuple (internal, external) that holds IP address of the
                 remote host, e.g. "external:140.110.20.1, internal:10.0.0.1"
             user: String of user log in to the instance.
+            base_dir: The remote directory containing the images and tools.
         """
         self.SetStage(constants.STAGE_SSH_CONNECT)
         self._ssh = ssh
         self._ip = ip
         self._user = user
         self._ssh.WaitForSsh(timeout=self._ins_timeout_secs)
-        cvd_utils.CleanUpRemoteCvd(self._ssh, raise_error=False)
+        cvd_utils.CleanUpRemoteCvd(self._ssh, base_dir, raise_error=False)
 
     # pylint: disable=arguments-differ,broad-except
     def CreateInstance(self, instance, image_name, image_project,
-                       avd_spec, blank_data_disk_size_gb=None,
-                       extra_scopes=None):
-
+                       avd_spec, extra_scopes=None):
         """Create/Reuse a GCE instance.
 
         Args:
@@ -149,18 +143,16 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             image_project: A string, name of the project where the image lives.
                            Assume the default project if None.
             avd_spec: An AVDSpec instance.
-            blank_data_disk_size_gb: Size of the blank data disk in GB.
             extra_scopes: A list of extra scopes to be passed to the instance.
 
         Returns:
             A string, representing instance name.
         """
-
         # A blank data disk would be created on the host. Make sure the size of
         # the boot disk is large enough to hold it.
         boot_disk_size_gb = (
             int(self.GetImage(image_name, image_project)["diskSizeGb"]) +
-            blank_data_disk_size_gb)
+            avd_spec.cfg.extra_data_disk_size_gb)
 
         if avd_spec.instance_name_to_reuse:
             self._ip = self._ReusingGceInstance(avd_spec)
@@ -170,7 +162,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
                                                extra_scopes, boot_disk_size_gb,
                                                avd_spec)
         if avd_spec.connect_hostname:
-            self._gce_hostname = self._GetGCEHostName(instance)
+            self._gce_hostname = gcompute_client.GetGCEHostName(
+                self._project, instance, self._zone)
         self._ssh = Ssh(ip=self._ip,
                         user=constants.GCE_USER,
                         ssh_private_key_path=self._ssh_private_key_path,
@@ -181,7 +174,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             self.SetStage(constants.STAGE_SSH_CONNECT)
             self._ssh.WaitForSsh(timeout=self._ins_timeout_secs)
             if avd_spec.instance_name_to_reuse:
-                cvd_utils.CleanUpRemoteCvd(self._ssh, raise_error=False)
+                cvd_utils.CleanUpRemoteCvd(self._ssh, cvd_utils.GCE_BASE_DIR,
+                                           raise_error=False)
         except Exception as e:
             self._all_failures[instance] = e
         return instance
@@ -202,16 +196,19 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             return f"nic0.{instance}.{self._zone}.c.{project}.internal.gcpnode.com"
         return f"nic0.{instance}.{self._zone}.c.{self._project}.internal.gcpnode.com"
 
-    def _GetConfigFromAndroidInfo(self):
+    def _GetConfigFromAndroidInfo(self, base_dir):
         """Get config value from android-info.txt.
 
         The config in android-info.txt would like "config=phone".
+
+        Args:
+            base_dir: The remote directory containing the images.
 
         Returns:
             Strings of config value.
         """
         android_info = self._ssh.GetCmdOutput(
-            f"cat {constants.ANDROID_INFO_FILE}")
+            f"cat {base_dir}/{constants.ANDROID_INFO_FILE}")
         logger.debug("Android info: %s", android_info)
         config_match = _CONFIG_RE.match(android_info)
         if config_match:
@@ -220,8 +217,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
 
     @utils.TimeExecute(function_description="Launching AVD(s) and waiting for boot up",
                        result_evaluator=utils.BootEvaluator)
-    def LaunchCvd(self, instance, avd_spec, blank_data_disk_size_gb=None,
-                  boot_timeout_secs=None, extra_args=()):
+    def LaunchCvd(self, instance, avd_spec, base_dir, extra_args):
         """Launch CVD.
 
         Launch AVD with launch_cvd. If the process is failed, acloud would show
@@ -230,9 +226,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         Args:
             instance: String, instance name.
             avd_spec: An AVDSpec instance.
-            blank_data_disk_size_gb: Size of the blank data disk in GB.
-            boot_timeout_secs: Integer, the maximum time to wait for the
-                               command to respond.
+            base_dir: The remote directory containing the images and tools.
             extra_args: Collection of strings, the extra arguments generated by
                         acloud. e.g., remote image paths.
 
@@ -244,14 +238,14 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         timestart = time.time()
         error_msg = ""
         launch_cvd_args = list(extra_args)
-        config = self._GetConfigFromAndroidInfo()
-        launch_cvd_args.extend(
-            cvd_utils.GetLaunchCvdArgs(avd_spec, blank_data_disk_size_gb,
-                                       config))
+        config = self._GetConfigFromAndroidInfo(base_dir)
+        launch_cvd_args.extend(cvd_utils.GetLaunchCvdArgs(avd_spec, config))
 
         boot_timeout_secs = self._GetBootTimeout(
-            boot_timeout_secs or constants.DEFAULT_CF_BOOT_TIMEOUT)
-        ssh_command = "./bin/launch_cvd -daemon " + " ".join(launch_cvd_args)
+            avd_spec.boot_timeout_secs or constants.DEFAULT_CF_BOOT_TIMEOUT)
+        ssh_command = (f"'cd {base_dir} && HOME=$HOME/{base_dir} "
+                       f"bin/launch_cvd -daemon "
+                       f"{' '.join(launch_cvd_args)}'")
         try:
             self.ExtendReportData(_LAUNCH_CVD_COMMAND, ssh_command)
             self._ssh.Run(ssh_command, boot_timeout_secs, retry=_NO_RETRY)
@@ -369,17 +363,20 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         return ip
 
     @utils.TimeExecute(function_description="Uploading build fetcher to instance")
-    def UpdateFetchCvd(self):
+    def UpdateFetchCvd(self, fetch_cvd_version):
         """Download fetch_cvd from the Build API, and upload it to a remote instance.
 
         The version of fetch_cvd to use is retrieved from the configuration file. Once fetch_cvd
         is on the instance, future commands can use it to download relevant Cuttlefish files from
         the Build API on the instance itself.
+
+        Args:
+            fetch_cvd_version: String. The build id of fetch_cvd.
         """
         self.SetStage(constants.STAGE_ARTIFACT)
         download_dir = tempfile.mkdtemp()
         download_target = os.path.join(download_dir, _FETCHER_NAME)
-        self._build_api.DownloadFetchcvd(download_target, self._fetch_cvd_version)
+        self._build_api.DownloadFetchcvd(download_target, fetch_cvd_version)
         self._ssh.ScpPushFile(src_file=download_target, dst_file=_FETCHER_NAME)
         os.remove(download_target)
         os.rmdir(download_dir)
