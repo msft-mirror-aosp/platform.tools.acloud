@@ -435,12 +435,12 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         """Find boot, vendor_boot, kernel, and initramfs images in a path.
 
         This method expects image_path to be:
+        - An output directory of a kernel build. It contains a kernel image and
+          initramfs.img.
         - A generic boot image or its parent directory. The image name is
           boot-*.img. The directory does not contain vendor_boot.img.
         - An output directory of a cuttlefish build. It contains boot.img and
           vendor_boot.img.
-        - An output directory of a kernel build. It contains a kernel image and
-          initramfs.img.
 
         Args:
             image_path: A path to an image file or an image directory.
@@ -453,15 +453,15 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             errors.GetLocalImageError if image_path does not contain boot or
             kernel images.
         """
-        boot_image_path, vendor_boot_image_path = cvd_utils.FindBootImages(
-            image_path)
-        if boot_image_path:
-            return boot_image_path, vendor_boot_image_path, None, None
-
         kernel_image_path, initramfs_image_path = cvd_utils.FindKernelImages(
             image_path)
         if kernel_image_path and initramfs_image_path:
             return None, None, kernel_image_path, initramfs_image_path
+
+        boot_image_path, vendor_boot_image_path = cvd_utils.FindBootImages(
+            image_path)
+        if boot_image_path:
+            return boot_image_path, vendor_boot_image_path, None, None
 
         raise errors.GetLocalImageError(f"{image_path} is not a boot image or "
                                         f"a directory containing images.")

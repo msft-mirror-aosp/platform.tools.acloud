@@ -434,19 +434,17 @@ EOF"""
             system_image_path = os.path.join(temp_dir, "system", "test.img")
             misc_info_path = os.path.join(image_dir, "META", "misc_info.txt")
             kernel_image_dir = os.path.join(temp_dir, "kernel_image")
-            vendor_boot_image_path = os.path.join(kernel_image_dir,
-                                                  "vendor_boot.img")
             kernel_image_path = os.path.join(kernel_image_dir, "Image")
             initramfs_image_path = os.path.join(kernel_image_dir,
                                                 "initramfs.img")
 
-            self._CreateEmptyFile(os.path.join(image_dir, "IMAGES",
-                                               "vbmeta.img"))
-            self._CreateEmptyFile(os.path.join(cvd_dir, "bin", "launch_cvd"))
-            self._CreateEmptyFile(os.path.join(cvd_dir, "usr/share/webrtc/certs", "server.crt"))
-            self._CreateEmptyFile(system_image_path)
-            self._CreateEmptyFile(misc_info_path)
-            self.CreateFile(vendor_boot_image_path)
+            self.CreateFile(os.path.join(kernel_image_dir, "boot.img"))
+            self.CreateFile(os.path.join(image_dir, "IMAGES", "vbmeta.img"))
+            self.CreateFile(os.path.join(cvd_dir, "bin", "launch_cvd"))
+            self.CreateFile(os.path.join(cvd_dir, "usr/share/webrtc/certs",
+                                         "server.crt"))
+            self.CreateFile(system_image_path)
+            self.CreateFile(misc_info_path)
             self.CreateFile(kernel_image_path)
             self.CreateFile(initramfs_image_path)
 
