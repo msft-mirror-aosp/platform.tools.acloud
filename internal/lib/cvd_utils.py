@@ -308,7 +308,8 @@ def FindKernelImages(search_path):
 
 @utils.TimeExecute(function_description="Uploading local kernel images.")
 def _UploadKernelImages(ssh_obj, remote_dir, search_path):
-    """Find and upload kernel images to a remote host or a GCE instance.
+    """Find and upload kernel or boot images to a remote host or a GCE
+    instance.
 
     Args:
         ssh_obj: An Ssh object.
@@ -325,6 +326,17 @@ def _UploadKernelImages(ssh_obj, remote_dir, search_path):
     # Assume that the caller cleaned up the remote home directory.
     ssh_obj.Run("mkdir -p " + remote_path.join(remote_dir, _REMOTE_IMAGE_DIR))
 
+    kernel_image_path, initramfs_image_path = FindKernelImages(search_path)
+    if kernel_image_path and initramfs_image_path:
+        remote_kernel_image_path = remote_path.join(
+            remote_dir, _REMOTE_KERNEL_IMAGE_PATH)
+        remote_initramfs_image_path = remote_path.join(
+            remote_dir, _REMOTE_INITRAMFS_IMAGE_PATH)
+        ssh_obj.ScpPushFile(kernel_image_path, remote_kernel_image_path)
+        ssh_obj.ScpPushFile(initramfs_image_path, remote_initramfs_image_path)
+        return ["-kernel_path", remote_kernel_image_path,
+                "-initramfs_path", remote_initramfs_image_path]
+
     boot_image_path, vendor_boot_image_path = FindBootImages(search_path)
     if boot_image_path:
         remote_boot_image_path = remote_path.join(
@@ -339,17 +351,6 @@ def _UploadKernelImages(ssh_obj, remote_dir, search_path):
             launch_cvd_args.extend(["-vendor_boot_image",
                                     remote_vendor_boot_image_path])
         return launch_cvd_args
-
-    kernel_image_path, initramfs_image_path = FindKernelImages(search_path)
-    if kernel_image_path and initramfs_image_path:
-        remote_kernel_image_path = remote_path.join(
-            remote_dir, _REMOTE_KERNEL_IMAGE_PATH)
-        remote_initramfs_image_path = remote_path.join(
-            remote_dir, _REMOTE_INITRAMFS_IMAGE_PATH)
-        ssh_obj.ScpPushFile(kernel_image_path, remote_kernel_image_path)
-        ssh_obj.ScpPushFile(initramfs_image_path, remote_initramfs_image_path)
-        return ["-kernel_path", remote_kernel_image_path,
-                "-initramfs_path", remote_initramfs_image_path]
 
     raise errors.GetLocalImageError(
         f"{search_path} is not a boot image or a directory containing images.")
