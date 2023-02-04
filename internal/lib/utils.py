@@ -1000,7 +1000,8 @@ def AutoConnect(ip_addr, rsa_key_file, target_vnc_port, target_adb_port, target_
     local_adb_port = client_adb_port or PickFreePort()
     port_mapping = [(local_adb_port, target_adb_port)]
     local_fastboot_port = client_fastboot_port or PickFreePort()
-    port_mapping.append((local_fastboot_port, target_fastboot_port))
+    if target_fastboot_port:
+        port_mapping.append((local_fastboot_port, target_fastboot_port))
     local_free_vnc_port = None
     if target_vnc_port:
         local_free_vnc_port = PickFreePort()
