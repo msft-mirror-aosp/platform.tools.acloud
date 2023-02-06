@@ -143,6 +143,7 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             kernel_image_path = os.path.join(image_dir, "Image")
             self.CreateFile(kernel_image_path)
             self.CreateFile(os.path.join(image_dir, "initramfs.img"))
+            self.CreateFile(os.path.join(image_dir, "boot.img"))
 
             mock_avd_spec = mock.Mock(local_kernel_image=kernel_image_path,
                                       local_vendor_image=None)
