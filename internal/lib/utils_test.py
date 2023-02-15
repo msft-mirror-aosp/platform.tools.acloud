@@ -444,10 +444,7 @@ class UtilsTest(driver_test_lib.BaseDriverTest):
         fake_webrtc_local_port = 12345
         self.Patch(utils, "GetWebRTCServerPort", return_value=8443)
         mock_establish_ssh_tunnel = self.Patch(utils, "EstablishSshTunnel")
-        fake_port_mapping = [utils.PortMapping(15550, 15550),
-                             utils.PortMapping(15551, 15551),
-                             utils.PortMapping(15552, 15552),
-                             utils.PortMapping(12345, 8443)]
+        fake_port_mapping = [utils.PortMapping(port, port) for port in range(15555, 15579 + 1)] + [utils.PortMapping(12345, 8443)]
 
         utils.EstablishWebRTCSshTunnel(
             ip_addr=fake_ip_addr, rsa_key_file=fake_rsa_key_file,
