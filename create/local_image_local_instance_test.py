@@ -230,6 +230,8 @@ EOF"""
     @mock.patch("acloud.create.local_image_local_instance.ota_tools")
     @mock.patch("acloud.create.local_image_local_instance.create_common")
     @mock.patch.object(local_image_local_instance.LocalImageLocalInstance,
+                       "_LogCvdVersion")
+    @mock.patch.object(local_image_local_instance.LocalImageLocalInstance,
                        "_LaunchCvd")
     @mock.patch.object(local_image_local_instance.LocalImageLocalInstance,
                        "PrepareLaunchCVDCmd")
@@ -237,8 +239,8 @@ EOF"""
     @mock.patch("acloud.create.local_image_local_instance.instance")
     def testCreateInstance(self, mock_instance, mock_cvd_utils,
                            _mock_prepare_cmd, mock_launch_cvd,
-                           _mock_create_common, mock_ota_tools, _mock_utils,
-                           mock_trust_certs):
+                           mock_log_cvd_version, _mock_create_common,
+                           mock_ota_tools, _mock_utils, mock_trust_certs):
         """Test the report returned by _CreateInstance."""
         mock_instance.GetLocalInstanceHomeDir.return_value = (
             "/local-instance-1")
@@ -259,7 +261,8 @@ EOF"""
         mock_ota_tools_object = mock.Mock()
         mock_ota_tools.OtaTools.return_value = mock_ota_tools_object
         mock_avd_spec = mock.Mock(
-            unlock_screen=False, connect_webrtc=True, openwrt=True)
+            unlock_screen=False, connect_webrtc=True, openwrt=True,
+            use_launch_cvd=False)
         local_ins = mock.Mock(
             adb_port=6520,
             vnc_port=6444
@@ -290,6 +293,7 @@ EOF"""
         mock_ota_tools_object.MakeDisabledVbmetaImage.assert_called_once()
         mock_cvd_utils.FindLocalLogs.assert_called_with(
             "/instances/cvd", 1)
+        mock_log_cvd_version.assert_called_with("/host/bin/path")
 
         # should call _TrustCertificatesForWebRTC
         mock_trust_certs.assert_called_once()
@@ -576,6 +580,29 @@ EOF"""
             None, True, True, mock_artifact_paths, "fake_cvd_dir", False, True,
             None, None, "phone", openwrt=False, use_launch_cvd=False)
         self.assertEqual(launch_cmd, self.LAUNCH_CVD_CMD_WITH_NO_CVD)
+
+    @mock.patch("acloud.create.local_image_local_instance.subprocess.run")
+    def testLogCvdVersion(self, mock_run):
+        """Test _LogCvdVersion."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # cvd does not exist in old versions.
+            self.local_image_local_instance._LogCvdVersion(temp_dir)
+            mock_run.assert_not_called()
+
+            # cvd command completes.
+            mock_run.return_value = mock.Mock(
+                returncode=1, stdout=None, stderr="err")
+            cvd_path = os.path.join(temp_dir, "bin", "cvd")
+            self.CreateFile(cvd_path)
+            self.local_image_local_instance._LogCvdVersion(temp_dir)
+            mock_run.assert_called_once()
+            self.assertEqual(mock_run.call_args[0][0], f"{cvd_path} version")
+
+            # cvd cannot run.
+            mock_run.reset_mock()
+            mock_run.side_effect = subprocess.SubprocessError
+            self.local_image_local_instance._LogCvdVersion(temp_dir)
+            mock_run.assert_called_once()
 
     @mock.patch.object(utils, "GetUserAnswerYes")
     @mock.patch.object(list_instance, "GetActiveCVD")
