@@ -79,6 +79,7 @@ _SUPER_IMAGE_NAME = "super.img"
 _MIXED_SUPER_IMAGE_NAME = "mixed_super.img"
 _CMD_CVD_SELECTOR_ARGS_ = " --acquire_file_lock=false"
 _CMD_CVD_START = " start"
+_CMD_CVD_VERSION = " version"
 _CMD_LAUNCH_CVD_ARGS = (
     " -daemon -config=%s -system_image_dir %s -instance_dir %s "
     "-undefok=report_anonymous_usage_stats,config "
@@ -292,6 +293,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         self.PrepareLocalCvdToolsLink(cvd_home_dir, artifact_paths.host_bins)
         if avd_spec.mkcert and avd_spec.connect_webrtc:
             self._TrustCertificatesForWebRTC(artifact_paths.host_artifacts)
+        if not avd_spec.use_launch_cvd:
+            self._LogCvdVersion(artifact_paths.host_bins)
 
         hw_property = None
         if avd_spec.hw_customize:
@@ -725,6 +728,30 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                 shutil.copyfile(
                     os.path.join(local_cert_dir, cert_file_name),
                     os.path.join(webrtc_certs_dir, cert_file_name))
+
+    @staticmethod
+    def _LogCvdVersion(host_bins_path):
+        """Log the version of the cvd server.
+
+        Args:
+            host_bins_path: String of host package directory.
+        """
+        cvd_path = os.path.join(host_bins_path, "bin", constants.CMD_CVD)
+        if not os.path.isfile(cvd_path):
+            logger.info("Skip logging cvd version as %s is not a file",
+                        cvd_path)
+            return
+
+        cmd = cvd_path + _CMD_CVD_VERSION
+        try:
+            proc = subprocess.run(cmd, shell=True, text=True,
+                                  capture_output=True, timeout=5,
+                                  check=False, cwd=host_bins_path)
+            logger.info("`%s` returned %d; stdout:\n%s",
+                        cmd, proc.returncode, proc.stdout)
+            logger.info("`%s` stderr:\n%s", cmd, proc.stderr)
+        except subprocess.SubprocessError as e:
+            logger.error("`%s` failed: %s", cmd, e)
 
     @staticmethod
     def _CheckRunningCvd(local_instance_id, no_prompts=False):
