@@ -82,7 +82,7 @@ _CMD_CVD_START = " start"
 _CMD_CVD_VERSION = " version"
 _CMD_LAUNCH_CVD_ARGS = (
     " -daemon -config=%s -system_image_dir %s -instance_dir %s "
-    "-undefok=report_anonymous_usage_stats,config "
+    "-undefok=report_anonymous_usage_stats,config,proxy_fastboot "
     "-report_anonymous_usage_stats=y")
 _CMD_LAUNCH_CVD_HW_ARGS = " -cpus %s -x_res %s -y_res %s -dpi %s -memory_mb %s"
 _CMD_LAUNCH_CVD_DISK_ARGS = (
@@ -96,6 +96,7 @@ _CMD_LAUNCH_CVD_KERNEL_IMAGE_ARG = " -kernel_path=%s"
 _CMD_LAUNCH_CVD_INITRAMFS_IMAGE_ARG = " -initramfs_path=%s"
 _CMD_LAUNCH_CVD_VBMETA_IMAGE_ARG = " -vbmeta_image=%s"
 _CMD_LAUNCH_CVD_NO_ADB_ARG = " -run_adb_connector=false"
+# Supported since U.
 _CMD_LAUNCH_CVD_NO_FASTBOOT_ARG = " -proxy_fastboot=false"
 _CMD_LAUNCH_CVD_INSTANCE_NUMS_ARG = " -instance_nums=%s"
 # Connect the OpenWrt device via console file.
