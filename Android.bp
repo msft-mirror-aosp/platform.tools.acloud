@@ -72,6 +72,10 @@ python_test_host {
     name: "acloud_test",
     pkg_path: "acloud",
     main: "acloud_test.py",
+    // TODO(b/270225397)
+    test_options: {
+        unit_test: false,
+    },
     data: [
         "public/data/default.config",
     ],
