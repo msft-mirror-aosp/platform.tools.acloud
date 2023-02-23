@@ -38,42 +38,42 @@ class LocalImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
 
     LAUNCH_CVD_CMD_WITH_DISK = """sg group1 <<EOF
 sg group2
-bin/cvd --acquire_file_lock=false start -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config,proxy_fastboot -report_anonymous_usage_stats=y -cpus fake -x_res fake -y_res fake -dpi fake -memory_mb fake -blank_data_image_mb fake -data_policy always_create -start_vnc_server=true
+bin/cvd start -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config,proxy_fastboot -report_anonymous_usage_stats=y -cpus fake -x_res fake -y_res fake -dpi fake -memory_mb fake -blank_data_image_mb fake -data_policy always_create -start_vnc_server=true
 EOF"""
 
     LAUNCH_CVD_CMD_NO_DISK = """sg group1 <<EOF
 sg group2
-bin/cvd --acquire_file_lock=false start -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config,proxy_fastboot -report_anonymous_usage_stats=y -cpus fake -x_res fake -y_res fake -dpi fake -memory_mb fake -start_vnc_server=true
+bin/cvd start -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config,proxy_fastboot -report_anonymous_usage_stats=y -cpus fake -x_res fake -y_res fake -dpi fake -memory_mb fake -start_vnc_server=true
 EOF"""
 
     LAUNCH_CVD_CMD_NO_DISK_WITH_GPU = """sg group1 <<EOF
 sg group2
-bin/cvd --acquire_file_lock=false start -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config,proxy_fastboot -report_anonymous_usage_stats=y -cpus fake -x_res fake -y_res fake -dpi fake -memory_mb fake -start_vnc_server=true
+bin/cvd start -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config,proxy_fastboot -report_anonymous_usage_stats=y -cpus fake -x_res fake -y_res fake -dpi fake -memory_mb fake -start_vnc_server=true
 EOF"""
 
     LAUNCH_CVD_CMD_WITH_WEBRTC = """sg group1 <<EOF
 sg group2
-bin/cvd --acquire_file_lock=false start -daemon -config=auto -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config,proxy_fastboot -report_anonymous_usage_stats=y -start_webrtc=true
+bin/cvd start -daemon -config=auto -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config,proxy_fastboot -report_anonymous_usage_stats=y -start_webrtc=true
 EOF"""
 
     LAUNCH_CVD_CMD_WITH_MIXED_IMAGES = """sg group1 <<EOF
 sg group2
-bin/cvd --acquire_file_lock=false start -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config,proxy_fastboot -report_anonymous_usage_stats=y -start_vnc_server=true -super_image=fake_super_image -boot_image=fake_boot_image -vendor_boot_image=fake_vendor_boot_image
+bin/cvd start -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config,proxy_fastboot -report_anonymous_usage_stats=y -start_vnc_server=true -super_image=fake_super_image -boot_image=fake_boot_image -vendor_boot_image=fake_vendor_boot_image
 EOF"""
 
     LAUNCH_CVD_CMD_WITH_KERNEL_IMAGES = """sg group1 <<EOF
 sg group2
-bin/cvd --acquire_file_lock=false start -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config,proxy_fastboot -report_anonymous_usage_stats=y -start_vnc_server=true -kernel_path=fake_kernel_image -initramfs_path=fake_initramfs_image
+bin/cvd start -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config,proxy_fastboot -report_anonymous_usage_stats=y -start_vnc_server=true -kernel_path=fake_kernel_image -initramfs_path=fake_initramfs_image
 EOF"""
 
     LAUNCH_CVD_CMD_WITH_VBMETA_IMAGE = """sg group1 <<EOF
 sg group2
-bin/cvd --acquire_file_lock=false start -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config,proxy_fastboot -report_anonymous_usage_stats=y -start_vnc_server=true -vbmeta_image=fake_vbmeta_image
+bin/cvd start -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config,proxy_fastboot -report_anonymous_usage_stats=y -start_vnc_server=true -vbmeta_image=fake_vbmeta_image
 EOF"""
 
     LAUNCH_CVD_CMD_WITH_ARGS = """sg group1 <<EOF
 sg group2
-bin/cvd --acquire_file_lock=false start -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config,proxy_fastboot -report_anonymous_usage_stats=y -start_vnc_server=true -setupwizard_mode=REQUIRED
+bin/cvd start -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config,proxy_fastboot -report_anonymous_usage_stats=y -start_vnc_server=true -setupwizard_mode=REQUIRED
 EOF"""
 
     LAUNCH_CVD_CMD_WITH_OPENWRT = """sg group1 <<EOF
@@ -83,7 +83,7 @@ EOF"""
 
     LAUNCH_CVD_CMD_WITH_PET_NAME = """sg group1 <<EOF
 sg group2
-bin/cvd --acquire_file_lock=false start -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config,proxy_fastboot -report_anonymous_usage_stats=y -start_vnc_server=true -webrtc_device_id=pet-name
+bin/cvd start -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config,proxy_fastboot -report_anonymous_usage_stats=y -start_vnc_server=true -webrtc_device_id=pet-name
 EOF"""
 
     LAUNCH_CVD_CMD_WITH_NO_CVD = """sg group1 <<EOF
@@ -93,7 +93,7 @@ EOF"""
 
     LAUNCH_CVD_CMD_WITH_INS_IDS = """sg group1 <<EOF
 sg group2
-bin/cvd --acquire_file_lock=false start -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config,proxy_fastboot -report_anonymous_usage_stats=y -start_vnc_server=true -instance_nums=1,2
+bin/cvd start -daemon -config=phone -system_image_dir fake_image_dir -instance_dir fake_cvd_dir -undefok=report_anonymous_usage_stats,config,proxy_fastboot -report_anonymous_usage_stats=y -start_vnc_server=true -instance_nums=1,2
 EOF"""
 
     _EXPECTED_DEVICES_IN_REPORT = [
