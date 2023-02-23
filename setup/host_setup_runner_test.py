@@ -112,6 +112,7 @@ class AvdPkgInstallerTest(driver_test_lib.BaseDriverTest):
     def testShouldRun(self):
         """Test ShouldRun."""
         self.Patch(platform, "system", return_value="Linux")
+        self.Patch(platform, "version", return_value="Unsupport")
         self.assertFalse(self.AvdPkgInstaller.ShouldRun())
 
     def testShouldNotRun(self):
