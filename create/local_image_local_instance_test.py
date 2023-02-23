@@ -635,11 +635,6 @@ EOF"""
         host_artifacts_path = "host_artifacts_path"
         cvd_home_dir = "fake_home"
         timeout = 100
-        cvd_env = {}
-        cvd_env[constants.ENV_CVD_HOME] = cvd_home_dir
-        cvd_env[constants.ENV_CUTTLEFISH_INSTANCE] = str(local_instance_id)
-        cvd_env[constants.ENV_ANDROID_SOONG_HOST_OUT] = host_artifacts_path
-        cvd_env[constants.ENV_ANDROID_HOST_OUT] = host_bins_path
         mock_proc = mock.Mock(returncode=0)
         mock_popen.return_value = mock_proc
         mock_proc.communicate.return_value = ("stdout", "stderr")
