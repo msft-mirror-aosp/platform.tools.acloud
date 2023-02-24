@@ -65,6 +65,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                          fetch_cvd_wrapper=None,
                          base_instance_num=None,
                          num_avds_per_instance=None,
+                         fetch_cvd_version="123456",
                          cfg=mock_cfg)
 
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory."
@@ -109,6 +110,8 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_pull.PullLogs.assert_called_once()
         factory.GetAdbPorts()
         mock_cvd_utils.GetAdbPorts.assert_called_with(2, 3)
+        factory.GetFastbootPorts()
+        mock_cvd_utils.GetFastbootPorts.assert_called_with(2, 3)
         factory.GetVncPorts()
         mock_cvd_utils.GetVncPorts.assert_called_with(2, 3)
         self.assertEqual({"inst": "failure"}, factory.GetFailures())
@@ -151,6 +154,8 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_pull.PullLogs.assert_not_called()
         factory.GetAdbPorts()
         mock_cvd_utils.GetAdbPorts.assert_called_with(None, None)
+        factory.GetFastbootPorts()
+        mock_cvd_utils.GetFastbootPorts.assert_called_with(None, None)
         factory.GetVncPorts()
         mock_cvd_utils.GetVncPorts.assert_called_with(None, None)
         self.assertFalse(factory.GetFailures())

@@ -275,9 +275,8 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         is_arm_img = (cvd_utils.IsArmImage(self._avd_spec.remote_image)
                         and self._avd_spec.remote_fetch)
         fetch_cvd = os.path.join(extract_path, constants.FETCH_CVD)
-        self._compute_client.build_api.DownloadFetchcvd(fetch_cvd,
-                                                        cfg.fetch_cvd_version,
-                                                        is_arm_img)
+        self._compute_client.build_api.DownloadFetchcvd(
+            fetch_cvd, self._avd_spec.fetch_cvd_version, is_arm_img)
         # Duplicate fetch_cvd API key when available
         if cfg.service_account_json_private_key_path:
             shutil.copyfile(
@@ -303,8 +302,8 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
 
         # Download images with fetch_cvd
         fetch_cvd = os.path.join(extract_path, constants.FETCH_CVD)
-        self._compute_client.build_api.DownloadFetchcvd(fetch_cvd,
-                                                        cfg.fetch_cvd_version)
+        self._compute_client.build_api.DownloadFetchcvd(
+            fetch_cvd, self._avd_spec.fetch_cvd_version)
         fetch_cvd_build_args = self._compute_client.build_api.GetFetchBuildArgs(
             self._avd_spec.remote_image,
             self._avd_spec.system_build_info,
@@ -402,6 +401,15 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         """
         return cvd_utils.GetAdbPorts(self._avd_spec.base_instance_num,
                                      self._avd_spec.num_avds_per_instance)
+
+    def GetFastbootPorts(self):
+        """Get Fastboot ports of the created devices.
+
+        Returns:
+            The port numbers as a list of integers.
+        """
+        return cvd_utils.GetFastbootPorts(self._avd_spec.base_instance_num,
+                                          self._avd_spec.num_avds_per_instance)
 
     def GetVncPorts(self):
         """Get VNC ports of the created devices.

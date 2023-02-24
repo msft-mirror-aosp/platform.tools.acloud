@@ -102,6 +102,7 @@ class AVDSpec():
         # Let's define the private class vars here and then process the user
         # args afterwards.
         self._client_adb_port = args.adb_port
+        self._client_fastboot_port = args.fastboot_port
         self._autoconnect = None
         self._cvd_host_package = None
         self._instance_name_to_reuse = None
@@ -151,6 +152,7 @@ class AVDSpec():
         self._webrtc_device_id = None
         self._connect_hostname = None
         self._fetch_cvd_wrapper = None
+        self._fetch_cvd_version = None
 
         # Create config instance for android_build_client to query build api.
         self._cfg = config.GetAcloudConfig(args)
@@ -396,6 +398,7 @@ class AVDSpec():
         self._webrtc_device_id = args.webrtc_device_id
         self._connect_hostname = args.connect_hostname or self._cfg.connect_hostname
         self._fetch_cvd_wrapper = args.fetch_cvd_wrapper
+        self._fetch_cvd_version = self._GetFetchCVDVersion(args)
 
         if args.reuse_gce:
             if args.reuse_gce != constants.SELECT_ONE_GCE_INSTANCE:
@@ -405,6 +408,21 @@ class AVDSpec():
             if self._instance_name_to_reuse is None:
                 instance = list_instance.ChooseOneRemoteInstance(self._cfg)
                 self._instance_name_to_reuse = instance.name
+
+    def _GetFetchCVDVersion(self, args):
+        """Get the fetch_cvd version.
+
+        Acloud will get the LKGB of fetch_cvd if no version specified.
+
+        Args:
+            args: Namespace object from argparse.parse_args.
+
+        Returns:
+            The build id of fetch_cvd.
+        """
+        if args.fetch_cvd_build_id:
+            return args.fetch_cvd_build_id
+        return constants.LKGB
 
     @staticmethod
     def _GetFlavorFromString(flavor_string):
@@ -836,7 +854,15 @@ class AVDSpec():
     def connect_adb(self):
         """Auto-connect to adb.
 
-        Return: Boolean, whether autoconnect is enabled.
+        Return: Boolean, whether adb autoconnect is enabled.
+        """
+        return self._autoconnect is not False
+
+    @property
+    def connect_fastboot(self):
+        """Auto-connect to fastboot.
+
+        Return: Boolean, whether fastboot autoconnect is enabled.
         """
         return self._autoconnect is not False
 
@@ -881,6 +907,11 @@ class AVDSpec():
         Return: Boolean, whether fetch cvd in remote host.
         """
         return self._fetch_cvd_wrapper
+
+    @property
+    def fetch_cvd_version(self):
+        """Return fetch_cvd_version."""
+        return self._fetch_cvd_version
 
     @property
     def num(self):
@@ -971,6 +1002,11 @@ class AVDSpec():
     def client_adb_port(self):
         """Return the client adb port."""
         return self._client_adb_port
+
+    @property
+    def client_fastboot_port(self):
+        """Return the client fastboot port."""
+        return self._client_fastboot_port
 
     @property
     def stable_host_image_name(self):

@@ -111,12 +111,14 @@ INSTANCE_NAME = "instance_name"
 GCE_USER = "vsoc-01"
 VNC_PORT = "vnc_port"
 ADB_PORT = "adb_port"
+FASTBOOT_PORT = "fastboot_port"
 WEBRTC_PORT = "webrtc_port"
 DEVICE_SERIAL = "device_serial"
 LOGS = "logs"
 BASE_INSTANCE_NUM = "base_instance_num"
 # For cuttlefish remote instances
 CF_ADB_PORT = 6520
+CF_FASTBOOT_PORT = 7520
 CF_VNC_PORT = 6444
 # For cheeps remote instances
 CHEEPS_ADB_PORT = 9222
@@ -152,6 +154,7 @@ ENV_ANDROID_PRODUCT_OUT = "ANDROID_PRODUCT_OUT"
 ENV_ANDROID_SOONG_HOST_OUT = "ANDROID_SOONG_HOST_OUT"
 ENV_ANDROID_TMP = "ANDROID_TMP"
 ENV_BUILD_TARGET = "TARGET_PRODUCT"
+ENV_CVD_ACQUIRE_FILE_LOCK = "CVD_ACQUIRE_FILE_LOCK"
 
 LOCALHOST = "0.0.0.0"
 LOCALHOST_ADB_SERIAL = LOCALHOST + ":%d"
@@ -173,6 +176,7 @@ INS_KEY_STATUS = "status"
 INS_KEY_DISPLAY = "display"
 INS_KEY_IP = "ip"
 INS_KEY_ADB = "adb"
+INS_KEY_FASTBOOT = "fastboot"
 INS_KEY_VNC = "vnc"
 INS_KEY_WEBRTC = "webrtc"
 INS_KEY_WEBRTC_PORT = "webrtc_port"
@@ -257,6 +261,8 @@ ERROR_MSG_SSO_INVALID = "stuck at SSO"
 # The name of download image tool.
 FETCH_CVD = "fetch_cvd"
 FETCH_CVD_ARGS_FILE = "fetch-cvd-args.txt"
+# Last known good build
+LKGB = "LKGB"
 
 # The name of credential source key json file, a copy of
 # cfg.service_account_json_private_key_path for remote host case.

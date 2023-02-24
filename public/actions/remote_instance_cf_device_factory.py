@@ -99,7 +99,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
                 self._local_image_artifact or avd_spec.local_image_dir,
                 self._cvd_host_package_artifact)
         elif avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
-            self._compute_client.UpdateFetchCvd()
+            self._compute_client.UpdateFetchCvd(avd_spec.fetch_cvd_version)
             self._compute_client.FetchBuild(
                 avd_spec.remote_image,
                 avd_spec.system_build_info,
@@ -247,6 +247,15 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         """
         return cvd_utils.GetAdbPorts(self._avd_spec.base_instance_num,
                                      self._avd_spec.num_avds_per_instance)
+
+    def GetFastbootPorts(self):
+        """Get Fastboot ports of the created devices.
+
+        Returns:
+            The port numbers as a list of integers.
+        """
+        return cvd_utils.GetFastbootPorts(self._avd_spec.base_instance_num,
+                                          self._avd_spec.num_avds_per_instance)
 
     def GetVncPorts(self):
         """Get VNC ports of the created devices.

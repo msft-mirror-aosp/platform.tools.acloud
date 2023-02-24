@@ -66,6 +66,7 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
     LATEST = "latest"
     # FETCH_CVD variables.
     FETCHER_NAME = "fetch_cvd"
+    FETCHER_BRANCH = "aosp-master"
     FETCHER_BUILD_TARGET = "aosp_cf_x86_64_phone-userdebug"
     FETCHER_ARM_VERSION_BUILD_TARGET = "aosp_cf_arm64_phone-userdebug"
     MAX_RETRY = 3
@@ -126,6 +127,8 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
             fetch_cvd_version: String of fetch_cvd version.
             is_arm_version: is ARM version fetch_cvd.
         """
+        if fetch_cvd_version == constants.LKGB:
+            fetch_cvd_version = self.GetFetcherVersion()
         utils.RetryExceptionType(
             exception_types=ssl.SSLError,
             max_retries=self.MAX_RETRY,
@@ -212,6 +215,14 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
             fetch_cvd_args.append(f"-otatools_build={ota_build}")
 
         return fetch_cvd_args
+
+    def GetFetcherVersion(self):
+        """Get fetch_cvd build id from LKGB.
+
+        Returns:
+            The build id of fetch_cvd.
+        """
+        return self.GetLKGB(self.FETCHER_BUILD_TARGET, self.FETCHER_BRANCH)
 
     @staticmethod
     # pylint: disable=broad-except

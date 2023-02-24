@@ -139,6 +139,19 @@ def GetAdbPorts(base_instance_num, num_avds_per_instance):
     return [constants.CF_ADB_PORT + (base_instance_num or 1) - 1 + index
             for index in range(num_avds_per_instance or 1)]
 
+def GetFastbootPorts(base_instance_num, num_avds_per_instance):
+    """Get Fastboot ports of cuttlefish.
+
+    Args:
+        base_instance_num: An integer or None, the instance number of the first
+                           device.
+        num_avds_per_instance: An integer or None, the number of devices.
+
+    Returns:
+        The port numbers as a list of integers.
+    """
+    return [constants.CF_FASTBOOT_PORT + (base_instance_num or 1) - 1 + index
+            for index in range(num_avds_per_instance or 1)]
 
 def GetVncPorts(base_instance_num, num_avds_per_instance):
     """Get VNC ports of cuttlefish.
@@ -295,7 +308,8 @@ def FindKernelImages(search_path):
 
 @utils.TimeExecute(function_description="Uploading local kernel images.")
 def _UploadKernelImages(ssh_obj, remote_dir, search_path):
-    """Find and upload kernel images to a remote host or a GCE instance.
+    """Find and upload kernel or boot images to a remote host or a GCE
+    instance.
 
     Args:
         ssh_obj: An Ssh object.
@@ -312,6 +326,17 @@ def _UploadKernelImages(ssh_obj, remote_dir, search_path):
     # Assume that the caller cleaned up the remote home directory.
     ssh_obj.Run("mkdir -p " + remote_path.join(remote_dir, _REMOTE_IMAGE_DIR))
 
+    kernel_image_path, initramfs_image_path = FindKernelImages(search_path)
+    if kernel_image_path and initramfs_image_path:
+        remote_kernel_image_path = remote_path.join(
+            remote_dir, _REMOTE_KERNEL_IMAGE_PATH)
+        remote_initramfs_image_path = remote_path.join(
+            remote_dir, _REMOTE_INITRAMFS_IMAGE_PATH)
+        ssh_obj.ScpPushFile(kernel_image_path, remote_kernel_image_path)
+        ssh_obj.ScpPushFile(initramfs_image_path, remote_initramfs_image_path)
+        return ["-kernel_path", remote_kernel_image_path,
+                "-initramfs_path", remote_initramfs_image_path]
+
     boot_image_path, vendor_boot_image_path = FindBootImages(search_path)
     if boot_image_path:
         remote_boot_image_path = remote_path.join(
@@ -326,17 +351,6 @@ def _UploadKernelImages(ssh_obj, remote_dir, search_path):
             launch_cvd_args.extend(["-vendor_boot_image",
                                     remote_vendor_boot_image_path])
         return launch_cvd_args
-
-    kernel_image_path, initramfs_image_path = FindKernelImages(search_path)
-    if kernel_image_path and initramfs_image_path:
-        remote_kernel_image_path = remote_path.join(
-            remote_dir, _REMOTE_KERNEL_IMAGE_PATH)
-        remote_initramfs_image_path = remote_path.join(
-            remote_dir, _REMOTE_INITRAMFS_IMAGE_PATH)
-        ssh_obj.ScpPushFile(kernel_image_path, remote_kernel_image_path)
-        ssh_obj.ScpPushFile(initramfs_image_path, remote_initramfs_image_path)
-        return ["-kernel_path", remote_kernel_image_path,
-                "-initramfs_path", remote_initramfs_image_path]
 
     raise errors.GetLocalImageError(
         f"{search_path} is not a boot image or a directory containing images.")
@@ -446,7 +460,7 @@ def CleanUpRemoteCvd(ssh_obj, remote_dir, raise_error):
     else:
         try:
             ssh_obj.Run(stop_cvd_cmd, retry=0)
-        except subprocess.CalledProcessError as e:
+        except Exception as e:
             logger.debug(
                 "Failed to stop_cvd (possibly no running device): %s", e)
 
@@ -634,6 +648,25 @@ def _GetRemoteTombstone(runtime_dir, name_suffix):
                           "tombstones-zip" + name_suffix)
 
 
+def _GetLogType(file_name):
+    """Determine log type by file name.
+
+    Args:
+        file_name: A file name.
+
+    Returns:
+        A string, one of the log types defined in constants.
+        None if the file is not a log file.
+    """
+    if file_name == "kernel.log":
+        return constants.LOG_TYPE_KERNEL_LOG
+    if file_name == "logcat":
+        return constants.LOG_TYPE_LOGCAT
+    if file_name.endswith(".log") or file_name == "cuttlefish_config.json":
+        return constants.LOG_TYPE_CUTTLEFISH_LOG
+    return None
+
+
 def FindRemoteLogs(ssh_obj, remote_dir, base_instance_num,
                    num_avds_per_instance):
     """Find log objects on a remote host or a GCE instance.
@@ -654,23 +687,18 @@ def FindRemoteLogs(ssh_obj, remote_dir, base_instance_num,
     logs = []
     for log_path in utils.FindRemoteFiles(ssh_obj, runtime_dirs):
         file_name = remote_path.basename(log_path)
+        log_type = _GetLogType(file_name)
+        if not log_type:
+            continue
         base, ext = remote_path.splitext(file_name)
         # The index of the runtime_dir containing log_path.
         index_str = ""
         for index, runtime_dir in enumerate(runtime_dirs):
             if log_path.startswith(runtime_dir + remote_path.sep):
                 index_str = "." + str(index) if index else ""
-        log_name = base + index_str + ext
-        log_type = constants.LOG_TYPE_CUTTLEFISH_LOG
+        log_name = ("full_gce_logcat" + index_str if file_name == "logcat" else
+                    base + index_str + ext)
 
-        if file_name == "kernel.log":
-            log_type = constants.LOG_TYPE_KERNEL_LOG
-        elif file_name == "logcat":
-            log_type = constants.LOG_TYPE_LOGCAT
-            log_name = "full_gce_logcat" + index_str
-        elif not (file_name.endswith(".log") or
-                  file_name == "cuttlefish_config.json"):
-            continue
         logs.append(report.LogFile(log_path, log_type, log_name))
 
     logs.extend(_GetRemoteTombstone(runtime_dir,
@@ -693,11 +721,16 @@ def FindLocalLogs(runtime_dir, instance_num):
                                        "num": instance_num}
     if not os.path.isdir(log_dir):
         log_dir = runtime_dir
-    return [report.LogFile(os.path.join(log_dir, name), log_type)
-            for name, log_type in [
-                ("launcher.log", constants.LOG_TYPE_CUTTLEFISH_LOG),
-                ("kernel.log", constants.LOG_TYPE_KERNEL_LOG),
-                ("logcat", constants.LOG_TYPE_LOGCAT)]]
+
+    logs = []
+    for parent_dir, _, file_names in os.walk(log_dir, followlinks=False):
+        for file_name in file_names:
+            log_path = os.path.join(parent_dir, file_name)
+            log_type = _GetLogType(file_name)
+            if os.path.islink(log_path) or not log_type:
+                continue
+            logs.append(report.LogFile(log_path, log_type))
+    return logs
 
 
 def GetRemoteBuildInfoDict(avd_spec):
