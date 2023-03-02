@@ -149,6 +149,9 @@ def ReconnectInstance(ssh_private_key_path,
         raise errors.UnknownAvdType("Unable to reconnect to instance (%s) of "
                                     "unknown avd type: %s" %
                                     (instance.name, instance.avd_type))
+    # Ignore extra ssh tunnel to connect with hostname.
+    if connect_hostname:
+        extra_args_ssh_tunnel = None
 
     adb_cmd = AdbTools(instance.adb_port)
     vnc_port = instance.vnc_port

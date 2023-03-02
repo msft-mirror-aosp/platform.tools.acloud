@@ -71,9 +71,11 @@ _WEBRTC_OPERATOR_PATTERN = re.compile(r"(.+)(webrtc_operator )(.+)")
 _PORT_8443 = 8443
 _PORT_1443 = 1443
 PortMapping = collections.namedtuple("PortMapping", ["local", "target"])
-WEBRTC_PORTS_MAPPING = [PortMapping(15550, 15550),
-                        PortMapping(15551, 15551),
-                        PortMapping(15552, 15552)]
+# Acloud uses only part of default webrtc port range to support both local and remote.
+# The default webrtc port range is [15550, 15599].
+WEBRTC_PORT_START = 15555
+WEBRTC_PORT_END = 15579
+WEBRTC_PORTS_MAPPING = [PortMapping(port, port) for port in range(WEBRTC_PORT_START, WEBRTC_PORT_END + 1)]
 _RE_GROUP_WEBRTC = "local_webrtc_port"
 _RE_WEBRTC_SSH_TUNNEL_PATTERN = (
     r"((.*-L\s)(?P<local_webrtc_port>\d+):127.0.0.1:%s)(.+%s)")

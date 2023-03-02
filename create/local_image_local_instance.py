@@ -77,11 +77,11 @@ logger = logging.getLogger(__name__)
 _SYSTEM_IMAGE_NAME_PATTERN = r"system\.img"
 _SUPER_IMAGE_NAME = "super.img"
 _MIXED_SUPER_IMAGE_NAME = "mixed_super.img"
-_CMD_CVD_SELECTOR_ARGS_ = " --acquire_file_lock=false"
 _CMD_CVD_START = " start"
+_CMD_CVD_VERSION = " version"
 _CMD_LAUNCH_CVD_ARGS = (
     " -daemon -config=%s -system_image_dir %s -instance_dir %s "
-    "-undefok=report_anonymous_usage_stats,config "
+    "-undefok=report_anonymous_usage_stats,config,proxy_fastboot "
     "-report_anonymous_usage_stats=y")
 _CMD_LAUNCH_CVD_HW_ARGS = " -cpus %s -x_res %s -y_res %s -dpi %s -memory_mb %s"
 _CMD_LAUNCH_CVD_DISK_ARGS = (
@@ -95,6 +95,7 @@ _CMD_LAUNCH_CVD_KERNEL_IMAGE_ARG = " -kernel_path=%s"
 _CMD_LAUNCH_CVD_INITRAMFS_IMAGE_ARG = " -initramfs_path=%s"
 _CMD_LAUNCH_CVD_VBMETA_IMAGE_ARG = " -vbmeta_image=%s"
 _CMD_LAUNCH_CVD_NO_ADB_ARG = " -run_adb_connector=false"
+# Supported since U.
 _CMD_LAUNCH_CVD_NO_FASTBOOT_ARG = " -proxy_fastboot=false"
 _CMD_LAUNCH_CVD_INSTANCE_NUMS_ARG = " -instance_nums=%s"
 # Connect the OpenWrt device via console file.
@@ -292,6 +293,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         self.PrepareLocalCvdToolsLink(cvd_home_dir, artifact_paths.host_bins)
         if avd_spec.mkcert and avd_spec.connect_webrtc:
             self._TrustCertificatesForWebRTC(artifact_paths.host_artifacts)
+        if not avd_spec.use_launch_cvd:
+            self._LogCvdVersion(artifact_paths.host_bins)
 
         hw_property = None
         if avd_spec.hw_customize:
@@ -604,7 +607,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         """
         bin_dir = os.path.join(artifact_paths.host_bins, "bin")
         cvd_path = os.path.join(bin_dir, constants.CMD_CVD)
-        start_cvd_cmd = cvd_path + _CMD_CVD_SELECTOR_ARGS_ + _CMD_CVD_START
+        start_cvd_cmd = cvd_path + _CMD_CVD_START
         if use_launch_cvd or not os.path.isfile(cvd_path):
             start_cvd_cmd = os.path.join(bin_dir, constants.CMD_LAUNCH_CVD)
         launch_cvd_w_args = start_cvd_cmd + _CMD_LAUNCH_CVD_ARGS % (
@@ -727,6 +730,30 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                     os.path.join(webrtc_certs_dir, cert_file_name))
 
     @staticmethod
+    def _LogCvdVersion(host_bins_path):
+        """Log the version of the cvd server.
+
+        Args:
+            host_bins_path: String of host package directory.
+        """
+        cvd_path = os.path.join(host_bins_path, "bin", constants.CMD_CVD)
+        if not os.path.isfile(cvd_path):
+            logger.info("Skip logging cvd version as %s is not a file",
+                        cvd_path)
+            return
+
+        cmd = cvd_path + _CMD_CVD_VERSION
+        try:
+            proc = subprocess.run(cmd, shell=True, text=True,
+                                  capture_output=True, timeout=5,
+                                  check=False, cwd=host_bins_path)
+            logger.info("`%s` returned %d; stdout:\n%s",
+                        cmd, proc.returncode, proc.stdout)
+            logger.info("`%s` stderr:\n%s", cmd, proc.stderr)
+        except subprocess.SubprocessError as e:
+            logger.error("`%s` failed: %s", cmd, e)
+
+    @staticmethod
     def _CheckRunningCvd(local_instance_id, no_prompts=False):
         """Check if launch_cvd with the same instance id is running.
 
@@ -797,6 +824,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         cvd_env[constants.ENV_CUTTLEFISH_INSTANCE] = str(local_instance_id)
         cvd_env[constants.ENV_CUTTLEFISH_CONFIG_FILE] = (
             instance.GetLocalInstanceConfigPath(local_instance_id))
+        cvd_env[constants.ENV_CVD_ACQUIRE_FILE_LOCK] = "false"
         stdout_file = os.path.join(cvd_home_dir, _STDOUT)
         stderr_file = os.path.join(cvd_home_dir, _STDERR)
         # Check the result of launch_cvd command.
