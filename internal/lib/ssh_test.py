@@ -28,6 +28,7 @@ from acloud import errors
 from acloud.internal import constants
 from acloud.internal.lib import driver_test_lib
 from acloud.internal.lib import ssh
+from acloud.internal.lib import utils
 
 
 class SshTest(driver_test_lib.BaseDriverTest):
@@ -42,6 +43,8 @@ class SshTest(driver_test_lib.BaseDriverTest):
     def setUp(self):
         """Set up the test."""
         super().setUp()
+        self.Patch(utils, "FindExecutable",
+                   side_effect=lambda name: f"/usr/bin/{name}")
         self.created_subprocess = mock.MagicMock()
         self.created_subprocess.stdout = mock.MagicMock()
         self.created_subprocess.stdout.readline = mock.MagicMock(return_value=b"")
