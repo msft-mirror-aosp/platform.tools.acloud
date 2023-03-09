@@ -130,12 +130,12 @@ class AVDSpec():
         self._mkcert = None
         self._oxygen = None
         self._openwrt = None
-        self._remote_image = None
-        self._system_build_info = None
-        self._kernel_build_info = None
-        self._boot_build_info = None
-        self._ota_build_info = None
-        self._bootloader_build_info = None
+        self._remote_image = {}
+        self._system_build_info = {}
+        self._kernel_build_info = {}
+        self._boot_build_info = {}
+        self._ota_build_info = {}
+        self._bootloader_build_info = {}
         self._hw_property = None
         self._hw_customize = False
         self._remote_host = None
@@ -463,11 +463,11 @@ class AVDSpec():
         elif self._avd_type == constants.TYPE_FVP:
             self._ProcessFVPLocalImageArgs()
         elif self._avd_type == constants.TYPE_GF:
-            self._local_image_dir = self._GetLocalImagePath(
-                args.local_image)
-            if not os.path.isdir(self._local_image_dir):
-                raise errors.GetLocalImageError("%s is not a directory." %
-                                                args.local_image)
+            local_image_path = self._GetLocalImagePath(args.local_image)
+            if os.path.isdir(local_image_path):
+                self._local_image_dir = local_image_path
+            else:
+                self._local_image_artifact = local_image_path
         elif self._avd_type == constants.TYPE_GCE:
             self._local_image_artifact = self._GetGceLocalImagePath(
                 args.local_image)
@@ -615,7 +615,6 @@ class AVDSpec():
         Args:
             args: Namespace object from argparse.parse_args.
         """
-        self._remote_image = {}
         self._remote_image[constants.BUILD_BRANCH] = args.branch
         if not self._remote_image[constants.BUILD_BRANCH]:
             self._remote_image[constants.BUILD_BRANCH] = self._GetBuildBranch(
