@@ -88,7 +88,8 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self._mock_remote_host_client = mock.Mock()
         self.Patch(gf_factory.remote_host_client, "RemoteHostClient",
                    return_value=self._mock_remote_host_client)
-        self.Patch(gf_factory.auth, "CreateCredentials")
+        self._mock_create_credentials = self.Patch(
+            gf_factory.auth, "CreateCredentials")
         # Emulator console
         self._mock_console = mock.MagicMock()
         self._mock_console.__enter__.return_value = self._mock_console
@@ -196,8 +197,8 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self._mock_avd_spec.boot_timeout_secs = 1
         self._mock_avd_spec.hw_customize = True
         self._mock_avd_spec.hw_property = {"disk": "4096"}
-        self._mock_android_build_client.DownloadArtifact.side_effect = (
-            AssertionError("DownloadArtifact should not be called."))
+        self._mock_create_credentials.side_effect = AssertionError(
+            "CreateCredentials should not be called.")
         # All artifacts are cached.
         with tempfile.TemporaryDirectory() as download_dir:
             self._mock_avd_spec.image_download_dir = download_dir
