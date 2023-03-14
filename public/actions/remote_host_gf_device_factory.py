@@ -87,6 +87,9 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
 
     Attributes:
         avd_spec: AVDSpec object that tells us what we're going to create.
+        android_build_client: An AndroidBuildClient that is lazily initialized.
+        temp_download_dir: The temporary artifact directory that is lazily
+                           initialized during PrepareArtifacts.
         ssh: Ssh object that executes commands on the remote host.
         failures: A dictionary the maps instance names to
                   error.DeviceBootError objects.
@@ -95,6 +98,8 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
     def __init__(self, avd_spec):
         """Initialize the attributes and the compute client."""
         self._avd_spec = avd_spec
+        self._android_build_client = None
+        self._temp_download_dir = None
         self._ssh = ssh.Ssh(
             ip=ssh.IP(ip=self._avd_spec.remote_host),
             user=self._ssh_user,
@@ -105,6 +110,27 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         self._logs = {}
         super().__init__(compute_client=(
             remote_host_client.RemoteHostClient(avd_spec.remote_host)))
+
+    @property
+    def _build_api(self):
+        """Initialize android_build_client."""
+        if not self._android_build_client:
+            credentials = auth.CreateCredentials(self._avd_spec.cfg)
+            self._android_build_client = android_build_client.AndroidBuildClient(
+                credentials)
+        return self._android_build_client
+
+    @property
+    def _download_dir(self):
+        """Get the directory where the artifacts are downloaded."""
+        if self._avd_spec.image_download_dir:
+            return self._avd_spec.image_download_dir
+        if not self._temp_download_dir:
+            self._temp_download_dir = tempfile.mkdtemp()
+            logger.info("--image-download-dir is not specified. Create "
+                        "temporary download directory: %s",
+                        self._temp_download_dir)
+        return self._temp_download_dir
 
     @property
     def _ssh_user(self):
@@ -201,21 +227,13 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         Returns:
             An object of RemotePaths.
         """
-        if self._avd_spec.image_download_dir:
-            temp_download_dir = None
-            download_dir = self._avd_spec.image_download_dir
-        else:
-            temp_download_dir = tempfile.mkdtemp()
-            download_dir = temp_download_dir
-            logger.info("--image-download-dir is not specified. Create "
-                        "temporary download directory: %s", download_dir)
-
         try:
-            artifact_paths = self._RetrieveArtifacts(download_dir)
+            artifact_paths = self._RetrieveArtifacts()
             return self._UploadArtifacts(artifact_paths)
         finally:
-            if temp_download_dir:
-                shutil.rmtree(temp_download_dir, ignore_errors=True)
+            if self._temp_download_dir:
+                shutil.rmtree(self._temp_download_dir, ignore_errors=True)
+                self._temp_download_dir = None
 
     @staticmethod
     def _InferEmulatorZipName(build_target, build_id):
@@ -246,14 +264,11 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         return _EMULATOR_ZIP_NAME_FORMAT % {"os": os_name,
                                             "build_id": build_id}
 
-    @staticmethod
-    def _RetrieveArtifact(download_dir, build_api, build_target, build_id,
+    def _RetrieveArtifact(self, build_target, build_id,
                           resource_id):
         """Retrieve an artifact from cache or Android Build API.
 
         Args:
-            download_dir: The cache directory.
-            build_api: An AndroidBuildClient object.
             build_target: A string, the build target of the artifact. e.g.,
                           "sdk_phone_x86_64-userdebug".
             build_id: A string, the build ID of the artifact.
@@ -263,7 +278,7 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         Returns:
             The path to the artifact in download_dir.
         """
-        local_path = os.path.join(download_dir, build_id, build_target,
+        local_path = os.path.join(self._download_dir, build_id, build_target,
                                   resource_id)
         if os.path.isfile(local_path):
             logger.info("Skip downloading existing artifact: %s", local_path)
@@ -272,19 +287,18 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         complete = False
         try:
             os.makedirs(os.path.dirname(local_path), exist_ok=True)
-            build_api.DownloadArtifact(build_target, build_id, resource_id,
-                                       local_path, build_api.LATEST)
+            self._build_api.DownloadArtifact(
+                build_target, build_id, resource_id, local_path,
+                self._build_api.LATEST)
             complete = True
         finally:
             if not complete and os.path.isfile(local_path):
                 os.remove(local_path)
         return local_path
 
-    def _RetrieveEmulatorBuildID(self, download_dir, build_api, build_target,
-                                 build_id):
+    def _RetrieveEmulatorBuildID(self, build_target, build_id):
         """Retrieve required emulator build from a goldfish image build."""
-        emulator_info_path = self._RetrieveArtifact(download_dir, build_api,
-                                                    build_target, build_id,
+        emulator_info_path = self._RetrieveArtifact(build_target, build_id,
                                                     _EMULATOR_INFO_NAME)
         with open(emulator_info_path, 'r') as emulator_info:
             for line in emulator_info:
@@ -295,11 +309,8 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         return None
 
     @utils.TimeExecute(function_description="Download Android Build artifacts")
-    def _RetrieveArtifacts(self, download_dir):
+    def _RetrieveArtifacts(self):
         """Retrieve goldfish images and tools from cache or Android Build API.
-
-        Args:
-            download_dir: The cache directory.
 
         Returns:
             An object of ArtifactPaths.
@@ -307,8 +318,6 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         Raises:
             errors.GetRemoteImageError: Fails to download rom images.
         """
-        credentials = auth.CreateCredentials(self._avd_spec.cfg)
-        build_api = android_build_client.AndroidBuildClient(credentials)
         # Device images.
         build_id = self._avd_spec.remote_image.get(constants.BUILD_ID)
         build_target = self._avd_spec.remote_image.get(constants.BUILD_TARGET)
@@ -316,14 +325,14 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
                                  self._ShouldMixDiskImage() else
                                  _SDK_REPO_IMAGE_ZIP_NAME_FORMAT)
         image_zip_path = self._RetrieveArtifact(
-            download_dir, build_api, build_target, build_id,
+            build_target, build_id,
             image_zip_name_format % {"build_id": build_id})
 
         # Emulator tools.
         emu_build_id = self._avd_spec.emulator_build_id
         if not emu_build_id:
             emu_build_id = self._RetrieveEmulatorBuildID(
-                download_dir, build_api, build_target, build_id)
+                build_target, build_id)
             if not emu_build_id:
                 raise errors.GetRemoteImageError(
                     "No emulator build ID in command line or "
@@ -333,30 +342,24 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
                             self._avd_spec.cfg.emulator_build_target)
         emu_zip_name = self._InferEmulatorZipName(emu_build_target,
                                                   emu_build_id)
-        emu_zip_path = self._RetrieveArtifact(download_dir, build_api,
-                                              emu_build_target, emu_build_id,
+        emu_zip_path = self._RetrieveArtifact(emu_build_target, emu_build_id,
                                               emu_zip_name)
 
-        system_image_zip_path = self._RetrieveSystemImageZip(
-            download_dir, build_api)
-        boot_image_path = self._RetrieveBootImage(download_dir, build_api)
+        system_image_zip_path = self._RetrieveSystemImageZip()
+        boot_image_path = self._RetrieveBootImage()
         # Retrieve OTA tools from the goldfish build which contains
         # mk_combined_img.
         ota_tools_zip_path = (
-            self._RetrieveArtifact(download_dir, build_api, build_target,
-                                   build_id, _OTA_TOOLS_ZIP_NAME)
+            self._RetrieveArtifact(build_target, build_id,
+                                   _OTA_TOOLS_ZIP_NAME)
             if system_image_zip_path or boot_image_path else None)
 
         return ArtifactPaths(image_zip_path, emu_zip_path,
                              ota_tools_zip_path, system_image_zip_path,
                              boot_image_path)
 
-    def _RetrieveSystemImageZip(self, download_dir, build_api):
+    def _RetrieveSystemImageZip(self):
         """Retrieve system image zip if system build info is not empty.
-
-        Args:
-            download_dir: The download cache directory.
-            build_api: An AndroidBuildClient object.
 
         Returns:
             The path to the system image zip in download_dir.
@@ -369,17 +372,12 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
             image_zip_name = _IMAGE_ZIP_NAME_FORMAT % {
                 "build_target": build_target.split("-", 1)[0],
                 "build_id": build_id}
-            return self._RetrieveArtifact(
-                download_dir, build_api, build_target, build_id,
-                image_zip_name)
+            return self._RetrieveArtifact(build_target, build_id,
+                                          image_zip_name)
         return None
 
-    def _RetrieveBootImage(self, download_dir, build_api):
+    def _RetrieveBootImage(self):
         """Retrieve boot image if boot build info is not empty.
-
-        Args:
-            download_dir: The download cache directory.
-            build_api: An AndroidBuildClient object.
 
         Returns:
             The path to the boot image in download_dir.
@@ -391,8 +389,7 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         image_name = self._avd_spec.boot_build_info.get(
             constants.BUILD_ARTIFACT)
         if build_id and build_target and image_name:
-            return self._RetrieveArtifact(
-                download_dir, build_api, build_target, build_id, image_name)
+            return self._RetrieveArtifact(build_target, build_id, image_name)
         return None
 
     @staticmethod
