@@ -53,7 +53,6 @@ _HOME_FOLDER = os.path.expanduser("~")
 # for the downloaded image artifacts.
 _REQUIRED_SPACE = 10
 
-_SYSTEM_IMAGE_NAME_PATTERN = r"system\.img"
 _SYSTEM_MIX_IMAGE_DIR = "mix_image_{build_id}"
 
 
@@ -267,8 +266,8 @@ class RemoteImageLocalInstance(local_image_local_instance.LocalImageLocalInstanc
                 except errors.GetCvdLocalHostPackageError:
                     logger.debug("fall back to downloaded cvd host binaries")
         if avd_spec.local_system_image:
-            system_image_path = create_common.FindLocalImage(
-                avd_spec.local_system_image, _SYSTEM_IMAGE_NAME_PATTERN)
+            system_image_path = create_common.FindSystemImage(
+                avd_spec.local_system_image)
         if avd_spec.local_vendor_image:
             vendor_image_paths = cvd_utils.FindVendorImages(
                 avd_spec.local_vendor_image)
