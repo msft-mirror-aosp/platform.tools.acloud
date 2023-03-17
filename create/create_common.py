@@ -136,10 +136,11 @@ def GetCvdHostPackage(package_path=None):
         dirs_to_check.append(dist_dir)
 
     for path in dirs_to_check:
-        cvd_host_package = os.path.join(path, constants.CVD_HOST_PACKAGE)
-        if os.path.exists(cvd_host_package):
-            logger.debug("cvd host package: %s", cvd_host_package)
-            return cvd_host_package
+        for name in [constants.CVD_HOST_TARBALL, constants.CVD_HOST_PACKAGE]:
+            cvd_host_package = os.path.join(path, name)
+            if os.path.exists(cvd_host_package):
+                logger.debug("cvd host package: %s", cvd_host_package)
+                return cvd_host_package
     raise errors.GetCvdLocalHostPackageError(
         "Can't find the cvd host package (Try lunching a cuttlefish target"
         " like aosp_cf_x86_64_phone-userdebug and running 'm'): \n%s" %
