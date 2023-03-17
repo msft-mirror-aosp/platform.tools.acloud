@@ -194,7 +194,8 @@ ANDROID_INFO_FILE = "android-info.txt"
 CUTTLEFISH_CONFIG_FILE = "cuttlefish_config.json"
 
 TEMP_ARTIFACTS_FOLDER = "acloud_image_artifacts"
-CVD_HOST_PACKAGE = "cvd-host_package.tar.gz"
+CVD_HOST_PACKAGE = "cvd-host_package"
+CVD_HOST_TARBALL = "cvd-host_package.tar.gz"
 # cvd tools symbolic link name of local instance.
 CVD_TOOLS_LINK_NAME = "host_bins"
 TOOL_NAME = "acloud"
