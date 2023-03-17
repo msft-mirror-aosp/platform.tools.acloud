@@ -707,6 +707,12 @@ def GetCreateArgParser(subparser):
         required=False,
         help="'goldfish remote host only' Emulator build target used to run "
         "the images. e.g. emulator-linux_x64_nolocationui.")
+    create_parser.add_argument(
+        "--emulator-zip",
+        dest="emulator_zip",
+        required=False,
+        help="'goldfish remote host only' Emulator zip used to run the "
+        "images. e.g., /path/sdk-repo-linux-emulator-1234567.zip.")
 
     # Arguments for cheeps type.
     create_parser.add_argument(
@@ -857,7 +863,11 @@ def _VerifyGoldfishArgs(args):
         errors.UnsupportedCreateArgs: When a create arg is specified but
                                       unsupported for goldfish.
     """
-    goldfish_only_flags = [args.emulator_build_id, args.emulator_build_target]
+    goldfish_only_flags = [
+        args.emulator_build_id,
+        args.emulator_build_target,
+        args.emulator_zip
+    ]
     if args.avd_type != constants.TYPE_GF and any(goldfish_only_flags):
         raise errors.UnsupportedCreateArgs(
             f"--emulator-* is only valid with avd_type == {constants.TYPE_GF}")
