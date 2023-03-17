@@ -59,6 +59,7 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         "host_ssh_private_key_path": None,
         "emulator_build_id": None,
         "emulator_build_target": None,
+        "emulator_zip": None,
         "system_build_info": {},
         "boot_build_info": {},
         "base_instance_num": None,
@@ -137,10 +138,10 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             else:
                 self._CreateImageZip(local_path)
         elif resource_id == "emulator-info.txt":
-            with open(local_path, "w") as file:
+            with open(local_path, "w", encoding="utf-8") as file:
                 file.write(self._EMULATOR_INFO)
         else:
-            with open(local_path, "w") as file:
+            with open(local_path, "w", encoding="utf-8") as file:
                 pass
 
     def testCreateInstanceWithCfg(self):
@@ -300,6 +301,28 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.assertEqual([5555], factory.GetAdbPorts())
         self.assertEqual([None], factory.GetVncPorts())
         self.assertEqual({}, factory.GetFailures())
+
+    def testCreateInstanceWithLocalFiles(self):
+        """Test RemoteHostGoldfishDeviceFactory with local files."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            emulator_zip_path = os.path.join(temp_dir, "emulator.zip")
+            self._CreateSdkRepoZip(emulator_zip_path)
+            self._mock_avd_spec.emulator_zip = emulator_zip_path
+
+            factory = gf_factory.RemoteHostGoldfishDeviceFactory(
+                self._mock_avd_spec)
+            instance_name = factory.CreateInstance()
+            # Artifacts.
+            self._mock_android_build_client.DownloadArtifact.assert_called_once_with(
+                "sdk_x86_64-sdk", "123456",
+                "sdk-repo-linux-system-images-123456.zip", mock.ANY, mock.ANY)
+
+            self.assertEqual(self._X86_64_INSTANCE_NAME, instance_name)
+            self.assertEqual(self._X86_64_BUILD_INFO,
+                             factory.GetBuildInfoDict())
+            self.assertEqual([5555], factory.GetAdbPorts())
+            self.assertEqual([None], factory.GetVncPorts())
+            self.assertEqual({}, factory.GetFailures())
 
     def testCreateInstanceInitError(self):
         """Test RemoteHostGoldfishDeviceFactory with SSH error."""
