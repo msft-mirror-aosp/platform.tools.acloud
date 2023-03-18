@@ -220,9 +220,16 @@ def _UploadCvdHostPackage(ssh_obj, remote_dir, cvd_host_package):
         remote_dir: The remote base directory.
         cvd_host_package: The path to the CVD host package.
     """
-    remote_cmd = f"tar -xzf - -C {remote_dir} < {cvd_host_package}"
-    logger.debug("remote_cmd:\n %s", remote_cmd)
-    ssh_obj.Run(remote_cmd)
+    if cvd_host_package.endswith(".tar.gz"):
+        remote_cmd = f"tar -xzf - -C {remote_dir} < {cvd_host_package}"
+        logger.debug("remote_cmd:\n %s", remote_cmd)
+        ssh_obj.Run(remote_cmd)
+    else:
+        cmd = (f"tar -cf - --lzop -S -C {cvd_host_package} . | "
+               f"{ssh_obj.GetBaseCmd(constants.SSH_BIN)} -- "
+               f"tar -xf - --lzop -S -C {remote_dir}")
+        logger.debug("cmd:\n %s", cmd)
+        ssh.ShellCmdWithRetry(cmd)
 
 
 @utils.TimeExecute(function_description="Processing and uploading local images")

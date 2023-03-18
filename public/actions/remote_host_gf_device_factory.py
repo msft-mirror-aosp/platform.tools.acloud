@@ -59,7 +59,8 @@ _SDK_REPO_EMULATOR_DIR_NAME = "emulator"
 # Base directory of an instance.
 _REMOTE_INSTANCE_DIR_FORMAT = "acloud_gf_%d"
 # Relative paths in a base directory.
-_REMOTE_ARTIFACT_DIR = "artifact"
+_REMOTE_IMAGE_ZIP_PATH = "image.zip"
+_REMOTE_EMULATOR_ZIP_PATH = "emulator.zip"
 _REMOTE_IMAGE_DIR = "image"
 _REMOTE_KERNEL_PATH = "kernel"
 _REMOTE_RAMDISK_PATH = "mixed_ramdisk"
@@ -71,6 +72,9 @@ _REMOTE_STDERR_PATH = remote_path.join(_REMOTE_RUNTIME_DIR, "emu_stderr.txt")
 # Runtime parameters
 _EMULATOR_DEFAULT_CONSOLE_PORT = 5554
 _DEFAULT_BOOT_TIMEOUT_SECS = 150
+# Error messages
+_MISSING_EMULATOR_MSG = ("No emulator zip. Specify "
+                         "--emulator-build-id, or --emulator-zip.")
 
 ArtifactPaths = collections.namedtuple(
     "ArtifactPaths",
@@ -296,18 +300,6 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
                 os.remove(local_path)
         return local_path
 
-    def _RetrieveEmulatorBuildID(self, build_target, build_id):
-        """Retrieve required emulator build from a goldfish image build."""
-        emulator_info_path = self._RetrieveArtifact(build_target, build_id,
-                                                    _EMULATOR_INFO_NAME)
-        with open(emulator_info_path, 'r') as emulator_info:
-            for line in emulator_info:
-                match = _EMULATOR_VERSION_PATTERN.fullmatch(line.strip())
-                if match:
-                    logger.info("Found emulator build ID: %s", line)
-                    return match.group("build_id")
-        return None
-
     @utils.TimeExecute(function_description="Download Android Build artifacts")
     def _RetrieveArtifacts(self):
         """Retrieve goldfish images and tools from cache or Android Build API.
@@ -329,21 +321,10 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
             image_zip_name_format % {"build_id": build_id})
 
         # Emulator tools.
-        emu_build_id = self._avd_spec.emulator_build_id
-        if not emu_build_id:
-            emu_build_id = self._RetrieveEmulatorBuildID(
-                build_target, build_id)
-            if not emu_build_id:
-                raise errors.GetRemoteImageError(
-                    "No emulator build ID in command line or "
-                    "emulator-info.txt.")
-
-        emu_build_target = (self._avd_spec.emulator_build_target or
-                            self._avd_spec.cfg.emulator_build_target)
-        emu_zip_name = self._InferEmulatorZipName(emu_build_target,
-                                                  emu_build_id)
-        emu_zip_path = self._RetrieveArtifact(emu_build_target, emu_build_id,
-                                              emu_zip_name)
+        emu_zip_path = (self._avd_spec.emulator_zip or
+                        self._RetrieveEmulatorZip())
+        if not emu_zip_path:
+            raise errors.GetSdkRepoPackageError(_MISSING_EMULATOR_MSG)
 
         system_image_zip_path = self._RetrieveSystemImageZip()
         boot_image_path = self._RetrieveBootImage()
@@ -357,6 +338,44 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         return ArtifactPaths(image_zip_path, emu_zip_path,
                              ota_tools_zip_path, system_image_zip_path,
                              boot_image_path)
+
+    def _RetrieveEmulatorBuildID(self):
+        """Retrieve required emulator build from a goldfish image build.
+
+        Returns:
+            A string, the emulator build ID.
+            None if the build info is empty.
+        """
+        build_id = self._avd_spec.remote_image.get(constants.BUILD_ID)
+        build_target = self._avd_spec.remote_image.get(constants.BUILD_TARGET)
+        if build_id and build_target:
+            emu_info_path = self._RetrieveArtifact(build_target, build_id,
+                                                   _EMULATOR_INFO_NAME)
+            with open(emu_info_path, "r", encoding="utf-8") as emu_info:
+                for line in emu_info:
+                    match = _EMULATOR_VERSION_PATTERN.fullmatch(line.strip())
+                    if match:
+                        logger.info("Found emulator build ID: %s", line)
+                        return match.group("build_id")
+        return None
+
+    def _RetrieveEmulatorZip(self):
+        """Retrieve emulator zip from cache or Android Build API.
+
+        Returns:
+            The path to the emulator zip in download_dir.
+            None if this method cannot determine the emulator build ID.
+        """
+        emu_build_id = (self._avd_spec.emulator_build_id or
+                        self._RetrieveEmulatorBuildID())
+        if not emu_build_id:
+            return None
+        emu_build_target = (self._avd_spec.emulator_build_target or
+                            self._avd_spec.cfg.emulator_build_target)
+        emu_zip_name = self._InferEmulatorZipName(emu_build_target,
+                                                  emu_build_id)
+        return self._RetrieveArtifact(emu_build_target, emu_build_id,
+                                      emu_zip_name)
 
     def _RetrieveSystemImageZip(self):
         """Retrieve system image zip if system build info is not empty.
@@ -492,24 +511,18 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         Returns:
             The remote paths to the extracted emulator tools and images.
         """
-        remote_runtime_dir = self._GetInstancePath(_REMOTE_RUNTIME_DIR)
-        remote_artifact_dir = self._GetInstancePath(_REMOTE_ARTIFACT_DIR)
         remote_emulator_dir = self._GetInstancePath(_REMOTE_EMULATOR_DIR)
         remote_image_dir = self._GetInstancePath(_REMOTE_IMAGE_DIR)
-        self._ssh.Run("mkdir -p " +
-                      " ".join([remote_runtime_dir, remote_artifact_dir,
-                                remote_emulator_dir, remote_image_dir]))
-        self._ssh.ScpPushFile(emulator_zip_path, remote_artifact_dir)
-        self._ssh.ScpPushFile(image_zip_path, remote_artifact_dir)
+        remote_emulator_zip_path = self._GetInstancePath(
+            _REMOTE_EMULATOR_ZIP_PATH)
+        remote_image_zip_path = self._GetInstancePath(_REMOTE_IMAGE_ZIP_PATH)
+        self._ssh.Run(f"mkdir -p {remote_emulator_dir} {remote_image_dir}")
+        self._ssh.ScpPushFile(emulator_zip_path, remote_emulator_zip_path)
+        self._ssh.ScpPushFile(image_zip_path, remote_image_zip_path)
 
-        self._ssh.Run("unzip -d %s %s" % (
-            remote_emulator_dir,
-            remote_path.join(remote_artifact_dir,
-                             os.path.basename(emulator_zip_path))))
-        self._ssh.Run("unzip -d %s %s" % (
-            remote_image_dir,
-            remote_path.join(remote_artifact_dir,
-                             os.path.basename(image_zip_path))))
+        self._ssh.Run(f"unzip -d {remote_emulator_dir} "
+                      f"{remote_emulator_zip_path}")
+        self._ssh.Run(f"unzip -d {remote_image_dir} {remote_image_zip_path}")
         remote_emulator_subdir = remote_path.join(
             remote_emulator_dir, _SDK_REPO_EMULATOR_DIR_NAME)
         remote_image_subdir = remote_path.join(
@@ -610,6 +623,7 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         self._ssh.Run("chmod -R +x %s" % " ".join(remote_bin_paths))
 
         remote_runtime_dir = self._GetInstancePath(_REMOTE_RUNTIME_DIR)
+        self._ssh.Run(f"mkdir -p {remote_runtime_dir}")
         env = {constants.ENV_ANDROID_PRODUCT_OUT: remote_paths.image_dir,
                constants.ENV_ANDROID_TMP: remote_runtime_dir,
                constants.ENV_ANDROID_BUILD_TOP: remote_runtime_dir}
