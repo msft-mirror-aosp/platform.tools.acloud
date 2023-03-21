@@ -37,6 +37,7 @@ class GoldfishUtilsTest(unittest.TestCase):
                    "build_target": "sdk_phone_x86_64-userdebug"}
     _INSTANCE_NAME = ("host-goldfish-192.0.2.1-5554-"
                       "123456-sdk_phone_x86_64-userdebug")
+    _INSTANCE_NAME_WITHOUT_INFO = "host-goldfish-192.0.2.1-5554-userbuild"
     _INVALID_NAME = "host-192.0.2.1-123456-aosp_cf_x86_phone-userdebug"
 
     @staticmethod
@@ -170,6 +171,10 @@ class GoldfishUtilsTest(unittest.TestCase):
         instance_name = goldfish_utils.FormatRemoteHostInstanceName(
             self._IP_ADDRESS, self._CONSOLE_PORT, self._BUILD_INFO)
         self.assertEqual(self._INSTANCE_NAME, instance_name)
+
+        instance_name = goldfish_utils.FormatRemoteHostInstanceName(
+            self._IP_ADDRESS, self._CONSOLE_PORT, {})
+        self.assertEqual(self._INSTANCE_NAME_WITHOUT_INFO, instance_name)
 
     def testConvertAvdSpecToArgs(self):
         """Test ConvertAvdSpecToArgs."""
