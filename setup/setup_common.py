@@ -78,6 +78,29 @@ def InstallPackage(pkg):
             pkg + "]")
 
 
+def IsPackageInAptList(pkg_name):
+    """Check if the package is apt packages list.
+
+    Args:
+        pkg_name: String, the package name.
+
+    Returns:
+        True if package is in apt packages list.
+    """
+    try:
+        pkg_info = CheckCmdOutput(
+            APT_CHECK_CMD % pkg_name,
+            print_cmd=False,
+            shell=True,
+            stderr=subprocess.STDOUT)
+        if pkg_info:
+            return True
+        return False
+    except subprocess.CalledProcessError as error:
+        # Unable locate package name on repository.
+        return False
+
+
 def PackageInstalled(pkg_name, compare_version=True):
     """Check if the package is installed or not.
 
