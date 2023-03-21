@@ -309,16 +309,21 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
 
         Raises:
             errors.GetRemoteImageError: Fails to download rom images.
+            errors.GetLocalImageError: Fails to validate local image zip.
+            errors.GetSdkRepoPackageError: Fails to retrieve emulator zip.
         """
         # Device images.
-        build_id = self._avd_spec.remote_image.get(constants.BUILD_ID)
-        build_target = self._avd_spec.remote_image.get(constants.BUILD_TARGET)
-        image_zip_name_format = (_EXTRA_IMAGE_ZIP_NAME_FORMAT if
-                                 self._ShouldMixDiskImage() else
-                                 _SDK_REPO_IMAGE_ZIP_NAME_FORMAT)
-        image_zip_path = self._RetrieveArtifact(
-            build_target, build_id,
-            image_zip_name_format % {"build_id": build_id})
+        if self._avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
+            image_zip_path = self._RetrieveDeviceImageZip()
+        elif self._avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
+            image_zip_path = self._avd_spec.local_image_artifact
+            if not image_zip_path or not zipfile.is_zipfile(image_zip_path):
+                raise errors.GetLocalImageError(
+                    f"{image_zip_path or self._avd_spec.local_image_dir} is "
+                    "not an SDK repository zip.")
+        else:
+            raise errors.CreateError(
+                f"Unknown image source: {self._avd_spec.image_source}")
 
         # Emulator tools.
         emu_zip_path = (self._avd_spec.emulator_zip or
@@ -330,6 +335,9 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         boot_image_path = self._RetrieveBootImage()
         # Retrieve OTA tools from the goldfish build which contains
         # mk_combined_img.
+        # TODO(b/245226952): Find otatools.zip in local_tool_dirs.
+        build_id = self._avd_spec.remote_image.get(constants.BUILD_ID)
+        build_target = self._avd_spec.remote_image.get(constants.BUILD_TARGET)
         ota_tools_zip_path = (
             self._RetrieveArtifact(build_target, build_id,
                                    _OTA_TOOLS_ZIP_NAME)
@@ -338,6 +346,21 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         return ArtifactPaths(image_zip_path, emu_zip_path,
                              ota_tools_zip_path, system_image_zip_path,
                              boot_image_path)
+
+    def _RetrieveDeviceImageZip(self):
+        """Retrieve device image zip from cache or Android Build API.
+
+        Returns:
+            The path to the device image zip in download_dir.
+        """
+        build_id = self._avd_spec.remote_image.get(constants.BUILD_ID)
+        build_target = self._avd_spec.remote_image.get(constants.BUILD_TARGET)
+        image_zip_name_format = (_EXTRA_IMAGE_ZIP_NAME_FORMAT if
+                                 self._ShouldMixDiskImage() else
+                                 _SDK_REPO_IMAGE_ZIP_NAME_FORMAT)
+        return self._RetrieveArtifact(
+            build_target, build_id,
+            image_zip_name_format % {"build_id": build_id})
 
     def _RetrieveEmulatorBuildID(self):
         """Retrieve required emulator build from a goldfish image build.
