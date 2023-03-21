@@ -11,10 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-r"""GoldfishRemoteImageRemoteHost class.
+r"""GoldfishRemoteHost class.
 
 Create class that is responsible for creating a goldfish instance with remote
-images on a remote host.
+or local images on a remote host.
 """
 
 import logging
@@ -28,8 +28,8 @@ from acloud.public.actions import remote_host_gf_device_factory
 logger = logging.getLogger(__name__)
 
 
-class GoldfishRemoteImageRemoteHost(base_avd_create.BaseAVDCreate):
-    """Create remote-image-remote-host goldfish."""
+class GoldfishRemoteHost(base_avd_create.BaseAVDCreate):
+    """Create goldfish on a remote host."""
 
     @utils.TimeExecute(function_description="Total time: ",
                        print_before_call=False, print_status=False)

@@ -52,6 +52,7 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
     }
     _AVD_SPEC_ATTRS = {
         "cfg": None,
+        "image_source": constants.IMAGE_SRC_REMOTE,
         "remote_image": _X86_64_BUILD_INFO,
         "image_download_dir": None,
         "host_user": "user",
@@ -62,6 +63,7 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         "emulator_zip": None,
         "system_build_info": {},
         "boot_build_info": {},
+        "local_image_artifact": None,
         "base_instance_num": None,
         "boot_timeout_secs": None,
         "hw_customize": False,
@@ -307,19 +309,20 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         with tempfile.TemporaryDirectory() as temp_dir:
             emulator_zip_path = os.path.join(temp_dir, "emulator.zip")
             self._CreateSdkRepoZip(emulator_zip_path)
+            image_zip_path = os.path.join(temp_dir, "image.zip")
+            self._CreateSdkRepoZip(image_zip_path)
             self._mock_avd_spec.emulator_zip = emulator_zip_path
+            self._mock_avd_spec.image_source = constants.IMAGE_SRC_LOCAL
+            self._mock_avd_spec.remote_image = {}
+            self._mock_avd_spec.local_image_artifact = image_zip_path
+            self._mock_create_credentials.side_effect = AssertionError(
+                "CreateCredentials should not be called.")
 
             factory = gf_factory.RemoteHostGoldfishDeviceFactory(
                 self._mock_avd_spec)
-            instance_name = factory.CreateInstance()
-            # Artifacts.
-            self._mock_android_build_client.DownloadArtifact.assert_called_once_with(
-                "sdk_x86_64-sdk", "123456",
-                "sdk-repo-linux-system-images-123456.zip", mock.ANY, mock.ANY)
+            factory.CreateInstance()
 
-            self.assertEqual(self._X86_64_INSTANCE_NAME, instance_name)
-            self.assertEqual(self._X86_64_BUILD_INFO,
-                             factory.GetBuildInfoDict())
+            self.assertEqual({}, factory.GetBuildInfoDict())
             self.assertEqual([5555], factory.GetAdbPorts())
             self.assertEqual([None], factory.GetVncPorts())
             self.assertEqual({}, factory.GetFailures())
