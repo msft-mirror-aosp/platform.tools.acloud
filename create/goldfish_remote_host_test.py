@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for GoldfishRemoteImageRemoteHost."""
+"""Tests for GoldfishRemoteHost."""
 
 import unittest
 
@@ -24,12 +24,12 @@ from acloud.internal.lib import driver_test_lib
 from acloud.public.actions import common_operations
 from acloud.public.actions import remote_host_gf_device_factory
 
-class GoldfishRemoteImageRemoteHostTest(driver_test_lib.BaseDriverTest):
-    """Test GoldfishRemoteImageRemoteHost method."""
+class GoldfishRemoteHostTest(driver_test_lib.BaseDriverTest):
+    """Test GoldfishRemoteHost method."""
 
     # pylint: disable=no-member
     def testRun(self):
-        """Test Create AVD of goldfish remote image remote host."""
+        """Test Create AVD of goldfish remote host."""
         args = mock.MagicMock()
         args.skip_pre_run_check = True
         spec = mock.MagicMock()
