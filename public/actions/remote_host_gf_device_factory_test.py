@@ -52,6 +52,7 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
     }
     _AVD_SPEC_ATTRS = {
         "cfg": None,
+        "image_source": constants.IMAGE_SRC_REMOTE,
         "remote_image": _X86_64_BUILD_INFO,
         "image_download_dir": None,
         "host_user": "user",
@@ -59,8 +60,10 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         "host_ssh_private_key_path": None,
         "emulator_build_id": None,
         "emulator_build_target": None,
+        "emulator_zip": None,
         "system_build_info": {},
         "boot_build_info": {},
+        "local_image_artifact": None,
         "base_instance_num": None,
         "boot_timeout_secs": None,
         "hw_customize": False,
@@ -137,10 +140,10 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             else:
                 self._CreateImageZip(local_path)
         elif resource_id == "emulator-info.txt":
-            with open(local_path, "w") as file:
+            with open(local_path, "w", encoding="utf-8") as file:
                 file.write(self._EMULATOR_INFO)
         else:
-            with open(local_path, "w") as file:
+            with open(local_path, "w", encoding="utf-8") as file:
                 pass
 
     def testCreateInstanceWithCfg(self):
@@ -300,6 +303,29 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.assertEqual([5555], factory.GetAdbPorts())
         self.assertEqual([None], factory.GetVncPorts())
         self.assertEqual({}, factory.GetFailures())
+
+    def testCreateInstanceWithLocalFiles(self):
+        """Test RemoteHostGoldfishDeviceFactory with local files."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            emulator_zip_path = os.path.join(temp_dir, "emulator.zip")
+            self._CreateSdkRepoZip(emulator_zip_path)
+            image_zip_path = os.path.join(temp_dir, "image.zip")
+            self._CreateSdkRepoZip(image_zip_path)
+            self._mock_avd_spec.emulator_zip = emulator_zip_path
+            self._mock_avd_spec.image_source = constants.IMAGE_SRC_LOCAL
+            self._mock_avd_spec.remote_image = {}
+            self._mock_avd_spec.local_image_artifact = image_zip_path
+            self._mock_create_credentials.side_effect = AssertionError(
+                "CreateCredentials should not be called.")
+
+            factory = gf_factory.RemoteHostGoldfishDeviceFactory(
+                self._mock_avd_spec)
+            factory.CreateInstance()
+
+            self.assertEqual({}, factory.GetBuildInfoDict())
+            self.assertEqual([5555], factory.GetAdbPorts())
+            self.assertEqual([None], factory.GetVncPorts())
+            self.assertEqual({}, factory.GetFailures())
 
     def testCreateInstanceInitError(self):
         """Test RemoteHostGoldfishDeviceFactory with SSH error."""
