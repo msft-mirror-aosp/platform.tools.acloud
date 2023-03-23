@@ -65,10 +65,10 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
         """Test UploadArtifacts with image zip."""
         mock_ssh = mock.Mock()
         cvd_utils.UploadArtifacts(mock_ssh, "dir", "/mock/img.zip",
-                                  "/mock/cvd.tgz")
+                                  "/mock/cvd.tar.gz")
         mock_ssh.Run.assert_any_call("/usr/bin/install_zip.sh dir < "
                                      "/mock/img.zip")
-        mock_ssh.Run.assert_any_call("tar -xzf - -C dir < /mock/cvd.tgz")
+        mock_ssh.Run.assert_any_call("tar -xzf - -C dir < /mock/cvd.tar.gz")
 
     @staticmethod
     @mock.patch("acloud.internal.lib.cvd_utils.glob")
@@ -79,22 +79,38 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
         """Test UploadArtifacts with image directory."""
         mock_ssh = mock.Mock()
         mock_ssh.GetBaseCmd.return_value = "/mock/ssh"
-        expected_shell_cmd = ("tar -cf - --lzop -S -C local/dir "
-                              "super.img bootloader kernel android-info.txt | "
-                              "/mock/ssh -- "
-                              "tar -xf - --lzop -S -C remote/dir")
-        expected_ssh_cmd = "tar -xzf - -C remote/dir < /mock/cvd.tgz"
+        expected_image_shell_cmd = ("tar -cf - --lzop -S -C local/dir "
+                                    "super.img bootloader kernel android-info.txt | "
+                                    "/mock/ssh -- "
+                                    "tar -xf - --lzop -S -C remote/dir")
+        expected_cvd_tar_ssh_cmd = "tar -xzf - -C remote/dir < /mock/cvd.tar.gz"
+        expected_cvd_dir_shell_cmd = ("tar -cf - --lzop -S -C /mock/cvd . | "
+                                      "/mock/ssh -- "
+                                      "tar -xf - --lzop -S -C remote/dir")
 
-        # Test with required_images file.
+        # Test with cvd directory.
         mock_open = mock.mock_open(read_data="super.img\nbootloader\nkernel")
         with mock.patch("acloud.internal.lib.cvd_utils.open", mock_open):
             cvd_utils.UploadArtifacts(mock_ssh, "remote/dir","local/dir",
-                                      "/mock/cvd.tgz")
+                                      "/mock/cvd")
         mock_open.assert_called_with("local/dir/required_images", "r",
                                      encoding="utf-8")
         mock_glob.glob.assert_not_called()
-        mock_shell.assert_called_with(expected_shell_cmd)
-        mock_ssh.Run.assert_called_with(expected_ssh_cmd)
+        mock_shell.assert_has_calls([mock.call(expected_image_shell_cmd),
+                                     mock.call(expected_cvd_dir_shell_cmd)])
+
+        # Test with required_images file.
+        mock_ssh.reset_mock()
+        mock_shell.reset_mock()
+        mock_open = mock.mock_open(read_data="super.img\nbootloader\nkernel")
+        with mock.patch("acloud.internal.lib.cvd_utils.open", mock_open):
+            cvd_utils.UploadArtifacts(mock_ssh, "remote/dir","local/dir",
+                                      "/mock/cvd.tar.gz")
+        mock_open.assert_called_with("local/dir/required_images", "r",
+                                     encoding="utf-8")
+        mock_glob.glob.assert_not_called()
+        mock_shell.assert_called_with(expected_image_shell_cmd)
+        mock_ssh.Run.assert_called_with(expected_cvd_tar_ssh_cmd)
 
         # Test with glob.
         mock_ssh.reset_mock()
@@ -104,10 +120,10 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
         with mock.patch("acloud.internal.lib.cvd_utils.open",
                         side_effect=IOError("file does not exist")):
             cvd_utils.UploadArtifacts(mock_ssh, "remote/dir", "local/dir",
-                                      "/mock/cvd.tgz")
+                                      "/mock/cvd.tar.gz")
         mock_glob.glob.assert_called()
-        mock_shell.assert_called_with(expected_shell_cmd)
-        mock_ssh.Run.assert_called_with(expected_ssh_cmd)
+        mock_shell.assert_called_with(expected_image_shell_cmd)
+        mock_ssh.Run.assert_called_with(expected_cvd_tar_ssh_cmd)
 
     def testUploadBootImages(self):
         """Test FindBootImages and UploadExtraImages."""
