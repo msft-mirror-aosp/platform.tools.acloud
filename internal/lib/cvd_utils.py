@@ -69,8 +69,6 @@ _REMOTE_INITRAMFS_IMAGE_PATH = remote_path.join(
 _REMOTE_SUPER_IMAGE_DIR = remote_path.join(_REMOTE_IMAGE_DIR,
                                            "super_image_dir")
 
-_ANDROID_BOOT_IMAGE_MAGIC = b"ANDROID!"
-
 # Remote host instance name
 _REMOTE_HOST_INSTANCE_NAME_FORMAT = (
     constants.INSTANCE_TYPE_HOST +
@@ -250,21 +248,6 @@ def UploadArtifacts(ssh_obj, remote_dir, image_path, cvd_host_package):
     _UploadCvdHostPackage(ssh_obj, remote_dir, cvd_host_package)
 
 
-def _IsBootImage(image_path):
-    """Check if a file is an Android boot image by reading the magic bytes.
-
-    Args:
-        image_path: The file path.
-
-    Returns:
-        A boolean, whether the file is a boot image.
-    """
-    if not os.path.isfile(image_path):
-        return False
-    with open(image_path, "rb") as image_file:
-        return image_file.read(8) == _ANDROID_BOOT_IMAGE_MAGIC
-
-
 def FindBootImages(search_path):
     """Find boot and vendor_boot images in a path.
 
@@ -279,12 +262,8 @@ def FindBootImages(search_path):
         errors.GetLocalImageError if search_path contains more than one boot
         image or the file format is not correct.
     """
-    boot_image_path = create_common.FindLocalImage(
-        search_path, _BOOT_IMAGE_NAME_PATTERN, raise_error=False)
-    if boot_image_path and not _IsBootImage(boot_image_path):
-        raise errors.GetLocalImageError(
-            f"{boot_image_path} is not a boot image.")
-
+    boot_image_path = create_common.FindBootImage(search_path,
+                                                  raise_error=False)
     vendor_boot_image_path = os.path.join(search_path, _VENDOR_BOOT_IMAGE_NAME)
     if not os.path.isfile(vendor_boot_image_path):
         vendor_boot_image_path = None
