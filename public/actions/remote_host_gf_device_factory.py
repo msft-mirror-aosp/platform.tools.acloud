@@ -57,6 +57,9 @@ _EMULATOR_ZIP_NAME_FORMAT = "sdk-repo-%(os)s-emulator-%(build_id)s.zip"
 _EMULATOR_BIN_DIR_NAMES = ("bin64", "qemu")
 _EMULATOR_BIN_NAME = "emulator"
 _SDK_REPO_EMULATOR_DIR_NAME = "emulator"
+# Files in temporary artifact directory.
+_DOWNLOAD_DIR_NAME = "download"
+_OTA_TOOLS_DIR_NAME = "ota_tools"
 # Base directory of an instance.
 _REMOTE_INSTANCE_DIR_FORMAT = "acloud_gf_%d"
 # Relative paths in a base directory.
@@ -79,7 +82,7 @@ _MISSING_EMULATOR_MSG = ("No emulator zip. Specify "
 
 ArtifactPaths = collections.namedtuple(
     "ArtifactPaths",
-    ["image_zip", "emulator_zip", "ota_tools_zip",
+    ["image_zip", "emulator_zip", "ota_tools_dir",
      "system_image_zip", "boot_image"])
 
 RemotePaths = collections.namedtuple(
@@ -93,7 +96,7 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
     Attributes:
         avd_spec: AVDSpec object that tells us what we're going to create.
         android_build_client: An AndroidBuildClient that is lazily initialized.
-        temp_download_dir: The temporary artifact directory that is lazily
+        temp_artifact_dir: The temporary artifact directory that is lazily
                            initialized during PrepareArtifacts.
         ssh: Ssh object that executes commands on the remote host.
         failures: A dictionary the maps instance names to
@@ -104,7 +107,7 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         """Initialize the attributes and the compute client."""
         self._avd_spec = avd_spec
         self._android_build_client = None
-        self._temp_download_dir = None
+        self._temp_artifact_dir = None
         self._ssh = ssh.Ssh(
             ip=ssh.IP(ip=self._avd_spec.remote_host),
             user=self._ssh_user,
@@ -126,16 +129,20 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         return self._android_build_client
 
     @property
+    def _artifact_dir(self):
+        """Initialize temp_artifact_dir."""
+        if not self._temp_artifact_dir:
+            self._temp_artifact_dir = tempfile.mkdtemp("host_gf")
+            logger.info("Create temporary artifact directory: %s",
+                        self._temp_artifact_dir)
+        return self._temp_artifact_dir
+
+    @property
     def _download_dir(self):
         """Get the directory where the artifacts are downloaded."""
         if self._avd_spec.image_download_dir:
             return self._avd_spec.image_download_dir
-        if not self._temp_download_dir:
-            self._temp_download_dir = tempfile.mkdtemp()
-            logger.info("--image-download-dir is not specified. Create "
-                        "temporary download directory: %s",
-                        self._temp_download_dir)
-        return self._temp_download_dir
+        return os.path.join(self._artifact_dir, _DOWNLOAD_DIR_NAME)
 
     @property
     def _ssh_user(self):
@@ -236,9 +243,9 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
             artifact_paths = self._RetrieveArtifacts()
             return self._UploadArtifacts(artifact_paths)
         finally:
-            if self._temp_download_dir:
-                shutil.rmtree(self._temp_download_dir, ignore_errors=True)
-                self._temp_download_dir = None
+            if self._temp_artifact_dir:
+                shutil.rmtree(self._temp_artifact_dir, ignore_errors=True)
+                self._temp_artifact_dir = None
 
     @staticmethod
     def _InferEmulatorZipName(build_target, build_id):
@@ -341,19 +348,20 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         else:
             boot_image_path = self._RetrieveBootImage()
 
-        # Retrieve OTA tools from the goldfish build which contains
-        # mk_combined_img.
-        # TODO(b/245226952): Find otatools.zip in local_tool_dirs.
-        build_id = self._avd_spec.remote_image.get(constants.BUILD_ID)
-        build_target = self._avd_spec.remote_image.get(constants.BUILD_TARGET)
-        ota_tools_zip_path = (
-            self._RetrieveArtifact(build_target, build_id,
-                                   _OTA_TOOLS_ZIP_NAME)
-            if system_image_zip_path or boot_image_path else None)
+        # OTA tools.
+        ota_tools_dir = None
+        if system_image_zip_path or boot_image_path:
+            if self._avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
+                ota_tools_dir = self._RetrieveOtaTools()
+            else:
+                ota_tools_dir = ota_tools.FindOtaToolsDir(
+                    self._avd_spec.local_tool_dirs +
+                    create_common.GetNonEmptyEnvVars(
+                        constants.ENV_ANDROID_SOONG_HOST_OUT,
+                        constants.ENV_ANDROID_HOST_OUT))
 
-        return ArtifactPaths(image_zip_path, emu_zip_path,
-                             ota_tools_zip_path, system_image_zip_path,
-                             boot_image_path)
+        return ArtifactPaths(image_zip_path, emu_zip_path, ota_tools_dir,
+                             system_image_zip_path, boot_image_path)
 
     def _RetrieveDeviceImageZip(self):
         """Retrieve device image zip from cache or Android Build API.
@@ -442,6 +450,26 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
             return self._RetrieveArtifact(build_target, build_id, image_name)
         return None
 
+    def _RetrieveOtaTools(self):
+        """Retrieve and unzip OTA tools.
+
+        This method retrieves OTA tools from the goldfish build which contains
+        mk_combined_img.
+
+        Returns:
+            The path to the temporary OTA tools directory.
+        """
+        build_id = self._avd_spec.remote_image.get(constants.BUILD_ID)
+        build_target = self._avd_spec.remote_image.get(constants.BUILD_TARGET)
+        zip_path = self._RetrieveArtifact(build_target, build_id,
+                                          _OTA_TOOLS_ZIP_NAME)
+        ota_tools_dir = os.path.join(self._artifact_dir, _OTA_TOOLS_DIR_NAME)
+        logger.debug("Unzip %s to %s.", zip_path, ota_tools_dir)
+        os.mkdir(ota_tools_dir)
+        with zipfile.ZipFile(zip_path, "r") as zip_file:
+            zip_file.extractall(ota_tools_dir)
+        return ota_tools_dir
+
     @staticmethod
     def _GetSubdirNameInZip(zip_path):
         """Get the name of the only subdirectory in a zip.
@@ -488,12 +516,7 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
 
         if artifacts_paths.boot_image or artifacts_paths.system_image_zip:
             with tempfile.TemporaryDirectory("host_gf") as temp_dir:
-                ota_tools_dir = os.path.join(temp_dir, "ota_tools")
-                logger.debug("Unzip %s.", artifacts_paths.ota_tools_zip)
-                with zipfile.ZipFile(artifacts_paths.ota_tools_zip,
-                                     "r") as zip_file:
-                    zip_file.extractall(ota_tools_dir)
-                ota = ota_tools.OtaTools(ota_tools_dir)
+                ota = ota_tools.OtaTools(artifacts_paths.ota_tools_dir)
 
                 image_dir = os.path.join(temp_dir, "images")
                 logger.debug("Unzip %s.", artifacts_paths.image_zip)
