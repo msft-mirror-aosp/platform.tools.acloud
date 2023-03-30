@@ -125,22 +125,21 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
         mock_shell.assert_called_with(expected_image_shell_cmd)
         mock_ssh.Run.assert_called_with(expected_cvd_tar_ssh_cmd)
 
-    @mock.patch("acloud.internal.lib.cvd_utils.create_common")
-    def testUploadBootImages(self, mock_create_common):
+    def testUploadBootImages(self):
         """Test FindBootImages and UploadExtraImages."""
         mock_ssh = mock.Mock()
         with tempfile.TemporaryDirectory(prefix="cvd_utils") as image_dir:
-            mock_create_common.FindBootImage.return_value = "boot.img"
+            boot_image_path = os.path.join(image_dir, "boot.img")
+            self.CreateFile(boot_image_path, b"ANDROID!test")
             self.CreateFile(os.path.join(image_dir, "vendor_boot.img"))
 
-            mock_avd_spec = mock.Mock(local_kernel_image="boot.img",
+            mock_avd_spec = mock.Mock(local_kernel_image=boot_image_path,
                                       local_vendor_image=None)
             args = cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec)
             self.assertEqual(["-boot_image", "dir/acloud_image/boot.img"],
                              args)
             mock_ssh.Run.assert_called_once_with("mkdir -p dir/acloud_image")
-            mock_ssh.ScpPushFile.assert_called_once_with(
-                "boot.img", "dir/acloud_image/boot.img")
+            mock_ssh.ScpPushFile.assert_called_once()
 
             mock_ssh.reset_mock()
             mock_avd_spec.local_kernel_image = image_dir

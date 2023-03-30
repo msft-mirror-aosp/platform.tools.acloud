@@ -26,7 +26,7 @@ from acloud.internal.lib import utils
 
 logger = logging.getLogger(__name__)
 
-_SSH_CMD = ("-i %(rsa_key_file)s -o LogLevel=ERROR -o ControlPath=none "
+_SSH_CMD = ("-i %(rsa_key_file)s -o LogLevel=ERROR "
             "-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no")
 _SSH_IDENTITY = "-l %(login_user)s %(ip_addr)s"
 _SSH_CMD_MAX_RETRY = 5

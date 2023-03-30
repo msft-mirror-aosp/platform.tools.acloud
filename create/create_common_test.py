@@ -168,29 +168,6 @@ class CreateCommonTest(driver_test_lib.BaseDriverTest):
         with self.assertRaises(errors.GetLocalImageError):
             create_common.FindLocalImage("/dir", "name.?", raise_error=False)
 
-    def testFindBootImage(self):
-        """Test FindBootImage."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            with self.assertRaises(errors.GetLocalImageError):
-                create_common.FindBootImage(temp_dir)
-
-            boot_image_path = os.path.join(temp_dir, "boot.img")
-            self.CreateFile(boot_image_path, b"invalid")
-            with self.assertRaises(errors.GetLocalImageError):
-                create_common.FindBootImage(temp_dir)
-            os.remove(boot_image_path)
-
-            boot_image_path = os.path.join(temp_dir, "boot.img")
-            self.CreateFile(boot_image_path, b"ANDROID!")
-            self.assertEqual(boot_image_path,
-                             create_common.FindBootImage(temp_dir))
-            os.remove(boot_image_path)
-
-            boot_image_path = os.path.join(temp_dir, "boot-5.10.img")
-            self.CreateFile(boot_image_path, b"ANDROID!")
-            self.assertEqual(boot_image_path,
-                             create_common.FindBootImage(temp_dir))
-
     @mock.patch.object(utils, "Decompress")
     def testDownloadRemoteArtifact(self, mock_decompress):
         """Test Download cuttlefish package."""

@@ -64,7 +64,6 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         "system_build_info": {},
         "boot_build_info": {},
         "local_image_artifact": None,
-        "local_kernel_image": None,
         "base_instance_num": None,
         "boot_timeout_secs": None,
         "hw_customize": False,
@@ -316,8 +315,6 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             self._mock_avd_spec.image_source = constants.IMAGE_SRC_LOCAL
             self._mock_avd_spec.remote_image = {}
             self._mock_avd_spec.local_image_artifact = image_zip_path
-            # TODO(b/245226952): Test local_kernel_image when local OTA tools
-            #                    are supported.
             self._mock_create_credentials.side_effect = AssertionError(
                 "CreateCredentials should not be called.")
 

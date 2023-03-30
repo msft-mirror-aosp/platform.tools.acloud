@@ -27,7 +27,6 @@ import time
 import zipfile
 
 from acloud import errors
-from acloud.create import create_common
 from acloud.internal import constants
 from acloud.internal.lib import android_build_client
 from acloud.internal.lib import auth
@@ -333,14 +332,7 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
             raise errors.GetSdkRepoPackageError(_MISSING_EMULATOR_MSG)
 
         system_image_zip_path = self._RetrieveSystemImageZip()
-
-        # Boot image.
-        if self._avd_spec.local_kernel_image:
-            boot_image_path = create_common.FindBootImage(
-                self._avd_spec.local_kernel_image)
-        else:
-            boot_image_path = self._RetrieveBootImage()
-
+        boot_image_path = self._RetrieveBootImage()
         # Retrieve OTA tools from the goldfish build which contains
         # mk_combined_img.
         # TODO(b/245226952): Find otatools.zip in local_tool_dirs.
