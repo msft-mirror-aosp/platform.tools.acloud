@@ -63,6 +63,9 @@ _INSTALL_CUTTLEFISH_COMMOM_CMD = [
     "sudo dpkg -i ../cuttlefish-base_*_*64.deb || sudo apt-get install -f",
     "sudo dpkg -i ../cuttlefish-user_*_*64.deb || sudo apt-get install -f",
     "sudo dpkg -i ../cuttlefish-common_*_*64.deb || sudo apt-get install -f"]
+_INSTALL_CUTTLEFISH_COMMOM_MSG = ("\nStart to install cuttlefish-common :\n%s"
+                                  "\nEnter 'y' to continue, otherwise N or "
+                                  "enter to exit: ")
 
 
 class BasePkgInstaller(base_task_runner.BaseTaskRunner):
@@ -151,20 +154,24 @@ class CuttlefishCommonPkgInstaller(base_task_runner.BaseTaskRunner):
 
     def _Run(self):
         """Install cuttlefilsh-common packages."""
+        if setup_common.IsPackageInAptList(constants.CUTTLEFISH_COMMOM_PKG):
+            cmd = setup_common.PKG_INSTALL_CMD % constants.CUTTLEFISH_COMMOM_PKG
+            if not utils.GetUserAnswerYes(_INSTALL_CUTTLEFISH_COMMOM_MSG % cmd):
+                sys.exit(constants.EXIT_BY_USER)
+            setup_common.InstallPackage(constants.CUTTLEFISH_COMMOM_PKG)
+            return
+
+        # Install cuttlefish-common from github.
         cf_common_path = os.path.join(tempfile.mkdtemp(), _CF_COMMOM_FOLDER)
         logger.debug("cuttlefish-common path: %s", cf_common_path)
         cmd = "\n".join(sub_cmd.format(git_folder=cf_common_path)
                         for sub_cmd in _INSTALL_CUTTLEFISH_COMMOM_CMD)
-
-        if not utils.GetUserAnswerYes("\nStart to install cuttlefish-common :\n%s"
-                                      "\nEnter 'y' to continue, otherwise N or "
-                                      "enter to exit: " % cmd):
-            sys.exit(constants.EXIT_BY_USER)
         try:
+            if not utils.GetUserAnswerYes(_INSTALL_CUTTLEFISH_COMMOM_MSG % cmd):
+                sys.exit(constants.EXIT_BY_USER)
             setup_common.CheckCmdOutput(cmd, shell=True)
         finally:
             shutil.rmtree(os.path.dirname(cf_common_path))
-        logger.info("Cuttlefish-common package installed now.")
 
 
 class LocalCAHostSetup(base_task_runner.BaseTaskRunner):
