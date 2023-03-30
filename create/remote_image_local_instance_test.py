@@ -91,7 +91,8 @@ class RemoteImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
         self.Patch(cvd_utils, "FindImageDir",
                    return_value="/mix_image_1234/IMAGES")
         self.Patch(ota_tools, "FindOtaToolsDir", return_value="/ota_tools_dir")
-        self.Patch(create_common, "FindLocalImage", return_value="/system_image_path")
+        self.Patch(create_common, "FindSystemImage",
+                   return_value="/system_image_path")
         self.Patch(self.RemoteImageLocalInstance, "_FindCvdHostBinaries",
                    side_effect=errors.GetCvdLocalHostPackageError("not found"))
         paths = self.RemoteImageLocalInstance.GetImageArtifactsPath(avd_spec)
