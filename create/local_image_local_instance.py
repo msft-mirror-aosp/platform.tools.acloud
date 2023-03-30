@@ -74,7 +74,6 @@ from acloud.setup import mkcert
 
 logger = logging.getLogger(__name__)
 
-_SYSTEM_IMAGE_NAME_PATTERN = r"system\.img"
 _SUPER_IMAGE_NAME = "super.img"
 _MIXED_SUPER_IMAGE_NAME = "mixed_super.img"
 _CMD_CVD_START = " start"
@@ -498,8 +497,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             image_dir = cvd_utils.FindImageDir(image_dir)
             ota_tools_dir = os.path.abspath(
                 ota_tools.FindOtaToolsDir(tool_dirs))
-            system_image_path = create_common.FindLocalImage(
-                avd_spec.local_system_image, _SYSTEM_IMAGE_NAME_PATTERN)
+            system_image_path = create_common.FindSystemImage(
+                avd_spec.local_system_image)
         else:
             self._VerifyExtractedImgZip(image_dir)
             misc_info_path = None
