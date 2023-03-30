@@ -30,7 +30,6 @@ from acloud.pull import pull
 
 logger = logging.getLogger(__name__)
 _SCREEN_CONSOLE_COMMAND = "screen ~/cuttlefish_runtime/console"
-_SYSTEM_IMAGE_NAME_PATTERN = r"system\.img"
 _MIXED_SUPER_IMAGE_NAME = "mixed_super.img"
 
 
@@ -183,8 +182,8 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         odm_dlkm_image_path=None
 
         if avd_spec.local_system_image:
-            system_image_path = create_common.FindLocalImage(
-                avd_spec.local_system_image, _SYSTEM_IMAGE_NAME_PATTERN)
+            system_image_path = create_common.FindSystemImage(
+                avd_spec.local_system_image)
 
         if avd_spec.local_vendor_image:
             vendor_image_paths = cvd_utils.FindVendorImages(
