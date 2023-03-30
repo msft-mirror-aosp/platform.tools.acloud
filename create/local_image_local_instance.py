@@ -179,11 +179,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             # Set the state to in-use if the instances start successfully.
             # Failing instances are not set to in-use so that the user can
             # restart them with the same IDs.
-            # TODO(b/261109137): Remove the condition of local_instance_dir
-            #                    when the testing infrastructure supports
-            #                    allocating instance IDs.
-            if (result_report.status == report.Status.SUCCESS or
-                    avd_spec.local_instance_dir):
+            if result_report.status == report.Status.SUCCESS:
                 for ins_lock in ins_locks:
                     ins_lock.SetInUse(True)
             return result_report
