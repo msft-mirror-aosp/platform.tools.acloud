@@ -213,6 +213,11 @@ def FindBootImage(path, raise_error=True):
     return boot_image_path
 
 
+def FindSystemImage(path):
+    """Find a system image file in a given path."""
+    return FindLocalImage(path, _SYSTEM_IMAGE_NAME_PATTERN, raise_error=True)
+
+
 def DownloadRemoteArtifact(cfg, build_target, build_id, artifact, extract_path,
                            decompress=False):
     """Download remote artifact.
