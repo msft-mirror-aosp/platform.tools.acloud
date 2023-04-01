@@ -65,6 +65,7 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         "boot_build_info": {},
         "local_image_artifact": None,
         "local_kernel_image": None,
+        "local_system_image": None,
         "local_tool_dirs": [],
         "base_instance_num": None,
         "boot_timeout_secs": None,
@@ -319,11 +320,14 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             self._CreateSdkRepoZip(image_zip_path)
             boot_image_path = os.path.join(temp_dir, "boot.img")
             self.CreateFile(boot_image_path, b"ANDROID!")
+            system_image_path = os.path.join(temp_dir, "system.img")
+            self.CreateFile(system_image_path)
             self._mock_avd_spec.emulator_zip = emulator_zip_path
             self._mock_avd_spec.image_source = constants.IMAGE_SRC_LOCAL
             self._mock_avd_spec.remote_image = {}
             self._mock_avd_spec.local_image_artifact = image_zip_path
             self._mock_avd_spec.local_kernel_image = boot_image_path
+            self._mock_avd_spec.local_system_image = system_image_path
             self._mock_avd_spec.local_tool_dirs.append("/otatools")
             mock_gf_utils.ConvertAvdSpecToArgs.return_value = ["-gpu", "auto"]
             mock_gf_utils.MixWithBootImage.return_value = (
@@ -336,6 +340,7 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             factory.CreateInstance()
 
             mock_gf_utils.MixWithBootImage.assert_called_once()
+            mock_gf_utils.MixWithSystemImage.assert_called_once()
             mock_ota_tools.FindOtaToolsDir.assert_called_once()
             self.assertEqual("/otatools",
                              mock_ota_tools.FindOtaToolsDir.call_args[0][0][0])
