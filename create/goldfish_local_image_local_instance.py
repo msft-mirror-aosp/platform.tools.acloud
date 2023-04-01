@@ -59,7 +59,6 @@ logger = logging.getLogger(__name__)
 _EMULATOR_BIN_NAME = "emulator"
 _EMULATOR_BIN_DIR_NAMES = ("bin64", "qemu")
 _SDK_REPO_EMULATOR_DIR_NAME = "emulator"
-_SYSTEM_IMAGE_NAME_PATTERN = r"system\.img"
 _NON_MIXED_BACKUP_IMAGE_EXT = ".bak-non-mixed"
 _BUILD_PROP_FILE_NAME = "build.prop"
 # Timeout
@@ -449,8 +448,7 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             image_dir = self._FindImageDir(avd_spec.local_image_dir)
             mixed_image = goldfish_utils.MixWithSystemImage(
                 os.path.join(instance_dir, "mix_disk"), image_dir,
-                create_common.FindLocalImage(avd_spec.local_system_image,
-                                             _SYSTEM_IMAGE_NAME_PATTERN),
+                create_common.FindSystemImage(avd_spec.local_system_image),
                 ota_tools.FindOtaTools(ota_tools_search_paths))
 
             # TODO(b/142228085): Use -system instead of modifying image_dir.
