@@ -60,12 +60,13 @@ def AddCommonCreateArgs(parser):
         dest="autoconnect",
         required=False,
         choices=[constants.INS_KEY_VNC, constants.INS_KEY_ADB,
-                 constants.INS_KEY_WEBRTC],
-        help="Determines to establish a tunnel forwarding adb/vnc and "
-             "launch VNC/webrtc. Establish a tunnel forwarding adb and vnc "
+                 constants.INS_KEY_FASTBOOT, constants.INS_KEY_WEBRTC],
+        help="Determines to establish a tunnel forwarding adb/fastboot/vnc and "
+             "launch VNC/webrtc. Establish a tunnel forwarding adb, fastboot and vnc "
              "then launch vnc if --autoconnect vnc is provided. Establish a "
-             "tunnel forwarding adb if --autoconnect adb is provided. "
-             "Establish a tunnel forwarding adb and auto-launch on the browser "
+             "tunnel forwarding adb and fastboot if --autoconnect adb is provided. Enstablish a "
+             "tunnel forwarding adb and fastboot if --autoconnect fastboot is provided. "
+             "Establish a tunnel forwarding adb, fastboot and auto-launch on the browser "
              "if --autoconnect webrtc is provided. For local goldfish "
              "instance, create a window.")
     parser.add_argument(
@@ -508,6 +509,13 @@ def GetCreateArgParser(subparser):
         required=False,
         help="Specify port for adb forwarding.")
     create_parser.add_argument(
+        "--fastboot-port", "-f",
+        type=int,
+        default=None,
+        dest="fastboot_port",
+        required=False,
+        help="Specify port for fastboot forwarding.")
+    create_parser.add_argument(
         "--base-instance-num",
         type=int,
         default=None,
@@ -623,13 +631,10 @@ def GetCreateArgParser(subparser):
         required=False,
         help="'cuttlefish only' Create OpenWrt device when launching cuttlefish "
         "device.")
-    # TODO(b/261140164): Failed to create cuttlefish instance via cvd.
-    # Workaround to use launch_cvd as default option.
     create_parser.add_argument(
         "--use-launch_cvd",
         action="store_true",
         dest="use_launch_cvd",
-        default=True,
         required=False,
         help="'cuttlefish only' Use launch_cvd to create cuttlefish devices.")
     create_parser.add_argument(
@@ -702,6 +707,12 @@ def GetCreateArgParser(subparser):
         required=False,
         help="'goldfish remote host only' Emulator build target used to run "
         "the images. e.g. emulator-linux_x64_nolocationui.")
+    create_parser.add_argument(
+        "--emulator-zip",
+        dest="emulator_zip",
+        required=False,
+        help="'goldfish remote host only' Emulator zip used to run the "
+        "images. e.g., /path/sdk-repo-linux-emulator-1234567.zip.")
 
     # Arguments for cheeps type.
     create_parser.add_argument(
@@ -852,7 +863,11 @@ def _VerifyGoldfishArgs(args):
         errors.UnsupportedCreateArgs: When a create arg is specified but
                                       unsupported for goldfish.
     """
-    goldfish_only_flags = [args.emulator_build_id, args.emulator_build_target]
+    goldfish_only_flags = [
+        args.emulator_build_id,
+        args.emulator_build_target,
+        args.emulator_zip
+    ]
     if args.avd_type != constants.TYPE_GF and any(goldfish_only_flags):
         raise errors.UnsupportedCreateArgs(
             f"--emulator-* is only valid with avd_type == {constants.TYPE_GF}")
@@ -923,21 +938,29 @@ def VerifyArgs(args):
                 "--system-* args are not supported for AVD type: %s"
                 % args.avd_type)
 
-    if args.num > 1 and args.adb_port:
-        raise errors.UnsupportedMultiAdbPort(
-            "--adb-port is not supported for multi-devices.")
+    if args.num > 1:
+        if args.adb_port is not None:
+            raise errors.UnsupportedMultiAdbPort(
+                "--adb-port is not supported for multi-devices.")
 
-    if args.num > 1 and args.local_instance is not None:
-        raise errors.UnsupportedCreateArgs(
-            "--num is not supported for local instance.")
+        if args.fastboot_port is not None:
+            raise errors.UnsupportedMultiAdbPort(
+                "--fastboot-port is not supported for multi-devices.")
+
+        if args.local_instance is not None:
+            raise errors.UnsupportedCreateArgs(
+                "--num is not supported for local instance.")
 
     if args.local_instance is None and args.gpu == _DEFAULT_GPU:
         raise errors.UnsupportedCreateArgs(
             "Please assign one gpu model for GCE instance. Reference: "
             "https://cloud.google.com/compute/docs/gpus")
 
-    if args.adb_port:
+    if args.adb_port is not None:
         utils.CheckPortFree(args.adb_port)
+
+    if args.fastboot_port is not None:
+        utils.CheckPortFree(args.fastboot_port)
 
     hw_properties = create_common.ParseKeyValuePairArgs(args.hw_property)
     for key in hw_properties:

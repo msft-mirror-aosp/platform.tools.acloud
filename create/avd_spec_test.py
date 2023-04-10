@@ -46,6 +46,7 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.args.config_file = ""
         self.args.build_target = "fake_build_target"
         self.args.adb_port = None
+        self.args.fastboot_port = None
         self.args.launch_args = None
         self.Patch(list_instances, "ChooseOneRemoteInstance", return_value=mock.MagicMock())
         self.Patch(list_instances, "GetInstancesFromInstanceNames", return_value=mock.MagicMock())
@@ -499,6 +500,7 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.AvdSpec._ProcessMiscArgs(self.args)
         self.assertEqual(self.AvdSpec.autoconnect, False)
         self.assertEqual(self.AvdSpec.connect_adb, False)
+        self.assertEqual(self.AvdSpec.connect_fastboot, False)
         self.assertEqual(self.AvdSpec.connect_vnc, False)
         self.assertEqual(self.AvdSpec.connect_webrtc, False)
 
@@ -506,6 +508,7 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.AvdSpec._ProcessMiscArgs(self.args)
         self.assertEqual(self.AvdSpec.autoconnect, True)
         self.assertEqual(self.AvdSpec.connect_adb, True)
+        self.assertEqual(self.AvdSpec.connect_fastboot, True)
         self.assertEqual(self.AvdSpec.connect_vnc, True)
         self.assertEqual(self.AvdSpec.connect_webrtc, False)
 
@@ -513,6 +516,15 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.AvdSpec._ProcessMiscArgs(self.args)
         self.assertEqual(self.AvdSpec.autoconnect, True)
         self.assertEqual(self.AvdSpec.connect_adb, True)
+        self.assertEqual(self.AvdSpec.connect_fastboot, True)
+        self.assertEqual(self.AvdSpec.connect_vnc, False)
+        self.assertEqual(self.AvdSpec.connect_webrtc, False)
+
+        self.args.autoconnect = constants.INS_KEY_FASTBOOT
+        self.AvdSpec._ProcessMiscArgs(self.args)
+        self.assertEqual(self.AvdSpec.autoconnect, True)
+        self.assertEqual(self.AvdSpec.connect_adb, True)
+        self.assertEqual(self.AvdSpec.connect_fastboot, True)
         self.assertEqual(self.AvdSpec.connect_vnc, False)
         self.assertEqual(self.AvdSpec.connect_webrtc, False)
 
@@ -520,6 +532,7 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.AvdSpec._ProcessMiscArgs(self.args)
         self.assertEqual(self.AvdSpec.autoconnect, True)
         self.assertEqual(self.AvdSpec.connect_adb, True)
+        self.assertEqual(self.AvdSpec.connect_fastboot, True)
         self.assertEqual(self.AvdSpec.connect_vnc, False)
         self.assertEqual(self.AvdSpec.connect_webrtc, True)
 
@@ -554,13 +567,8 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
 
         # Verify fetch_cvd_version
         self.args.fetch_cvd_build_id = None
-        build_client = mock.MagicMock()
-        self.Patch(android_build_client, "AndroidBuildClient",
-                   return_value=build_client)
-        self.Patch(auth, "CreateCredentials", return_value=mock.MagicMock())
-        self.Patch(build_client, "GetFetcherVersion", return_value="12345")
         self.AvdSpec._ProcessMiscArgs(self.args)
-        self.assertEqual(self.AvdSpec.fetch_cvd_version, "12345")
+        self.assertEqual(self.AvdSpec.fetch_cvd_version, "LKGB")
 
         self.args.fetch_cvd_build_id = "23456"
         self.AvdSpec._ProcessMiscArgs(self.args)

@@ -127,8 +127,10 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
             fetch_cvd_version: String of fetch_cvd version.
             is_arm_version: is ARM version fetch_cvd.
         """
+        if fetch_cvd_version == constants.LKGB:
+            fetch_cvd_version = self.GetFetcherVersion()
         utils.RetryExceptionType(
-            exception_types=ssl.SSLError,
+            exception_types=(ssl.SSLError, errors.DriverError),
             max_retries=self.MAX_RETRY,
             functor=self.DownloadArtifact,
             sleep_multiplier=self.RETRY_SLEEP_SECS,

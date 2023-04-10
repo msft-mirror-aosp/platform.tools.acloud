@@ -154,6 +154,7 @@ ENV_ANDROID_PRODUCT_OUT = "ANDROID_PRODUCT_OUT"
 ENV_ANDROID_SOONG_HOST_OUT = "ANDROID_SOONG_HOST_OUT"
 ENV_ANDROID_TMP = "ANDROID_TMP"
 ENV_BUILD_TARGET = "TARGET_PRODUCT"
+ENV_CVD_ACQUIRE_FILE_LOCK = "CVD_ACQUIRE_FILE_LOCK"
 
 LOCALHOST = "0.0.0.0"
 LOCALHOST_ADB_SERIAL = LOCALHOST + ":%d"
@@ -175,6 +176,7 @@ INS_KEY_STATUS = "status"
 INS_KEY_DISPLAY = "display"
 INS_KEY_IP = "ip"
 INS_KEY_ADB = "adb"
+INS_KEY_FASTBOOT = "fastboot"
 INS_KEY_VNC = "vnc"
 INS_KEY_WEBRTC = "webrtc"
 INS_KEY_WEBRTC_PORT = "webrtc_port"
@@ -192,7 +194,8 @@ ANDROID_INFO_FILE = "android-info.txt"
 CUTTLEFISH_CONFIG_FILE = "cuttlefish_config.json"
 
 TEMP_ARTIFACTS_FOLDER = "acloud_image_artifacts"
-CVD_HOST_PACKAGE = "cvd-host_package.tar.gz"
+CVD_HOST_PACKAGE = "cvd-host_package"
+CVD_HOST_TARBALL = "cvd-host_package.tar.gz"
 # cvd tools symbolic link name of local instance.
 CVD_TOOLS_LINK_NAME = "host_bins"
 TOOL_NAME = "acloud"
@@ -259,6 +262,8 @@ ERROR_MSG_SSO_INVALID = "stuck at SSO"
 # The name of download image tool.
 FETCH_CVD = "fetch_cvd"
 FETCH_CVD_ARGS_FILE = "fetch-cvd-args.txt"
+# Last known good build
+LKGB = "LKGB"
 
 # The name of credential source key json file, a copy of
 # cfg.service_account_json_private_key_path for remote host case.

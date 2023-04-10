@@ -441,6 +441,10 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
             name, fullname, display, ip, adb_port=6666)
         self.assertEqual(ins_webrtc._GetAutoConnect(), constants.INS_KEY_ADB)
 
+        ins_webrtc = instance.Instance(
+            name, fullname, display, ip, fastboot_port=6666)
+        self.assertEqual(ins_webrtc._GetAutoConnect(), constants.INS_KEY_FASTBOOT)
+
         ins_webrtc = instance.Instance(name, fullname, display, ip)
         self.assertEqual(ins_webrtc._GetAutoConnect(), None)
 
