@@ -74,7 +74,6 @@ from acloud.setup import mkcert
 
 logger = logging.getLogger(__name__)
 
-_SYSTEM_IMAGE_NAME_PATTERN = r"system\.img"
 _SUPER_IMAGE_NAME = "super.img"
 _MIXED_SUPER_IMAGE_NAME = "mixed_super.img"
 _CMD_CVD_START = " start"
@@ -179,11 +178,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             # Set the state to in-use if the instances start successfully.
             # Failing instances are not set to in-use so that the user can
             # restart them with the same IDs.
-            # TODO(b/261109137): Remove the condition of local_instance_dir
-            #                    when the testing infrastructure supports
-            #                    allocating instance IDs.
-            if (result_report.status == report.Status.SUCCESS or
-                    avd_spec.local_instance_dir):
+            if result_report.status == report.Status.SUCCESS:
                 for ins_lock in ins_locks:
                     ins_lock.SetInUse(True)
             return result_report
@@ -502,8 +497,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             image_dir = cvd_utils.FindImageDir(image_dir)
             ota_tools_dir = os.path.abspath(
                 ota_tools.FindOtaToolsDir(tool_dirs))
-            system_image_path = create_common.FindLocalImage(
-                avd_spec.local_system_image, _SYSTEM_IMAGE_NAME_PATTERN)
+            system_image_path = create_common.FindSystemImage(
+                avd_spec.local_system_image)
         else:
             self._VerifyExtractedImgZip(image_dir)
             misc_info_path = None

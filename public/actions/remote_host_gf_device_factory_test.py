@@ -64,6 +64,9 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         "system_build_info": {},
         "boot_build_info": {},
         "local_image_artifact": None,
+        "local_kernel_image": None,
+        "local_system_image": None,
+        "local_tool_dirs": [],
         "base_instance_num": None,
         "boot_timeout_secs": None,
         "hw_customize": False,
@@ -304,17 +307,31 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.assertEqual([None], factory.GetVncPorts())
         self.assertEqual({}, factory.GetFailures())
 
-    def testCreateInstanceWithLocalFiles(self):
+    @mock.patch("acloud.public.actions.remote_host_gf_device_factory."
+                "ota_tools")
+    @mock.patch("acloud.public.actions.remote_host_gf_device_factory."
+                "goldfish_utils")
+    def testCreateInstanceWithLocalFiles(self, mock_gf_utils, mock_ota_tools):
         """Test RemoteHostGoldfishDeviceFactory with local files."""
         with tempfile.TemporaryDirectory() as temp_dir:
             emulator_zip_path = os.path.join(temp_dir, "emulator.zip")
             self._CreateSdkRepoZip(emulator_zip_path)
             image_zip_path = os.path.join(temp_dir, "image.zip")
             self._CreateSdkRepoZip(image_zip_path)
+            boot_image_path = os.path.join(temp_dir, "boot.img")
+            self.CreateFile(boot_image_path, b"ANDROID!")
+            system_image_path = os.path.join(temp_dir, "system.img")
+            self.CreateFile(system_image_path)
             self._mock_avd_spec.emulator_zip = emulator_zip_path
             self._mock_avd_spec.image_source = constants.IMAGE_SRC_LOCAL
             self._mock_avd_spec.remote_image = {}
             self._mock_avd_spec.local_image_artifact = image_zip_path
+            self._mock_avd_spec.local_kernel_image = boot_image_path
+            self._mock_avd_spec.local_system_image = system_image_path
+            self._mock_avd_spec.local_tool_dirs.append("/otatools")
+            mock_gf_utils.ConvertAvdSpecToArgs.return_value = ["-gpu", "auto"]
+            mock_gf_utils.MixWithBootImage.return_value = (
+                "/path/to/kernel", "/path/to/ramdisk")
             self._mock_create_credentials.side_effect = AssertionError(
                 "CreateCredentials should not be called.")
 
@@ -322,6 +339,13 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                 self._mock_avd_spec)
             factory.CreateInstance()
 
+            mock_gf_utils.MixWithBootImage.assert_called_once()
+            mock_gf_utils.MixWithSystemImage.assert_called_once()
+            mock_ota_tools.FindOtaToolsDir.assert_called_once()
+            self.assertEqual("/otatools",
+                             mock_ota_tools.FindOtaToolsDir.call_args[0][0][0])
+
+            mock_gf_utils.FormatRemoteHostInstanceName.assert_called()
             self.assertEqual({}, factory.GetBuildInfoDict())
             self.assertEqual([5555], factory.GetAdbPorts())
             self.assertEqual([None], factory.GetVncPorts())
