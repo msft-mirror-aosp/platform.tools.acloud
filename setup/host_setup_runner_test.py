@@ -168,9 +168,15 @@ class CuttlefishCommonPkgInstallerTest(driver_test_lib.BaseDriverTest):
         self.Patch(tempfile, "mkdtemp", return_value=fake_tmp_folder)
         self.Patch(utils, "GetUserAnswerYes", return_value=True)
         self.Patch(CuttlefishCommonPkgInstaller, "ShouldRun", return_value=True)
+        self.Patch(setup_common, "IsPackageInAptList", return_value=False)
         self.CuttlefishCommonPkgInstaller.Run()
         self.assertEqual(mock_cmd.call_count, 1)
         mock_rmtree.assert_called_once_with(fake_tmp_folder)
+        # Install cuttlefish-common from rapture
+        self.Patch(setup_common, "IsPackageInAptList", return_value=True)
+        self.Patch(setup_common, "InstallPackage")
+        self.CuttlefishCommonPkgInstaller.Run()
+        setup_common.InstallPackage.assert_called()
 
         self.Patch(utils, "GetUserAnswerYes", return_value=False)
         self.Patch(sys, "exit")
