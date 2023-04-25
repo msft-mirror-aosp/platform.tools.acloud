@@ -72,11 +72,11 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
 
     @staticmethod
     @mock.patch("acloud.internal.lib.cvd_utils.glob")
-    @mock.patch("acloud.internal.lib.cvd_utils.os.path.isdir",
-                return_value=True)
+    @mock.patch("acloud.internal.lib.cvd_utils.os.path.isdir")
     @mock.patch("acloud.internal.lib.cvd_utils.ssh.ShellCmdWithRetry")
-    def testUploadImageDir(mock_shell, _mock_isdir, mock_glob):
+    def testUploadImageDir(mock_shell, mock_isdir, mock_glob):
         """Test UploadArtifacts with image directory."""
+        mock_isdir.side_effect = lambda path: path != "/mock/cvd.tar.gz"
         mock_ssh = mock.Mock()
         mock_ssh.GetBaseCmd.return_value = "/mock/ssh"
         expected_image_shell_cmd = ("tar -cf - --lzop -S -C local/dir "
