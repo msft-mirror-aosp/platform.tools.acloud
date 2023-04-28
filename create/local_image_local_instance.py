@@ -820,6 +820,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         cvd_env[constants.ENV_CUTTLEFISH_CONFIG_FILE] = (
             instance.GetLocalInstanceConfigPath(local_instance_id))
         cvd_env[constants.ENV_CVD_ACQUIRE_FILE_LOCK] = "false"
+        cvd_env[constants.ENV_LAUNCHED_BY_ACLOUD] = "true"
         stdout_file = os.path.join(cvd_home_dir, _STDOUT)
         stderr_file = os.path.join(cvd_home_dir, _STDERR)
         # Check the result of launch_cvd command.
