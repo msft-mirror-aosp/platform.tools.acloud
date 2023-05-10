@@ -93,6 +93,10 @@ class CheepsComputeClient(android_compute_client.AndroidComputeClient):
             metadata["betty_image"] = avd_spec.cheeps_betty_image
             metadata["cheeps_features"] = ','.join(avd_spec.cheeps_features)
 
+            if avd_spec.connect_hostname:
+                self._gce_hostname = gcompute_client.GetGCEHostName(
+                    self._project, instance, self._zone)
+
         gcompute_client.ComputeClient.CreateInstance(
             self,
             instance=instance,
