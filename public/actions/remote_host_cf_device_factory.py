@@ -272,11 +272,10 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             extract_path: String, a path include extracted files.
         """
         cfg = self._avd_spec.cfg
-        is_arm_img = (cvd_utils.IsArmImage(self._avd_spec.remote_image)
-                        and self._avd_spec.remote_fetch)
+        is_arm_flavor = cvd_utils.RunOnArmMachine(self._ssh) and self._avd_spec.remote_fetch
         fetch_cvd = os.path.join(extract_path, constants.FETCH_CVD)
         self._compute_client.build_api.DownloadFetchcvd(
-            fetch_cvd, self._avd_spec.fetch_cvd_version, is_arm_img)
+            fetch_cvd, self._avd_spec.fetch_cvd_version, is_arm_flavor)
         # Duplicate fetch_cvd API key when available
         if cfg.service_account_json_private_key_path:
             shutil.copyfile(
