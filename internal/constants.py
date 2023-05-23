@@ -263,6 +263,8 @@ ERROR_MSG_SSO_INVALID = "stuck at SSO"
 # The name of download image tool.
 FETCH_CVD = "fetch_cvd"
 FETCH_CVD_ARGS_FILE = "fetch-cvd-args.txt"
+# The version is used when downloading LKGB fetch_cvd failed.
+FETCH_CVD_SECOND_VERSION = "10176216"
 # Last known good build
 LKGB = "LKGB"
 
