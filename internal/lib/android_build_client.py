@@ -129,18 +129,35 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
         """
         if fetch_cvd_version == constants.LKGB:
             fetch_cvd_version = self.GetFetcherVersion()
-        utils.RetryExceptionType(
-            exception_types=(ssl.SSLError, errors.DriverError),
-            max_retries=self.MAX_RETRY,
-            functor=self.DownloadArtifact,
-            sleep_multiplier=self.RETRY_SLEEP_SECS,
-            retry_backoff_factor=utils.DEFAULT_RETRY_BACKOFF_FACTOR,
-            build_target=(self.FETCHER_ARM_VERSION_BUILD_TARGET
-                        if is_arm_version else self.FETCHER_BUILD_TARGET),
-            build_id=fetch_cvd_version,
-            resource_id=self.FETCHER_NAME,
-            local_dest=local_dest,
-            attempt_id=self.LATEST)
+        fetch_cvd_build_target = (
+            self.FETCHER_ARM_VERSION_BUILD_TARGET if is_arm_version
+            else self.FETCHER_BUILD_TARGET)
+        try:
+            utils.RetryExceptionType(
+                exception_types=(ssl.SSLError, errors.DriverError),
+                max_retries=self.MAX_RETRY,
+                functor=self.DownloadArtifact,
+                sleep_multiplier=self.RETRY_SLEEP_SECS,
+                retry_backoff_factor=utils.DEFAULT_RETRY_BACKOFF_FACTOR,
+                build_target=fetch_cvd_build_target,
+                build_id=fetch_cvd_version,
+                resource_id=self.FETCHER_NAME,
+                local_dest=local_dest,
+                attempt_id=self.LATEST)
+        except Exception:
+            logger.debug("Download fetch_cvd with build id: %s",
+                         constants.FETCH_CVD_SECOND_VERSION)
+            utils.RetryExceptionType(
+                exception_types=(ssl.SSLError, errors.DriverError),
+                max_retries=self.MAX_RETRY,
+                functor=self.DownloadArtifact,
+                sleep_multiplier=self.RETRY_SLEEP_SECS,
+                retry_backoff_factor=utils.DEFAULT_RETRY_BACKOFF_FACTOR,
+                build_target=fetch_cvd_build_target,
+                build_id=constants.FETCH_CVD_SECOND_VERSION,
+                resource_id=self.FETCHER_NAME,
+                local_dest=local_dest,
+                attempt_id=self.LATEST)
         fetch_cvd_stat = os.stat(local_dest)
         os.chmod(local_dest, fetch_cvd_stat.st_mode | stat.S_IEXEC)
 
