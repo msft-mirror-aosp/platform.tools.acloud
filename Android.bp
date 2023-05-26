@@ -233,7 +233,6 @@ python_library_host{
     ],
     libs: [
          "asuite_cc_client",
-         "asuite_metrics",
     ],
 }
 

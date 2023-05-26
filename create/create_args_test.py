@@ -58,6 +58,7 @@ def _CreateArgs():
         host_ssh_private_key_path=None,
         emulator_build_id=None,
         emulator_build_target=None,
+        emulator_zip=None,
         avd_type=constants.TYPE_CF,
         autoconnect=constants.INS_KEY_WEBRTC)
     return mock_args
