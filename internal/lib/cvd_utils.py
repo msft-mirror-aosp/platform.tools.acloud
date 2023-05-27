@@ -119,8 +119,8 @@ _TARGET_FILES_META_DIR_NAME = "META"
 _TARGET_FILES_IMAGES_DIR_NAME = "IMAGES"
 _MISC_INFO_FILE_NAME = "misc_info.txt"
 
-# ARM flavor build target pattern.
-_ARM_TARGET_PATTERN = "arm"
+# Represents a 64-bit ARM architecture.
+_ARM_MACHINE_TYPE = "aarch64"
 
 
 def GetAdbPorts(base_instance_num, num_avds_per_instance):
@@ -218,16 +218,16 @@ def _UploadCvdHostPackage(ssh_obj, remote_dir, cvd_host_package):
         remote_dir: The remote base directory.
         cvd_host_package: The path to the CVD host package.
     """
-    if cvd_host_package.endswith(".tar.gz"):
-        remote_cmd = f"tar -xzf - -C {remote_dir} < {cvd_host_package}"
-        logger.debug("remote_cmd:\n %s", remote_cmd)
-        ssh_obj.Run(remote_cmd)
-    else:
+    if os.path.isdir(cvd_host_package):
         cmd = (f"tar -cf - --lzop -S -C {cvd_host_package} . | "
                f"{ssh_obj.GetBaseCmd(constants.SSH_BIN)} -- "
                f"tar -xf - --lzop -S -C {remote_dir}")
         logger.debug("cmd:\n %s", cmd)
         ssh.ShellCmdWithRetry(cmd)
+    else:
+        remote_cmd = f"tar -xzf - -C {remote_dir} < {cvd_host_package}"
+        logger.debug("remote_cmd:\n %s", remote_cmd)
+        ssh_obj.Run(remote_cmd)
 
 
 @utils.TimeExecute(function_description="Processing and uploading local images")
@@ -815,16 +815,19 @@ def FindImageDir(image_dir):
         "Cannot find images in %s." % image_dir)
 
 
-def IsArmImage(image):
-    """Check if the image is built for ARM.
+def RunOnArmMachine(ssh_obj):
+    """Check if the AVD will be run on an ARM-based machine.
 
     Args:
-        image: Image meta info.
+        ssh_obj: An Ssh object.
 
     Returns:
-        A boolean, whether the image is for ARM.
+        A boolean, whether the AVD will be run on an ARM-based machine.
     """
-    return _ARM_TARGET_PATTERN in image.get("build_target", "")
+    cmd = "uname -m"
+    cmd_output = ssh_obj.GetCmdOutput(cmd).strip()
+    logger.debug("cmd: %s, cmd output: %s", cmd, cmd_output)
+    return cmd_output == _ARM_MACHINE_TYPE
 
 
 def FindVendorImages(image_dir):
