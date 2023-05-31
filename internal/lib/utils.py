@@ -1133,12 +1133,12 @@ def LaunchBrowser(ip_addr, port):
     webrtc_link = _WEBRTC_URL % {
         "webrtc_ip": ip_addr,
         "webrtc_port": port}
+    PrintColorString("WebRTC AVD URL: %s "% webrtc_link)
     if os.environ.get(_ENV_DISPLAY, None):
         webbrowser.open_new_tab(webrtc_link)
     else:
         PrintColorString("Remote terminal can't support launch webbrowser.",
                          TextColors.FAIL)
-        PrintColorString("WebRTC AVD URL: %s "% webrtc_link)
 
 
 def LaunchVncClient(port, avd_width=None, avd_height=None, no_prompts=False):
