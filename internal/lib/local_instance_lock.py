@@ -106,6 +106,8 @@ class LocalInstanceLock:
         successful = False
         self._file_desc = os.open(self._file_path, os.O_CREAT | os.O_RDWR,
                                   0o666)
+        os.chmod(self._file_path, 0o666)
+        os.chmod(parent_dir, 0o755)
         try:
             successful = self._Flock(timeout_secs)
         finally:
