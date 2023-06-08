@@ -122,6 +122,7 @@ ACLOUD_LOGGER = "acloud"
 _LOGGER = logging.getLogger(ACLOUD_LOGGER)
 NO_ERROR_MESSAGE = ""
 PROG = "acloud"
+DEFAULT_SUPPORT_ARGS = ["--version", "-h", "--help"]
 
 # Commands
 CMD_CREATE_GOLDFISH = "create_gf"
@@ -145,7 +146,7 @@ def _ParseArgs(args):
     Returns:
         Parsed args and a list of unknown argument strings.
     """
-    usage = ",".join([
+    acloud_cmds = [
         setup_args.CMD_SETUP,
         create_args.CMD_CREATE,
         list_args.CMD_LIST,
@@ -153,8 +154,8 @@ def _ParseArgs(args):
         reconnect_args.CMD_RECONNECT,
         pull_args.CMD_PULL,
         restart_args.CMD_RESTART,
-        hostcleanup_args.CMD_HOSTCLEANUP,
-    ])
+        hostcleanup_args.CMD_HOSTCLEANUP]
+    usage = ",".join(acloud_cmds)
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -243,7 +244,8 @@ def _ParseArgs(args):
     for subparser in subparser_list:
         acloud_common.AddCommonArguments(subparser)
 
-    if not args:
+    support_args = acloud_cmds + DEFAULT_SUPPORT_ARGS
+    if not args or args[0] not in support_args:
         parser.print_help()
         sys.exit(constants.EXIT_BY_WRONG_CMD)
 
