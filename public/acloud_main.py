@@ -152,6 +152,7 @@ def _ParseArgs(args):
         list_args.CMD_LIST,
         delete_args.CMD_DELETE,
         reconnect_args.CMD_RECONNECT,
+        powerwash_args.CMD_POWERWASH,
         pull_args.CMD_PULL,
         restart_args.CMD_RESTART,
         hostcleanup_args.CMD_HOSTCLEANUP]
