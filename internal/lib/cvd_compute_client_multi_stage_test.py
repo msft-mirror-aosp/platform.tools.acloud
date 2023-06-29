@@ -183,14 +183,6 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(self.cvd_compute_client_multi_stage.stage,
                          device_stage)
 
-    def testGetConfigFromAndroidInfo(self):
-        """Test GetConfigFromAndroidInfo"""
-        self.Patch(Ssh, "GetCmdOutput", return_value="config=phone")
-        expected = "phone"
-        self.assertEqual(
-            self.cvd_compute_client_multi_stage._GetConfigFromAndroidInfo("dir"),
-            expected)
-
     @mock.patch.object(Ssh, "Run")
     @mock.patch.object(Ssh, "ScpPushFiles")
     def testUpdateCertificate(self, mock_upload, mock_trustremote):

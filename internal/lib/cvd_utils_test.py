@@ -266,6 +266,18 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             "host-goldfish-192.0.2.1-5554-123456-sdk_x86_64-sdk")
         self.assertIsNone(result)
 
+    def testGetConfigFromRemoteAndroidInfo(self):
+        """Test GetConfigFromRemoteAndroidInfo."""
+        mock_ssh = mock.Mock()
+        mock_ssh.GetCmdOutput.return_value = "require board=vsoc_x86_64\n"
+        config = cvd_utils.GetConfigFromRemoteAndroidInfo(mock_ssh, ".")
+        mock_ssh.GetCmdOutput.assert_called_with("cat ./android-info.txt")
+        self.assertIsNone(config)
+
+        mock_ssh.GetCmdOutput.return_value += "config=phone\n"
+        config = cvd_utils.GetConfigFromRemoteAndroidInfo(mock_ssh, ".")
+        self.assertEqual(config, "phone")
+
     def testGetRemoteLaunchCvdCmd(self):
         """Test GetRemoteLaunchCvdCmd."""
         # Minimum arguments
