@@ -498,6 +498,17 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             ]
             self.assertEqual(expected_logs, logs)
 
+    def testGetOpenWrtInfoDict(self):
+        """Test GetOpenWrtInfoDict."""
+        mock_ssh = mock.Mock()
+        mock_ssh.GetBaseCmd.return_value = "/mock/ssh"
+        openwrt_info = {
+            "ssh_command": "/mock/ssh",
+            "screen_command": "screen ./cuttlefish_runtime/console"}
+        self.assertDictEqual(openwrt_info,
+                             cvd_utils.GetOpenWrtInfoDict(mock_ssh, "."))
+        mock_ssh.GetBaseCmd.assert_called_with("ssh")
+
     def testGetRemoteBuildInfoDict(self):
         """Test GetRemoteBuildInfoDict."""
         remote_image = {
