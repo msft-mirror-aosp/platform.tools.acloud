@@ -375,7 +375,8 @@ class UtilsTest(driver_test_lib.BaseDriverTest):
         mock_execute_command = self.Patch(utils, "_ExecuteCommand")
         utils.EstablishSshTunnel(ip_addr, rsa_key_file, ssh_user,
                                  port_mapping, "-o command='shell %s %h'")
-        arg_list = ["-i", rsa_key_file, "-o", "UserKnownHostsFile=/dev/null",
+        arg_list = ["-i", rsa_key_file, "-o", "ControlPath=none",
+                    "-o", "UserKnownHostsFile=/dev/null",
                     "-o", "StrictHostKeyChecking=no",
                     "-L", "1111:127.0.0.1:2222",
                     "-L", "8888:127.0.0.1:9999",
@@ -494,7 +495,7 @@ class UtilsTest(driver_test_lib.BaseDriverTest):
         """"Test Get forwarding webrtc port from ssh tunnel."""
         fake_ps_output = ("/fake_ps_1 --fake arg \n"
                           "/fake_ps_2 --fake arg \n"
-                          "/usr/bin/ssh -i ~/.ssh/acloud_rsa "
+                          "/usr/bin/ssh -i ~/.ssh/acloud_rsa -o ControlPath=none "
                           "-o UserKnownHostsFile=/dev/null "
                           "-o StrictHostKeyChecking=no -L 15551:127.0.0.1:15551 "
                           "-L 12345:127.0.0.1:8443 -N -f -l user 1.1.1.1").encode()
