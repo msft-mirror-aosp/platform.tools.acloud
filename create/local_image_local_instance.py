@@ -429,7 +429,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                 f"{constants.ENV_ANDROID_PRODUCT_OUT}.")
 
     @staticmethod
-    def _FindBootOrKernelImages(image_path):
+    def FindBootOrKernelImages(image_path):
         """Find boot, vendor_boot, kernel, and initramfs images in a path.
 
         This method expects image_path to be:
@@ -511,7 +511,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                 vendor_boot_image_path,
                 kernel_image_path,
                 initramfs_image_path,
-            ) = self._FindBootOrKernelImages(
+            ) = self.FindBootOrKernelImages(
                 os.path.abspath(avd_spec.local_kernel_image))
         else:
             boot_image_path = None
