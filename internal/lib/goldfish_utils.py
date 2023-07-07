@@ -40,7 +40,7 @@ _KERNEL_IMAGE_NAMES = ("kernel-ranchu", "kernel-ranchu-64", "kernel")
 _RAMDISK_IMAGE_NAMES = ("ramdisk-qemu.img", "ramdisk.img")
 # Remote host instance name.
 _REMOTE_HOST_INSTANCE_NAME_FORMAT = (
-    "host-goldfish-%(ip_addr)s-%(console_port)s-%(build_id)s-%(build_target)s")
+    "host-goldfish-%(ip_addr)s-%(console_port)s-%(build_info)s")
 _REMOTE_HOST_INSTANCE_NAME_PATTERN = re.compile(
     r"host-goldfish-(?P<ip_addr>[\d.]+)-(?P<console_port>\d+)-.+")
 
@@ -226,11 +226,16 @@ def FormatRemoteHostInstanceName(ip_addr, console_port, build_info):
     Returns:
         A string, the instance name.
     """
+    build_id = build_info.get(constants.BUILD_ID)
+    build_target = build_info.get(constants.BUILD_TARGET)
+    build_info_str = (f"{build_id}-{build_target}" if
+                      build_id and build_target else
+                      "userbuild")
     return _REMOTE_HOST_INSTANCE_NAME_FORMAT % {
         "ip_addr": ip_addr,
         "console_port": console_port,
-        "build_id": build_info.get(constants.BUILD_ID),
-        "build_target": build_info.get(constants.BUILD_TARGET)}
+        "build_info": build_info_str,
+    }
 
 
 def ParseRemoteHostConsoleAddress(instance_name):

@@ -107,7 +107,8 @@ python_test_host {
         "general-tests",
     ],
     test_options: {
-        unit_test: true,
+        // TODO(b/270225397)
+        unit_test: false,
         tags: ["no-remote"],
     }
 }
@@ -232,7 +233,6 @@ python_library_host{
     ],
     libs: [
          "asuite_cc_client",
-         "asuite_metrics",
     ],
 }
 
