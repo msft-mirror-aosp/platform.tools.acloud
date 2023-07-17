@@ -237,18 +237,14 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         self.SetStage(constants.STAGE_BOOT_UP)
         timestart = time.time()
         error_msg = ""
-        launch_cvd_args = list(extra_args)
         config = self._GetConfigFromAndroidInfo(base_dir)
-        launch_cvd_args.extend(cvd_utils.GetLaunchCvdArgs(avd_spec, config))
-
+        cmd = cvd_utils.GetRemoteLaunchCvdCmd(
+            base_dir, avd_spec, config, extra_args)
         boot_timeout_secs = self._GetBootTimeout(
             avd_spec.boot_timeout_secs or constants.DEFAULT_CF_BOOT_TIMEOUT)
-        ssh_command = (f"'HOME=$HOME/{base_dir} "
-                       f"{base_dir}/bin/launch_cvd -daemon "
-                       f"{' '.join(launch_cvd_args)}'")
         try:
-            self.ExtendReportData(_LAUNCH_CVD_COMMAND, ssh_command)
-            self._ssh.Run(ssh_command, boot_timeout_secs, retry=_NO_RETRY)
+            self.ExtendReportData(_LAUNCH_CVD_COMMAND, cmd)
+            self._ssh.Run(f"'{cmd}'", boot_timeout_secs, retry=_NO_RETRY)
             self._UpdateOpenWrtStatus(avd_spec)
         except (subprocess.CalledProcessError, errors.DeviceConnectionError,
                 errors.LaunchCVDFail) as e:
