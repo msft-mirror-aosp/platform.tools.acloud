@@ -266,8 +266,8 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             "host-goldfish-192.0.2.1-5554-123456-sdk_x86_64-sdk")
         self.assertIsNone(result)
 
-    def testGetLaunchCvdArgs(self):
-        """Test GetLaunchCvdArgs."""
+    def testGetRemoteLaunchCvdCmd(self):
+        """Test GetRemoteLaunchCvdCmd."""
         # Minimum arguments
         mock_cfg = mock.Mock(extra_data_disk_size_gb=0)
         hw_property = {
@@ -285,12 +285,14 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             num_avds_per_instance=1,
             base_instance_num=0,
             launch_args="")
-        expected_args = [
-            "-x_res=1080", "-y_res=1920", "-dpi=240",
-            "-undefok=report_anonymous_usage_stats,config",
-            "-report_anonymous_usage_stats=y"]
-        launch_cvd_args = cvd_utils.GetLaunchCvdArgs(mock_avd_spec)
-        self.assertEqual(launch_cvd_args, expected_args)
+        expected_cmd = (
+            "HOME=$HOME/dir dir/bin/launch_cvd -daemon "
+            "-x_res=1080 -y_res=1920 -dpi=240 "
+            "-undefok=report_anonymous_usage_stats,config "
+            "-report_anonymous_usage_stats=y")
+        cmd = cvd_utils.GetRemoteLaunchCvdCmd("dir", mock_avd_spec,
+                                              config=None, extra_args=())
+        self.assertEqual(cmd, expected_cmd)
 
         # All arguments.
         mock_cfg = mock.Mock(extra_data_disk_size_gb=20)
@@ -313,22 +315,23 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             num_avds_per_instance=2,
             base_instance_num=3,
             launch_args="--setupwizard_mode=REQUIRED")
-        expected_args = [
-            "-data_policy=create_if_missing", "-blank_data_image_mb=20480",
-            "-config=phone", "-x_res=1080", "-y_res=1920", "-dpi=240",
-            "-data_policy=always_create", "-blank_data_image_mb=10240",
-            "-cpus=2", "-memory_mb=4096",
-            "--start_webrtc", "--vm_manager=crosvm",
-            "--webrtc_device_id=pet-name",
-            "--start_vnc_server=true",
-            "-console=true",
-            "-num_instances=2", "--base-instance-num=3",
-            "--setupwizard_mode=REQUIRED",
-            "-undefok=report_anonymous_usage_stats,config",
-            "-report_anonymous_usage_stats=y"]
-        launch_cvd_args = cvd_utils.GetLaunchCvdArgs(
-            mock_avd_spec, config="phone")
-        self.assertEqual(launch_cvd_args, expected_args)
+        expected_cmd = (
+            "HOME=$HOME/dir dir/bin/launch_cvd -daemon --extra args "
+            "-data_policy=create_if_missing -blank_data_image_mb=20480 "
+            "-config=phone -x_res=1080 -y_res=1920 -dpi=240 "
+            "-data_policy=always_create -blank_data_image_mb=10240 "
+            "-cpus=2 -memory_mb=4096 "
+            "--start_webrtc --vm_manager=crosvm "
+            "--webrtc_device_id=pet-name "
+            "--start_vnc_server=true "
+            "-console=true "
+            "-num_instances=2 --base-instance-num=3 "
+            "--setupwizard_mode=REQUIRED "
+            "-undefok=report_anonymous_usage_stats,config "
+            "-report_anonymous_usage_stats=y")
+        cmd = cvd_utils.GetRemoteLaunchCvdCmd(
+            "dir", mock_avd_spec, "phone", ("--extra", "args"))
+        self.assertEqual(cmd, expected_cmd)
 
     def testGetRemoteFetcherConfigJson(self):
         """Test GetRemoteFetcherConfigJson."""
