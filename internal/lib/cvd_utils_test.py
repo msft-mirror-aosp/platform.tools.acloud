@@ -333,6 +333,18 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             "dir", mock_avd_spec, "phone", ("--extra", "args"))
         self.assertEqual(cmd, expected_cmd)
 
+    def testExecuteRemoteLaunchCvd(self):
+        """Test ExecuteRemoteLaunchCvd."""
+        mock_ssh = mock.Mock()
+        error_msg = cvd_utils.ExecuteRemoteLaunchCvd(mock_ssh, "launch_cvd", 1)
+        self.assertFalse(error_msg)
+        mock_ssh.Run.assert_called()
+
+        mock_ssh.Run.side_effect = errors.LaunchCVDFail(
+            "Test unknown command line flag 'start_vnc_server'.")
+        error_msg = cvd_utils.ExecuteRemoteLaunchCvd(mock_ssh, "launch_cvd", 1)
+        self.assertIn("VNC is not supported in the current build.", error_msg)
+
     def testGetRemoteFetcherConfigJson(self):
         """Test GetRemoteFetcherConfigJson."""
         expected_log = {"path": "dir/fetcher_config.json",
