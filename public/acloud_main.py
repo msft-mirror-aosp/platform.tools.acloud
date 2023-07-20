@@ -303,14 +303,14 @@ def _ParsingConfig(args, cfg):
         error message about list of missing config fields.
     """
     missing_fields = []
-    if args.which == create_args.CMD_CREATE and args.local_instance is None:
+    if (args.which == create_args.CMD_CREATE and
+            args.local_instance is None and not args.remote_host):
         missing_fields = cfg.GetMissingFields(_CREATE_REQUIRE_FIELDS)
     if missing_fields:
-        return (
-            "Config file (%s) missing required fields: %s, please add these "
-            "fields or reset config file. For reset config information: "
-            "go/acloud-googler-setup#reset-configuration" %
-            (config.GetUserConfigPath(args.config_file), missing_fields))
+        return (f"Config file ({config.GetUserConfigPath(args.config_file)}) "
+                f"missing required fields: {missing_fields}, please add these "
+                "fields or reset config file. For reset config information: "
+                "go/acloud-googler-setup#reset-configuration")
     return None
 
 
