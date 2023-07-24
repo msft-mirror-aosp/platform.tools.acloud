@@ -792,6 +792,22 @@ def FindLocalLogs(runtime_dir, instance_num):
     return logs
 
 
+def GetOpenWrtInfoDict(ssh_obj, remote_dir):
+    """Return the commands to connect to a remote OpenWrt console.
+
+    Args:
+        ssh_obj: An Ssh object.
+        remote_dir: The remote base directory.
+
+    Returns:
+        A dict containing the OpenWrt info.
+    """
+    console_path = remote_path.join(remote_dir, "cuttlefish_runtime",
+                                    "console")
+    return {"ssh_command": ssh_obj.GetBaseCmd(constants.SSH_BIN),
+            "screen_command": "screen " + console_path}
+
+
 def GetRemoteBuildInfoDict(avd_spec):
     """Convert remote build infos to a dictionary for reporting.
 

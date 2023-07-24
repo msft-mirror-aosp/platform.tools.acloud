@@ -29,7 +29,6 @@ from acloud.pull import pull
 
 
 logger = logging.getLogger(__name__)
-_SCREEN_CONSOLE_COMMAND = "screen ~/cuttlefish_runtime/console"
 _MIXED_SUPER_IMAGE_NAME = "mixed_super.img"
 
 
@@ -235,8 +234,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         """
         if not self._avd_spec.openwrt:
             return None
-        return {"ssh_command": self._compute_client.GetSshConnectCmd(),
-                "screen_command": _SCREEN_CONSOLE_COMMAND}
+        return cvd_utils.GetOpenWrtInfoDict(self._ssh, cvd_utils.GCE_BASE_DIR)
 
     def GetAdbPorts(self):
         """Get ADB ports of the created devices.
