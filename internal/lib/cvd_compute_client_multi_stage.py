@@ -37,7 +37,6 @@ Android build, and start Android within the host instance.
 
 import logging
 import os
-import re
 import subprocess
 import tempfile
 import time
@@ -59,7 +58,6 @@ _DEFAULT_WEBRTC_DEVICE_ID = "cvd-1"
 _FETCHER_NAME = "fetch_cvd"
 # Launch cvd command for acloud report
 _LAUNCH_CVD_COMMAND = "launch_cvd_command"
-_CONFIG_RE = re.compile(r"^config=(?P<config>.+)")
 _TRUST_REMOTE_INSTANCE_COMMAND = (
     f"\"sudo cp -p ~/{constants.WEBRTC_CERTS_PATH}/{constants.SSL_CA_NAME}.pem "
     f"{constants.SSL_TRUST_CA_DIR}/{constants.SSL_CA_NAME}.crt;"
@@ -195,25 +193,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             return f"nic0.{instance}.{self._zone}.c.{project}.internal.gcpnode.com"
         return f"nic0.{instance}.{self._zone}.c.{self._project}.internal.gcpnode.com"
 
-    def _GetConfigFromAndroidInfo(self, base_dir):
-        """Get config value from android-info.txt.
-
-        The config in android-info.txt would like "config=phone".
-
-        Args:
-            base_dir: The remote directory containing the images.
-
-        Returns:
-            Strings of config value.
-        """
-        android_info = self._ssh.GetCmdOutput(
-            f"cat {base_dir}/{constants.ANDROID_INFO_FILE}")
-        logger.debug("Android info: %s", android_info)
-        config_match = _CONFIG_RE.match(android_info)
-        if config_match:
-            return config_match.group("config")
-        return None
-
     @utils.TimeExecute(function_description="Launching AVD(s) and waiting for boot up",
                        result_evaluator=utils.BootEvaluator)
     def LaunchCvd(self, instance, avd_spec, base_dir, extra_args):
@@ -235,7 +214,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         """
         self.SetStage(constants.STAGE_BOOT_UP)
         timestart = time.time()
-        config = self._GetConfigFromAndroidInfo(base_dir)
+        config = cvd_utils.GetConfigFromRemoteAndroidInfo(self._ssh, base_dir)
         cmd = cvd_utils.GetRemoteLaunchCvdCmd(
             base_dir, avd_spec, config, extra_args)
         boot_timeout_secs = self._GetBootTimeout(
