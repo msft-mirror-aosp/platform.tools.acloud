@@ -39,7 +39,6 @@ from acloud.pull import pull
 logger = logging.getLogger(__name__)
 _ALL_FILES = "*"
 _HOME_FOLDER = os.path.expanduser("~")
-_SCREEN_CONSOLE_COMMAND = "screen ~/cuttlefish_runtime/console"
 
 
 class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
@@ -379,8 +378,7 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         """
         if not self._avd_spec.openwrt:
             return None
-        return {"ssh_command": self._compute_client.GetSshConnectCmd(),
-                "screen_command": _SCREEN_CONSOLE_COMMAND}
+        return cvd_utils.GetOpenWrtInfoDict(self._ssh, self._GetInstancePath())
 
     def GetBuildInfoDict(self):
         """Get build info dictionary.
