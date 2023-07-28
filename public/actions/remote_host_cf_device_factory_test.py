@@ -31,6 +31,9 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         super().setUp()
         self.Patch(auth, "CreateCredentials")
         self.Patch(cvd_compute_client_multi_stage, "CvdComputeClient")
+        self._mock_build_api = mock.Mock()
+        self.Patch(remote_host_cf_device_factory.android_build_client,
+                   "AndroidBuildClient", return_value=self._mock_build_api)
 
     @staticmethod
     def _CreateMockAvdSpec():
@@ -100,6 +103,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_client_obj.InitRemoteHost.assert_called_once()
         mock_cvd_utils.GetRemoteHostBaseDir.assert_called_with(2)
         mock_ssh_obj.Run.assert_called_with("mkdir -p acloud_cf_2")
+        self._mock_build_api.GetFetchBuildArgs.assert_not_called()
         mock_cvd_utils.UploadArtifacts.assert_called_with(
             mock.ANY, "acloud_cf_2", "/mock/img", "/mock/cvd.tar.gz")
         mock_cvd_utils.FindRemoteLogs.assert_called_with(
@@ -145,6 +149,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_cvd_utils.GetRemoteHostBaseDir.assert_called_with(None)
         mock_client_obj.InitRemoteHost.assert_called_once()
         mock_ssh_obj.Run.assert_called_with("mkdir -p acloud_cf_1")
+        self._mock_build_api.GetFetchBuildArgs.assert_not_called()
         mock_cvd_utils.UploadArtifacts.assert_called_with(
             mock.ANY, "acloud_cf_1", "/mock/img.zip", "/mock/cvd.tar.gz")
         mock_cvd_utils.FindRemoteLogs.assert_called_with(
@@ -189,10 +194,12 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
 
         mock_client_obj = factory.GetComputeClient()
         mock_client_obj.LaunchCvd.return_value = {}
+        self._mock_build_api.GetFetchBuildArgs.return_value = ["-test"]
 
         self.assertEqual("inst", factory.CreateInstance())
         mock_client_obj.InitRemoteHost.assert_called_once()
         mock_ssh_obj.Run.assert_called_with("mkdir -p acloud_cf_1")
+        self._mock_build_api.DownloadFetchcvd.assert_called_once()
         mock_check_call.assert_called_once()
         mock_ssh.ShellCmdWithRetry.assert_called_once()
         self.assertRegex(mock_ssh.ShellCmdWithRetry.call_args[0][0],
@@ -233,12 +240,12 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
 
         mock_client_obj = factory.GetComputeClient()
         mock_client_obj.LaunchCvd.return_value = {}
-        mock_client_obj.build_api.GetFetchBuildArgs.return_value = ["-test"]
+        self._mock_build_api.GetFetchBuildArgs.return_value = ["-test"]
 
         self.assertEqual("inst", factory.CreateInstance())
         mock_client_obj.InitRemoteHost.assert_called_once()
         mock_ssh_obj.Run.assert_called_with("mkdir -p acloud_cf_1")
-        mock_client_obj.build_api.DownloadFetchcvd.assert_called_once()
+        self._mock_build_api.DownloadFetchcvd.assert_called_once()
         mock_shutil.copyfile.assert_called_with("/mock/key", mock.ANY)
         self.assertRegex(mock_ssh.ShellCmdWithRetry.call_args_list[0][0][0],
                          r"^tar -cf - --lzop -S -C \S+ fetch_cvd \| "
@@ -288,12 +295,12 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
 
         mock_client_obj = factory.GetComputeClient()
         mock_client_obj.LaunchCvd.return_value = {}
-        mock_client_obj.build_api.GetFetchBuildArgs.return_value = ["-test"]
+        self._mock_build_api.GetFetchBuildArgs.return_value = ["-test"]
 
         self.assertEqual("inst", factory.CreateInstance())
         mock_client_obj.InitRemoteHost.assert_called_once()
         mock_ssh_obj.Run.assert_called_with("mkdir -p acloud_cf_1")
-        mock_client_obj.build_api.DownloadFetchcvd.assert_called_once()
+        self._mock_build_api.DownloadFetchcvd.assert_called_once()
         mock_shutil.copyfile.assert_called_with("/mock/key", mock.ANY)
         self.assertRegex(mock_ssh.ShellCmdWithRetry.call_args_list[0][0][0],
                          r"^tar -cf - --lzop -S -C \S+ fetch_cvd \| "
@@ -312,6 +319,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_pull.PullLogs.assert_not_called()
         self.assertFalse(factory.GetFailures())
         self.assertDictEqual({"inst": [log]}, factory.GetLogs())
+
 
 if __name__ == "__main__":
     unittest.main()
