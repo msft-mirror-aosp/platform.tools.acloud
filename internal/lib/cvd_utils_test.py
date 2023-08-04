@@ -266,8 +266,20 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             "host-goldfish-192.0.2.1-5554-123456-sdk_x86_64-sdk")
         self.assertIsNone(result)
 
-    def testGetLaunchCvdArgs(self):
-        """Test GetLaunchCvdArgs."""
+    def testGetConfigFromRemoteAndroidInfo(self):
+        """Test GetConfigFromRemoteAndroidInfo."""
+        mock_ssh = mock.Mock()
+        mock_ssh.GetCmdOutput.return_value = "require board=vsoc_x86_64\n"
+        config = cvd_utils.GetConfigFromRemoteAndroidInfo(mock_ssh, ".")
+        mock_ssh.GetCmdOutput.assert_called_with("cat ./android-info.txt")
+        self.assertIsNone(config)
+
+        mock_ssh.GetCmdOutput.return_value += "config=phone\n"
+        config = cvd_utils.GetConfigFromRemoteAndroidInfo(mock_ssh, ".")
+        self.assertEqual(config, "phone")
+
+    def testGetRemoteLaunchCvdCmd(self):
+        """Test GetRemoteLaunchCvdCmd."""
         # Minimum arguments
         mock_cfg = mock.Mock(extra_data_disk_size_gb=0)
         hw_property = {
@@ -285,12 +297,14 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             num_avds_per_instance=1,
             base_instance_num=0,
             launch_args="")
-        expected_args = [
-            "-x_res=1080", "-y_res=1920", "-dpi=240",
-            "-undefok=report_anonymous_usage_stats,config",
-            "-report_anonymous_usage_stats=y"]
-        launch_cvd_args = cvd_utils.GetLaunchCvdArgs(mock_avd_spec)
-        self.assertEqual(launch_cvd_args, expected_args)
+        expected_cmd = (
+            "HOME=$HOME/dir dir/bin/launch_cvd -daemon "
+            "-x_res=1080 -y_res=1920 -dpi=240 "
+            "-undefok=report_anonymous_usage_stats,config "
+            "-report_anonymous_usage_stats=y")
+        cmd = cvd_utils.GetRemoteLaunchCvdCmd("dir", mock_avd_spec,
+                                              config=None, extra_args=())
+        self.assertEqual(cmd, expected_cmd)
 
         # All arguments.
         mock_cfg = mock.Mock(extra_data_disk_size_gb=20)
@@ -313,22 +327,35 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             num_avds_per_instance=2,
             base_instance_num=3,
             launch_args="--setupwizard_mode=REQUIRED")
-        expected_args = [
-            "-data_policy=create_if_missing", "-blank_data_image_mb=20480",
-            "-config=phone", "-x_res=1080", "-y_res=1920", "-dpi=240",
-            "-data_policy=always_create", "-blank_data_image_mb=10240",
-            "-cpus=2", "-memory_mb=4096",
-            "--start_webrtc", "--vm_manager=crosvm",
-            "--webrtc_device_id=pet-name",
-            "--start_vnc_server=true",
-            "-console=true",
-            "-num_instances=2", "--base-instance-num=3",
-            "--setupwizard_mode=REQUIRED",
-            "-undefok=report_anonymous_usage_stats,config",
-            "-report_anonymous_usage_stats=y"]
-        launch_cvd_args = cvd_utils.GetLaunchCvdArgs(
-            mock_avd_spec, config="phone")
-        self.assertEqual(launch_cvd_args, expected_args)
+        expected_cmd = (
+            "HOME=$HOME/dir dir/bin/launch_cvd -daemon --extra args "
+            "-data_policy=create_if_missing -blank_data_image_mb=20480 "
+            "-config=phone -x_res=1080 -y_res=1920 -dpi=240 "
+            "-data_policy=always_create -blank_data_image_mb=10240 "
+            "-cpus=2 -memory_mb=4096 "
+            "--start_webrtc --vm_manager=crosvm "
+            "--webrtc_device_id=pet-name "
+            "--start_vnc_server=true "
+            "-console=true "
+            "-num_instances=2 --base-instance-num=3 "
+            "--setupwizard_mode=REQUIRED "
+            "-undefok=report_anonymous_usage_stats,config "
+            "-report_anonymous_usage_stats=y")
+        cmd = cvd_utils.GetRemoteLaunchCvdCmd(
+            "dir", mock_avd_spec, "phone", ("--extra", "args"))
+        self.assertEqual(cmd, expected_cmd)
+
+    def testExecuteRemoteLaunchCvd(self):
+        """Test ExecuteRemoteLaunchCvd."""
+        mock_ssh = mock.Mock()
+        error_msg = cvd_utils.ExecuteRemoteLaunchCvd(mock_ssh, "launch_cvd", 1)
+        self.assertFalse(error_msg)
+        mock_ssh.Run.assert_called()
+
+        mock_ssh.Run.side_effect = errors.LaunchCVDFail(
+            "Test unknown command line flag 'start_vnc_server'.")
+        error_msg = cvd_utils.ExecuteRemoteLaunchCvd(mock_ssh, "launch_cvd", 1)
+        self.assertIn("VNC is not supported in the current build.", error_msg)
 
     def testGetRemoteFetcherConfigJson(self):
         """Test GetRemoteFetcherConfigJson."""
@@ -470,6 +497,17 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
                 },
             ]
             self.assertEqual(expected_logs, logs)
+
+    def testGetOpenWrtInfoDict(self):
+        """Test GetOpenWrtInfoDict."""
+        mock_ssh = mock.Mock()
+        mock_ssh.GetBaseCmd.return_value = "/mock/ssh"
+        openwrt_info = {
+            "ssh_command": "/mock/ssh",
+            "screen_command": "screen ./cuttlefish_runtime/console"}
+        self.assertDictEqual(openwrt_info,
+                             cvd_utils.GetOpenWrtInfoDict(mock_ssh, "."))
+        mock_ssh.GetBaseCmd.assert_called_with("ssh")
 
     def testGetRemoteBuildInfoDict(self):
         """Test GetRemoteBuildInfoDict."""

@@ -394,7 +394,9 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.assertFalse(factory.GetFailures())
         self.assertEqual(3, len(factory.GetLogs().get("instance")))
 
-    def testGetOpenWrtInfoDict(self):
+    @mock.patch("acloud.public.actions.remote_instance_cf_device_factory."
+                "cvd_utils")
+    def testGetOpenWrtInfoDict(self, mock_cvd_utils):
         """Test GetOpenWrtInfoDict."""
         self.Patch(cvd_compute_client_multi_stage.CvdComputeClient,
                    "GetSshConnectCmd", return_value="fake_ssh_command")
@@ -408,15 +410,14 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         avd_spec_no_openwrt = avd_spec.AVDSpec(args)
         factory = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
             avd_spec_no_openwrt)
-        self.assertEqual(None, factory.GetOpenWrtInfoDict())
+        self.assertIsNone(factory.GetOpenWrtInfoDict())
 
         args.openwrt = True
         avd_spec_openwrt = avd_spec.AVDSpec(args)
         factory = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
             avd_spec_openwrt)
-        expect_result = {"ssh_command": "fake_ssh_command",
-                         "screen_command": "screen ~/cuttlefish_runtime/console"}
-        self.assertEqual(expect_result, factory.GetOpenWrtInfoDict())
+        self.assertIsNotNone(factory.GetOpenWrtInfoDict())
+        mock_cvd_utils.GetOpenWrtInfoDict.assert_called()
 
 
 if __name__ == "__main__":
