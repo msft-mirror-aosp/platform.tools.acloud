@@ -29,8 +29,8 @@ from acloud import errors
 from acloud.internal import constants
 from acloud.internal.lib import auth
 from acloud.internal.lib import android_build_client
-from acloud.internal.lib import cvd_compute_client_multi_stage
 from acloud.internal.lib import cvd_utils
+from acloud.internal.lib import remote_host_client
 from acloud.internal.lib import utils
 from acloud.internal.lib import ssh
 from acloud.public.actions import base_device_factory
@@ -52,7 +52,7 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         all_failures: A dictionary mapping instance names to errors.
         all_logs: A dictionary mapping instance names to lists of
                   report.LogFile.
-        compute_client: An object of cvd_compute_client.CvdComputeClient.
+        compute_client: An object of remote_host_client.RemoteHostClient.
         ssh: An Ssh object.
         android_build_client: An android_build_client.AndroidBuildClient that
                               is lazily initialized.
@@ -68,14 +68,8 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         self._cvd_host_package_artifact = cvd_host_package_artifact
         self._all_failures = {}
         self._all_logs = {}
-        credentials = auth.CreateCredentials(avd_spec.cfg)
-        compute_client = cvd_compute_client_multi_stage.CvdComputeClient(
-            acloud_config=avd_spec.cfg,
-            oauth2_credentials=credentials,
-            ins_timeout_secs=avd_spec.ins_timeout_secs,
-            report_internal_ip=avd_spec.report_internal_ip,
-            gpu=avd_spec.gpu)
-        super().__init__(compute_client)
+        super().__init__(
+            remote_host_client.RemoteHostClient(avd_spec.remote_host))
         self._ssh = None
         self._android_build_client = None
 
@@ -94,25 +88,24 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         Returns:
             A string, representing instance name.
         """
-        init_remote_host_timestart = time.time()
+        start_time = time.time()
         instance = self._InitRemotehost()
-        self._compute_client.execution_time[constants.TIME_GCE] = (
-            time.time() - init_remote_host_timestart)
+        start_time = self._compute_client.RecordTime(
+            constants.TIME_GCE, start_time)
 
-        process_artifacts_timestart = time.time()
+        process_artifacts_timestart = start_time
         image_args = self._ProcessRemoteHostArtifacts()
-        self._compute_client.execution_time[constants.TIME_ARTIFACT] = (
-            time.time() - process_artifacts_timestart)
+        start_time = self._compute_client.RecordTime(
+            constants.TIME_ARTIFACT, start_time)
 
-        launch_cvd_timestart = time.time()
-        failures = self._compute_client.LaunchCvd(
-            instance, self._avd_spec, self._GetInstancePath(), image_args)
-        self._compute_client.execution_time[constants.TIME_LAUNCH] = (
-            time.time() - launch_cvd_timestart)
+        error_msg = self._LaunchCvd(image_args, process_artifacts_timestart)
+        start_time = self._compute_client.RecordTime(
+            constants.TIME_LAUNCH, start_time)
 
-        self._all_failures.update(failures)
+        if error_msg:
+            self._all_failures[instance] = error_msg
         self._FindLogFiles(
-            instance, instance in failures and not self._avd_spec.no_pull_log)
+            instance, (error_msg and not self._avd_spec.no_pull_log))
         return instance
 
     def _GetInstancePath(self, relative_path=""):
@@ -131,20 +124,13 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
                 base_dir)
 
     def _InitRemotehost(self):
-        """Initialize remote host.
-
-        Determine the remote host instance name, and activate ssh. It need to
-        get the IP address in the common_operation. So need to pass the IP and
-        ssh to compute_client.
-
-        build_target: The format is like "aosp_cf_x86_phone". We only get info
-                      from the user build image file name. If the file name is
-                      not custom format (no "-"), we will use $TARGET_PRODUCT
-                      from environment variable as build_target.
+        """Determine the remote host instance name and activate ssh.
 
         Returns:
             A string, representing instance name.
         """
+        self._compute_client.SetStage(constants.STAGE_SSH_CONNECT)
+        # Get product name from the img zip file name or TARGET_PRODUCT.
         image_name = os.path.basename(
             self._local_image_artifact) if self._local_image_artifact else ""
         build_target = (os.environ.get(constants.ENV_BUILD_TARGET)
@@ -165,8 +151,9 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
                                   self._avd_spec.cfg.ssh_private_key_path),
             extra_args_ssh_tunnel=self._avd_spec.cfg.extra_args_ssh_tunnel,
             report_internal_ip=self._avd_spec.report_internal_ip)
-        self._compute_client.InitRemoteHost(
-            self._ssh, ip, self._avd_spec.host_user, self._GetInstancePath())
+        self._ssh.WaitForSsh(timeout=self._avd_spec.ins_timeout_secs)
+        cvd_utils.CleanUpRemoteCvd(self._ssh, self._GetInstancePath(),
+                                   raise_error=False)
         return instance
 
     def _ProcessRemoteHostArtifacts(self):
@@ -353,6 +340,39 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
                f"tar -xf - --lzop -S -C {self._GetInstancePath()}")
         logger.debug("cmd:\n %s", cmd)
         ssh.ShellCmdWithRetry(cmd)
+
+    @utils.TimeExecute(
+        function_description="Launching AVD(s) and waiting for boot up",
+        result_evaluator=utils.BootEvaluator)
+    def _LaunchCvd(self, image_args, start_time):
+        """Execute launch_cvd.
+
+        Args:
+            image_args: A list of strings, the extra arguments generated by
+                        acloud for remote image paths.
+            start_time: The timestamp when the remote host is initialized.
+
+        Returns:
+            The error message as a string. An empty string represents success.
+        """
+        self._compute_client.SetStage(constants.STAGE_BOOT_UP)
+        config = cvd_utils.GetConfigFromRemoteAndroidInfo(
+            self._ssh, self._GetInstancePath())
+        cmd = cvd_utils.GetRemoteLaunchCvdCmd(
+            self._GetInstancePath(), self._avd_spec, config, image_args)
+        boot_timeout_secs = (self._avd_spec.boot_timeout_secs or
+                             constants.DEFAULT_CF_BOOT_TIMEOUT)
+        boot_timeout_secs -= time.time() - start_time
+        if boot_timeout_secs <= 0:
+            return ("Timed out before launch_cvd. "
+                    f"Remaining time: {boot_timeout_secs} secs.")
+
+        self._compute_client.ExtendReportData(
+            constants.LAUNCH_CVD_COMMAND, cmd)
+        error_msg = cvd_utils.ExecuteRemoteLaunchCvd(
+            self._ssh, cmd, boot_timeout_secs)
+        self._compute_client.openwrt = not error_msg and self._avd_spec.openwrt
+        return error_msg
 
     def _FindLogFiles(self, instance, download):
         """Find and pull all log files from instance.
