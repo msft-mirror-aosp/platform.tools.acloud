@@ -56,8 +56,6 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_WEBRTC_DEVICE_ID = "cvd-1"
 _FETCHER_NAME = "fetch_cvd"
-# Launch cvd command for acloud report
-_LAUNCH_CVD_COMMAND = "launch_cvd_command"
 _TRUST_REMOTE_INSTANCE_COMMAND = (
     f"\"sudo cp -p ~/{constants.WEBRTC_CERTS_PATH}/{constants.SSL_CA_NAME}.pem "
     f"{constants.SSL_TRUST_CA_DIR}/{constants.SSL_CA_NAME}.crt;"
@@ -108,26 +106,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         self._execution_time = {constants.TIME_ARTIFACT: 0,
                                 constants.TIME_GCE: 0,
                                 constants.TIME_LAUNCH: 0}
-
-    def InitRemoteHost(self, ssh, ip, user, base_dir):
-        """Init remote host.
-
-        Check if we can ssh to the remote host, stop any cf instances running
-        on it, and remove existing files.
-
-        Args:
-            ssh: Ssh object.
-            ip: namedtuple (internal, external) that holds IP address of the
-                remote host, e.g. "external:140.110.20.1, internal:10.0.0.1"
-            user: String of user log in to the instance.
-            base_dir: The remote directory containing the images and tools.
-        """
-        self.SetStage(constants.STAGE_SSH_CONNECT)
-        self._ssh = ssh
-        self._ip = ip
-        self._user = user
-        self._ssh.WaitForSsh(timeout=self._ins_timeout_secs)
-        cvd_utils.CleanUpRemoteCvd(self._ssh, base_dir, raise_error=False)
 
     # pylint: disable=arguments-differ,broad-except
     def CreateInstance(self, instance, image_name, image_project,
@@ -220,7 +198,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         boot_timeout_secs = self._GetBootTimeout(
             avd_spec.boot_timeout_secs or constants.DEFAULT_CF_BOOT_TIMEOUT)
 
-        self.ExtendReportData(_LAUNCH_CVD_COMMAND, cmd)
+        self.ExtendReportData(constants.LAUNCH_CVD_COMMAND, cmd)
         error_msg = cvd_utils.ExecuteRemoteLaunchCvd(
             self._ssh, cmd, boot_timeout_secs)
         self._execution_time[constants.TIME_LAUNCH] = time.time() - timestart
