@@ -35,6 +35,8 @@ class RemoteHostClient:
                         possible keys are defined as TIME_* in constants.py.
         stage: An integer. The possible values are defined as STAGE_* in
                constants.py.
+        openwrt: A boolean, whether the openwrt device is created.
+        dict_report: A dict containing the data to be written to the report.
     """
 
     def __init__(self, ip_addr):
@@ -42,6 +44,8 @@ class RemoteHostClient:
         self._ip_addr = ip_addr
         self._execution_time = {}
         self._stage = constants.STAGE_INIT
+        self._openwrt = False
+        self._dict_report = {_VERSION: config.GetVersion()}
 
     def RecordTime(self, key, start_time):
         """Record the interval between the start time and the current time.
@@ -60,6 +64,10 @@ class RemoteHostClient:
     def SetStage(self, stage):
         """Set device creation progress."""
         self._stage = stage
+
+    def ExtendReportData(self, key, value):
+        """Add a key-value pair to the report."""
+        self._dict_report[key] = value
 
     # The following methods are called by common_operations.py.
     def GetInstanceIP(self, _instance_name):
@@ -88,6 +96,16 @@ class RemoteHostClient:
         return self._stage
 
     @property
+    def openwrt(self):
+        """Return openwrt."""
+        return self._openwrt
+
+    @openwrt.setter
+    def openwrt(self, value):
+        """Set openwrt."""
+        self._openwrt = value
+
+    @property
     def dict_report(self):
         """Return the key-value pairs to be written to the report."""
-        return {_VERSION: config.GetVersion()}
+        return self._dict_report

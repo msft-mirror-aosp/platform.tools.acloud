@@ -14,13 +14,12 @@
 
 """Tests for remote_host_cf_device_factory."""
 
+import time
 import unittest
 from unittest import mock
 
 from acloud.internal import constants
-from acloud.internal.lib import auth
 from acloud.internal.lib import driver_test_lib
-from acloud.internal.lib import cvd_compute_client_multi_stage
 from acloud.public.actions import remote_host_cf_device_factory
 
 class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
@@ -29,8 +28,12 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
     def setUp(self):
         """Set up the test."""
         super().setUp()
-        self.Patch(auth, "CreateCredentials")
-        self.Patch(cvd_compute_client_multi_stage, "CvdComputeClient")
+        self.Patch(remote_host_cf_device_factory.auth, "CreateCredentials")
+        mock_client = mock.Mock()
+        self.Patch(remote_host_cf_device_factory.remote_host_client,
+                   "RemoteHostClient", return_value=mock_client)
+        mock_client.RecordTime.side_effect = (
+            lambda _stage, _start_time: time.time())
         self._mock_build_api = mock.Mock()
         self.Patch(remote_host_cf_device_factory.android_build_client,
                    "AndroidBuildClient", return_value=self._mock_build_api)
@@ -69,16 +72,15 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                          base_instance_num=None,
                          num_avds_per_instance=None,
                          fetch_cvd_version="123456",
+                         openwrt=True,
                          cfg=mock_cfg)
 
-    @mock.patch("acloud.public.actions.remote_host_cf_device_factory."
-                "cvd_compute_client_multi_stage")
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory.ssh")
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory."
                 "cvd_utils")
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory.pull")
     def testCreateInstanceWithImageDir(self, mock_pull, mock_cvd_utils,
-                                       mock_ssh, _mock_client):
+                                       mock_ssh):
         """Test CreateInstance with local image directory."""
         mock_avd_spec = self._CreateMockAvdSpec()
         mock_avd_spec.image_source = constants.IMAGE_SRC_LOCAL
@@ -90,26 +92,28 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         factory = remote_host_cf_device_factory.RemoteHostDeviceFactory(
             mock_avd_spec, cvd_host_package_artifact="/mock/cvd.tar.gz")
 
-        mock_client_obj = factory.GetComputeClient()
-        mock_client_obj.LaunchCvd.return_value = {"inst": "failure"}
-
         log = {"path": "/log.txt"}
         mock_cvd_utils.GetRemoteHostBaseDir.return_value = "acloud_cf_2"
         mock_cvd_utils.FormatRemoteHostInstanceName.return_value = "inst"
         mock_cvd_utils.UploadExtraImages.return_value = ["extra"]
+        mock_cvd_utils.ExecuteRemoteLaunchCvd.return_value = "failure"
         mock_cvd_utils.FindRemoteLogs.return_value = [log]
 
         self.assertEqual("inst", factory.CreateInstance())
-        mock_client_obj.InitRemoteHost.assert_called_once()
+        mock_cvd_utils.CleanUpRemoteCvd.assert_called_once_with(
+            mock_ssh_obj, "acloud_cf_2", raise_error=False)
         mock_cvd_utils.GetRemoteHostBaseDir.assert_called_with(2)
         mock_ssh_obj.Run.assert_called_with("mkdir -p acloud_cf_2")
         self._mock_build_api.GetFetchBuildArgs.assert_not_called()
         mock_cvd_utils.UploadArtifacts.assert_called_with(
             mock.ANY, "acloud_cf_2", "/mock/img", "/mock/cvd.tar.gz")
+        mock_cvd_utils.GetConfigFromRemoteAndroidInfo.assert_called_with(
+            mock.ANY, "acloud_cf_2")
+        mock_cvd_utils.GetRemoteLaunchCvdCmd.assert_called_with(
+            "acloud_cf_2", mock_avd_spec, mock.ANY, ["extra"])
+        mock_cvd_utils.ExecuteRemoteLaunchCvd.assert_called()
         mock_cvd_utils.FindRemoteLogs.assert_called_with(
             mock.ANY, "acloud_cf_2", 2, 3)
-        mock_client_obj.LaunchCvd.assert_called_with(
-            "inst", mock_avd_spec, "acloud_cf_2", ["extra"])
         mock_pull.GetAllLogFilePaths.assert_called_once()
         mock_pull.PullLogs.assert_called_once()
         factory.GetAdbPorts()
@@ -121,14 +125,12 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.assertEqual({"inst": "failure"}, factory.GetFailures())
         self.assertDictEqual({"inst": [log]}, factory.GetLogs())
 
-    @mock.patch("acloud.public.actions.remote_host_cf_device_factory."
-                "cvd_compute_client_multi_stage")
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory.ssh")
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory."
                 "cvd_utils")
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory.pull")
     def testCreateInstanceWithImageZip(self, mock_pull, mock_cvd_utils,
-                                       mock_ssh, _mock_client):
+                                       mock_ssh):
         """Test CreateInstance with local image zip."""
         mock_avd_spec = self._CreateMockAvdSpec()
         mock_avd_spec.image_source = constants.IMAGE_SRC_LOCAL
@@ -138,23 +140,21 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             mock_avd_spec, local_image_artifact="/mock/img.zip",
             cvd_host_package_artifact="/mock/cvd.tar.gz")
 
-        mock_client_obj = factory.GetComputeClient()
-        mock_client_obj.LaunchCvd.return_value = {}
-
         mock_cvd_utils.GetRemoteHostBaseDir.return_value = "acloud_cf_1"
         mock_cvd_utils.FormatRemoteHostInstanceName.return_value = "inst"
+        mock_cvd_utils.ExecuteRemoteLaunchCvd.return_value = ""
         mock_cvd_utils.FindRemoteLogs.return_value = []
 
         self.assertEqual("inst", factory.CreateInstance())
         mock_cvd_utils.GetRemoteHostBaseDir.assert_called_with(None)
-        mock_client_obj.InitRemoteHost.assert_called_once()
+        mock_cvd_utils.CleanUpRemoteCvd.assert_called_once()
         mock_ssh_obj.Run.assert_called_with("mkdir -p acloud_cf_1")
         self._mock_build_api.GetFetchBuildArgs.assert_not_called()
         mock_cvd_utils.UploadArtifacts.assert_called_with(
             mock.ANY, "acloud_cf_1", "/mock/img.zip", "/mock/cvd.tar.gz")
+        mock_cvd_utils.ExecuteRemoteLaunchCvd.assert_called()
         mock_cvd_utils.FindRemoteLogs.assert_called_with(
             mock.ANY, "acloud_cf_1", None, None)
-        mock_client_obj.LaunchCvd.assert_called()
         mock_pull.GetAllLogFilePaths.assert_not_called()
         mock_pull.PullLogs.assert_not_called()
         factory.GetAdbPorts()
@@ -166,8 +166,6 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.assertFalse(factory.GetFailures())
         self.assertDictEqual({"inst": []}, factory.GetLogs())
 
-    @mock.patch("acloud.public.actions.remote_host_cf_device_factory."
-                "cvd_compute_client_multi_stage")
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory.ssh")
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory."
                 "cvd_utils")
@@ -177,7 +175,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory.pull")
     def testCreateInstanceWithRemoteImages(self, mock_pull, mock_glob,
                                            mock_check_call, mock_cvd_utils,
-                                           mock_ssh, _mock_client):
+                                           mock_ssh):
         """Test CreateInstance with remote images."""
         mock_avd_spec = self._CreateMockAvdSpec()
         mock_avd_spec.image_source = constants.IMAGE_SRC_REMOTE
@@ -190,14 +188,13 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
 
         mock_cvd_utils.GetRemoteHostBaseDir.return_value = "acloud_cf_1"
         mock_cvd_utils.FormatRemoteHostInstanceName.return_value = "inst"
+        mock_cvd_utils.ExecuteRemoteLaunchCvd.return_value = ""
         mock_cvd_utils.FindRemoteLogs.return_value = []
 
-        mock_client_obj = factory.GetComputeClient()
-        mock_client_obj.LaunchCvd.return_value = {}
         self._mock_build_api.GetFetchBuildArgs.return_value = ["-test"]
 
         self.assertEqual("inst", factory.CreateInstance())
-        mock_client_obj.InitRemoteHost.assert_called_once()
+        mock_cvd_utils.CleanUpRemoteCvd.assert_called_once()
         mock_ssh_obj.Run.assert_called_with("mkdir -p acloud_cf_1")
         self._mock_build_api.DownloadFetchcvd.assert_called_once()
         mock_check_call.assert_called_once()
@@ -205,14 +202,12 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.assertRegex(mock_ssh.ShellCmdWithRetry.call_args[0][0],
                          r"^tar -cf - --lzop -S -C \S+ super\.img \| "
                          r"/mock/ssh -- tar -xf - --lzop -S -C acloud_cf_1$")
-        mock_client_obj.LaunchCvd.assert_called()
+        mock_cvd_utils.ExecuteRemoteLaunchCvd.assert_called()
         mock_pull.GetAllLogFilePaths.assert_not_called()
         mock_pull.PullLogs.assert_not_called()
         self.assertFalse(factory.GetFailures())
         self.assertDictEqual({"inst": []}, factory.GetLogs())
 
-    @mock.patch("acloud.public.actions.remote_host_cf_device_factory."
-                "cvd_compute_client_multi_stage")
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory.ssh")
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory."
                 "cvd_utils")
@@ -220,8 +215,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory.shutil")
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory.pull")
     def testCreateInstanceWithRemoteFetch(self, mock_pull, mock_shutil,
-                                          mock_glob, mock_cvd_utils, mock_ssh,
-                                          _mock_client):
+                                          mock_glob, mock_cvd_utils, mock_ssh):
         """Test CreateInstance with remotely fetched images."""
         mock_avd_spec = self._CreateMockAvdSpec()
         mock_avd_spec.remote_fetch = True
@@ -235,15 +229,14 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         log = {"path": "/log.txt"}
         mock_cvd_utils.GetRemoteHostBaseDir.return_value = "acloud_cf_1"
         mock_cvd_utils.FormatRemoteHostInstanceName.return_value = "inst"
+        mock_cvd_utils.ExecuteRemoteLaunchCvd.return_value = ""
         mock_cvd_utils.FindRemoteLogs.return_value = []
         mock_cvd_utils.GetRemoteFetcherConfigJson.return_value = log
 
-        mock_client_obj = factory.GetComputeClient()
-        mock_client_obj.LaunchCvd.return_value = {}
         self._mock_build_api.GetFetchBuildArgs.return_value = ["-test"]
 
         self.assertEqual("inst", factory.CreateInstance())
-        mock_client_obj.InitRemoteHost.assert_called_once()
+        mock_cvd_utils.CleanUpRemoteCvd.assert_called_once()
         mock_ssh_obj.Run.assert_called_with("mkdir -p acloud_cf_1")
         self._mock_build_api.DownloadFetchcvd.assert_called_once()
         mock_shutil.copyfile.assert_called_with("/mock/key", mock.ANY)
@@ -255,14 +248,12 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                          r"-directory=acloud_cf_1 "
                          r"-credential_source=acloud_cf_1/credential_key.json "
                          r"-test$")
-        mock_client_obj.LaunchCvd.assert_called()
+        mock_cvd_utils.ExecuteRemoteLaunchCvd.assert_called()
         mock_pull.GetAllLogFilePaths.assert_not_called()
         mock_pull.PullLogs.assert_not_called()
         self.assertFalse(factory.GetFailures())
         self.assertDictEqual({"inst": [log]}, factory.GetLogs())
 
-    @mock.patch("acloud.public.actions.remote_host_cf_device_factory."
-                "cvd_compute_client_multi_stage")
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory.ssh")
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory."
                 "cvd_utils")
@@ -270,8 +261,8 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory.shutil")
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory.pull")
     def testCreateInstanceWithFetchCvdWrapper(self, mock_pull, mock_shutil,
-                                              mock_glob, mock_cvd_utils, mock_ssh,
-                                              _mock_client):
+                                              mock_glob, mock_cvd_utils,
+                                              mock_ssh):
         """Test CreateInstance with remotely fetched images."""
         mock_avd_spec = self._CreateMockAvdSpec()
         mock_avd_spec.remote_fetch = True
@@ -290,15 +281,14 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         log = {"path": "/log.txt"}
         mock_cvd_utils.GetRemoteHostBaseDir.return_value = "acloud_cf_1"
         mock_cvd_utils.FormatRemoteHostInstanceName.return_value = "inst"
+        mock_cvd_utils.ExecuteRemoteLaunchCvd.return_value = ""
         mock_cvd_utils.FindRemoteLogs.return_value = []
         mock_cvd_utils.GetRemoteFetcherConfigJson.return_value = log
 
-        mock_client_obj = factory.GetComputeClient()
-        mock_client_obj.LaunchCvd.return_value = {}
         self._mock_build_api.GetFetchBuildArgs.return_value = ["-test"]
 
         self.assertEqual("inst", factory.CreateInstance())
-        mock_client_obj.InitRemoteHost.assert_called_once()
+        mock_cvd_utils.CleanUpRemoteCvd.assert_called_once()
         mock_ssh_obj.Run.assert_called_with("mkdir -p acloud_cf_1")
         self._mock_build_api.DownloadFetchcvd.assert_called_once()
         mock_shutil.copyfile.assert_called_with("/mock/key", mock.ANY)
@@ -314,7 +304,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                          r"-fetch_cvd_path=acloud_cf_1/fetch_cvd "
                          r"-credential_source=acloud_cf_1/credential_key.json "
                          r"-test$")
-        mock_client_obj.LaunchCvd.assert_called()
+        mock_cvd_utils.ExecuteRemoteLaunchCvd.assert_called()
         mock_pull.GetAllLogFilePaths.assert_not_called()
         mock_pull.PullLogs.assert_not_called()
         self.assertFalse(factory.GetFailures())
