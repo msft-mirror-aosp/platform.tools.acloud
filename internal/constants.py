@@ -116,6 +116,7 @@ WEBRTC_PORT = "webrtc_port"
 DEVICE_SERIAL = "device_serial"
 LOGS = "logs"
 BASE_INSTANCE_NUM = "base_instance_num"
+LAUNCH_CVD_COMMAND = "launch_cvd_command"
 # For cuttlefish remote instances
 CF_ADB_PORT = 6520
 CF_FASTBOOT_PORT = 7520
