@@ -1037,6 +1037,9 @@ def FindRemoteFiles(ssh_obj, search_dirs):
 
     Returns:
         A list of strings, the file paths.
+
+    Raises:
+        errors.SubprocessFail if the ssh execution returns non-zero.
     """
     if not search_dirs:
         return []
@@ -1044,6 +1047,9 @@ def FindRemoteFiles(ssh_obj, search_dirs):
                _CMD_FIND_FILES % {"search_dirs": " ".join(search_dirs)})
     proc = subprocess.run(ssh_cmd, shell=True, capture_output=True,
                           check=False)
+    if proc.returncode != 0:
+        raise errors.SubprocessFail("`%s` returned %d. with standard error: %s" %
+                                    (ssh_cmd, proc.returncode, proc.stderr.decode()))
     if proc.stderr:
         logger.debug("`%s` stderr: %s", ssh_cmd, proc.stderr.decode())
     if proc.stdout:
