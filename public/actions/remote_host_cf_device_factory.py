@@ -40,6 +40,7 @@ from acloud.pull import pull
 logger = logging.getLogger(__name__)
 _ALL_FILES = "*"
 _HOME_FOLDER = os.path.expanduser("~")
+_TEMP_PREFIX = "acloud_remote_host"
 
 
 class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
@@ -170,31 +171,55 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         """
         self._compute_client.SetStage(constants.STAGE_ARTIFACT)
         self._ssh.Run(f"mkdir -p {self._GetInstancePath()}")
-        if self._avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
-            cvd_utils.UploadArtifacts(
-                self._ssh, self._GetInstancePath(),
-                self._local_image_artifact or self._avd_spec.local_image_dir,
-                self._cvd_host_package_artifact)
-        else:
-            try:
-                artifacts_path = tempfile.mkdtemp()
-                logger.debug("Extracted path of artifacts: %s", artifacts_path)
+
+        launch_cvd_args = []
+        temp_dir = None
+        try:
+            target_files_dir = None
+            local_image_path = (self._local_image_artifact or
+                                self._avd_spec.local_image_dir)
+            if cvd_utils.AreTargetFilesRequired(self._avd_spec):
+                if self._avd_spec.image_source != constants.IMAGE_SRC_LOCAL:
+                    # TODO(b/296249675): Fetch target_files zip by build_api.
+                    raise NotImplementedError(
+                        "Combination of remote and local images is not "
+                        "implemented.")
+                if self._local_image_artifact:
+                    temp_dir = tempfile.mkdtemp(prefix=_TEMP_PREFIX)
+                    cvd_utils.ExtractTargetFilesZip(self._local_image_artifact,
+                                                    temp_dir)
+                    target_files_dir = temp_dir
+                else:
+                    target_files_dir = self._avd_spec.local_image_dir
+                local_image_path = cvd_utils.FindImageDir(target_files_dir)
+
+            if self._avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
+                cvd_utils.UploadArtifacts(
+                    self._ssh, self._GetInstancePath(), local_image_path,
+                    self._cvd_host_package_artifact)
+            else:
+                temp_dir = tempfile.mkdtemp(prefix=_TEMP_PREFIX)
+                logger.debug("Extracted path of artifacts: %s", temp_dir)
                 if self._avd_spec.remote_fetch:
                     # TODO: Check fetch cvd wrapper file is valid.
                     if self._avd_spec.fetch_cvd_wrapper:
-                        self._UploadFetchCvd(artifacts_path)
+                        self._UploadFetchCvd(temp_dir)
                         self._DownloadArtifactsByFetchWrapper()
                     else:
-                        self._UploadFetchCvd(artifacts_path)
+                        self._UploadFetchCvd(temp_dir)
                         self._DownloadArtifactsRemotehost()
                 else:
-                    self._DownloadArtifacts(artifacts_path)
-                    self._UploadRemoteImageArtifacts(artifacts_path)
-            finally:
-                shutil.rmtree(artifacts_path)
+                    self._DownloadArtifacts(temp_dir)
+                    self._UploadRemoteImageArtifacts(temp_dir)
 
-        return cvd_utils.UploadExtraImages(self._ssh, self._GetInstancePath(),
-                                           self._avd_spec)
+            launch_cvd_args.extend(
+                cvd_utils.UploadExtraImages(self._ssh, self._GetInstancePath(),
+                                            self._avd_spec, target_files_dir))
+        finally:
+            if temp_dir:
+                shutil.rmtree(temp_dir)
+
+        return launch_cvd_args
 
     def _GetRemoteFetchCredentialArg(self):
         """Get the credential source argument for remote fetch_cvd.
