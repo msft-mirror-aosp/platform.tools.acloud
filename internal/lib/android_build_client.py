@@ -183,7 +183,8 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
 
     def GetFetchBuildArgs(self, default_build_info, system_build_info,
                           kernel_build_info, boot_build_info,
-                          bootloader_build_info, ota_build_info):
+                          bootloader_build_info, ota_build_info,
+                          host_package_build_info):
         """Get args from build information for fetch_cvd.
 
         Each build_info is a dictionary that contains 3 items, for example,
@@ -203,6 +204,7 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
                              boot image name.
             bootloader_build_info: The build that provides the bootloader.
             ota_build_info: The build that provides the OTA tools.
+            host_package_build_info: The build that provides the host package.
 
         Returns:
             List of string args for fetch_cvd.
@@ -230,6 +232,9 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
         ota_build = self.ProcessBuild(ota_build_info)
         if ota_build:
             fetch_cvd_args.append(f"-otatools_build={ota_build}")
+        host_package_build = self.ProcessBuild(host_package_build_info)
+        if host_package_build:
+            fetch_cvd_args.append(f"-host_package_build={host_package_build}")
 
         return fetch_cvd_args
 
