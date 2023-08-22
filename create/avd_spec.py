@@ -137,6 +137,7 @@ class AVDSpec():
         self._kernel_build_info = {}
         self._boot_build_info = {}
         self._ota_build_info = {}
+        self._host_package_build_info = {}
         self._bootloader_build_info = {}
         self._hw_property = None
         self._hw_customize = False
@@ -665,6 +666,10 @@ class AVDSpec():
             constants.BUILD_ID: args.bootloader_build_id,
             constants.BUILD_BRANCH: args.bootloader_branch,
             constants.BUILD_TARGET: args.bootloader_build_target}
+        self._host_package_build_info = {
+            constants.BUILD_ID: args.host_package_build_id,
+            constants.BUILD_BRANCH: args.host_package_branch,
+            constants.BUILD_TARGET: args.host_package_build_target}
 
     @staticmethod
     def _CheckCFBuildTarget(instance_type):
@@ -1069,6 +1074,11 @@ class AVDSpec():
     def ota_build_info(self):
         """Return ota_build_info."""
         return self._ota_build_info
+
+    @property
+    def host_package_build_info(self):
+        """Return host_package_build_info."""
+        return self._host_package_build_info
 
     @property
     def system_build_info(self):
