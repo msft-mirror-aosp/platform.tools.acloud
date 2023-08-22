@@ -228,7 +228,8 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             self._avd_spec.kernel_build_info,
             self._avd_spec.boot_build_info,
             self._avd_spec.bootloader_build_info,
-            self._avd_spec.ota_build_info)
+            self._avd_spec.ota_build_info,
+            self._avd_spec.host_package_build_info)
 
         fetch_cvd_args = self._avd_spec.fetch_cvd_wrapper.split(',') + [
                         f"-directory={self._GetInstancePath()}",
@@ -250,7 +251,8 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             self._avd_spec.kernel_build_info,
             self._avd_spec.boot_build_info,
             self._avd_spec.bootloader_build_info,
-            self._avd_spec.ota_build_info)
+            self._avd_spec.ota_build_info,
+            self._avd_spec.host_package_build_info)
 
         fetch_cvd_args = [self._GetInstancePath(constants.FETCH_CVD),
                           f"-directory={self._GetInstancePath()}",
@@ -308,7 +310,8 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             self._avd_spec.kernel_build_info,
             self._avd_spec.boot_build_info,
             self._avd_spec.bootloader_build_info,
-            self._avd_spec.ota_build_info)
+            self._avd_spec.ota_build_info,
+            self._avd_spec.host_package_build_info)
         creds_cache_file = os.path.join(_HOME_FOLDER, cfg.creds_cache_file)
         fetch_cvd_cert_arg = self._build_api.GetFetchCertArg(creds_cache_file)
         fetch_cvd_args = [fetch_cvd, f"-directory={extract_path}",
