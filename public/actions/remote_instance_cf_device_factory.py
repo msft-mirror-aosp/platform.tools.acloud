@@ -104,7 +104,8 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
                 avd_spec.kernel_build_info,
                 avd_spec.boot_build_info,
                 avd_spec.bootloader_build_info,
-                avd_spec.ota_build_info)
+                avd_spec.ota_build_info,
+                avd_spec.host_package_build_info)
 
         launch_cvd_args = []
         if avd_spec.local_system_image or avd_spec.local_vendor_image:
