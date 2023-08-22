@@ -122,7 +122,8 @@ def DownloadAndProcessImageFiles(avd_spec):
         avd_spec.kernel_build_info,
         avd_spec.boot_build_info,
         avd_spec.bootloader_build_info,
-        avd_spec.ota_build_info)
+        avd_spec.ota_build_info,
+        avd_spec.host_package_build_info)
 
     fetch_cvd_args_str = " ".join(fetch_cvd_build_args)
     fetch_cvd_args_file = os.path.join(extract_path,
