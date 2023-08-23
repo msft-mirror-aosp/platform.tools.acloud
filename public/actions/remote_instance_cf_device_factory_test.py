@@ -290,7 +290,6 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             "_FindLogFiles")
 
         mock_cvd_utils.AreTargetFilesRequired.return_value = True
-        mock_cvd_utils.FindImageDir.return_value = "image_dir"
 
         with tempfile.TemporaryDirectory() as temp_dir:
             args = mock.MagicMock()
@@ -309,7 +308,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             factory_local_img.CreateInstance()
 
         mock_cvd_utils.UploadArtifacts.assert_called_once_with(
-            mock.ANY, mock_cvd_utils.GCE_BASE_DIR, "image_dir", mock.ANY)
+            mock.ANY, mock_cvd_utils.GCE_BASE_DIR, temp_dir, mock.ANY)
         mock_cvd_utils.UploadExtraImages.assert_called_once_with(
             mock.ANY, mock_cvd_utils.GCE_BASE_DIR, avd_spec_local_img,
             args.local_image)
