@@ -156,7 +156,8 @@ def _ParseArgs(args):
         powerwash_args.CMD_POWERWASH,
         pull_args.CMD_PULL,
         restart_args.CMD_RESTART,
-        hostcleanup_args.CMD_HOSTCLEANUP]
+        hostcleanup_args.CMD_HOSTCLEANUP,
+        CMD_CREATE_GOLDFISH]
     usage = ",".join(acloud_cmds)
     parser = argparse.ArgumentParser(
         description=__doc__,
