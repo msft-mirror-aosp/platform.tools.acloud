@@ -46,6 +46,7 @@ _BOOT_IMAGE_NAME_PATTERN = r"boot(-[\d.]+)?\.img"
 _VENDOR_BOOT_IMAGE_NAME = "vendor_boot.img"
 _KERNEL_IMAGE_NAMES = ("kernel", "bzImage", "Image")
 _INITRAMFS_IMAGE_NAME = "initramfs.img"
+_SUPER_IMAGE_NAME = "super.img"
 _VENDOR_IMAGE_NAMES = ("vendor.img", "vendor_dlkm.img", "odm.img",
                        "odm_dlkm.img")
 VendorImagePaths = collections.namedtuple(
@@ -66,8 +67,8 @@ _REMOTE_KERNEL_IMAGE_PATH = remote_path.join(
     _REMOTE_IMAGE_DIR, _KERNEL_IMAGE_NAMES[0])
 _REMOTE_INITRAMFS_IMAGE_PATH = remote_path.join(
     _REMOTE_IMAGE_DIR, _INITRAMFS_IMAGE_NAME)
-_REMOTE_SUPER_IMAGE_DIR = remote_path.join(_REMOTE_IMAGE_DIR,
-                                           "super_image_dir")
+_REMOTE_SUPER_IMAGE_PATH = remote_path.join(_REMOTE_IMAGE_DIR,
+                                            _SUPER_IMAGE_NAME)
 
 # Remote host instance name
 _REMOTE_HOST_INSTANCE_NAME_FORMAT = (
@@ -344,83 +345,137 @@ def _UploadKernelImages(ssh_obj, remote_dir, search_path):
         f"{search_path} is not a boot image or a directory containing images.")
 
 
+def _MixSuperImage(super_image_path, avd_spec, target_files_dir, ota):
+    """Mix super image from device images and extra images.
+
+    Args:
+        super_image_path: The path to the output mixed super image.
+        avd_spec: An AvdSpec object.
+        target_files_dir: The path to the extracted target_files zip containing
+                          device images and misc_info.txt.
+        ota: An OtaTools object.
+    """
+    misc_info_path = FindMiscInfo(target_files_dir)
+    image_dir = FindImageDir(target_files_dir)
+
+    system_image_path = None
+    vendor_image_path = None
+    vendor_dlkm_image_path = None
+    odm_image_path = None
+    odm_dlkm_image_path = None
+
+    if avd_spec.local_system_image:
+        system_image_path = create_common.FindSystemImage(
+            avd_spec.local_system_image)
+
+    if avd_spec.local_vendor_image:
+        (
+            vendor_image_path,
+            vendor_dlkm_image_path,
+            odm_image_path,
+            odm_dlkm_image_path,
+        ) = FindVendorImages(avd_spec.local_vendor_image)
+
+    ota.MixSuperImage(super_image_path, misc_info_path, image_dir,
+                      system_image=system_image_path,
+                      vendor_image=vendor_image_path,
+                      vendor_dlkm_image=vendor_dlkm_image_path,
+                      odm_image=odm_image_path,
+                      odm_dlkm_image=odm_dlkm_image_path)
+
+
 @utils.TimeExecute(function_description="Uploading disabled vbmeta image.")
-def _UploadDisabledVbmetaImage(ssh_obj, remote_dir, local_tool_dirs):
+def _UploadDisabledVbmetaImage(ssh_obj, remote_dir, ota):
     """Upload disabled vbmeta image to a remote host or a GCE instance.
 
     Args:
         ssh_obj: An Ssh object.
         remote_dir: The remote base directory.
-        local_tool_dirs: A list of local directories containing tools.
+        ota: An OtaTools object.
 
     Returns:
         A list of strings, the launch_cvd arguments including the remote paths.
-
-    Raises:
-        CheckPathError if local_tool_dirs do not contain OTA tools.
     """
-    # Assume that the caller cleaned up the remote home directory.
-    ssh_obj.Run("mkdir -p " + remote_path.join(remote_dir, _REMOTE_IMAGE_DIR))
-
     remote_vbmeta_image_path = remote_path.join(remote_dir,
                                                 _REMOTE_VBMETA_IMAGE_PATH)
     with tempfile.NamedTemporaryFile(prefix="vbmeta",
                                      suffix=".img") as temp_file:
-        tool_dirs = local_tool_dirs + create_common.GetNonEmptyEnvVars(
-                constants.ENV_ANDROID_SOONG_HOST_OUT,
-                constants.ENV_ANDROID_HOST_OUT)
-        ota = ota_tools.FindOtaTools(tool_dirs)
         ota.MakeDisabledVbmetaImage(temp_file.name)
         ssh_obj.ScpPushFile(temp_file.name, remote_vbmeta_image_path)
 
     return ["-vbmeta_image", remote_vbmeta_image_path]
 
 
-def UploadExtraImages(ssh_obj, remote_dir, avd_spec):
+def AreTargetFilesRequired(avd_spec):
+    """Return whether UploadExtraImages requires target_files_dir."""
+    return bool(avd_spec.local_system_image or avd_spec.local_vendor_image)
+
+
+def UploadExtraImages(ssh_obj, remote_dir, avd_spec, target_files_dir=None):
     """Find and upload the images specified in avd_spec.
+
+    This function finds the kernel, system, and vendor images specified in
+    avd_spec. It processes them and uploads kernel, super, and vbmeta images.
 
     Args:
         ssh_obj: An Ssh object.
         remote_dir: The remote base directory.
         avd_spec: An AvdSpec object containing extra image paths.
+        target_files_dir: The path to an extracted target_files zip if the
+                          avd_spec requires building a super image.
 
     Returns:
         A list of strings, the launch_cvd arguments including the remote paths.
 
     Raises:
         errors.GetLocalImageError if any specified image path does not exist.
+        errors.CheckPathError if avd_spec.local_tool_dirs do not contain OTA
+        tools, or target_files_dir does not contain misc_info.txt.
+        ValueError if target_files_dir is required but not specified.
     """
     extra_img_args = []
     if avd_spec.local_kernel_image:
         extra_img_args += _UploadKernelImages(ssh_obj, remote_dir,
                                               avd_spec.local_kernel_image)
-    if avd_spec.local_vendor_image:
-        extra_img_args += _UploadDisabledVbmetaImage(ssh_obj, remote_dir,
-                                                     avd_spec.local_tool_dirs)
+
+    if AreTargetFilesRequired(avd_spec):
+        if not target_files_dir:
+            raise ValueError("target_files_dir is required when avd_spec has "
+                             "local system image or local vendor image.")
+        ota = ota_tools.FindOtaTools(
+            avd_spec.local_tool_dirs + create_common.GetNonEmptyEnvVars(
+                constants.ENV_ANDROID_SOONG_HOST_OUT,
+                constants.ENV_ANDROID_HOST_OUT))
+        ssh_obj.Run("mkdir -p " +
+                    remote_path.join(remote_dir, _REMOTE_IMAGE_DIR))
+        with tempfile.TemporaryDirectory() as super_image_dir:
+            _MixSuperImage(os.path.join(super_image_dir, _SUPER_IMAGE_NAME),
+                           avd_spec, target_files_dir, ota)
+            extra_img_args += _UploadSuperImage(ssh_obj, remote_dir,
+                                                super_image_dir)
+
+        if avd_spec.local_vendor_image:
+            extra_img_args += _UploadDisabledVbmetaImage(ssh_obj, remote_dir,
+                                                         ota)
     return extra_img_args
 
 
-@utils.TimeExecute(function_description="Uploading local super image")
-def UploadSuperImage(ssh_obj, remote_dir, super_image_path):
+@utils.TimeExecute(function_description="Uploading super image.")
+def _UploadSuperImage(ssh_obj, remote_dir, super_image_dir):
     """Upload a super image to a remote host or a GCE instance.
 
     Args:
         ssh_obj: An Ssh object.
         remote_dir: The remote base directory.
-        super_image_path: Path to the super image file.
+        super_image_dir: The path to the directory containing the super image.
 
     Returns:
         A list of strings, the launch_cvd arguments including the remote paths.
     """
-    # Assume that the caller cleaned up the remote home directory.
-    super_image_stem = os.path.basename(super_image_path)
-    remote_super_image_dir = remote_path.join(
-        remote_dir, _REMOTE_SUPER_IMAGE_DIR)
-    remote_super_image_path = remote_path.join(
-        remote_super_image_dir, super_image_stem)
-    ssh_obj.Run(f"mkdir -p {remote_super_image_dir}")
-    cmd = (f"tar -cf - --lzop -S -C {os.path.dirname(super_image_path)} "
-           f"{super_image_stem} | "
+    remote_super_image_path = remote_path.join(remote_dir,
+                                               _REMOTE_SUPER_IMAGE_PATH)
+    remote_super_image_dir = remote_path.dirname(remote_super_image_path)
+    cmd = (f"tar -cf - --lzop -S -C {super_image_dir} {_SUPER_IMAGE_NAME} | "
            f"{ssh_obj.GetBaseCmd(constants.SSH_BIN)} -- "
            f"tar -xf - --lzop -S -C {remote_super_image_dir}")
     ssh.ShellCmdWithRetry(cmd)
