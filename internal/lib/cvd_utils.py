@@ -385,24 +385,20 @@ def _MixSuperImage(super_image_path, avd_spec, target_files_dir, ota):
 
 
 @utils.TimeExecute(function_description="Uploading disabled vbmeta image.")
-def _UploadDisabledVbmetaImage(ssh_obj, remote_dir, ota):
+def _UploadVbmetaImage(ssh_obj, remote_dir, vbmeta_image_path):
     """Upload disabled vbmeta image to a remote host or a GCE instance.
 
     Args:
         ssh_obj: An Ssh object.
         remote_dir: The remote base directory.
-        ota: An OtaTools object.
+        vbmeta_image_path: The path to the vbmeta image.
 
     Returns:
         A list of strings, the launch_cvd arguments including the remote paths.
     """
     remote_vbmeta_image_path = remote_path.join(remote_dir,
                                                 _REMOTE_VBMETA_IMAGE_PATH)
-    with tempfile.NamedTemporaryFile(prefix="vbmeta",
-                                     suffix=".img") as temp_file:
-        ota.MakeDisabledVbmetaImage(temp_file.name)
-        ssh_obj.ScpPushFile(temp_file.name, remote_vbmeta_image_path)
-
+    ssh_obj.ScpPushFile(vbmeta_image_path, remote_vbmeta_image_path)
     return ["-vbmeta_image", remote_vbmeta_image_path]
 
 
@@ -455,8 +451,12 @@ def UploadExtraImages(ssh_obj, remote_dir, avd_spec, target_files_dir=None):
                                                 super_image_dir)
 
         if avd_spec.local_vendor_image:
-            extra_img_args += _UploadDisabledVbmetaImage(ssh_obj, remote_dir,
-                                                         ota)
+            with tempfile.NamedTemporaryFile(prefix="vbmeta",
+                                             suffix=".img") as temp_file:
+                ota.MakeDisabledVbmetaImage(temp_file.name)
+                extra_img_args += _UploadVbmetaImage(ssh_obj, remote_dir,
+                                                     temp_file.name)
+
     return extra_img_args
 
 
