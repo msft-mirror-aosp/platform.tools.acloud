@@ -17,19 +17,18 @@ device factory."""
 
 import logging
 import os
+import shutil
 import tempfile
 
 from acloud.create import create_common
 from acloud.internal import constants
 from acloud.internal.lib import cvd_utils
-from acloud.internal.lib import ota_tools
 from acloud.internal.lib import utils
 from acloud.public.actions import gce_device_factory
 from acloud.pull import pull
 
 
 logger = logging.getLogger(__name__)
-_MIXED_SUPER_IMAGE_NAME = "mixed_super.img"
 
 
 class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
@@ -90,32 +89,37 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             A list of strings, the launch_cvd arguments.
         """
         avd_spec = self._avd_spec
-        if avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
-            cvd_utils.UploadArtifacts(
-                self._ssh,
-                cvd_utils.GCE_BASE_DIR,
-                self._local_image_artifact or avd_spec.local_image_dir,
-                self._cvd_host_package_artifact)
-        elif avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
-            self._compute_client.UpdateFetchCvd(avd_spec.fetch_cvd_version)
-            self._compute_client.FetchBuild(
-                avd_spec.remote_image,
-                avd_spec.system_build_info,
-                avd_spec.kernel_build_info,
-                avd_spec.boot_build_info,
-                avd_spec.bootloader_build_info,
-                avd_spec.ota_build_info,
-                avd_spec.host_package_build_info)
-
         launch_cvd_args = []
-        if avd_spec.local_system_image or avd_spec.local_vendor_image:
-            with tempfile.TemporaryDirectory() as temp_dir:
-                super_image_path = os.path.join(temp_dir,
-                                                _MIXED_SUPER_IMAGE_NAME)
-                self._CreateMixedSuperImage(
-                    super_image_path, self._GetLocalTargetFilesDir(temp_dir))
-                launch_cvd_args += cvd_utils.UploadSuperImage(
-                    self._ssh, cvd_utils.GCE_BASE_DIR, super_image_path)
+        temp_dir = None
+        try:
+            target_files_dir = None
+            local_image_path = (self._local_image_artifact or
+                                avd_spec.local_image_dir)
+            if cvd_utils.AreTargetFilesRequired(avd_spec):
+                temp_dir = tempfile.mkdtemp(prefix="acloud_remote_ins")
+                target_files_dir = self._GetLocalTargetFilesDir(temp_dir)
+                local_image_path = cvd_utils.FindImageDir(target_files_dir)
+
+            if avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
+                cvd_utils.UploadArtifacts(
+                    self._ssh, cvd_utils.GCE_BASE_DIR, local_image_path,
+                    self._cvd_host_package_artifact)
+            elif avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
+                self._compute_client.UpdateFetchCvd(avd_spec.fetch_cvd_version)
+                self._compute_client.FetchBuild(
+                    avd_spec.remote_image,
+                    avd_spec.system_build_info,
+                    avd_spec.kernel_build_info,
+                    avd_spec.boot_build_info,
+                    avd_spec.bootloader_build_info,
+                    avd_spec.ota_build_info,
+                    avd_spec.host_package_build_info)
+
+            launch_cvd_args += cvd_utils.UploadExtraImages(
+                self._ssh, cvd_utils.GCE_BASE_DIR, avd_spec, target_files_dir)
+        finally:
+            if temp_dir:
+                shutil.rmtree(temp_dir)
 
         if avd_spec.mkcert and avd_spec.connect_webrtc:
             self._compute_client.UpdateCertificate()
@@ -123,8 +127,6 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         if avd_spec.extra_files:
             self._compute_client.UploadExtraFiles(avd_spec.extra_files)
 
-        launch_cvd_args += cvd_utils.UploadExtraImages(
-            self._ssh, cvd_utils.GCE_BASE_DIR, avd_spec)
         return launch_cvd_args
 
     @utils.TimeExecute(function_description="Downloading target_files archive")
@@ -157,48 +159,6 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             os.makedirs(target_files_dir, exist_ok=True)
             self._DownloadTargetFiles(target_files_dir)
         return target_files_dir
-
-    def _CreateMixedSuperImage(self, super_image_path, target_files_dir):
-        """Create a mixed super image from device images and local system image.
-
-        Args:
-            super_image_path: Path to the output mixed super image.
-            target_files_dir: Path to extracted target_files directory
-                              containing device images and misc_info.txt.
-        """
-        avd_spec = self._avd_spec
-        misc_info_path = cvd_utils.FindMiscInfo(target_files_dir)
-        image_dir = cvd_utils.FindImageDir(target_files_dir)
-        ota = ota_tools.FindOtaTools(
-            avd_spec.local_tool_dirs +
-                create_common.GetNonEmptyEnvVars(
-                    constants.ENV_ANDROID_SOONG_HOST_OUT,
-                    constants.ENV_ANDROID_HOST_OUT))
-
-        system_image_path=None
-        vendor_image_path=None
-        vendor_dlkm_image_path=None
-        odm_image_path=None
-        odm_dlkm_image_path=None
-
-        if avd_spec.local_system_image:
-            system_image_path = create_common.FindSystemImage(
-                avd_spec.local_system_image)
-
-        if avd_spec.local_vendor_image:
-            vendor_image_paths = cvd_utils.FindVendorImages(
-                avd_spec.local_vendor_image)
-            vendor_image_path = vendor_image_paths.vendor
-            vendor_dlkm_image_path = vendor_image_paths.vendor_dlkm
-            odm_image_path = vendor_image_paths.odm
-            odm_dlkm_image_path = vendor_image_paths.odm_dlkm
-
-        ota.MixSuperImage(super_image_path, misc_info_path, image_dir,
-                          system_image=system_image_path,
-                          vendor_image=vendor_image_path,
-                          vendor_dlkm_image=vendor_dlkm_image_path,
-                          odm_image=odm_image_path,
-                          odm_dlkm_image=odm_dlkm_image_path)
 
     def _FindLogFiles(self, instance, download):
         """Find and pull all log files from instance.
