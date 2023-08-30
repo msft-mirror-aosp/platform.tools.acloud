@@ -125,8 +125,20 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
                 base_dir)
 
     def _GetArtifactPath(self, relative_path=""):
-        """Append a relative path to the remote image directory."""
-        # TODO(b/293966645): Append relative_path to --remote-image-dir.
+        """Append a relative path to the remote image directory.
+
+        Args:
+            relative_path: The remote relative path.
+
+        Returns:
+            GetInstancePath if avd_spec.remote_image_dir is empty.
+            avd_spec.remote_image_dir if relative_path is empty.
+            The remote path under avd_spec.remote_image_dir otherwise.
+        """
+        remote_image_dir = self._avd_spec.remote_image_dir
+        if remote_image_dir:
+            return (remote_path.join(remote_image_dir, relative_path)
+                    if relative_path else remote_image_dir)
         return self._GetInstancePath(relative_path)
 
     def _InitRemotehost(self):
@@ -174,6 +186,7 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         Returns:
             A list of strings, the launch_cvd arguments.
         """
+        # TODO(b/293966645): Check if --remote-image-dir is initialized.
         self._compute_client.SetStage(constants.STAGE_ARTIFACT)
         self._ssh.Run(f"mkdir -p {self._GetArtifactPath()}")
 

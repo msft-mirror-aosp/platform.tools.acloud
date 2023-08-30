@@ -385,6 +385,15 @@ def AddCommonCreateArgs(parser):
         required=False,
         help=argparse.SUPPRESS)
     parser.add_argument(
+        "--remote-image-dir",
+        dest="remote_image_dir",
+        required=False,
+        # 'cuttlefish remote host only' Upload images and cvd host package to
+        # the remote directory instead of the instance's own directory. If the
+        # directory has been initialized, acloud ignores the image arguments
+        # given by command line and reuses the images in the directory.
+        help=argparse.SUPPRESS)
+    parser.add_argument(
         "--oxygen",
         action="store_true",
         dest="oxygen",
@@ -875,11 +884,15 @@ def _VerifyHostArgs(args):
 
     if args.host_user != constants.GCE_USER and args.remote_host is None:
         raise errors.UnsupportedCreateArgs(
-            "--host-user only support for remote host.")
+            "--host-user is only supported for remote host.")
 
     if args.host_ssh_private_key_path and args.remote_host is None:
         raise errors.UnsupportedCreateArgs(
-            "--host-ssh-private-key-path only support for remote host.")
+            "--host-ssh-private-key-path is only supported for remote host.")
+
+    if args.remote_image_dir and args.remote_host is None:
+        raise errors.UnsupportedCreateArgs(
+            "--remote-image-dir is only supported for remote host.")
 
 
 def _VerifyGoldfishArgs(args):

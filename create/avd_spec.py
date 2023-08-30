@@ -143,6 +143,7 @@ class AVDSpec():
         self._hw_property = None
         self._hw_customize = False
         self._remote_host = None
+        self._remote_image_dir = None
         self._gce_metadata = None
         self._gce_only = None
         self._host_user = None
@@ -366,6 +367,7 @@ class AVDSpec():
                                    if args.local_instance is None else
                                    constants.INSTANCE_TYPE_LOCAL)
         self._remote_host = args.remote_host
+        self._remote_image_dir = args.remote_image_dir
         self._host_user = args.host_user
         self._host_ssh_private_key_path = args.host_ssh_private_key_path
         self._local_instance_id = args.local_instance
@@ -1109,6 +1111,11 @@ class AVDSpec():
     def remote_host(self):
         """Return host."""
         return self._remote_host
+
+    @property
+    def remote_image_dir(self):
+        """Return remote_image_dir."""
+        return self._remote_image_dir
 
     @property
     def host_user(self):
