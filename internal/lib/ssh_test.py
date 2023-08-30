@@ -93,8 +93,9 @@ class SshTest(driver_test_lib.BaseDriverTest):
     def testSshRunCmd(self):
         """Test ssh run command."""
         self.Patch(subprocess, "Popen", return_value=self.created_subprocess)
+        self.created_subprocess.communicate.return_value = ("stdout", "")
         ssh_object = ssh.Ssh(self.FAKE_IP, self.FAKE_SSH_USER, self.FAKE_SSH_PRIVATE_KEY_PATH)
-        ssh_object.Run("command")
+        self.assertEqual("stdout", ssh_object.Run("command"))
         expected_cmd = (
             "exec /usr/bin/ssh -i /fake/acloud_rea -o LogLevel=ERROR -o ControlPath=none "
             "-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "
@@ -109,11 +110,12 @@ class SshTest(driver_test_lib.BaseDriverTest):
     def testSshRunCmdwithExtraArgs(self):
         """test ssh rum command with extra command."""
         self.Patch(subprocess, "Popen", return_value=self.created_subprocess)
+        self.created_subprocess.communicate.return_value = ("stdout", "")
         ssh_object = ssh.Ssh(self.FAKE_IP,
                              self.FAKE_SSH_USER,
                              self.FAKE_SSH_PRIVATE_KEY_PATH,
                              self.FAKE_EXTRA_ARGS_SSH)
-        ssh_object.Run("command")
+        self.assertEqual("stdout", ssh_object.Run("command"))
         expected_cmd = (
             "exec /usr/bin/ssh -i /fake/acloud_rea -o LogLevel=ERROR -o ControlPath=none "
             "-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "

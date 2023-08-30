@@ -17,10 +17,12 @@
 import collections
 import fnmatch
 import glob
+import json
 import logging
 import os
 import posixpath as remote_path
 import re
+import shlex
 import subprocess
 import tempfile
 import zipfile
@@ -609,6 +611,46 @@ def ParseRemoteHostAddress(instance_name):
         return (match.group("ip_addr"),
                 GetRemoteHostBaseDir(int(match.group("num"))))
     return None
+
+
+def LoadRemoteImageArgs(ssh_obj, remote_args_path):
+    """Load launch_cvd arguments from a remote path.
+
+    This method assumes that one acloud process accesses the path at a time.
+
+    Args:
+        ssh_obj: An Ssh object.
+        remote_image_dir: The remote path containing the arguments.
+
+    Returns:
+        A list of strings, the launch_cvd arguments.
+        None if the directory has not been initialized.
+    """
+    # If the file doesn't exist, the command returns 0 and outputs nothing.
+    args_str = ssh_obj.Run(shlex.quote(
+        f"test ! -f {remote_args_path} || cat {remote_args_path}"))
+    if not args_str:
+        return None
+    try:
+        return json.loads(args_str)
+    except json.JSONDecodeError as e:
+        logger.error("Unable to load %s: %s", remote_args_path, e)
+        return None
+
+
+def SaveRemoteImageArgs(ssh_obj, remote_args_path, launch_cvd_args):
+    """Save launch_cvd arguments to a remote path.
+
+    This method assumes that one acloud process accesses the path at a time.
+
+    Args:
+        ssh_obj: An Ssh object.
+        remote_args_path: The remote path containing the arguments.
+        launch_cvd_args: A list of strings, the launch_cvd arguments.
+    """
+    # The json string is interpreted twice by SSH client and remote shell.
+    args_str = shlex.quote(json.dumps(launch_cvd_args))
+    ssh_obj.Run(shlex.quote(f"echo {args_str} > {remote_args_path}"))
 
 
 def GetConfigFromRemoteAndroidInfo(ssh_obj, remote_image_dir):
