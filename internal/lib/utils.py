@@ -57,14 +57,14 @@ DEFAULT_RETRY_BACKOFF_FACTOR = 1
 DEFAULT_SLEEP_MULTIPLIER = 0
 
 _SSH_TUNNEL_ARGS = (
-    "-i %(rsa_key_file)s -o UserKnownHostsFile=/dev/null "
+    "-i %(rsa_key_file)s -o ControlPath=none -o UserKnownHostsFile=/dev/null "
     "-o StrictHostKeyChecking=no "
     "%(port_mapping)s"
     "-N -f -l %(ssh_user)s %(ip_addr)s")
 _SSH_COMMAND_PS = (
-    "exec %(ssh_bin)s -i %(rsa_key_file)s -o UserKnownHostsFile=/dev/null "
-    "-o StrictHostKeyChecking=no %(extra_args)s -l %(ssh_user)s %(ip_addr)s "
-    "ps aux")
+    "exec %(ssh_bin)s -i %(rsa_key_file)s -o ControlPath=none "
+    "-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "
+    "%(extra_args)s -l %(ssh_user)s %(ip_addr)s ps aux")
 PORT_MAPPING = "-L %(local_port)d:127.0.0.1:%(target_port)d "
 _RELEASE_PORT_CMD = "kill $(lsof -t -i :%d)"
 _WEBRTC_OPERATOR_PATTERN = re.compile(r"(.+)(webrtc_operator )(.+)")
