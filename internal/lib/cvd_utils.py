@@ -15,6 +15,7 @@
 """Utility functions that process cuttlefish images."""
 
 import collections
+import fnmatch
 import glob
 import logging
 import os
@@ -22,6 +23,7 @@ import posixpath as remote_path
 import re
 import subprocess
 import tempfile
+import zipfile
 
 from acloud import errors
 from acloud.create import create_common
@@ -121,6 +123,10 @@ _DOWNLOAD_MIX_IMAGE_NAME = "{build_target}-target_files-{build_id}.zip"
 _TARGET_FILES_META_DIR_NAME = "META"
 _TARGET_FILES_IMAGES_DIR_NAME = "IMAGES"
 _MISC_INFO_FILE_NAME = "misc_info.txt"
+# glob patterns of target_files entries used by acloud.
+_TARGET_FILES_ENTRIES = [
+    "IMAGES/" + pattern for pattern in _ARTIFACT_FILES
+] + ["META/misc_info.txt"]
 
 # Represents a 64-bit ARM architecture.
 _ARM_MACHINE_TYPE = "aarch64"
@@ -167,6 +173,16 @@ def GetVncPorts(base_instance_num, num_avds_per_instance):
     """
     return [constants.CF_VNC_PORT + (base_instance_num or 1) - 1 + index
             for index in range(num_avds_per_instance or 1)]
+
+
+@utils.TimeExecute(function_description="Extracting target_files zip.")
+def ExtractTargetFilesZip(zip_path, output_dir):
+    """Extract images and misc_info.txt from a target_files zip."""
+    with zipfile.ZipFile(zip_path, "r") as zip_file:
+        for entry in zip_file.namelist():
+            if any(fnmatch.fnmatch(entry, pattern) for pattern in
+                   _TARGET_FILES_ENTRIES):
+                zip_file.extract(entry, output_dir)
 
 
 def _UploadImageZip(ssh_obj, remote_dir, image_zip):
