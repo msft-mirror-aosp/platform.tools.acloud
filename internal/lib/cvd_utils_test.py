@@ -19,6 +19,7 @@ import subprocess
 import tempfile
 import unittest
 from unittest import mock
+import zipfile
 
 from acloud import errors
 from acloud.create import create_common
@@ -57,6 +58,27 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
         self.assertEqual([6444], cvd_utils.GetVncPorts(None, None))
         self.assertEqual([6444], cvd_utils.GetVncPorts(1, 1))
         self.assertEqual([6445, 6446], cvd_utils.GetVncPorts(2, 2))
+
+    def testExtractTargetFilesZip(self):
+        """Test ExtractTargetFilesZip."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            zip_path = os.path.join(temp_dir, "in.zip")
+            output_dir = os.path.join(temp_dir, "out")
+            with zipfile.ZipFile(zip_path, "w") as zip_file:
+                for entry in ["IMAGES/", "META/", "test.img",
+                              "IMAGES/system.img", "IMAGES/system.map",
+                              "IMAGES/bootloader", "IMAGES/kernel",
+                              "META/misc_info.txt"]:
+                    zip_file.writestr(entry, "")
+            cvd_utils.ExtractTargetFilesZip(zip_path, output_dir)
+
+            self.assertEqual(["IMAGES", "META"],
+                             sorted(os.listdir(output_dir)))
+            self.assertEqual(
+                ["bootloader", "kernel", "system.img"],
+                sorted(os.listdir(os.path.join(output_dir, "IMAGES"))))
+            self.assertEqual(["misc_info.txt"],
+                             os.listdir(os.path.join(output_dir, "META")))
 
     @staticmethod
     @mock.patch("acloud.internal.lib.cvd_utils.os.path.isdir",
