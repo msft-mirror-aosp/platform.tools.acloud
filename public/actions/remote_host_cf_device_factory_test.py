@@ -97,7 +97,6 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_cvd_utils.GetRemoteHostBaseDir.return_value = "acloud_cf_2"
         mock_cvd_utils.FormatRemoteHostInstanceName.return_value = "inst"
         mock_cvd_utils.AreTargetFilesRequired.return_value = True
-        mock_cvd_utils.FindImageDir.return_value = "/mock/img"
         mock_cvd_utils.UploadExtraImages.return_value = ["extra"]
         mock_cvd_utils.ExecuteRemoteLaunchCvd.return_value = "failure"
         mock_cvd_utils.FindRemoteLogs.return_value = [log]
@@ -111,7 +110,8 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_ssh_obj.Run.assert_called_with("mkdir -p acloud_cf_2")
         self._mock_build_api.GetFetchBuildArgs.assert_not_called()
         mock_cvd_utils.UploadArtifacts.assert_called_with(
-            mock_ssh_obj, "acloud_cf_2", "/mock/img", "/mock/cvd.tar.gz")
+            mock_ssh_obj, "acloud_cf_2", "/mock/target_files",
+            "/mock/cvd.tar.gz")
         mock_cvd_utils.UploadExtraImages.assert_called_with(
             mock_ssh_obj, "acloud_cf_2", mock_avd_spec, "/mock/target_files")
         mock_cvd_utils.GetConfigFromRemoteAndroidInfo.assert_called_with(
@@ -201,7 +201,6 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_cvd_utils.GetRemoteHostBaseDir.return_value = "acloud_cf_1"
         mock_cvd_utils.FormatRemoteHostInstanceName.return_value = "inst"
         mock_cvd_utils.AreTargetFilesRequired.return_value = True
-        mock_cvd_utils.FindImageDir.return_value = "/image"
         mock_cvd_utils.ExecuteRemoteLaunchCvd.return_value = ""
         mock_cvd_utils.FindRemoteLogs.return_value = []
 
@@ -217,7 +216,9 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_cvd_utils.UploadExtraImages.assert_called_with(
             mock_ssh_obj, "acloud_cf_1", mock_avd_spec, mock.ANY)
         mock_cvd_utils.UploadArtifacts.assert_called_with(
-            mock_ssh_obj, "acloud_cf_1", "/image", "/mock/cvd.tar.gz")
+            mock_ssh_obj, "acloud_cf_1", mock.ANY, "/mock/cvd.tar.gz")
+        self.assertIn("acloud_remote_host",  # temp dir prefix
+                      mock_cvd_utils.UploadArtifacts.call_args[0][2])
         # LaunchCvd
         mock_cvd_utils.ExecuteRemoteLaunchCvd.assert_called()
         # FindLogFiles

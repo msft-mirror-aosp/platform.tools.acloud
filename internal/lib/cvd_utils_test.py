@@ -92,11 +92,10 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
                                      "/mock/img.zip")
         mock_ssh.Run.assert_any_call("tar -xzf - -C dir < /mock/cvd.tar.gz")
 
-    @staticmethod
     @mock.patch("acloud.internal.lib.cvd_utils.glob")
     @mock.patch("acloud.internal.lib.cvd_utils.os.path.isdir")
     @mock.patch("acloud.internal.lib.cvd_utils.ssh.ShellCmdWithRetry")
-    def testUploadImageDir(mock_shell, mock_isdir, mock_glob):
+    def testUploadImageDir(self, mock_shell, mock_isdir, mock_glob):
         """Test UploadArtifacts with image directory."""
         mock_isdir.side_effect = lambda path: path != "/mock/cvd.tar.gz"
         mock_ssh = mock.Mock()
@@ -105,6 +104,8 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
                                     "super.img bootloader kernel android-info.txt | "
                                     "/mock/ssh -- "
                                     "tar -xf - --lzop -S -C remote/dir")
+        expected_target_files_shell_cmd = expected_image_shell_cmd.replace(
+            "local/dir", "local/dir/IMAGES")
         expected_cvd_tar_ssh_cmd = "tar -xzf - -C remote/dir < /mock/cvd.tar.gz"
         expected_cvd_dir_shell_cmd = ("tar -cf - --lzop -S -C /mock/cvd . | "
                                       "/mock/ssh -- "
@@ -117,11 +118,12 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
                                       "/mock/cvd")
         mock_open.assert_called_with("local/dir/required_images", "r",
                                      encoding="utf-8")
-        mock_glob.glob.assert_not_called()
+        mock_glob.glob.assert_called_once_with("local/dir/*.img")
         mock_shell.assert_has_calls([mock.call(expected_image_shell_cmd),
                                      mock.call(expected_cvd_dir_shell_cmd)])
 
         # Test with required_images file.
+        mock_glob.glob.reset_mock()
         mock_ssh.reset_mock()
         mock_shell.reset_mock()
         mock_open = mock.mock_open(read_data="super.img\nbootloader\nkernel")
@@ -130,21 +132,23 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
                                       "/mock/cvd.tar.gz")
         mock_open.assert_called_with("local/dir/required_images", "r",
                                      encoding="utf-8")
-        mock_glob.glob.assert_not_called()
+        mock_glob.glob.assert_called_once_with("local/dir/*.img")
         mock_shell.assert_called_with(expected_image_shell_cmd)
         mock_ssh.Run.assert_called_with(expected_cvd_tar_ssh_cmd)
 
-        # Test with glob.
+        # Test with target files directory and glob.
+        mock_glob.glob.reset_mock()
         mock_ssh.reset_mock()
         mock_shell.reset_mock()
         mock_glob.glob.side_effect = (
-            lambda path: [path.replace("*", "super")])
+            lambda path: [path.replace("*", "super")] if
+                         path.startswith("local/dir/IMAGES") else [])
         with mock.patch("acloud.internal.lib.cvd_utils.open",
                         side_effect=IOError("file does not exist")):
             cvd_utils.UploadArtifacts(mock_ssh, "remote/dir", "local/dir",
                                       "/mock/cvd.tar.gz")
-        mock_glob.glob.assert_called()
-        mock_shell.assert_called_with(expected_image_shell_cmd)
+        self.assertGreater(mock_glob.glob.call_count, 2)
+        mock_shell.assert_called_with(expected_target_files_shell_cmd)
         mock_ssh.Run.assert_called_with(expected_cvd_tar_ssh_cmd)
 
     @mock.patch("acloud.internal.lib.cvd_utils.create_common")
