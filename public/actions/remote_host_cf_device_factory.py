@@ -176,8 +176,6 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         temp_dir = None
         try:
             target_files_dir = None
-            local_image_path = (self._local_image_artifact or
-                                self._avd_spec.local_image_dir)
             if cvd_utils.AreTargetFilesRequired(self._avd_spec):
                 if self._avd_spec.image_source != constants.IMAGE_SRC_LOCAL:
                     # TODO(b/296249675): Fetch target_files zip by build_api.
@@ -191,11 +189,12 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
                     target_files_dir = temp_dir
                 else:
                     target_files_dir = self._avd_spec.local_image_dir
-                local_image_path = cvd_utils.FindImageDir(target_files_dir)
 
             if self._avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
                 cvd_utils.UploadArtifacts(
-                    self._ssh, self._GetInstancePath(), local_image_path,
+                    self._ssh, self._GetInstancePath(),
+                    (target_files_dir or self._local_image_artifact or
+                     self._avd_spec.local_image_dir),
                     self._cvd_host_package_artifact)
             else:
                 temp_dir = tempfile.mkdtemp(prefix=_TEMP_PREFIX)
