@@ -93,16 +93,15 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         temp_dir = None
         try:
             target_files_dir = None
-            local_image_path = (self._local_image_artifact or
-                                avd_spec.local_image_dir)
             if cvd_utils.AreTargetFilesRequired(avd_spec):
                 temp_dir = tempfile.mkdtemp(prefix="acloud_remote_ins")
                 target_files_dir = self._GetLocalTargetFilesDir(temp_dir)
-                local_image_path = cvd_utils.FindImageDir(target_files_dir)
 
             if avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
                 cvd_utils.UploadArtifacts(
-                    self._ssh, cvd_utils.GCE_BASE_DIR, local_image_path,
+                    self._ssh, cvd_utils.GCE_BASE_DIR,
+                    (target_files_dir or self._local_image_artifact or
+                     avd_spec.local_image_dir),
                     self._cvd_host_package_artifact)
             elif avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
                 self._compute_client.UpdateFetchCvd(avd_spec.fetch_cvd_version)
@@ -131,13 +130,21 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
 
     @utils.TimeExecute(function_description="Downloading target_files archive")
     def _DownloadTargetFiles(self, download_dir):
+        """Download target_files zip to a directory.
+
+        Args:
+            download_dir: The directory to which the zip is downloaded.
+
+        Returns:
+            The path to the target_files zip.
+        """
         avd_spec = self._avd_spec
         build_id = avd_spec.remote_image[constants.BUILD_ID]
         build_target = avd_spec.remote_image[constants.BUILD_TARGET]
-        create_common.DownloadRemoteArtifact(
-            avd_spec.cfg, build_target, build_id,
-            cvd_utils.GetMixBuildTargetFilename(build_target, build_id),
-            download_dir, decompress=True)
+        name = cvd_utils.GetMixBuildTargetFilename(build_target, build_id)
+        create_common.DownloadRemoteArtifact(avd_spec.cfg, build_target,
+                                             build_id, name, download_dir)
+        return os.path.join(download_dir, name)
 
     def _GetLocalTargetFilesDir(self, temp_dir):
         """Return a directory of extracted target_files or local images.
@@ -145,19 +152,23 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         Args:
             temp_dir: Temporary directory to store downloaded build artifacts
                       and extracted target_files archive.
+
+        Returns:
+            The path to the target_files directory.
         """
         avd_spec = self._avd_spec
         if avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
             if self._local_image_artifact:
+                target_files_zip = self._local_image_artifact
                 target_files_dir = os.path.join(temp_dir, "local_images")
-                os.makedirs(target_files_dir, exist_ok=True)
-                utils.Decompress(self._local_image_artifact, target_files_dir)
             else:
-                target_files_dir = os.path.abspath(avd_spec.local_image_dir)
+                return os.path.abspath(avd_spec.local_image_dir)
         else:  # must be IMAGE_SRC_REMOTE
+            target_files_zip = self._DownloadTargetFiles(temp_dir)
             target_files_dir = os.path.join(temp_dir, "remote_images")
-            os.makedirs(target_files_dir, exist_ok=True)
-            self._DownloadTargetFiles(target_files_dir)
+
+        os.makedirs(target_files_dir, exist_ok=True)
+        cvd_utils.ExtractTargetFilesZip(target_files_zip, target_files_dir)
         return target_files_dir
 
     def _FindLogFiles(self, instance, download):
