@@ -256,12 +256,13 @@ def UploadArtifacts(ssh_obj, remote_dir, image_path, cvd_host_package):
     Args:
         ssh_obj: An Ssh object.
         remote_dir: The remote base directory.
-        image_path: A string, the path to the image zip built by `m dist` or
-                    the directory containing the images built by `m`.
+        image_path: A string, the path to the image zip built by `m dist`,
+                    the directory containing the images built by `m`, or
+                    the directory containing extracted target files.
         cvd_host_package: A string, the path to the CVD host package in gzip.
     """
     if os.path.isdir(image_path):
-        _UploadImageDir(ssh_obj, remote_dir, image_path)
+        _UploadImageDir(ssh_obj, remote_dir, FindImageDir(image_path))
     else:
         _UploadImageZip(ssh_obj, remote_dir, image_path)
     _UploadCvdHostPackage(ssh_obj, remote_dir, cvd_host_package)
