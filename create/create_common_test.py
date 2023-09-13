@@ -191,6 +191,27 @@ class CreateCommonTest(driver_test_lib.BaseDriverTest):
             self.assertEqual(boot_image_path,
                              create_common.FindBootImage(temp_dir))
 
+    def testFindSystemImages(self):
+        """Test FindSystemImages."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertRaises(errors.GetLocalImageError):
+                create_common.FindSystemImages(temp_dir)
+
+            system_image_path = os.path.join(temp_dir, "system.img")
+            self.CreateFile(system_image_path)
+            self.assertEqual((system_image_path, None, None),
+                             create_common.FindSystemImages(temp_dir))
+            self.assertEqual((system_image_path, None, None),
+                             create_common.FindSystemImages(system_image_path))
+
+            system_ext_image_path = os.path.join(temp_dir, "system_ext.img")
+            self.CreateFile(system_ext_image_path)
+            product_image_path = os.path.join(temp_dir, "product.img")
+            self.CreateFile(product_image_path)
+            self.assertEqual(
+                (system_image_path, system_ext_image_path, product_image_path),
+                create_common.FindSystemImages(temp_dir))
+
     @mock.patch.object(utils, "Decompress")
     def testDownloadRemoteArtifact(self, mock_decompress):
         """Test Download cuttlefish package."""
