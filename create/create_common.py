@@ -37,11 +37,17 @@ logger = logging.getLogger(__name__)
 # - In Android 13, the name is boot.img.
 _BOOT_IMAGE_NAME_PATTERN = r"boot(-[\d.]+)?\.img"
 _SYSTEM_IMAGE_NAME_PATTERN = r"system\.img"
+_SYSTEM_EXT_IMAGE_NAME = "system_ext.img"
+_PRODUCT_IMAGE_NAME = "product.img"
 
 _ANDROID_BOOT_IMAGE_MAGIC = b"ANDROID!"
 
 # Store the file path to upload to the remote instance.
 ExtraFile = collections.namedtuple("ExtraFile", ["source", "target"])
+
+SystemImagePaths = collections.namedtuple(
+    "SystemImagePaths",
+    ["system", "system_ext", "product"])
 
 
 def ParseExtraFilesArgs(files_info, path_separator=","):
@@ -213,9 +219,30 @@ def FindBootImage(path, raise_error=True):
     return boot_image_path
 
 
-def FindSystemImage(path):
-    """Find a system image file in a given path."""
-    return FindLocalImage(path, _SYSTEM_IMAGE_NAME_PATTERN, raise_error=True)
+def FindSystemImages(path):
+    """Find system, system_ext, and product image files in a given path.
+
+    Args:
+        path: A string, the search path.
+
+    Returns:
+        The absolute paths to system, system_ext and product images.
+        The paths to system_ext and product can be None.
+
+    Raises:
+        GetLocalImageError if this method cannot find the system image.
+    """
+    system_image_path = FindLocalImage(
+        path, _SYSTEM_IMAGE_NAME_PATTERN, raise_error=True)
+
+    path = os.path.abspath(path)
+    system_ext_image_path = os.path.join(path, _SYSTEM_EXT_IMAGE_NAME)
+    product_image_path = os.path.join(path, _PRODUCT_IMAGE_NAME)
+    return SystemImagePaths(
+        system_image_path,
+        (system_ext_image_path if os.path.isfile(system_ext_image_path) else
+         None),
+        (product_image_path if os.path.isfile(product_image_path) else None))
 
 
 def DownloadRemoteArtifact(cfg, build_target, build_id, artifact, extract_path,
