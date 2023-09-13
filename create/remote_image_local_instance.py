@@ -234,6 +234,8 @@ class RemoteImageLocalInstance(local_image_local_instance.LocalImageLocalInstanc
         misc_info_path = None
         ota_tools_dir = None
         system_image_path = None
+        system_ext_image_path = None
+        product_image_path = None
         boot_image_path = None
         vendor_boot_image_path = None
         kernel_image_path = None
@@ -246,13 +248,14 @@ class RemoteImageLocalInstance(local_image_local_instance.LocalImageLocalInstanc
         if avd_spec.local_system_image or avd_spec.local_vendor_image:
             build_id = avd_spec.remote_image[constants.BUILD_ID]
             build_target = avd_spec.remote_image[constants.BUILD_TARGET]
-            mix_image_dir =os.path.join(
+            mix_image_dir = os.path.join(
                 image_dir, _SYSTEM_MIX_IMAGE_DIR.format(build_id=build_id))
             if not os.path.exists(mix_image_dir):
                 os.makedirs(mix_image_dir)
                 create_common.DownloadRemoteArtifact(
                     avd_spec.cfg, build_target, build_id,
-                    cvd_utils.GetMixBuildTargetFilename(build_target, build_id),
+                    cvd_utils.GetMixBuildTargetFilename(
+                        build_target, build_id),
                     mix_image_dir, decompress=True)
             misc_info_path = cvd_utils.FindMiscInfo(mix_image_dir)
             mix_image_dir = cvd_utils.FindImageDir(mix_image_dir)
@@ -273,8 +276,11 @@ class RemoteImageLocalInstance(local_image_local_instance.LocalImageLocalInstanc
                     logger.debug("fall back to downloaded cvd host binaries")
 
         if avd_spec.local_system_image:
-            system_image_path = create_common.FindSystemImage(
-                avd_spec.local_system_image)
+            (
+                system_image_path,
+                system_ext_image_path,
+                product_image_path,
+            ) = create_common.FindSystemImages(avd_spec.local_system_image)
 
         if avd_spec.local_kernel_image:
             (
@@ -300,6 +306,8 @@ class RemoteImageLocalInstance(local_image_local_instance.LocalImageLocalInstanc
             misc_info=misc_info_path,
             ota_tools_dir=ota_tools_dir,
             system_image=system_image_path,
+            system_ext_image=system_ext_image_path,
+            product_image=product_image_path,
             vendor_image=vendor_image_path,
             vendor_dlkm_image=vendor_dlkm_image_path,
             odm_image=odm_image_path,
