@@ -137,7 +137,10 @@ EOF"""
         mock_utils.IsSupportedPlatform.return_value = True
         mock_get_image.return_value = local_image_local_instance.ArtifactPaths(
             "/image/path", "/host/bin/path", "host/usr/path",
-            None, None, None, None, None, None, None, None, None, None, None)
+            None, None,  # misc_info
+            None, None, None,  # system
+            None, None, None, None,  # boot
+            None, None, None, None)  # vendor
         mock_check_running_cvd.return_value = True
         mock_avd_spec = mock.Mock()
         mock_avd_spec.num_avds_per_instance = 1
@@ -252,8 +255,9 @@ EOF"""
         mock_cvd_utils.FindLocalLogs.return_value = [
             {'path': '/log/launcher.log', 'type': 'TEXT'}]
         artifact_paths = local_image_local_instance.ArtifactPaths(
-            "/image/path", "/host/bin/path", "/host/usr/path", "/misc/info/path",
-            "/ota/tools/dir", "/system/image/path", "/boot/image/path",
+            "/image/path", "/host/bin/path", "/host/usr/path",
+            "/misc/info/path", "/ota/tools/dir", "/system/image/path",
+            "/system_ext/image/path", "/product/image/path", "/boot/image/path",
             "/vendor_boot/image/path", "/kernel/image/path",
             "/initramfs/image/path", "/vendor/image/path",
             "/vendor_dlkm/image/path", "/odm/image/path",
@@ -286,6 +290,8 @@ EOF"""
             "/local-instance-1/mixed_super.img", "/misc/info/path",
             "/image/path",
             system_image="/system/image/path",
+            system_ext_image="/system_ext/image/path",
+            product_image="/product/image/path",
             vendor_image="/vendor/image/path",
             vendor_dlkm_image="/vendor_dlkm/image/path",
             odm_image="/odm/image/path",
@@ -369,10 +375,15 @@ EOF"""
                 mock_avd_spec)
 
         mock_ota_tools.FindOtaToolsDir.assert_not_called()
-        self.assertEqual(paths, (image_dir, cvd_dir, cvd_dir,
-                                 None, None, None, None, None, None, None,
-                                 None, None, None, None))
+        self.assertEqual(
+            paths,
+            (image_dir, cvd_dir, cvd_dir,
+             None, None,  # misc_info
+             None, None, None,  # system
+             None, None, None, None,  # boot
+             None, None, None, None))  # vendor
 
+    # pylint: disable=too-many-locals
     @mock.patch("acloud.create.local_image_local_instance.ota_tools")
     def testGetImageFromBuildEnvironment(self, mock_ota_tools):
         """Test GetImageArtifactsPath with files in build environment."""
@@ -382,6 +393,9 @@ EOF"""
             mock_ota_tools.FindOtaToolsDir.return_value = cvd_dir
             extra_image_dir = os.path.join(temp_dir, "extra_image")
             system_image_path = os.path.join(extra_image_dir, "system.img")
+            system_ext_image_path = os.path.join(extra_image_dir,
+                                                 "system_ext.img")
+            product_image_path = os.path.join(extra_image_dir, "product.img")
             misc_info_path = os.path.join(image_dir, "misc_info.txt")
             boot_image_path = os.path.join(extra_image_dir, "boot.img")
             vendor_boot_image_path = os.path.join(extra_image_dir,
@@ -394,6 +408,8 @@ EOF"""
             self._CreateEmptyFile(os.path.join(cvd_dir, "bin", "launch_cvd"))
             self._CreateEmptyFile(os.path.join(cvd_dir, "usr/share/webrtc/certs", "server.crt"))
             self._CreateEmptyFile(system_image_path)
+            self._CreateEmptyFile(system_ext_image_path)
+            self._CreateEmptyFile(product_image_path)
             self._CreateEmptyFile(os.path.join(extra_image_dir,
                                                "boot-debug.img"))
             self._CreateEmptyFile(misc_info_path)
@@ -420,12 +436,13 @@ EOF"""
                     mock_avd_spec)
 
         mock_ota_tools.FindOtaToolsDir.assert_called_with([cvd_dir, "/cvd"])
-        self.assertEqual(paths,
-                         (image_dir, cvd_dir, cvd_dir, misc_info_path, cvd_dir,
-                          system_image_path, boot_image_path,
-                          vendor_boot_image_path, None, None,
-                          vendor_image_path, vendor_dlkm_image_path,
-                          odm_image_path, odm_dlkm_image_path))
+        self.assertEqual(
+            paths,
+            (image_dir, cvd_dir, cvd_dir, misc_info_path, cvd_dir,
+             system_image_path, system_ext_image_path, product_image_path,
+             boot_image_path, vendor_boot_image_path, None, None,
+             vendor_image_path, vendor_dlkm_image_path,
+             odm_image_path, odm_dlkm_image_path))
 
     @mock.patch("acloud.create.local_image_local_instance.ota_tools")
     def testGetImageFromTargetFiles(self, mock_ota_tools):
@@ -467,11 +484,13 @@ EOF"""
 
         mock_ota_tools.FindOtaToolsDir.assert_called_with(
             [ota_tools_dir, cvd_dir])
-        self.assertEqual(paths,
-                         (os.path.join(image_dir, "IMAGES"), cvd_dir, cvd_dir,
-                          misc_info_path, ota_tools_dir, system_image_path,
-                          None, None, kernel_image_path, initramfs_image_path,
-                          None, None, None, None))
+        self.assertEqual(
+            paths,
+            (os.path.join(image_dir, "IMAGES"), cvd_dir, cvd_dir,
+             misc_info_path, ota_tools_dir,
+             system_image_path, None, None,
+             None, None, kernel_image_path, initramfs_image_path,
+             None, None, None, None))
 
     @mock.patch.object(utils, "CheckUserInGroups")
     def testPrepareLaunchCVDCmd(self, mock_usergroups):
