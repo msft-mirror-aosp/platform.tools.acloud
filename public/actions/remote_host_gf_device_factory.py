@@ -340,8 +340,9 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
 
         # System image.
         if self._avd_spec.local_system_image:
-            system_image_path = create_common.FindSystemImage(
-                self._avd_spec.local_system_image)
+            # No known use case requires replacing system_ext and product.
+            system_image_path = create_common.FindSystemImages(
+                self._avd_spec.local_system_image).system
         else:
             system_image_path = self._RetrieveSystemImage()
 
