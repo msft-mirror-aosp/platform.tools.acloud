@@ -376,14 +376,19 @@ def _MixSuperImage(super_image_path, avd_spec, target_files_dir, ota):
     image_dir = FindImageDir(target_files_dir)
 
     system_image_path = None
+    system_ext_image_path = None
+    product_image_path = None
     vendor_image_path = None
     vendor_dlkm_image_path = None
     odm_image_path = None
     odm_dlkm_image_path = None
 
     if avd_spec.local_system_image:
-        system_image_path = create_common.FindSystemImage(
-            avd_spec.local_system_image)
+        (
+            system_image_path,
+            system_ext_image_path,
+            product_image_path,
+        ) = create_common.FindSystemImages(avd_spec.local_system_image)
 
     if avd_spec.local_vendor_image:
         (
@@ -395,6 +400,8 @@ def _MixSuperImage(super_image_path, avd_spec, target_files_dir, ota):
 
     ota.MixSuperImage(super_image_path, misc_info_path, image_dir,
                       system_image=system_image_path,
+                      system_ext_image=system_ext_image_path,
+                      product_image=product_image_path,
                       vendor_image=vendor_image_path,
                       vendor_dlkm_image=vendor_dlkm_image_path,
                       odm_image=odm_image_path,
@@ -424,7 +431,7 @@ def AreTargetFilesRequired(avd_spec):
     return bool(avd_spec.local_system_image or avd_spec.local_vendor_image)
 
 
-def UploadExtraImages(ssh_obj, remote_dir, avd_spec, target_files_dir=None):
+def UploadExtraImages(ssh_obj, remote_dir, avd_spec, target_files_dir):
     """Find and upload the images specified in avd_spec.
 
     This function finds the kernel, system, and vendor images specified in
@@ -467,12 +474,10 @@ def UploadExtraImages(ssh_obj, remote_dir, avd_spec, target_files_dir=None):
             extra_img_args += _UploadSuperImage(ssh_obj, remote_dir,
                                                 super_image_dir)
 
-        if avd_spec.local_vendor_image:
-            with tempfile.NamedTemporaryFile(prefix="vbmeta",
-                                             suffix=".img") as temp_file:
-                ota.MakeDisabledVbmetaImage(temp_file.name)
-                extra_img_args += _UploadVbmetaImage(ssh_obj, remote_dir,
-                                                     temp_file.name)
+            vbmeta_image_path = os.path.join(super_image_dir, "vbmeta.img")
+            ota.MakeDisabledVbmetaImage(vbmeta_image_path)
+            extra_img_args += _UploadVbmetaImage(ssh_obj, remote_dir,
+                                                 vbmeta_image_path)
 
     return extra_img_args
 

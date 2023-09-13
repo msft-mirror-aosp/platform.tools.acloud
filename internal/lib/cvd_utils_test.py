@@ -162,7 +162,8 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             mock_avd_spec = mock.Mock(local_kernel_image="boot.img",
                                       local_system_image=None,
                                       local_vendor_image=None)
-            args = cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec)
+            args = cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec,
+                                               None)
             self.assertEqual(["-boot_image", "dir/acloud_image/boot.img"],
                              args)
             mock_ssh.Run.assert_called_once_with("mkdir -p dir/acloud_image")
@@ -171,8 +172,8 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
 
             mock_ssh.reset_mock()
             mock_avd_spec.local_kernel_image = image_dir
-            mock_avd_spec.local_vendor_image = None
-            args = cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec)
+            args = cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec,
+                                               None)
             self.assertEqual(
                 ["-boot_image", "dir/acloud_image/boot.img",
                  "-vendor_boot_image", "dir/acloud_image/vendor_boot.img"],
@@ -193,12 +194,13 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
                                       local_system_image=None,
                                       local_vendor_image=None)
             with self.assertRaises(errors.GetLocalImageError):
-                cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec)
+                cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec,
+                                            None)
 
             mock_ssh.reset_mock()
             mock_avd_spec.local_kernel_image = image_dir
-            mock_avd_spec.local_vendor_image = None
-            args = cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec)
+            args = cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec,
+                                               None)
             self.assertEqual(
                 ["-kernel_path", "dir/acloud_image/kernel",
                  "-initramfs_path", "dir/acloud_image/initramfs.img"],
