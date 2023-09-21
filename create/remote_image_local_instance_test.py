@@ -93,8 +93,10 @@ class RemoteImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
         self.Patch(cvd_utils, "FindImageDir",
                    return_value="/mix_image_1234/IMAGES")
         self.Patch(ota_tools, "FindOtaToolsDir", return_value="/ota_tools_dir")
-        self.Patch(create_common, "FindSystemImage",
-                   return_value="/system_image_path")
+        self.Patch(create_common, "FindSystemImages",
+                   return_value=("/system_image_path",
+                                 "/system_ext_image_path",
+                                 "/product_image_path"))
         self.Patch(self.RemoteImageLocalInstance, "_FindCvdHostBinaries",
                    side_effect=errors.GetCvdLocalHostPackageError("not found"))
         paths = self.RemoteImageLocalInstance.GetImageArtifactsPath(avd_spec)
@@ -107,6 +109,8 @@ class RemoteImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(paths.host_bins, "/unit/test")
         self.assertEqual(paths.ota_tools_dir, "/ota_tools_dir")
         self.assertEqual(paths.system_image, "/system_image_path")
+        self.assertEqual(paths.system_ext_image, "/system_ext_image_path")
+        self.assertEqual(paths.product_image, "/product_image_path")
         self.RemoteImageLocalInstance._FindCvdHostBinaries.assert_not_called()
 
         # Boot and kernel images
