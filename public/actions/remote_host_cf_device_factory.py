@@ -188,6 +188,8 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         if remote_image_dir:
             remote_args_path = remote_path.join(remote_image_dir,
                                                 _IMAGE_ARGS_FILE_NAME)
+            cvd_utils.PrepareRemoteImageDirLink(
+                self._ssh, self._GetInstancePath(), remote_image_dir)
             launch_cvd_args = cvd_utils.LoadRemoteImageArgs(
                 self._ssh, remote_args_path)
             if launch_cvd_args is not None:

@@ -418,6 +418,8 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self._mock_build_api.GetFetchBuildArgs.return_value = ["-test"]
 
         self.assertEqual("inst", factory.CreateInstance())
+        mock_cvd_utils.PrepareRemoteImageDirLink.assert_called_once_with(
+            mock_ssh_obj, "acloud_cf_1", "mock_img_dir")
         mock_cvd_utils.LoadRemoteImageArgs.assert_called_once_with(
             mock_ssh_obj, "mock_img_dir/acloud_image_args.txt")
         mock_cvd_utils.SaveRemoteImageArgs.assert_called_once_with(

@@ -261,18 +261,36 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
     def testCleanUpRemoteCvd(self):
         """Test CleanUpRemoteCvd."""
         mock_ssh = mock.Mock()
+        mock_ssh.Run.side_effect = ["", "", ""]
         cvd_utils.CleanUpRemoteCvd(mock_ssh, "dir", raise_error=True)
-        mock_ssh.Run.assert_any_call("'HOME=$HOME/dir dir/bin/stop_cvd'")
-        mock_ssh.Run.assert_any_call("'rm -rf dir/*'")
+        mock_ssh.Run.assert_has_calls([
+            mock.call("'readlink -n -e dir/image_dir_link || true'"),
+            mock.call("'HOME=$HOME/dir dir/bin/stop_cvd'"),
+            mock.call("'rm -rf dir/*'")])
+
+        mock_ssh.reset_mock()
+        mock_ssh.Run.side_effect = ["img_dir", "", "", ""]
+        cvd_utils.CleanUpRemoteCvd(mock_ssh, "dir", raise_error=True)
+        mock_ssh.Run.assert_has_calls([
+            mock.call("'readlink -n -e dir/image_dir_link || true'"),
+            mock.call("'mkdir -p img_dir && flock img_dir.lock -c '\"'\"'"
+                      "rm -f dir/image_dir_link && "
+                      "expr $(test -s img_dir.lock && "
+                      "cat img_dir.lock || echo 1) - 1 > img_dir.lock || "
+                      "rm -rf img_dir img_dir.lock'\"'\"''"),
+            mock.call("'HOME=$HOME/dir dir/bin/stop_cvd'"),
+            mock.call("'rm -rf dir/*'")])
 
         mock_ssh.reset_mock()
         mock_ssh.Run.side_effect = [
+            "",
             subprocess.CalledProcessError(cmd="should raise", returncode=1)]
         with self.assertRaises(subprocess.CalledProcessError):
             cvd_utils.CleanUpRemoteCvd(mock_ssh, "dir", raise_error=True)
 
         mock_ssh.reset_mock()
         mock_ssh.Run.side_effect = [
+            "",
             subprocess.CalledProcessError(cmd="should ignore", returncode=1),
             None]
         cvd_utils.CleanUpRemoteCvd(mock_ssh, "dir", raise_error=False)
@@ -308,6 +326,74 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
         result = cvd_utils.ParseRemoteHostAddress(
             "host-goldfish-192.0.2.1-5554-123456-sdk_x86_64-sdk")
         self.assertIsNone(result)
+
+    # pylint: disable=protected-access
+    def testRemoteImageDirLink(self):
+        """Test PrepareRemoteImageDirLink and _DeleteRemoteImageDirLink."""
+        self.assertEqual(os.path, cvd_utils.remote_path)
+        with tempfile.TemporaryDirectory(prefix="cvd_utils") as temp_dir:
+            env = os.environ.copy()
+            env["HOME"] = temp_dir
+            # Execute the commands locally.
+            mock_ssh = mock.Mock()
+            mock_ssh.Run.side_effect = lambda cmd: subprocess.check_output(
+                "sh -c " + cmd, shell=True, cwd=temp_dir, env=env
+            ).decode("utf-8")
+            # Relative paths under temp_dir.
+            base_dir_name_1 = "acloud_cf_1"
+            base_dir_name_2 = "acloud_cf_2"
+            image_dir_name = "test/img"
+            rel_ref_cnt_path = "test/img.lock"
+            # Absolute paths.
+            image_dir = os.path.join(temp_dir, image_dir_name)
+            ref_cnt_path = os.path.join(temp_dir, rel_ref_cnt_path)
+            link_path_1 = os.path.join(temp_dir, base_dir_name_1,
+                                       "image_dir_link")
+            link_path_2 = os.path.join(temp_dir, base_dir_name_2,
+                                       "image_dir_link")
+            # Delete non-existing directories.
+            cvd_utils._DeleteRemoteImageDirLink(mock_ssh, base_dir_name_1)
+            mock_ssh.Run.assert_called_with(
+                f"'readlink -n -e {base_dir_name_1}/image_dir_link || true'")
+            self.assertFalse(
+                os.path.exists(os.path.join(temp_dir, base_dir_name_1)))
+            self.assertFalse(os.path.exists(image_dir))
+            self.assertFalse(os.path.exists(ref_cnt_path))
+            # Prepare the first base dir.
+            cvd_utils.PrepareRemoteImageDirLink(mock_ssh, base_dir_name_1,
+                                                image_dir_name)
+            mock_ssh.Run.assert_called_with(
+                f"'mkdir -p {image_dir_name} && flock {rel_ref_cnt_path} -c "
+                f"'\"'\"'mkdir -p {base_dir_name_1} {image_dir_name} && "
+                f"ln -s -r {image_dir_name} "
+                f"{base_dir_name_1}/image_dir_link && "
+                f"expr $(test -s {rel_ref_cnt_path} && "
+                f"cat {rel_ref_cnt_path} || echo 0) + 1 > "
+                f"{rel_ref_cnt_path}'\"'\"''")
+            self.assertTrue(os.path.islink(link_path_1))
+            self.assertEqual("../test/img", os.readlink(link_path_1))
+            self.assertTrue(os.path.isfile(ref_cnt_path))
+            with open(ref_cnt_path, "r", encoding="utf-8") as ref_cnt_file:
+                self.assertEqual("1\n", ref_cnt_file.read())
+            # Prepare the second base dir.
+            cvd_utils.PrepareRemoteImageDirLink(mock_ssh, base_dir_name_2,
+                                                image_dir_name)
+            self.assertTrue(os.path.islink(link_path_2))
+            self.assertEqual("../test/img", os.readlink(link_path_2))
+            self.assertTrue(os.path.isfile(ref_cnt_path))
+            with open(ref_cnt_path, "r", encoding="utf-8") as ref_cnt_file:
+                self.assertEqual("2\n", ref_cnt_file.read())
+            # Delete the first base dir.
+            cvd_utils._DeleteRemoteImageDirLink(mock_ssh, base_dir_name_1)
+            self.assertFalse(os.path.lexists(link_path_1))
+            self.assertTrue(os.path.isfile(ref_cnt_path))
+            with open(ref_cnt_path, "r", encoding="utf-8") as ref_cnt_file:
+                self.assertEqual("1\n", ref_cnt_file.read())
+            # Delete the second base dir.
+            cvd_utils._DeleteRemoteImageDirLink(mock_ssh, base_dir_name_2)
+            self.assertFalse(os.path.lexists(link_path_2))
+            self.assertFalse(os.path.exists(image_dir))
+            self.assertFalse(os.path.exists(ref_cnt_path))
 
     def testLoadRemoteImageArgs(self):
         """Test LoadRemoteImageArgs."""

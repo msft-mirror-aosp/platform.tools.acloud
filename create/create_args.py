@@ -19,6 +19,7 @@ Defines the create arg parser that holds create specific args.
 import argparse
 import logging
 import os
+import posixpath as remote_path
 
 from acloud import errors
 from acloud.create import create_common
@@ -882,9 +883,14 @@ def _VerifyHostArgs(args):
         raise errors.UnsupportedCreateArgs(
             "--host-ssh-private-key-path is only supported for remote host.")
 
-    if args.remote_image_dir and args.remote_host is None:
-        raise errors.UnsupportedCreateArgs(
-            "--remote-image-dir is only supported for remote host.")
+    if args.remote_image_dir:
+        if args.remote_host is None:
+            raise errors.UnsupportedCreateArgs(
+                "--remote-image-dir is only supported for remote host.")
+        if remote_path.basename(
+                remote_path.normpath(args.remote_image_dir)) in ("..", "."):
+            raise errors.UnsupportedCreateArgs(
+                "--remote-image-dir must not include the working directory.")
 
 
 def _VerifyGoldfishArgs(args):

@@ -77,6 +77,11 @@ _REMOTE_INITRAMFS_IMAGE_PATH = remote_path.join(
     _REMOTE_EXTRA_IMAGE_DIR, _INITRAMFS_IMAGE_NAME)
 _REMOTE_SUPER_IMAGE_PATH = remote_path.join(
     _REMOTE_EXTRA_IMAGE_DIR, _SUPER_IMAGE_NAME)
+# The symbolic link to --remote-image-dir. It's in the base directory.
+_IMAGE_DIR_LINK_NAME = "image_dir_link"
+# The text file contains the number of references to --remote-image-dir.
+# Th path is --remote-image-dir + EXT.
+_REF_CNT_FILE_EXT = ".lock"
 
 # Remote host instance name
 _REMOTE_HOST_INSTANCE_NAME_FORMAT = (
@@ -549,6 +554,7 @@ def CleanUpRemoteCvd(ssh_obj, remote_dir, raise_error):
     """
     # FIXME: Use the images and launch_cvd in --remote-image-dir when
     # cuttlefish can reliably share images.
+    _DeleteRemoteImageDirLink(ssh_obj, remote_dir)
     home = remote_path.join("$HOME", remote_dir)
     stop_cvd_path = remote_path.join(remote_dir, "bin", "stop_cvd")
     stop_cvd_cmd = f"'HOME={home} {stop_cvd_path}'"
@@ -561,7 +567,7 @@ def CleanUpRemoteCvd(ssh_obj, remote_dir, raise_error):
             logger.debug(
                 "Failed to stop_cvd (possibly no running device): %s", e)
 
-    # This command deletes all files except hidden files under HOME.
+    # This command deletes all files except hidden files under remote_dir.
     # It does not raise an error if no files can be deleted.
     ssh_obj.Run(f"'rm -rf {remote_path.join(remote_dir, '*')}'")
 
@@ -613,6 +619,67 @@ def ParseRemoteHostAddress(instance_name):
         return (match.group("ip_addr"),
                 GetRemoteHostBaseDir(int(match.group("num"))))
     return None
+
+
+def PrepareRemoteImageDirLink(ssh_obj, remote_dir, remote_image_dir):
+    """Create a link to a directory containing images and tools.
+
+    Args:
+        ssh_obj: An Ssh object.
+        remote_dir: The directory in which the link is created.
+        remote_image_dir: The directory that is linked to.
+    """
+    remote_link = remote_path.join(remote_dir, _IMAGE_DIR_LINK_NAME)
+
+    # If remote_image_dir is relative to HOME, compute the relative path based
+    # on remote_dir.
+    ln_cmd = ("ln -s " +
+              ("" if remote_path.isabs(remote_image_dir) else "-r ") +
+              f"{remote_image_dir} {remote_link}")
+
+    remote_ref_cnt = remote_path.normpath(remote_image_dir) + _REF_CNT_FILE_EXT
+    ref_cnt_cmd = (f"expr $(test -s {remote_ref_cnt} && "
+                   f"cat {remote_ref_cnt} || echo 0) + 1 > {remote_ref_cnt}")
+
+    # `flock` creates the file automatically.
+    # This command should create its parent directory before `flock`.
+    ssh_obj.Run(shlex.quote(
+        f"mkdir -p {remote_image_dir} && flock {remote_ref_cnt} -c " +
+        shlex.quote(
+            f"mkdir -p {remote_dir} {remote_image_dir} && "
+            f"{ln_cmd} && {ref_cnt_cmd}")))
+
+
+def _DeleteRemoteImageDirLink(ssh_obj, remote_dir):
+    """Delete the directories containing images and tools.
+
+    Args:
+        ssh_obj: An Ssh object.
+        remote_dir: The directory containing the link to the image directory.
+    """
+    remote_link = remote_path.join(remote_dir, _IMAGE_DIR_LINK_NAME)
+    # This command returns an absolute path if the link exists; otherwise
+    # an empty string. It raises an exception only if connection error.
+    remote_image_dir = ssh_obj.Run(
+        shlex.quote(f"readlink -n -e {remote_link} || true"))
+    if not remote_image_dir:
+        return
+
+    remote_ref_cnt = (remote_path.normpath(remote_image_dir) +
+                      _REF_CNT_FILE_EXT)
+    # `expr` returns 1 if the result is 0.
+    ref_cnt_cmd = (f"expr $(test -s {remote_ref_cnt} && "
+                   f"cat {remote_ref_cnt} || echo 1) - 1 > "
+                   f"{remote_ref_cnt}")
+
+    # `flock` creates the file automatically.
+    # This command should create its parent directory before `flock`.
+    ssh_obj.Run(shlex.quote(
+        f"mkdir -p {remote_image_dir} && flock {remote_ref_cnt} -c " +
+        shlex.quote(
+            f"rm -f {remote_link} && "
+            f"{ref_cnt_cmd} || "
+            f"rm -rf {remote_image_dir} {remote_ref_cnt}")))
 
 
 def LoadRemoteImageArgs(ssh_obj, remote_args_path):
