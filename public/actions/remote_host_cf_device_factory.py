@@ -178,11 +178,10 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             target_files_dir = None
             if cvd_utils.AreTargetFilesRequired(self._avd_spec):
                 if self._avd_spec.image_source != constants.IMAGE_SRC_LOCAL:
-                    # TODO(b/296249675): Fetch target_files zip by build_api.
-                    raise NotImplementedError(
-                        "Combination of remote and local images is not "
-                        "implemented.")
-                if self._local_image_artifact:
+                    temp_dir = tempfile.mkdtemp(prefix=_TEMP_PREFIX)
+                    self._DownloadTargetFiles(temp_dir)
+                    target_files_dir = temp_dir
+                elif self._local_image_artifact:
                     temp_dir = tempfile.mkdtemp(prefix=_TEMP_PREFIX)
                     cvd_utils.ExtractTargetFilesZip(self._local_image_artifact,
                                                     temp_dir)
@@ -219,6 +218,23 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
                 shutil.rmtree(temp_dir)
 
         return launch_cvd_args
+
+    def _DownloadTargetFiles(self, temp_dir):
+        """Download and extract target files zip.
+
+        Args:
+            temp_dir: The directory where the zip is extracted.
+        """
+        build_target = self._avd_spec.remote_image[constants.BUILD_TARGET]
+        build_id = self._avd_spec.remote_image[constants.BUILD_ID]
+        with tempfile.NamedTemporaryFile(
+                prefix=_TEMP_PREFIX, suffix=".zip") as target_files_zip:
+            self._build_api.DownloadArtifact(
+                build_target, build_id,
+                cvd_utils.GetMixBuildTargetFilename(build_target, build_id),
+                target_files_zip.name)
+            cvd_utils.ExtractTargetFilesZip(target_files_zip.name,
+                                            temp_dir)
 
     def _GetRemoteFetchCredentialArg(self):
         """Get the credential source argument for remote fetch_cvd.
