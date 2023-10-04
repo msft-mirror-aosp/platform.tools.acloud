@@ -1009,7 +1009,7 @@ def FindVendorImages(image_dir):
     Raises:
         errors.GetLocalImageError if this function cannot find images.
     """
-
+    image_dir = FindImageDir(image_dir)
     image_paths = []
     for image_name in _VENDOR_IMAGE_NAMES:
         image_path = os.path.join(image_dir, image_name)
