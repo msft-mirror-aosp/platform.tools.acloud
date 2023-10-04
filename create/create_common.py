@@ -36,7 +36,8 @@ logger = logging.getLogger(__name__)
 #   boot-<kernel version>.img.
 # - In Android 13, the name is boot.img.
 _BOOT_IMAGE_NAME_PATTERN = r"boot(-[\d.]+)?\.img"
-_SYSTEM_IMAGE_NAME_PATTERN = r"system\.img"
+_TARGET_FILES_IMAGES_DIR_NAME = "IMAGES"
+_SYSTEM_IMAGE_NAME = "system.img"
 _SYSTEM_EXT_IMAGE_NAME = "system_ext.img"
 _PRODUCT_IMAGE_NAME = "product.img"
 
@@ -232,12 +233,21 @@ def FindSystemImages(path):
     Raises:
         GetLocalImageError if this method cannot find the system image.
     """
-    system_image_path = FindLocalImage(
-        path, _SYSTEM_IMAGE_NAME_PATTERN, raise_error=True)
-
     path = os.path.abspath(path)
-    system_ext_image_path = os.path.join(path, _SYSTEM_EXT_IMAGE_NAME)
-    product_image_path = os.path.join(path, _PRODUCT_IMAGE_NAME)
+    if os.path.isfile(path):
+        return SystemImagePaths(path, None, None)
+
+    image_dir = path
+    system_image_path = os.path.join(image_dir, _SYSTEM_IMAGE_NAME)
+    if not os.path.isfile(system_image_path):
+        image_dir = os.path.join(path, _TARGET_FILES_IMAGES_DIR_NAME)
+        system_image_path = os.path.join(image_dir, _SYSTEM_IMAGE_NAME)
+        if not os.path.isfile(system_image_path):
+            raise errors.GetLocalImageError(
+                f"No {_SYSTEM_IMAGE_NAME} in {path}.")
+
+    system_ext_image_path = os.path.join(image_dir, _SYSTEM_EXT_IMAGE_NAME)
+    product_image_path = os.path.join(image_dir, _PRODUCT_IMAGE_NAME)
     return SystemImagePaths(
         system_image_path,
         (system_ext_image_path if os.path.isfile(system_ext_image_path) else
