@@ -70,6 +70,7 @@ Try $acloud [cmd] --help for further details.
 from __future__ import print_function
 import argparse
 import logging
+import os
 import sys
 import traceback
 
@@ -155,7 +156,8 @@ def _ParseArgs(args):
         powerwash_args.CMD_POWERWASH,
         pull_args.CMD_PULL,
         restart_args.CMD_RESTART,
-        hostcleanup_args.CMD_HOSTCLEANUP]
+        hostcleanup_args.CMD_HOSTCLEANUP,
+        CMD_CREATE_GOLDFISH]
     usage = ",".join(acloud_cmds)
     parser = argparse.ArgumentParser(
         description=__doc__,
@@ -292,6 +294,18 @@ def _VerifyArgs(parsed_args):
                 "--serial_log_file must ends with .tar.gz")
 
 
+def _ValidateAuthFile(cfg):
+    """Check if the authentication file exist.
+
+    Args:
+        cfg: AcloudConfig object.
+    """
+    auth_file = os.path.join(os.path.expanduser("~"), cfg.creds_cache_file)
+    if not os.path.exists(auth_file):
+        print("Notice: Acloud will bring up browser to proceed authentication. "
+              "For cloudtop, please run in remote desktop.")
+
+
 def _ParsingConfig(args, cfg):
     """Parse config to check if missing any field.
 
@@ -303,14 +317,14 @@ def _ParsingConfig(args, cfg):
         error message about list of missing config fields.
     """
     missing_fields = []
-    if args.which == create_args.CMD_CREATE and args.local_instance is None:
+    if (args.which == create_args.CMD_CREATE and
+            args.local_instance is None and not args.remote_host):
         missing_fields = cfg.GetMissingFields(_CREATE_REQUIRE_FIELDS)
     if missing_fields:
-        return (
-            "Config file (%s) missing required fields: %s, please add these "
-            "fields or reset config file. For reset config information: "
-            "go/acloud-googler-setup#reset-configuration" %
-            (config.GetUserConfigPath(args.config_file), missing_fields))
+        return (f"Config file ({config.GetUserConfigPath(args.config_file)}) "
+                f"missing required fields: {missing_fields}, please add these "
+                "fields or reset config file. For reset config information: "
+                "go/acloud-googler-setup#reset-configuration")
     return None
 
 
@@ -386,6 +400,7 @@ def main(argv=None):
 
     cfg = config.GetAcloudConfig(args)
     parsing_config_error = _ParsingConfig(args, cfg)
+    _ValidateAuthFile(cfg)
     # TODO: Move this check into the functions it is actually needed.
     # Check access.
     # device_driver.CheckAccess(cfg)

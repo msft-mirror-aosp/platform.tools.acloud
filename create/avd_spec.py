@@ -75,6 +75,8 @@ _DEFAULT_BRANCH = "aosp-master"
 # the branch, avd type and device flavor:
 # aosp, cf and phone -> aosp_cf_x86_phone.
 _BRANCH_TARGET_PREFIX = {"aosp": "aosp_"}
+_BRANCH_TARGET_TRUNK_STAGEING = {"aosp-main": "-trunk_staging",
+                                 "git_main": "-trunk_staging"}
 
 
 def EscapeAnsi(line):
@@ -135,6 +137,7 @@ class AVDSpec():
         self._kernel_build_info = {}
         self._boot_build_info = {}
         self._ota_build_info = {}
+        self._host_package_build_info = {}
         self._bootloader_build_info = {}
         self._hw_property = None
         self._hw_customize = False
@@ -622,7 +625,8 @@ class AVDSpec():
 
         self._remote_image[constants.BUILD_TARGET] = args.build_target
         if not self._remote_image[constants.BUILD_TARGET]:
-            self._remote_image[constants.BUILD_TARGET] = self._GetBuildTarget(args)
+            self._remote_image[constants.BUILD_TARGET] = self._GetBuildTarget(
+                args, self._remote_image[constants.BUILD_BRANCH])
         else:
             # If flavor isn't specified, try to infer it from build target,
             # if we can't, just default to phone flavor.
@@ -662,6 +666,10 @@ class AVDSpec():
             constants.BUILD_ID: args.bootloader_build_id,
             constants.BUILD_BRANCH: args.bootloader_branch,
             constants.BUILD_TARGET: args.bootloader_build_target}
+        self._host_package_build_info = {
+            constants.BUILD_ID: args.host_package_build_id,
+            constants.BUILD_BRANCH: args.host_package_branch,
+            constants.BUILD_TARGET: args.host_package_build_target}
 
     @staticmethod
     def _CheckCFBuildTarget(instance_type):
@@ -761,7 +769,7 @@ class AVDSpec():
             % _DEFAULT_BRANCH, utils.TextColors.WARNING)
         return _DEFAULT_BRANCH
 
-    def _GetBuildTarget(self, args):
+    def _GetBuildTarget(self, args, branch):
         """Infer build target if user doesn't specified target name.
 
         Target = {REPO_PREFIX}{avd_type}_{bitness}_{flavor}-
@@ -770,15 +778,17 @@ class AVDSpec():
 
         Args:
             args: Namespace object from argparse.parse_args.
+            branch: String, name of build branch.
 
         Returns:
             build_target: String, name of build target.
         """
-        branch = re.split("-|_", self._remote_image[constants.BUILD_BRANCH])[0]
-        return "%s%s_%s_%s-%s" % (
-            _BRANCH_TARGET_PREFIX.get(branch, ""),
+        branch_prefix = re.split("-|_", branch)[0]
+        return "%s%s_%s_%s%s-%s" % (
+            _BRANCH_TARGET_PREFIX.get(branch_prefix, ""),
             constants.AVD_TYPES_MAPPING[args.avd_type],
             _DEFAULT_BUILD_BITNESS, self._flavor,
+            _BRANCH_TARGET_TRUNK_STAGEING.get(branch, ""),
             _DEFAULT_BUILD_TYPE)
 
     @property
@@ -1064,6 +1074,11 @@ class AVDSpec():
     def ota_build_info(self):
         """Return ota_build_info."""
         return self._ota_build_info
+
+    @property
+    def host_package_build_info(self):
+        """Return host_package_build_info."""
+        return self._host_package_build_info
 
     @property
     def system_build_info(self):

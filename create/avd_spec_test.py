@@ -249,25 +249,32 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
     # pylint: disable=protected-access
     def testGetBuildTarget(self):
         """Test get build target name."""
-        self.AvdSpec._remote_image[constants.BUILD_BRANCH] = "git_branch"
+        branch = "git_branch"
         self.AvdSpec._flavor = constants.FLAVOR_IOT
         self.args.avd_type = constants.TYPE_GCE
         self.assertEqual(
-            self.AvdSpec._GetBuildTarget(self.args),
+            self.AvdSpec._GetBuildTarget(self.args, branch),
             "gce_x86_64_iot-userdebug")
 
-        self.AvdSpec._remote_image[constants.BUILD_BRANCH] = "aosp-master"
+        branch = "aosp-master"
         self.AvdSpec._flavor = constants.FLAVOR_PHONE
         self.args.avd_type = constants.TYPE_CF
         self.assertEqual(
-            self.AvdSpec._GetBuildTarget(self.args),
+            self.AvdSpec._GetBuildTarget(self.args, branch),
             "aosp_cf_x86_64_phone-userdebug")
 
-        self.AvdSpec._remote_image[constants.BUILD_BRANCH] = "git_branch"
+        branch = "aosp-main"
         self.AvdSpec._flavor = constants.FLAVOR_PHONE
         self.args.avd_type = constants.TYPE_CF
         self.assertEqual(
-            self.AvdSpec._GetBuildTarget(self.args),
+            self.AvdSpec._GetBuildTarget(self.args, branch),
+            "aosp_cf_x86_64_phone-trunk_staging-userdebug")
+
+        branch = "git_branch"
+        self.AvdSpec._flavor = constants.FLAVOR_PHONE
+        self.args.avd_type = constants.TYPE_CF
+        self.assertEqual(
+            self.AvdSpec._GetBuildTarget(self.args, branch),
             "cf_x86_64_phone-userdebug")
 
     # pylint: disable=protected-access

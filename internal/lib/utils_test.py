@@ -514,16 +514,22 @@ class UtilsTest(driver_test_lib.BaseDriverTest):
 
         mock_ssh.GetBaseCmd.return_value = "mock_ssh"
         mock_subprocess.run.return_value = mock.Mock(
-            stderr=b'stderr', stdout=b'file1\nfile2\n')
+            returncode=0, stderr=b'stderr', stdout=b'file1\nfile2\n')
         paths = utils.FindRemoteFiles(mock_ssh, ["dir1", "dir2"])
         self.assertEqual(["file1", "file2"], paths)
         mock_subprocess.run.assert_called_with(
             'mock_ssh find -H dir1 dir2 -type f',
             shell=True, capture_output=True, check=False)
 
-        mock_subprocess.run.return_value = mock.Mock(stderr=None, stdout=b'')
+        mock_subprocess.run.return_value = mock.Mock(
+            returncode=0, stderr=b'', stdout=b'')
         paths = utils.FindRemoteFiles(mock_ssh, ["dir1", "dir2"])
         self.assertEqual([], paths)
+
+        mock_subprocess.run.return_value = mock.Mock(
+            returncode=1, stderr=b'', stdout=b'')
+        with self.assertRaises(errors.SubprocessFail):
+            utils.FindRemoteFiles(mock_ssh, ["dir1", "dir2"])
 
     # pylint: disable=protected-access, no-member
     def testCleanupSSVncviwer(self):

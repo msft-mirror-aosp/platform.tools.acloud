@@ -127,9 +127,9 @@ _CONFIRM_RELAUNCH = ("\nCuttlefish AVD[id:%d] is already running. \n"
 ArtifactPaths = collections.namedtuple(
     "ArtifactPaths",
     ["image_dir", "host_bins", "host_artifacts", "misc_info", "ota_tools_dir",
-     "system_image", "boot_image", "vendor_boot_image", "kernel_image",
-     "initramfs_image", "vendor_image", "vendor_dlkm_image", "odm_image",
-     "odm_dlkm_image"])
+     "system_image", "system_ext_image", "product_image",
+     "boot_image", "vendor_boot_image", "kernel_image", "initramfs_image",
+     "vendor_image", "vendor_dlkm_image", "odm_image", "odm_dlkm_image"])
 
 
 class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
@@ -275,14 +275,15 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                 super_image_path, artifact_paths.misc_info,
                 artifact_paths.image_dir,
                 system_image=artifact_paths.system_image,
+                system_ext_image=artifact_paths.system_ext_image,
+                product_image=artifact_paths.product_image,
                 vendor_image=artifact_paths.vendor_image,
                 vendor_dlkm_image=artifact_paths.vendor_dlkm_image,
                 odm_image=artifact_paths.odm_image,
                 odm_dlkm_image=artifact_paths.odm_dlkm_image)
-            if artifact_paths.vendor_image:
-                vbmeta_image_path = os.path.join(cvd_home_dir,
-                                                 "disabled_vbmeta.img")
-                ota.MakeDisabledVbmetaImage(vbmeta_image_path)
+            vbmeta_image_path = os.path.join(cvd_home_dir,
+                                             "disabled_vbmeta.img")
+            ota.MakeDisabledVbmetaImage(vbmeta_image_path)
         runtime_dir = instance.GetLocalInstanceRuntimeDir(local_instance_id)
         # TODO(b/168171781): cvd_status of list/delete via the symbolic.
         self.PrepareLocalCvdToolsLink(cvd_home_dir, artifact_paths.host_bins)
@@ -497,13 +498,18 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             image_dir = cvd_utils.FindImageDir(image_dir)
             ota_tools_dir = os.path.abspath(
                 ota_tools.FindOtaToolsDir(tool_dirs))
-            system_image_path = create_common.FindSystemImage(
-                avd_spec.local_system_image)
+            (
+                system_image_path,
+                system_ext_image_path,
+                product_image_path,
+            ) = create_common.FindSystemImages(avd_spec.local_system_image)
         else:
             self._VerifyExtractedImgZip(image_dir)
             misc_info_path = None
             ota_tools_dir = None
             system_image_path = None
+            system_ext_image_path = None
+            product_image_path = None
 
         if avd_spec.local_kernel_image:
             (
@@ -537,6 +543,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                              misc_info=misc_info_path,
                              ota_tools_dir=ota_tools_dir,
                              system_image=system_image_path,
+                             system_ext_image=system_ext_image_path,
+                             product_image=product_image_path,
                              boot_image=boot_image_path,
                              vendor_boot_image=vendor_boot_image_path,
                              kernel_image=kernel_image_path,

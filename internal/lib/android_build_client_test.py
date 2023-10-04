@@ -183,12 +183,16 @@ class AndroidBuildClientTest(driver_test_lib.BaseDriverTest):
                       constants.BUILD_BRANCH: "boot_branch",
                       constants.BUILD_TARGET: "boot_target",
                       constants.BUILD_ARTIFACT: "boot-5.10.img"}
+        host_package_build = {constants.BUILD_ID: "6789",
+                              constants.BUILD_BRANCH: "host_package_branch",
+                              constants.BUILD_TARGET: "host_package_target"}
 
         # Test base image.
         expected_args = ["-default_build=1234/base_target"]
         self.assertEqual(
             expected_args,
-            self.client.GetFetchBuildArgs(default_build, {}, {}, {}, {}, {}))
+            self.client.GetFetchBuildArgs(
+                default_build, {}, {}, {}, {}, {}, {}))
 
         # Test base image with system image.
         expected_args = ["-default_build=1234/base_target",
@@ -196,7 +200,7 @@ class AndroidBuildClientTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(
             expected_args,
             self.client.GetFetchBuildArgs(
-                default_build, system_build, {}, {}, {}, {}))
+                default_build, system_build, {}, {}, {}, {}, {}))
 
         # Test base image with kernel image.
         expected_args = ["-default_build=1234/base_target",
@@ -204,7 +208,7 @@ class AndroidBuildClientTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(
             expected_args,
             self.client.GetFetchBuildArgs(
-                default_build, {}, kernel_build, {}, {}, {}))
+                default_build, {}, kernel_build, {}, {}, {}, {}))
 
         # Test base image with boot image.
         expected_args = ["-default_build=1234/base_target",
@@ -213,7 +217,7 @@ class AndroidBuildClientTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(
             expected_args,
             self.client.GetFetchBuildArgs(
-                default_build, {}, {}, boot_build, {}, {}))
+                default_build, {}, {}, boot_build, {}, {}, {}))
 
         # Test base image with otatools.
         expected_args = ["-default_build=1234/base_target",
@@ -221,7 +225,15 @@ class AndroidBuildClientTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(
             expected_args,
             self.client.GetFetchBuildArgs(
-                default_build, {}, {}, {}, {}, ota_build))
+                default_build, {}, {}, {}, {}, ota_build, {}))
+
+        # Test base image with host_package.
+        expected_args = ["-default_build=1234/base_target",
+                         "-host_package_build=6789/host_package_target"]
+        self.assertEqual(
+            expected_args,
+            self.client.GetFetchBuildArgs(
+                default_build, {}, {}, {}, {}, {}, host_package_build))
 
     def testGetFetchCertArg(self):
         """Test GetFetchCertArg."""
