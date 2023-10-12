@@ -257,22 +257,30 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
 
         mock_cvd_utils.GetRemoteHostBaseDir.return_value = "acloud_cf_1"
         mock_cvd_utils.FormatRemoteHostInstanceName.return_value = "inst"
-        mock_cvd_utils.AreTargetFilesRequired.return_value = False
+        mock_cvd_utils.AreTargetFilesRequired.return_value = True
+        mock_cvd_utils.GetMixBuildTargetFilename.return_value = "mock.zip"
         mock_cvd_utils.ExecuteRemoteLaunchCvd.return_value = ""
         mock_cvd_utils.FindRemoteLogs.return_value = []
 
         self._mock_build_api.GetFetchBuildArgs.return_value = ["-test"]
 
         self.assertEqual("inst", factory.CreateInstance())
+        # InitRemoteHost
         mock_cvd_utils.CleanUpRemoteCvd.assert_called_once()
+        # ProcessRemoteHostArtifacts
         mock_ssh_obj.Run.assert_called_with("mkdir -p acloud_cf_1")
+        self._mock_build_api.DownloadArtifact.assert_called_once_with(
+            "aosp_cf_x86_64_phone-userdebug", "100000", "mock.zip", mock.ANY)
+        mock_cvd_utils.ExtractTargetFilesZip.assert_called_once()
         self._mock_build_api.DownloadFetchcvd.assert_called_once()
         mock_check_call.assert_called_once()
         mock_ssh.ShellCmdWithRetry.assert_called_once()
         self.assertRegex(mock_ssh.ShellCmdWithRetry.call_args[0][0],
                          r"^tar -cf - --lzop -S -C \S+ super\.img \| "
                          r"/mock/ssh -- tar -xf - --lzop -S -C acloud_cf_1$")
+        # LaunchCvd
         mock_cvd_utils.ExecuteRemoteLaunchCvd.assert_called()
+        # FindLogFiles
         mock_pull.GetAllLogFilePaths.assert_not_called()
         mock_pull.PullLogs.assert_not_called()
         self.assertFalse(factory.GetFailures())
