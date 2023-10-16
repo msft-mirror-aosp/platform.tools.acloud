@@ -40,6 +40,7 @@ from acloud.pull import pull
 logger = logging.getLogger(__name__)
 _ALL_FILES = "*"
 _HOME_FOLDER = os.path.expanduser("~")
+_TEMP_PREFIX = "acloud_remote_host"
 
 
 class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
@@ -170,31 +171,70 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         """
         self._compute_client.SetStage(constants.STAGE_ARTIFACT)
         self._ssh.Run(f"mkdir -p {self._GetInstancePath()}")
-        if self._avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
-            cvd_utils.UploadArtifacts(
-                self._ssh, self._GetInstancePath(),
-                self._local_image_artifact or self._avd_spec.local_image_dir,
-                self._cvd_host_package_artifact)
-        else:
-            try:
-                artifacts_path = tempfile.mkdtemp()
-                logger.debug("Extracted path of artifacts: %s", artifacts_path)
+
+        launch_cvd_args = []
+        temp_dir = None
+        try:
+            target_files_dir = None
+            if cvd_utils.AreTargetFilesRequired(self._avd_spec):
+                if self._avd_spec.image_source != constants.IMAGE_SRC_LOCAL:
+                    temp_dir = tempfile.mkdtemp(prefix=_TEMP_PREFIX)
+                    self._DownloadTargetFiles(temp_dir)
+                    target_files_dir = temp_dir
+                elif self._local_image_artifact:
+                    temp_dir = tempfile.mkdtemp(prefix=_TEMP_PREFIX)
+                    cvd_utils.ExtractTargetFilesZip(self._local_image_artifact,
+                                                    temp_dir)
+                    target_files_dir = temp_dir
+                else:
+                    target_files_dir = self._avd_spec.local_image_dir
+
+            if self._avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
+                cvd_utils.UploadArtifacts(
+                    self._ssh, self._GetInstancePath(),
+                    (target_files_dir or self._local_image_artifact or
+                     self._avd_spec.local_image_dir),
+                    self._cvd_host_package_artifact)
+            else:
+                temp_dir = tempfile.mkdtemp(prefix=_TEMP_PREFIX)
+                logger.debug("Extracted path of artifacts: %s", temp_dir)
                 if self._avd_spec.remote_fetch:
                     # TODO: Check fetch cvd wrapper file is valid.
                     if self._avd_spec.fetch_cvd_wrapper:
-                        self._UploadFetchCvd(artifacts_path)
+                        self._UploadFetchCvd(temp_dir)
                         self._DownloadArtifactsByFetchWrapper()
                     else:
-                        self._UploadFetchCvd(artifacts_path)
+                        self._UploadFetchCvd(temp_dir)
                         self._DownloadArtifactsRemotehost()
                 else:
-                    self._DownloadArtifacts(artifacts_path)
-                    self._UploadRemoteImageArtifacts(artifacts_path)
-            finally:
-                shutil.rmtree(artifacts_path)
+                    self._DownloadArtifacts(temp_dir)
+                    self._UploadRemoteImageArtifacts(temp_dir)
 
-        return cvd_utils.UploadExtraImages(self._ssh, self._GetInstancePath(),
-                                           self._avd_spec)
+            launch_cvd_args.extend(
+                cvd_utils.UploadExtraImages(self._ssh, self._GetInstancePath(),
+                                            self._avd_spec, target_files_dir))
+        finally:
+            if temp_dir:
+                shutil.rmtree(temp_dir)
+
+        return launch_cvd_args
+
+    def _DownloadTargetFiles(self, temp_dir):
+        """Download and extract target files zip.
+
+        Args:
+            temp_dir: The directory where the zip is extracted.
+        """
+        build_target = self._avd_spec.remote_image[constants.BUILD_TARGET]
+        build_id = self._avd_spec.remote_image[constants.BUILD_ID]
+        with tempfile.NamedTemporaryFile(
+                prefix=_TEMP_PREFIX, suffix=".zip") as target_files_zip:
+            self._build_api.DownloadArtifact(
+                build_target, build_id,
+                cvd_utils.GetMixBuildTargetFilename(build_target, build_id),
+                target_files_zip.name)
+            cvd_utils.ExtractTargetFilesZip(target_files_zip.name,
+                                            temp_dir)
 
     def _GetRemoteFetchCredentialArg(self):
         """Get the credential source argument for remote fetch_cvd.
@@ -228,7 +268,8 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             self._avd_spec.kernel_build_info,
             self._avd_spec.boot_build_info,
             self._avd_spec.bootloader_build_info,
-            self._avd_spec.ota_build_info)
+            self._avd_spec.ota_build_info,
+            self._avd_spec.host_package_build_info)
 
         fetch_cvd_args = self._avd_spec.fetch_cvd_wrapper.split(',') + [
                         f"-directory={self._GetInstancePath()}",
@@ -250,7 +291,8 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             self._avd_spec.kernel_build_info,
             self._avd_spec.boot_build_info,
             self._avd_spec.bootloader_build_info,
-            self._avd_spec.ota_build_info)
+            self._avd_spec.ota_build_info,
+            self._avd_spec.host_package_build_info)
 
         fetch_cvd_args = [self._GetInstancePath(constants.FETCH_CVD),
                           f"-directory={self._GetInstancePath()}",
@@ -308,7 +350,8 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             self._avd_spec.kernel_build_info,
             self._avd_spec.boot_build_info,
             self._avd_spec.bootloader_build_info,
-            self._avd_spec.ota_build_info)
+            self._avd_spec.ota_build_info,
+            self._avd_spec.host_package_build_info)
         creds_cache_file = os.path.join(_HOME_FOLDER, cfg.creds_cache_file)
         fetch_cvd_cert_arg = self._build_api.GetFetchCertArg(creds_cache_file)
         fetch_cvd_args = [fetch_cvd, f"-directory={extract_path}",

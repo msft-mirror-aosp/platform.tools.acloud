@@ -245,6 +245,25 @@ def AddCommonCreateArgs(parser):
         help="'cuttlefish only' OTA tools build target, e.g. "
         "cf_x86_64_phone-userdebug.")
     parser.add_argument(
+        "--host-package-branch", "--host_package_branch",
+        type=str,
+        dest="host_package_branch",
+        required=False,
+        help="'cuttlefish only' Host package branch name. e.g. aosp-main")
+    parser.add_argument(
+        "--host-package-build-id", "--host_package_build_id",
+        type=str,
+        dest="host_package_build_id",
+        required=False,
+        help="'cuttlefish only' Host package build id, e.g. 2145099, P2804227")
+    parser.add_argument(
+        "--host-package-build-target", "--host_package_build_target",
+        type=str,
+        dest="host_package_build_target",
+        required=False,
+        help="'cuttlefish only' Host package build target, e.g. "
+        "cf_x86_64_phone-userdebug.")
+    parser.add_argument(
         "--system-branch",
         type=str,
         dest="system_branch",

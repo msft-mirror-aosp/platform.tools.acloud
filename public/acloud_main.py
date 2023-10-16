@@ -70,6 +70,7 @@ Try $acloud [cmd] --help for further details.
 from __future__ import print_function
 import argparse
 import logging
+import os
 import sys
 import traceback
 
@@ -155,7 +156,8 @@ def _ParseArgs(args):
         powerwash_args.CMD_POWERWASH,
         pull_args.CMD_PULL,
         restart_args.CMD_RESTART,
-        hostcleanup_args.CMD_HOSTCLEANUP]
+        hostcleanup_args.CMD_HOSTCLEANUP,
+        CMD_CREATE_GOLDFISH]
     usage = ",".join(acloud_cmds)
     parser = argparse.ArgumentParser(
         description=__doc__,
@@ -292,6 +294,18 @@ def _VerifyArgs(parsed_args):
                 "--serial_log_file must ends with .tar.gz")
 
 
+def _ValidateAuthFile(cfg):
+    """Check if the authentication file exist.
+
+    Args:
+        cfg: AcloudConfig object.
+    """
+    auth_file = os.path.join(os.path.expanduser("~"), cfg.creds_cache_file)
+    if not os.path.exists(auth_file):
+        print("Notice: Acloud will bring up browser to proceed authentication. "
+              "For cloudtop, please run in remote desktop.")
+
+
 def _ParsingConfig(args, cfg):
     """Parse config to check if missing any field.
 
@@ -386,6 +400,7 @@ def main(argv=None):
 
     cfg = config.GetAcloudConfig(args)
     parsing_config_error = _ParsingConfig(args, cfg)
+    _ValidateAuthFile(cfg)
     # TODO: Move this check into the functions it is actually needed.
     # Check access.
     # device_driver.CheckAccess(cfg)

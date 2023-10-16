@@ -19,6 +19,7 @@ import subprocess
 import tempfile
 import unittest
 from unittest import mock
+import zipfile
 
 from acloud import errors
 from acloud.create import create_common
@@ -58,6 +59,27 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
         self.assertEqual([6444], cvd_utils.GetVncPorts(1, 1))
         self.assertEqual([6445, 6446], cvd_utils.GetVncPorts(2, 2))
 
+    def testExtractTargetFilesZip(self):
+        """Test ExtractTargetFilesZip."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            zip_path = os.path.join(temp_dir, "in.zip")
+            output_dir = os.path.join(temp_dir, "out")
+            with zipfile.ZipFile(zip_path, "w") as zip_file:
+                for entry in ["IMAGES/", "META/", "test.img",
+                              "IMAGES/system.img", "IMAGES/system.map",
+                              "IMAGES/bootloader", "IMAGES/kernel",
+                              "META/misc_info.txt"]:
+                    zip_file.writestr(entry, "")
+            cvd_utils.ExtractTargetFilesZip(zip_path, output_dir)
+
+            self.assertEqual(["IMAGES", "META"],
+                             sorted(os.listdir(output_dir)))
+            self.assertEqual(
+                ["bootloader", "kernel", "system.img"],
+                sorted(os.listdir(os.path.join(output_dir, "IMAGES"))))
+            self.assertEqual(["misc_info.txt"],
+                             os.listdir(os.path.join(output_dir, "META")))
+
     @staticmethod
     @mock.patch("acloud.internal.lib.cvd_utils.os.path.isdir",
                 return_value=False)
@@ -70,11 +92,10 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
                                      "/mock/img.zip")
         mock_ssh.Run.assert_any_call("tar -xzf - -C dir < /mock/cvd.tar.gz")
 
-    @staticmethod
     @mock.patch("acloud.internal.lib.cvd_utils.glob")
     @mock.patch("acloud.internal.lib.cvd_utils.os.path.isdir")
     @mock.patch("acloud.internal.lib.cvd_utils.ssh.ShellCmdWithRetry")
-    def testUploadImageDir(mock_shell, mock_isdir, mock_glob):
+    def testUploadImageDir(self, mock_shell, mock_isdir, mock_glob):
         """Test UploadArtifacts with image directory."""
         mock_isdir.side_effect = lambda path: path != "/mock/cvd.tar.gz"
         mock_ssh = mock.Mock()
@@ -83,6 +104,8 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
                                     "super.img bootloader kernel android-info.txt | "
                                     "/mock/ssh -- "
                                     "tar -xf - --lzop -S -C remote/dir")
+        expected_target_files_shell_cmd = expected_image_shell_cmd.replace(
+            "local/dir", "local/dir/IMAGES")
         expected_cvd_tar_ssh_cmd = "tar -xzf - -C remote/dir < /mock/cvd.tar.gz"
         expected_cvd_dir_shell_cmd = ("tar -cf - --lzop -S -C /mock/cvd . | "
                                       "/mock/ssh -- "
@@ -95,11 +118,12 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
                                       "/mock/cvd")
         mock_open.assert_called_with("local/dir/required_images", "r",
                                      encoding="utf-8")
-        mock_glob.glob.assert_not_called()
+        mock_glob.glob.assert_called_once_with("local/dir/*.img")
         mock_shell.assert_has_calls([mock.call(expected_image_shell_cmd),
                                      mock.call(expected_cvd_dir_shell_cmd)])
 
         # Test with required_images file.
+        mock_glob.glob.reset_mock()
         mock_ssh.reset_mock()
         mock_shell.reset_mock()
         mock_open = mock.mock_open(read_data="super.img\nbootloader\nkernel")
@@ -108,21 +132,23 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
                                       "/mock/cvd.tar.gz")
         mock_open.assert_called_with("local/dir/required_images", "r",
                                      encoding="utf-8")
-        mock_glob.glob.assert_not_called()
+        mock_glob.glob.assert_called_once_with("local/dir/*.img")
         mock_shell.assert_called_with(expected_image_shell_cmd)
         mock_ssh.Run.assert_called_with(expected_cvd_tar_ssh_cmd)
 
-        # Test with glob.
+        # Test with target files directory and glob.
+        mock_glob.glob.reset_mock()
         mock_ssh.reset_mock()
         mock_shell.reset_mock()
         mock_glob.glob.side_effect = (
-            lambda path: [path.replace("*", "super")])
+            lambda path: [path.replace("*", "super")] if
+                         path.startswith("local/dir/IMAGES") else [])
         with mock.patch("acloud.internal.lib.cvd_utils.open",
                         side_effect=IOError("file does not exist")):
             cvd_utils.UploadArtifacts(mock_ssh, "remote/dir", "local/dir",
                                       "/mock/cvd.tar.gz")
-        mock_glob.glob.assert_called()
-        mock_shell.assert_called_with(expected_image_shell_cmd)
+        self.assertGreater(mock_glob.glob.call_count, 2)
+        mock_shell.assert_called_with(expected_target_files_shell_cmd)
         mock_ssh.Run.assert_called_with(expected_cvd_tar_ssh_cmd)
 
     @mock.patch("acloud.internal.lib.cvd_utils.create_common")
@@ -134,8 +160,10 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             self.CreateFile(os.path.join(image_dir, "vendor_boot.img"))
 
             mock_avd_spec = mock.Mock(local_kernel_image="boot.img",
+                                      local_system_image=None,
                                       local_vendor_image=None)
-            args = cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec)
+            args = cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec,
+                                               None)
             self.assertEqual(["-boot_image", "dir/acloud_image/boot.img"],
                              args)
             mock_ssh.Run.assert_called_once_with("mkdir -p dir/acloud_image")
@@ -144,8 +172,8 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
 
             mock_ssh.reset_mock()
             mock_avd_spec.local_kernel_image = image_dir
-            mock_avd_spec.local_vendor_image = None
-            args = cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec)
+            args = cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec,
+                                               None)
             self.assertEqual(
                 ["-boot_image", "dir/acloud_image/boot.img",
                  "-vendor_boot_image", "dir/acloud_image/vendor_boot.img"],
@@ -163,14 +191,16 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             self.CreateFile(os.path.join(image_dir, "boot.img"))
 
             mock_avd_spec = mock.Mock(local_kernel_image=kernel_image_path,
+                                      local_system_image=None,
                                       local_vendor_image=None)
             with self.assertRaises(errors.GetLocalImageError):
-                cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec)
+                cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec,
+                                            None)
 
             mock_ssh.reset_mock()
             mock_avd_spec.local_kernel_image = image_dir
-            mock_avd_spec.local_vendor_image = None
-            args = cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec)
+            args = cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec,
+                                               None)
             self.assertEqual(
                 ["-kernel_path", "dir/acloud_image/kernel",
                  "-initramfs_path", "dir/acloud_image/initramfs.img"],
@@ -179,41 +209,48 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             self.assertEqual(2, mock_ssh.ScpPushFile.call_count)
 
     @mock.patch("acloud.internal.lib.ota_tools.FindOtaTools")
-    def testUploadVbmetaImages(self, mock_find_ota_tools):
+    @mock.patch("acloud.internal.lib.ssh.ShellCmdWithRetry")
+    def testUploadSuperImage(self, mock_shell, mock_find_ota_tools):
         """Test UploadExtraImages."""
         self.Patch(create_common, "GetNonEmptyEnvVars", return_value=[])
         mock_ssh = mock.Mock()
         mock_ota_tools_object = mock.Mock()
         mock_find_ota_tools.return_value = mock_ota_tools_object
-        mock_avd_spec = mock.Mock(
-            local_kernel_image=None,
-            local_vendor_image="vendor.img",
-            local_tool_dirs=[])
 
-        args = cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec)
+        with tempfile.TemporaryDirectory(prefix="cvd_utils") as temp_dir:
+            target_files_dir = os.path.join(temp_dir, "target_files")
+            extra_image_dir = os.path.join(temp_dir, "extra")
+            mock_avd_spec = mock.Mock(local_kernel_image=None,
+                                      local_system_image=extra_image_dir,
+                                      local_vendor_image=extra_image_dir,
+                                      local_tool_dirs=[])
+            self.CreateFile(
+                os.path.join(target_files_dir, "IMAGES", "boot.img"))
+            self.CreateFile(
+                os.path.join(target_files_dir, "META", "misc_info.txt"))
+            for image_name in ["system.img", "vendor.img", "vendor_dlkm.img",
+                               "odm.img", "odm_dlkm.img"]:
+                self.CreateFile(os.path.join(extra_image_dir, image_name))
+            args = cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec,
+                                               target_files_dir)
+
         self.assertEqual(
-            ["-vbmeta_image", "dir/acloud_image/vbmeta.img"],
+            ["-super_image", "dir/acloud_image/super.img",
+             "-vbmeta_image", "dir/acloud_image/vbmeta.img"],
             args)
-        mock_ssh.Run.assert_called_once()
-        mock_ssh.ScpPushFile.assert_called_once()
         mock_find_ota_tools.assert_called_once_with([])
+        mock_ssh.Run.assert_called_once_with("mkdir -p dir/acloud_image")
+        # Super image
+        mock_shell.assert_called_once()
+        upload_args = mock_shell.call_args[0]
+        self.assertEqual(1, len(upload_args))
+        self.assertIn(" super.img", upload_args[0])
+        self.assertIn("dir/acloud_image", upload_args[0])
+        mock_ota_tools_object.MixSuperImage.assert_called_once()
+        # vbmeta image
         mock_ota_tools_object.MakeDisabledVbmetaImage.assert_called_once()
-
-    @mock.patch("acloud.internal.lib.cvd_utils.ssh.ShellCmdWithRetry")
-    def testUploadSuperImage(self, mock_shell_cmd_with_retry):
-        """Test UploadSuperImage."""
-        mock_ssh = mock.Mock()
-        self.assertEqual(
-            ["-super_image",
-             "/remote/cvd/dir/acloud_image/super_image_dir/super.img"],
-            cvd_utils.UploadSuperImage(mock_ssh, "/remote/cvd/dir",
-                                       "/local/path/to/super.img"))
-        mock_shell_cmd_with_retry.assert_called_once()
-        args = mock_shell_cmd_with_retry.call_args[0]
-        self.assertEqual(1, len(args))
-        self.assertIn("/local/path/to", args[0])
-        self.assertIn("super.img", args[0])
-        self.assertIn("/remote/cvd/dir/acloud_image/super_image_dir", args[0])
+        mock_ssh.ScpPushFile.assert_called_once_with(
+            mock.ANY, "dir/acloud_image/vbmeta.img")
 
     def testCleanUpRemoteCvd(self):
         """Test CleanUpRemoteCvd."""
