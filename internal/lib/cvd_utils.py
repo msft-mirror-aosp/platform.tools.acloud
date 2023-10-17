@@ -38,13 +38,10 @@ logger = logging.getLogger(__name__)
 
 # Local build artifacts to be uploaded.
 _ARTIFACT_FILES = ["*.img", "bootloader", "kernel"]
-# The boot image name pattern corresponds to the use cases:
-# - In a cuttlefish build environment, ANDROID_PRODUCT_OUT conatins boot.img
-#   and boot-debug.img. The former is the default boot image. The latter is not
-#   useful for cuttlefish.
-# - In an officially released GKI (Generic Kernel Image) package, the image
-#   name is boot-<kernel version>.img.
-_BOOT_IMAGE_NAME_PATTERN = r"boot(-[\d.]+)?\.img"
+_SYSTEM_DLKM_IMAGE_NAMES = (
+    "system_dlkm.flatten.ext4.img",  # GKI artifact
+    "system_dlkm.img",  # cuttlefish artifact
+)
 _VENDOR_BOOT_IMAGE_NAME = "vendor_boot.img"
 _KERNEL_IMAGE_NAMES = ("kernel", "bzImage", "Image")
 _INITRAMFS_IMAGE_NAME = "initramfs.img"
@@ -362,6 +359,32 @@ def _UploadKernelImages(ssh_obj, remote_dir, search_path):
         f"{search_path} is not a boot image or a directory containing images.")
 
 
+def _FindSystemDlkmImage(search_path):
+    """Find system_dlkm image in a path.
+
+    Args:
+        search_path: A path to an image file or an image directory.
+
+    Returns:
+        The system_dlkm image path.
+
+    Raises:
+        errors.GetLocalImageError if search_path does not contain a
+        system_dlkm image.
+    """
+    if os.path.isfile(search_path):
+        return search_path
+
+    for name in _SYSTEM_DLKM_IMAGE_NAMES:
+        path = os.path.join(search_path, name)
+        if os.path.isfile(path):
+            return path
+
+    raise errors.GetLocalImageError(
+        f"{search_path} is not a system_dlkm image or a directory containing "
+        "images.")
+
+
 def _MixSuperImage(super_image_path, avd_spec, target_files_dir, ota):
     """Mix super image from device images and extra images.
 
@@ -378,6 +401,7 @@ def _MixSuperImage(super_image_path, avd_spec, target_files_dir, ota):
     system_image_path = None
     system_ext_image_path = None
     product_image_path = None
+    system_dlkm_image_path = None
     vendor_image_path = None
     vendor_dlkm_image_path = None
     odm_image_path = None
@@ -389,6 +413,10 @@ def _MixSuperImage(super_image_path, avd_spec, target_files_dir, ota):
             system_ext_image_path,
             product_image_path,
         ) = create_common.FindSystemImages(avd_spec.local_system_image)
+
+    if avd_spec.local_system_dlkm_image:
+        system_dlkm_image_path = _FindSystemDlkmImage(
+            avd_spec.local_system_dlkm_image)
 
     if avd_spec.local_vendor_image:
         (
@@ -402,6 +430,7 @@ def _MixSuperImage(super_image_path, avd_spec, target_files_dir, ota):
                       system_image=system_image_path,
                       system_ext_image=system_ext_image_path,
                       product_image=product_image_path,
+                      system_dlkm_image=system_dlkm_image_path,
                       vendor_image=vendor_image_path,
                       vendor_dlkm_image=vendor_dlkm_image_path,
                       odm_image=odm_image_path,
@@ -428,7 +457,8 @@ def _UploadVbmetaImage(ssh_obj, remote_dir, vbmeta_image_path):
 
 def AreTargetFilesRequired(avd_spec):
     """Return whether UploadExtraImages requires target_files_dir."""
-    return bool(avd_spec.local_system_image or avd_spec.local_vendor_image)
+    return bool(avd_spec.local_system_image or avd_spec.local_vendor_image or
+                avd_spec.local_system_dlkm_image)
 
 
 def UploadExtraImages(ssh_obj, remote_dir, avd_spec, target_files_dir):
@@ -461,7 +491,8 @@ def UploadExtraImages(ssh_obj, remote_dir, avd_spec, target_files_dir):
     if AreTargetFilesRequired(avd_spec):
         if not target_files_dir:
             raise ValueError("target_files_dir is required when avd_spec has "
-                             "local system image or local vendor image.")
+                             "local system image, local system_dlkm image, or "
+                             "local vendor image.")
         ota = ota_tools.FindOtaTools(
             avd_spec.local_tool_dirs + create_common.GetNonEmptyEnvVars(
                 constants.ENV_ANDROID_SOONG_HOST_OUT,
@@ -704,7 +735,7 @@ def ExecuteRemoteLaunchCvd(ssh_obj, cmd, boot_timeout_secs):
         An empty string if the command succeeds.
     """
     try:
-        ssh_obj.Run(f"'{cmd}'", boot_timeout_secs, retry=0)
+        ssh_obj.Run(f"-t '{cmd}'", boot_timeout_secs, retry=0)
     except (subprocess.CalledProcessError, errors.DeviceConnectionError,
             errors.LaunchCVDFail) as e:
         error_msg = ("Device did not finish on boot within "

@@ -121,22 +121,27 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         # Specified --local-*-image with dirs.
         self.args.local_kernel_image = expected_image_dir
         self.args.local_system_image = expected_image_dir
+        self.args.local_system_dlkm_image = expected_image_dir
         self.args.local_vendor_image = expected_image_dir
         self.AvdSpec._ProcessImageArgs(self.args)
         self.assertEqual(self.AvdSpec.local_kernel_image, expected_image_dir)
         self.assertEqual(self.AvdSpec.local_system_image, expected_image_dir)
+        self.assertEqual(self.AvdSpec.local_system_dlkm_image, expected_image_dir)
         self.assertEqual(self.AvdSpec.local_vendor_image, expected_image_dir)
 
         # Specified --local-*-image with files.
         self.args.local_kernel_image = expected_image_file
         self.args.local_system_image = expected_image_file
+        self.args.local_system_dlkm_image = expected_image_file
         self.AvdSpec._ProcessImageArgs(self.args)
         self.assertEqual(self.AvdSpec.local_kernel_image, expected_image_file)
         self.assertEqual(self.AvdSpec.local_system_image, expected_image_file)
+        self.assertEqual(self.AvdSpec.local_system_dlkm_image, expected_image_file)
 
         # Specified --local-*-image without args.
         self.args.local_kernel_image = constants.FIND_IN_BUILD_ENV
         self.args.local_system_image = constants.FIND_IN_BUILD_ENV
+        self.args.local_system_dlkm_image = constants.FIND_IN_BUILD_ENV
         self.args.local_vendor_image = constants.FIND_IN_BUILD_ENV
         with mock.patch("acloud.create.avd_spec.utils."
                         "GetBuildEnvironmentVariable",
@@ -144,6 +149,7 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
             self.AvdSpec._ProcessImageArgs(self.args)
         self.assertEqual(self.AvdSpec.local_kernel_image, expected_image_dir)
         self.assertEqual(self.AvdSpec.local_system_image, expected_image_dir)
+        self.assertEqual(self.AvdSpec.local_system_dlkm_image, expected_image_dir)
         self.assertEqual(self.AvdSpec.local_vendor_image, expected_image_dir)
 
     def testProcessAutoconnect(self):
