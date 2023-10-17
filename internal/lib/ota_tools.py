@@ -301,9 +301,9 @@ class OtaTools:
 
     def MixSuperImage(self, super_image, misc_info, image_dir,
                       system_image=None, system_ext_image=None,
-                      product_image=None, vendor_image=None,
-                      vendor_dlkm_image=None, odm_image=None,
-                      odm_dlkm_image=None):
+                      product_image=None, system_dlkm_image=None,
+                      vendor_image=None, vendor_dlkm_image=None,
+                      odm_image=None, odm_dlkm_image=None):
         """Create mixed super image from device images and given partition
         images.
 
@@ -314,6 +314,7 @@ class OtaTools:
             system_image: Path to the system image.
             system_ext_image: Path to the system_ext image.
             product_image: Path to the product image.
+            system_dlkm_image: Path to the system_dlkm image.
             vendor_image: Path to the vendor image.
             vendor_dlkm_image: Path to the vendor_dlkm image.
             odm_image: Path to the odm image.
@@ -326,6 +327,7 @@ class OtaTools:
                 system=system_image,
                 system_ext=system_ext_image,
                 product=product_image,
+                system_dlkm=system_dlkm_image,
                 vendor=vendor_image,
                 vendor_dlkm=vendor_dlkm_image,
                 odm=odm_image,
