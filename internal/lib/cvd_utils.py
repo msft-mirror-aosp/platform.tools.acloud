@@ -735,7 +735,7 @@ def ExecuteRemoteLaunchCvd(ssh_obj, cmd, boot_timeout_secs):
         An empty string if the command succeeds.
     """
     try:
-        ssh_obj.Run(f"'{cmd}'", boot_timeout_secs, retry=0)
+        ssh_obj.Run(f"-t '{cmd}'", boot_timeout_secs, retry=0)
     except (subprocess.CalledProcessError, errors.DeviceConnectionError,
             errors.LaunchCVDFail) as e:
         error_msg = ("Device did not finish on boot within "
