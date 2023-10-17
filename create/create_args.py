@@ -591,6 +591,16 @@ def GetCreateArgParser(subparser):
         "e.g., --local-system-image, --local-system-image /path/to/dir, or "
         "--local-system-image /path/to/img")
     create_parser.add_argument(
+        "--local-system_dlkm-image",
+        const=constants.FIND_IN_BUILD_ENV,
+        type=str,
+        dest="local_system_dlkm_image",
+        nargs="?",
+        required=False,
+        help="`cuttlefish only` Use the locally built system_dlkm image for "
+        "the AVD. Look for the image in $ANDROID_PRODUCT_OUT if no args value "
+        "is provided.")
+    create_parser.add_argument(
         "--local-vendor-image",
         const=constants.FIND_IN_BUILD_ENV,
         type=str,
