@@ -161,6 +161,7 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
 
             mock_avd_spec = mock.Mock(local_kernel_image="boot.img",
                                       local_system_image=None,
+                                      local_system_dlkm_image=None,
                                       local_vendor_image=None)
             args = cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec,
                                                None)
@@ -192,6 +193,7 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
 
             mock_avd_spec = mock.Mock(local_kernel_image=kernel_image_path,
                                       local_system_image=None,
+                                      local_system_dlkm_image=None,
                                       local_vendor_image=None)
             with self.assertRaises(errors.GetLocalImageError):
                 cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec,
@@ -222,14 +224,15 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             extra_image_dir = os.path.join(temp_dir, "extra")
             mock_avd_spec = mock.Mock(local_kernel_image=None,
                                       local_system_image=extra_image_dir,
+                                      local_system_dlkm_image=extra_image_dir,
                                       local_vendor_image=extra_image_dir,
                                       local_tool_dirs=[])
             self.CreateFile(
                 os.path.join(target_files_dir, "IMAGES", "boot.img"))
             self.CreateFile(
                 os.path.join(target_files_dir, "META", "misc_info.txt"))
-            for image_name in ["system.img", "vendor.img", "vendor_dlkm.img",
-                               "odm.img", "odm_dlkm.img"]:
+            for image_name in ["system.img", "system_dlkm.img", "vendor.img",
+                               "vendor_dlkm.img", "odm.img", "odm_dlkm.img"]:
                 self.CreateFile(os.path.join(extra_image_dir, image_name))
             args = cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec,
                                                target_files_dir)
@@ -246,7 +249,16 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(1, len(upload_args))
         self.assertIn(" super.img", upload_args[0])
         self.assertIn("dir/acloud_image", upload_args[0])
-        mock_ota_tools_object.MixSuperImage.assert_called_once()
+        mock_ota_tools_object.MixSuperImage.assert_called_once_with(
+            mock.ANY, mock.ANY, os.path.join(target_files_dir, "IMAGES"),
+            system_image=os.path.join(extra_image_dir, "system.img"),
+            system_ext_image=None,
+            product_image=None,
+            system_dlkm_image=os.path.join(extra_image_dir, "system_dlkm.img"),
+            vendor_image=os.path.join(extra_image_dir, "vendor.img"),
+            vendor_dlkm_image=os.path.join(extra_image_dir, "vendor_dlkm.img"),
+            odm_image=os.path.join(extra_image_dir, "odm.img"),
+            odm_dlkm_image=os.path.join(extra_image_dir, "odm_dlkm.img"))
         # vbmeta image
         mock_ota_tools_object.MakeDisabledVbmetaImage.assert_called_once()
         mock_ssh.ScpPushFile.assert_called_once_with(
