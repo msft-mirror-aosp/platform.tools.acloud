@@ -21,4 +21,4 @@ good-names=e, f, logger, ip, main
 ignore-imports=yes
 
 [Master]
-init-hook='import sys; sys.path.append(os.path.join(os.path.expandvars("$ANDROID_BUILD_TOP"), "external", "python", "mock"))'
+init-hook='import os, sys; sys.path.append(os.path.join(os.path.expandvars("$ANDROID_BUILD_TOP"), "external", "python", "mock"))'
