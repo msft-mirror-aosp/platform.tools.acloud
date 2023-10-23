@@ -449,9 +449,9 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             # No known use case requires replacing system_ext and product.
             system_image_path = create_common.FindSystemImages(
                 avd_spec.local_system_image).system
-            mixed_image = goldfish_utils.MixWithSystemImage(
+            mixed_image = goldfish_utils.MixDiskImage(
                 os.path.join(instance_dir, "mix_disk"), image_dir,
-                system_image_path,
+                system_image_path, None,  # system_dlkm is not implemented.
                 ota_tools.FindOtaTools(ota_tools_search_paths))
 
             # TODO(b/142228085): Use -system instead of modifying image_dir.
