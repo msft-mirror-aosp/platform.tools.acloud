@@ -250,6 +250,7 @@ class AcloudConfig():
         else:
             self.enable_multi_stage = False
         self.disk_type = usr_cfg.disk_type
+        self.use_cvdr = usr_cfg.use_cvdr
 
         # Verify validity of configurations.
         self.Verify()
