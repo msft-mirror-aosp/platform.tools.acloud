@@ -386,7 +386,7 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             "--webrtc_device_id=pet-name "
             "--start_vnc_server=true "
             "-console=true "
-            "-num_instances=2 --base-instance-num=3 "
+            "-num_instances=2 --base_instance_num=3 "
             "--setupwizard_mode=REQUIRED "
             "-undefok=report_anonymous_usage_stats,config "
             "-report_anonymous_usage_stats=y")
