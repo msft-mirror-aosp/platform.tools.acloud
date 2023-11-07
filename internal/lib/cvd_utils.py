@@ -691,7 +691,7 @@ def _GetLaunchCvdArgs(avd_spec, config):
             _NUM_AVDS_ARG % {"num_AVD": avd_spec.num_avds_per_instance})
     if avd_spec.base_instance_num:
         launch_cvd_args.append(
-            "--base-instance-num=" + str(avd_spec.base_instance_num))
+            "--base_instance_num=" + str(avd_spec.base_instance_num))
     if avd_spec.launch_args:
         # b/286321583: Need to process \" as ".
         launch_cvd_args.append(avd_spec.launch_args.replace("\\\"", "\""))
