@@ -597,7 +597,7 @@ def GetCreateArgParser(subparser):
         dest="local_system_dlkm_image",
         nargs="?",
         required=False,
-        help="`cuttlefish only` Use the locally built system_dlkm image for "
+        help="`remote host only` Use the locally built system_dlkm image for "
         "the AVD. Look for the image in $ANDROID_PRODUCT_OUT if no args value "
         "is provided.")
     create_parser.add_argument(

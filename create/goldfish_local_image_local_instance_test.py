@@ -61,8 +61,8 @@ class GoldfishLocalImageLocalInstance(driver_test_lib.BaseDriverTest):
         with open(path, "w") as _:
             pass
 
-    def _MockMixWithSystemImage(self, output_dir, *_args):
-        """Mock goldfish_utils.MixWithSystemImage."""
+    def _MockMixDiskImage(self, output_dir, *_args):
+        """Mock goldfish_utils.MixDiskImage."""
         self.assertEqual(os.path.join(self._instance_dir, "mix_disk"),
                          output_dir)
         output_path = os.path.join(output_dir, "mixed_disk.img")
@@ -116,8 +116,7 @@ class GoldfishLocalImageLocalInstance(driver_test_lib.BaseDriverTest):
         mock_popen.side_effect = self._MockPopen
 
         mock_gf_utils.SYSTEM_QEMU_IMAGE_NAME = "system-qemu.img"
-        mock_gf_utils.MixWithSystemImage.side_effect = (
-            self._MockMixWithSystemImage)
+        mock_gf_utils.MixDiskImage.side_effect = self._MockMixDiskImage
         mock_gf_utils.MixWithBootImage.side_effect = self._MockMixWithBootImage
         mock_gf_utils.ConvertAvdSpecToArgs.return_value = ["-gpu", "auto"]
 
@@ -372,9 +371,9 @@ class GoldfishLocalImageLocalInstance(driver_test_lib.BaseDriverTest):
 
         mock_ota_tools.FindOtaTools.assert_called_once_with([self._tool_dir])
 
-        mock_gf_utils.MixWithSystemImage.assert_called_once_with(
+        mock_gf_utils.MixDiskImage.assert_called_once_with(
             mock.ANY, os.path.join(self._image_dir, "x86"), system_image_path,
-            mock_ota_tools.FindOtaTools.return_value)
+            None, mock_ota_tools.FindOtaTools.return_value)
 
         mock_utils.SetExecutable.assert_called_with(self._emulator_path)
         mock_popen.assert_called_once()
@@ -530,8 +529,8 @@ class GoldfishLocalImageLocalInstance(driver_test_lib.BaseDriverTest):
             os.path.join(self._tool_dir, "soong"),
             os.path.join(self._tool_dir, "host")])
 
-        mock_gf_utils.MixWithSystemImage.assert_called_once_with(
-            mock.ANY, self._image_dir, system_image_path,
+        mock_gf_utils.MixDiskImage.assert_called_once_with(
+            mock.ANY, self._image_dir, system_image_path, None,
             mock_ota_tools.FindOtaTools.return_value)
 
         mock_utils.SetExecutable.assert_called_with(self._emulator_path)
