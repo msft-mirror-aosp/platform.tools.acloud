@@ -82,7 +82,7 @@ _MISSING_EMULATOR_MSG = ("No emulator zip. Specify "
 ArtifactPaths = collections.namedtuple(
     "ArtifactPaths",
     ["image_zip", "emulator_zip", "ota_tools_dir",
-     "system_image", "boot_image"])
+     "system_image", "system_dlkm_image", "boot_image"])
 
 RemotePaths = collections.namedtuple(
     "RemotePaths",
@@ -346,6 +346,14 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         else:
             system_image_path = self._RetrieveSystemImage()
 
+        # system_dlkm image.
+        if self._avd_spec.local_system_dlkm_image:
+            system_dlkm_image_path = goldfish_utils.FindSystemDlkmImage(
+                self._avd_spec.local_system_dlkm_image)
+        else:
+            # No known use case requires remote system_dlkm.
+            system_dlkm_image_path = None
+
         # Boot image.
         if self._avd_spec.local_kernel_image:
             boot_image_path = create_common.FindBootImage(
@@ -355,7 +363,7 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
 
         # OTA tools.
         ota_tools_dir = None
-        if system_image_path or boot_image_path:
+        if system_image_path or system_dlkm_image_path or boot_image_path:
             if self._avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
                 ota_tools_dir = self._RetrieveOtaTools()
             else:
@@ -366,7 +374,8 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
                         constants.ENV_ANDROID_HOST_OUT))
 
         return ArtifactPaths(image_zip_path, emu_zip_path, ota_tools_dir,
-                             system_image_path, boot_image_path)
+                             system_image_path, system_dlkm_image_path,
+                             boot_image_path)
 
     def _RetrieveDeviceImageZip(self):
         """Retrieve device image zip from cache or Android Build API.
@@ -524,7 +533,8 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         remote_kernel_path = None
         remote_ramdisk_path = None
 
-        if artifact_paths.boot_image or artifact_paths.system_image:
+        if (artifact_paths.boot_image or artifact_paths.system_image or
+                artifact_paths.system_dlkm_image):
             with tempfile.TemporaryDirectory("host_gf") as temp_dir:
                 ota = ota_tools.OtaTools(artifact_paths.ota_tools_dir)
 
@@ -537,10 +547,12 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
                     image_dir,
                     self._GetSubdirNameInZip(artifact_paths.image_zip))
 
-                if artifact_paths.system_image:
+                if (artifact_paths.system_image or
+                        artifact_paths.system_dlkm_image):
                     self._MixAndUploadDiskImage(
                         remote_image_dir, image_dir,
-                        artifact_paths.system_image, ota)
+                        artifact_paths.system_image,
+                        artifact_paths.system_dlkm_image, ota)
 
                 if artifact_paths.boot_image:
                     remote_kernel_path, remote_ramdisk_path = (
@@ -554,15 +566,17 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         """Determines whether a mixed disk image is required.
 
         This method checks whether the user requires to replace an image that
-        is part of the disk image. Acloud supports replacing system and kernel
-        images. Only the system is installed on the disk.
+        is part of the disk image. Acloud supports replacing system,
+        system_dlkm, and kernel images. system and system_dlkm are installed
+        on the disk.
 
         Returns:
             Boolean, whether a mixed disk image is required.
         """
-        return self._avd_spec.local_system_image or (
-            self._avd_spec.system_build_info.get(constants.BUILD_ID) and
-            self._avd_spec.system_build_info.get(constants.BUILD_TARGET))
+        return (self._avd_spec.local_system_image or
+                self._avd_spec.local_system_dlkm_image or
+                (self._avd_spec.system_build_info.get(constants.BUILD_ID) and
+                 self._avd_spec.system_build_info.get(constants.BUILD_TARGET)))
 
     @utils.TimeExecute(
         function_description="Processing and uploading tools and images")
@@ -608,22 +622,24 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         return remote_emulator_subdir, remote_image_subdir
 
     def _MixAndUploadDiskImage(self, remote_image_dir, image_dir,
-                               system_image_path, ota):
-        """Mix emulator images with a system image and upload them.
+                               system_image_path, system_dlkm_image_path, ota):
+        """Mix emulator, system, and system_dlkm images and upload them.
 
         Args:
             remote_image_dir: The remote directory where the mixed disk image
                               is uploaded.
             image_dir: The directory containing emulator images.
             system_image_path: The path to the system image.
+            system_dlkm_image_path: The path to the system_dlkm image.
             ota: An instance of ota_tools.OtaTools.
 
         Returns:
             The remote path to the mixed disk image.
         """
         with tempfile.TemporaryDirectory("host_gf_disk") as temp_dir:
-            mixed_image = goldfish_utils.MixWithSystemImage(
-                temp_dir, image_dir, system_image_path, ota)
+            mixed_image = goldfish_utils.MixDiskImage(
+                temp_dir, image_dir, system_image_path, system_dlkm_image_path,
+                ota)
 
             # TODO(b/142228085): Use -system instead of overwriting the file.
             remote_disk_image_path = os.path.join(
