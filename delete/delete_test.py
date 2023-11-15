@@ -384,7 +384,6 @@ class DeleteTest(driver_test_lib.BaseDriverTest):
         args.remote_host = None
         args.local_only = True
         args.adb_port = None
-        args.fastboot_port = None
         args.all = True
 
         self.Patch(delete, "_ReleaseOxygenDevice")
