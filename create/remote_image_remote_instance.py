@@ -73,8 +73,7 @@ class RemoteImageRemoteInstance(base_avd_create.BaseAVDCreate):
             unlock_screen=avd_spec.unlock_screen,
             wait_for_boot=False,
             connect_webrtc=avd_spec.connect_webrtc,
-            client_adb_port=avd_spec.client_adb_port,
-            client_fastboot_port=avd_spec.client_fastboot_port)
+            client_adb_port=avd_spec.client_adb_port)
         if create_report.status == report.Status.SUCCESS:
             if avd_spec.connect_vnc:
                 utils.LaunchVNCFromReport(create_report, avd_spec, no_prompts)

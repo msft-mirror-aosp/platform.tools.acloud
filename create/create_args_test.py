@@ -30,7 +30,6 @@ def _CreateArgs():
         flavor=None,
         num=1,
         adb_port=None,
-        fastboot_port=None,
         hw_property=None,
         stable_cheeps_host_image_name=None,
         stable_cheeps_host_image_project=None,
