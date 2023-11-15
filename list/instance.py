@@ -405,8 +405,6 @@ class Instance(object):
             return constants.INS_KEY_VNC
         if self._adb_port:
             return constants.INS_KEY_ADB
-        if self._fastboot_port:
-            return constants.INS_KEY_FASTBOOT
         return None
 
     @property
