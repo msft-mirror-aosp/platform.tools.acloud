@@ -269,8 +269,6 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_cvd_utils.GetAdbPorts.assert_called_with(None, None)
         factory.GetVncPorts()
         mock_cvd_utils.GetVncPorts.assert_called_with(None, None)
-        factory.GetFastbootPorts()
-        mock_cvd_utils.GetFastbootPorts.assert_called_with(None, None)
         self.assertEqual({"instance": "failure"}, factory.GetFailures())
         self.assertEqual(2, len(factory.GetLogs().get("instance")))
 
