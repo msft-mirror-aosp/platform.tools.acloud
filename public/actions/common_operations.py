@@ -208,8 +208,8 @@ def _GetErrorType(error):
 
 # pylint: disable=too-many-locals,unused-argument,too-many-branches,too-many-statements
 def CreateDevices(command, cfg, device_factory, num, avd_type,
-                  report_internal_ip=False, autoconnect=False, serial_log_file=None,
-                  client_adb_port=None, client_fastboot_port=None,
+                  report_internal_ip=False, autoconnect=False,
+                  serial_log_file=None, client_adb_port=None,
                   boot_timeout_secs=None, unlock_screen=False,
                   wait_for_boot=True, connect_webrtc=False,
                   ssh_private_key_path=None,
@@ -231,7 +231,6 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
         serial_log_file: String, the file path to tar the serial logs.
         autoconnect: Boolean, whether to auto connect to device.
         client_adb_port: Integer, Specify port for adb forwarding.
-        client_fastboot_port: Integer, Specify port for fastboot forwarding.
         boot_timeout_secs: Integer, boot timeout secs.
         unlock_screen: Boolean, whether to unlock screen after invoke vnc client.
         wait_for_boot: Boolean, True to check serial log include boot up
@@ -298,10 +297,10 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
                     extra_args_ssh_tunnel)
                 extra_args_ssh_tunnel=""
             if autoconnect and reporter.status == report.Status.SUCCESS:
-                forwarded_ports = _EstablishDeviceConnections(
+                forwarded_ports = _EstablishAdbVncConnections(
                     device.gce_hostname or ip,
                     vnc_ports, adb_ports, fastboot_ports,
-                    client_adb_port, client_fastboot_port, ssh_user,
+                    client_adb_port, ssh_user,
                     ssh_private_key_path=(ssh_private_key_path or
                                           cfg.ssh_private_key_path),
                     extra_args_ssh_tunnel=extra_args_ssh_tunnel,
@@ -345,9 +344,8 @@ def CreateDevices(command, cfg, device_factory, num, avd_type,
     return reporter
 
 
-def _EstablishDeviceConnections(ip, vnc_ports, adb_ports, fastboot_ports,
-                                client_adb_port, client_fastboot_port,
-                                ssh_user, ssh_private_key_path,
+def _EstablishAdbVncConnections(ip, vnc_ports, adb_ports, fastboot_ports,
+                                client_adb_port, ssh_user, ssh_private_key_path,
                                 extra_args_ssh_tunnel, unlock_screen):
     """Establish the adb and vnc connections.
 
@@ -358,9 +356,7 @@ def _EstablishDeviceConnections(ip, vnc_ports, adb_ports, fastboot_ports,
         ip: String, the IPv4 address.
         vnc_ports: List of integer, the vnc ports.
         adb_ports: List of integer, the adb ports.
-        fastboot_ports: List of integer, the fastboot ports.
         client_adb_port: Integer, Specify port for adb forwarding.
-        client_fastboot_port: Integer, Specify port for fastboot forwarding.
         ssh_user: String, the user name for SSH tunneling.
         ssh_private_key_path: String, the private key for SSH tunneling.
         extra_args_ssh_tunnel: String, extra args for ssh tunnel connection.
@@ -379,7 +375,6 @@ def _EstablishDeviceConnections(ip, vnc_ports, adb_ports, fastboot_ports,
             target_fastboot_port=fastboot_port,
             ssh_user=ssh_user,
             client_adb_port=client_adb_port,
-            client_fastboot_port=client_fastboot_port,
             extra_args_ssh_tunnel=extra_args_ssh_tunnel)
         forwarded_ports.append(forwarded_port)
         if unlock_screen:

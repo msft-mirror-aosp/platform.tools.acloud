@@ -125,7 +125,7 @@ class CommonOperationsTest(driver_test_lib.BaseDriverTest):
                 "logs": self.LOGS
             }]})
 
-    def testCreateDevicesWithAdbAndFastbootPorts(self):
+    def testCreateDevicesWithAdbPort(self):
         """Test Create Devices with adb port for cuttlefish avd type."""
         forwarded_ports = mock.Mock(adb_port=12345, fastboot_port=54321, vnc_port=56789)
         mock_auto_connect = self.Patch(utils, "AutoConnect",
@@ -135,13 +135,12 @@ class CommonOperationsTest(driver_test_lib.BaseDriverTest):
                                                   self.device_factory, 1,
                                                   "cuttlefish",
                                                   autoconnect=True,
-                                                  client_adb_port=12345,
-                                                  client_fastboot_port=54321)
+                                                  client_adb_port=12345)
 
         mock_auto_connect.assert_called_with(
             ip_addr="127.0.0.1", rsa_key_file="cfg/private/key",
             target_vnc_port=6444, target_adb_port=6520, target_fastboot_port=7520,
-            ssh_user=constants.GCE_USER, client_adb_port=12345, client_fastboot_port=54321,
+            ssh_user=constants.GCE_USER, client_adb_port=12345,
             extra_args_ssh_tunnel="extra args")
         self.assertEqual(_report.command, self.CMD)
         self.assertEqual(_report.status, report.Status.SUCCESS)
@@ -182,12 +181,12 @@ class CommonOperationsTest(driver_test_lib.BaseDriverTest):
         mock_auto_connect.assert_any_call(
             ip_addr="127.0.0.1", rsa_key_file="cfg/private/key",
             target_vnc_port=6444, target_adb_port=6520, target_fastboot_port=7520,
-            ssh_user=constants.GCE_USER, client_adb_port=None, client_fastboot_port=None,
+            ssh_user=constants.GCE_USER, client_adb_port=None,
             extra_args_ssh_tunnel="extra args")
         mock_auto_connect.assert_any_call(
             ip_addr="127.0.0.1", rsa_key_file="cfg/private/key",
             target_vnc_port=6444, target_adb_port=6520, target_fastboot_port=7520,
-            ssh_user=constants.GCE_USER, client_adb_port=None, client_fastboot_port=None,
+            ssh_user=constants.GCE_USER, client_adb_port=None,
             extra_args_ssh_tunnel="extra args")
         self.assertEqual(_report.command, self.CMD)
         self.assertEqual(_report.status, report.Status.SUCCESS)
@@ -229,8 +228,7 @@ class CommonOperationsTest(driver_test_lib.BaseDriverTest):
         mock_auto_connect.assert_called_with(
             ip_addr="127.0.0.1", rsa_key_file="private/key",
             target_vnc_port=6444, target_adb_port=6520, target_fastboot_port=7520,
-            ssh_user="user", client_adb_port=None, client_fastboot_port=None,
-            extra_args_ssh_tunnel="extra args")
+            ssh_user="user", client_adb_port=None, extra_args_ssh_tunnel="extra args")
         mock_establish_webrtc.assert_called_with(
             ip_addr="127.0.0.1", rsa_key_file="private/key",
             ssh_user="user", extra_args_ssh_tunnel="extra args",
