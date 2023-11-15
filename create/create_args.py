@@ -60,13 +60,12 @@ def AddCommonCreateArgs(parser):
         dest="autoconnect",
         required=False,
         choices=[constants.INS_KEY_VNC, constants.INS_KEY_ADB,
-                 constants.INS_KEY_FASTBOOT, constants.INS_KEY_WEBRTC],
-        help="Determines to establish a tunnel forwarding adb/fastboot/vnc and "
-             "launch VNC/webrtc. Establish a tunnel forwarding adb, fastboot and vnc "
+                 constants.INS_KEY_WEBRTC],
+        help="Determines to establish a tunnel forwarding adb/vnc and "
+             "launch VNC/webrtc. Establish a tunnel forwarding adb and vnc "
              "then launch vnc if --autoconnect vnc is provided. Establish a "
-             "tunnel forwarding adb and fastboot if --autoconnect adb is provided. Enstablish a "
-             "tunnel forwarding adb and fastboot if --autoconnect fastboot is provided. "
-             "Establish a tunnel forwarding adb, fastboot and auto-launch on the browser "
+             "tunnel forwarding adb if --autoconnect adb is provided. "
+             "Establish a tunnel forwarding adb and auto-launch on the browser "
              "if --autoconnect webrtc is provided. For local goldfish "
              "instance, create a window.")
     parser.add_argument(
