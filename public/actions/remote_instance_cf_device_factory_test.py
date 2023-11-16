@@ -124,7 +124,6 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.flavor = "phone"
         args.local_image = constants.FIND_IN_BUILD_ENV
         args.adb_port = None
-        args.fastboot_port = None
         args.launch_args = None
         fake_avd_spec = avd_spec.AVDSpec(args)
         fake_avd_spec.cfg.enable_multi_stage = True
@@ -168,7 +167,6 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.flavor = "phone"
         args.local_image = constants.FIND_IN_BUILD_ENV
         args.adb_port = None
-        args.fastboot_port = None
         args.launch_args = None
         fake_avd_spec = avd_spec.AVDSpec(args)
         fake_avd_spec.cfg.enable_multi_stage = True
@@ -199,7 +197,6 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.flavor = "phone"
         args.local_image = "fake_local_image"
         args.adb_port = None
-        args.fastboot_port = None
         args.cheeps_betty_image = None
         args.launch_args = None
         avd_spec_local_image = avd_spec.AVDSpec(args)
@@ -272,8 +269,6 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_cvd_utils.GetAdbPorts.assert_called_with(None, None)
         factory.GetVncPorts()
         mock_cvd_utils.GetVncPorts.assert_called_with(None, None)
-        factory.GetFastbootPorts()
-        mock_cvd_utils.GetFastbootPorts.assert_called_with(None, None)
         self.assertEqual({"instance": "failure"}, factory.GetFailures())
         self.assertEqual(2, len(factory.GetLogs().get("instance")))
 
