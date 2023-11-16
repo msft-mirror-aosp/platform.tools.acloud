@@ -80,7 +80,7 @@ _CMD_CVD_START = " start"
 _CMD_CVD_VERSION = " version"
 _CMD_LAUNCH_CVD_ARGS = (
     " -daemon -config=%s -system_image_dir %s -instance_dir %s "
-    "-undefok=report_anonymous_usage_stats,config,proxy_fastboot "
+    "-undefok=report_anonymous_usage_stats,config "
     "-report_anonymous_usage_stats=y")
 _CMD_LAUNCH_CVD_HW_ARGS = " -cpus %s -x_res %s -y_res %s -dpi %s -memory_mb %s"
 _CMD_LAUNCH_CVD_DISK_ARGS = (
@@ -94,8 +94,6 @@ _CMD_LAUNCH_CVD_KERNEL_IMAGE_ARG = " -kernel_path=%s"
 _CMD_LAUNCH_CVD_INITRAMFS_IMAGE_ARG = " -initramfs_path=%s"
 _CMD_LAUNCH_CVD_VBMETA_IMAGE_ARG = " -vbmeta_image=%s"
 _CMD_LAUNCH_CVD_NO_ADB_ARG = " -run_adb_connector=false"
-# Supported since U.
-_CMD_LAUNCH_CVD_NO_FASTBOOT_ARG = " -proxy_fastboot=false"
 _CMD_LAUNCH_CVD_INSTANCE_NUMS_ARG = " -instance_nums=%s"
 # Connect the OpenWrt device via console file.
 _CMD_LAUNCH_CVD_CONSOLE_ARG = " -console=true"
@@ -300,7 +298,6 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                          constants.ANDROID_INFO_FILE))
         cmd = self.PrepareLaunchCVDCmd(hw_property,
                                        avd_spec.connect_adb,
-                                       avd_spec.connect_fastboot,
                                        artifact_paths,
                                        runtime_dir,
                                        avd_spec.connect_webrtc,
@@ -577,10 +574,10 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
 
     # pylint: disable=too-many-branches
     @staticmethod
-    def PrepareLaunchCVDCmd(hw_property, connect_adb, connect_fastboot,
-                            artifact_paths, runtime_dir, connect_webrtc,
-                            connect_vnc, super_image_path, launch_args,
-                            config, openwrt=False, use_launch_cvd=False,
+    def PrepareLaunchCVDCmd(hw_property, connect_adb, artifact_paths,
+                            runtime_dir, connect_webrtc, connect_vnc,
+                            super_image_path, launch_args, config,
+                            openwrt=False, use_launch_cvd=False,
                             instance_ids=None, webrtc_device_id=None,
                             vbmeta_image_path=None):
         """Prepare launch_cvd command.
@@ -592,7 +589,6 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             hw_property: dict object of hw property.
             artifact_paths: ArtifactPaths object.
             connect_adb: Boolean flag that enables adb_connector.
-            connect_fastboot: Boolean flag that enables fastboot_proxy.
             runtime_dir: String of runtime directory path.
             connect_webrtc: Boolean of connect_webrtc.
             connect_vnc: Boolean of connect_vnc.
@@ -626,9 +622,6 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
 
         if not connect_adb:
             launch_cvd_w_args = launch_cvd_w_args + _CMD_LAUNCH_CVD_NO_ADB_ARG
-
-        if not connect_fastboot:
-            launch_cvd_w_args = launch_cvd_w_args + _CMD_LAUNCH_CVD_NO_FASTBOOT_ARG
 
         if connect_webrtc:
             launch_cvd_w_args = launch_cvd_w_args + _CMD_LAUNCH_CVD_WEBRTC_ARGS
