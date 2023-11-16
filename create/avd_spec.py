@@ -104,7 +104,6 @@ class AVDSpec():
         # Let's define the private class vars here and then process the user
         # args afterwards.
         self._client_adb_port = args.adb_port
-        self._client_fastboot_port = args.fastboot_port
         self._autoconnect = None
         self._cvd_host_package = None
         self._instance_name_to_reuse = None
@@ -875,15 +874,7 @@ class AVDSpec():
     def connect_adb(self):
         """Auto-connect to adb.
 
-        Return: Boolean, whether adb autoconnect is enabled.
-        """
-        return self._autoconnect is not False
-
-    @property
-    def connect_fastboot(self):
-        """Auto-connect to fastboot.
-
-        Return: Boolean, whether fastboot autoconnect is enabled.
+        Return: Boolean, whether autoconnect is enabled.
         """
         return self._autoconnect is not False
 
@@ -1028,11 +1019,6 @@ class AVDSpec():
     def client_adb_port(self):
         """Return the client adb port."""
         return self._client_adb_port
-
-    @property
-    def client_fastboot_port(self):
-        """Return the client fastboot port."""
-        return self._client_fastboot_port
 
     @property
     def stable_host_image_name(self):

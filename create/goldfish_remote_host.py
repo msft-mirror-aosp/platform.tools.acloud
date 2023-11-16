@@ -60,7 +60,6 @@ class GoldfishRemoteHost(base_avd_create.BaseAVDCreate):
             autoconnect=avd_spec.autoconnect,
             serial_log_file=avd_spec.serial_log_file,
             client_adb_port=avd_spec.client_adb_port,
-            client_fastboot_port=None,
             boot_timeout_secs=avd_spec.boot_timeout_secs,
             unlock_screen=avd_spec.unlock_screen, wait_for_boot=False,
             connect_webrtc=avd_spec.connect_webrtc,

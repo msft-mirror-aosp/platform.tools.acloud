@@ -42,7 +42,6 @@ class CvdRuntimeconfigTest(driver_test_lib.BaseDriverTest):
    "2":{
        "adb_ip_and_port": "127.0.0.1:6520",
        "adb_host_port": 6520,
-       "fastboot_host_port": 7520,
        "instance_dir": "/path-to-instance-dir",
        "crosvm_binary" : "/home/vsoc-01/bin/crosvm",
        "vnc_server_port": 6444
@@ -65,7 +64,6 @@ class CvdRuntimeconfigTest(driver_test_lib.BaseDriverTest):
    "1":{
        "adb_ip_and_port": "127.0.0.1:6520",
        "adb_host_port": 6520,
-       "fastboot_host_port": 7520,
        "instance_dir": "/path-to-instance-dir",
        "vnc_server_port": 6444,
        "virtual_disk_paths": ["/path-to-image"]
@@ -112,7 +110,6 @@ class CvdRuntimeconfigTest(driver_test_lib.BaseDriverTest):
                                   {'adb_ip_and_port': '127.0.0.1:6520',
                                    'crosvm_binary': '/home/vsoc-01/bin/crosvm',
                                    'adb_host_port': 6520,
-                                   'fastboot_host_port': 7520,
                                    'instance_dir': '/path-to-instance-dir',
                                    'vnc_server_port': 6444}
                              },
@@ -141,7 +138,7 @@ class CvdRuntimeconfigTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(fake_cvd_runtime_config_webrtc.adb_ip_port, "127.0.0.1:6520")
         self.assertEqual(fake_cvd_runtime_config_webrtc.instance_dir, "/path-to-instance-dir")
         self.assertEqual(fake_cvd_runtime_config_webrtc.vnc_port, 6444)
-        self.assertEqual(fake_cvd_runtime_config_webrtc.fastboot_port, 7520)
+        self.assertEqual(fake_cvd_runtime_config_webrtc.adb_port, 6520)
         self.assertEqual(fake_cvd_runtime_config_webrtc.virtual_disk_paths, ['/path-to-image'])
         self.assertEqual(fake_cvd_runtime_config_webrtc.cvd_tools_path, "/home/vsoc-01/bin")
 
