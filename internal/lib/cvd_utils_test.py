@@ -47,12 +47,6 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
         self.assertEqual([6520], cvd_utils.GetAdbPorts(1, 1))
         self.assertEqual([6521, 6522], cvd_utils.GetAdbPorts(2, 2))
 
-    def testGetFastbootPorts(self):
-        """Test GetFastbootPorts."""
-        self.assertEqual([7520], cvd_utils.GetFastbootPorts(None, None))
-        self.assertEqual([7520], cvd_utils.GetFastbootPorts(1, 1))
-        self.assertEqual([7521, 7522], cvd_utils.GetFastbootPorts(2, 2))
-
     def testGetVncPorts(self):
         """Test GetVncPorts."""
         self.assertEqual([6444], cvd_utils.GetVncPorts(None, None))
@@ -386,7 +380,7 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             "--webrtc_device_id=pet-name "
             "--start_vnc_server=true "
             "-console=true "
-            "-num_instances=2 --base-instance-num=3 "
+            "-num_instances=2 --base_instance_num=3 "
             "--setupwizard_mode=REQUIRED "
             "-undefok=report_anonymous_usage_stats,config "
             "-report_anonymous_usage_stats=y")

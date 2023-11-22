@@ -66,6 +66,7 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         "local_image_artifact": None,
         "local_kernel_image": None,
         "local_system_image": None,
+        "local_system_dlkm_image": None,
         "local_tool_dirs": [],
         "base_instance_num": None,
         "boot_timeout_secs": None,
@@ -158,7 +159,6 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(self._X86_64_INSTANCE_NAME, instance_name)
         self.assertEqual(self._X86_64_BUILD_INFO, factory.GetBuildInfoDict())
         self.assertEqual([5555], factory.GetAdbPorts())
-        self.assertEqual([None], factory.GetFastbootPorts())
         self.assertEqual([None], factory.GetVncPorts())
         self.assertEqual({}, factory.GetFailures())
         self.assertEqual({instance_name: self._LOGS}, factory.GetLogs())
@@ -238,7 +238,7 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             constants.BUILD_ID: "111111",
             constants.BUILD_TARGET: "aosp_x86_64-userdebug"}
         mock_gf_utils.ConvertAvdSpecToArgs.return_value = ["-gpu", "auto"]
-        mock_gf_utils.MixWithSystemImage.return_value = "/mixed/disk"
+        mock_gf_utils.MixDiskImage.return_value = "/mixed/disk"
         mock_gf_utils.SYSTEM_QEMU_IMAGE_NAME = "system-qemu.img"
 
         factory = gf_factory.RemoteHostGoldfishDeviceFactory(
@@ -257,7 +257,7 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(
             5, self._mock_android_build_client.DownloadArtifact.call_count)
         # Images.
-        mock_gf_utils.MixWithSystemImage.assert_called_once()
+        mock_gf_utils.MixDiskImage.assert_called_once()
         self._mock_ssh.ScpPushFile.assert_called_with(
             "/mixed/disk", "acloud_gf_1/image/x86_64/system-qemu.img")
 
@@ -322,12 +322,16 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             self.CreateFile(boot_image_path, b"ANDROID!")
             system_image_path = os.path.join(temp_dir, "system.img")
             self.CreateFile(system_image_path)
+            system_dlkm_image_path = os.path.join(temp_dir, "system_dlkm.img")
+            self.CreateFile(system_dlkm_image_path)
             self._mock_avd_spec.emulator_zip = emulator_zip_path
             self._mock_avd_spec.image_source = constants.IMAGE_SRC_LOCAL
             self._mock_avd_spec.remote_image = {}
             self._mock_avd_spec.local_image_artifact = image_zip_path
             self._mock_avd_spec.local_kernel_image = boot_image_path
             self._mock_avd_spec.local_system_image = system_image_path
+            self._mock_avd_spec.local_system_dlkm_image = (
+                system_dlkm_image_path)
             self._mock_avd_spec.local_tool_dirs.append("/otatools")
             mock_gf_utils.ConvertAvdSpecToArgs.return_value = ["-gpu", "auto"]
             mock_gf_utils.MixWithBootImage.return_value = (
@@ -339,8 +343,9 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                 self._mock_avd_spec)
             factory.CreateInstance()
 
+            mock_gf_utils.FindSystemDlkmImage.assert_called_once()
             mock_gf_utils.MixWithBootImage.assert_called_once()
-            mock_gf_utils.MixWithSystemImage.assert_called_once()
+            mock_gf_utils.MixDiskImage.assert_called_once()
             mock_ota_tools.FindOtaToolsDir.assert_called_once()
             self.assertEqual("/otatools",
                              mock_ota_tools.FindOtaToolsDir.call_args[0][0][0])
