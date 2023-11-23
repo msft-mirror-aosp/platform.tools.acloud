@@ -421,7 +421,8 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_cvd_utils.PrepareRemoteImageDirLink.assert_called_once_with(
             mock_ssh_obj, "acloud_cf_1", "mock_img_dir")
         mock_cvd_utils.LoadRemoteImageArgs.assert_called_once_with(
-            mock_ssh_obj, "mock_img_dir/acloud_image_args.txt")
+            mock_ssh_obj, "mock_img_dir/acloud_image_timestamp.txt",
+            "mock_img_dir/acloud_image_args.txt", mock.ANY)
         mock_cvd_utils.SaveRemoteImageArgs.assert_called_once_with(
             mock_ssh_obj, "mock_img_dir/acloud_image_args.txt",
             [("arg", "mock_img_dir/1")])

@@ -395,8 +395,12 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             self.assertFalse(os.path.exists(image_dir))
             self.assertFalse(os.path.exists(ref_cnt_path))
 
-    def testLoadRemoteImageArgs(self):
+    @mock.patch("acloud.internal.lib.cvd_utils.utils.PollAndWait")
+    @mock.patch("acloud.internal.lib.cvd_utils.utils.time.time",
+                return_value=90.0)
+    def testLoadRemoteImageArgs(self, _mock_time, mock_poll_and_wait):
         """Test LoadRemoteImageArgs."""
+        deadline = 99.9
         self.assertEqual(os.path, cvd_utils.remote_path)
 
         with tempfile.TemporaryDirectory(prefix="cvd_utils") as temp_dir:
@@ -406,27 +410,58 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             mock_ssh = mock.Mock()
             mock_ssh.Run.side_effect = lambda cmd: subprocess.check_output(
                 "sh -c " + cmd, shell=True, cwd=temp_dir, env=env, text=True)
+            mock_poll_and_wait.side_effect = lambda func, **kwargs: func()
+
+            timestamp_path = os.path.join(temp_dir, "timestamp.txt")
             args_path = os.path.join(temp_dir, "args.txt")
 
             # Test with an uninitialized directory.
-            args = cvd_utils.LoadRemoteImageArgs(mock_ssh, args_path)
+            args = cvd_utils.LoadRemoteImageArgs(
+                mock_ssh, timestamp_path, args_path, deadline)
 
             self.assertIsNone(args)
-            mock_ssh.Run.assert_called_once_with(
-                f"'test ! -f {args_path} || cat {args_path}'")
+            mock_ssh.Run.assert_called_once()
+            with open(timestamp_path, "r", encoding="utf-8") as timestamp_file:
+                timestamp = timestamp_file.read().strip()
+                self.assertRegex(timestamp, r"\d+",
+                                 f"Invalid timestamp: {timestamp}")
             self.assertFalse(os.path.exists(args_path))
 
+            # Test with an initialized directory and the uploader times out.
+            mock_ssh.Run.reset_mock()
+
+            with self.assertRaises(errors.CreateError):
+                cvd_utils.LoadRemoteImageArgs(
+                    mock_ssh, timestamp_path, args_path, deadline)
+
+            mock_ssh.Run.assert_has_calls([
+                mock.call(f"'flock {timestamp_path} -c '\"'\"'"
+                          f"test -s {timestamp_path} && "
+                          f"cat {timestamp_path} || "
+                          f"expr $(date +%s) + 9 > {timestamp_path}'\"'\"''"),
+                mock.call(f"'flock {args_path} -c '\"'\"'"
+                          f"test -s {args_path} -o "
+                          f"{timestamp} -le $(date +%s) || "
+                          "echo wait...'\"'\"''"),
+                mock.call(f"'flock {args_path} -c '\"'\"'"
+                          f"cat {args_path}'\"'\"''")
+            ])
+            with open(timestamp_path, "r", encoding="utf-8") as timestamp_file:
+                self.assertEqual(timestamp_file.read().strip(), timestamp)
+            self.assertEqual(os.path.getsize(args_path), 0)
+
             # Test with an initialized directory.
+            mock_ssh.Run.reset_mock()
             self.CreateFile(args_path, b'[["arg", "1"]]')
 
-            args = cvd_utils.LoadRemoteImageArgs(mock_ssh, args_path)
+            args = cvd_utils.LoadRemoteImageArgs(
+                mock_ssh, timestamp_path, args_path, deadline)
 
             self.assertEqual(args, [["arg", "1"]])
+            self.assertEqual(mock_ssh.Run.call_count, 3)
 
     def testSaveRemoteImageArgs(self):
         """Test SaveRemoteImageArgs."""
-        self.assertEqual(os.path, cvd_utils.remote_path)
-
         with tempfile.TemporaryDirectory(prefix="cvd_utils") as temp_dir:
             env = os.environ.copy()
             env["HOME"] = temp_dir
@@ -438,7 +473,9 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             cvd_utils.SaveRemoteImageArgs(mock_ssh, args_path, [("arg", "1")])
 
             mock_ssh.Run.assert_called_with(
-                f"""'echo '"'"'[["arg", "1"]]'"'"' > {args_path}'""")
+                f"'flock {args_path} -c '\"'\"'"
+                f"""echo '"'"'"'"'"'"'"'"'[["arg", "1"]]'"'"'"'"'"'"'"'"' > """
+                f"{args_path}'\"'\"''")
             with open(args_path, "r", encoding="utf-8") as args_file:
                 self.assertEqual(args_file.read().strip(), '[["arg", "1"]]')
 
