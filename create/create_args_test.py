@@ -53,6 +53,7 @@ def _CreateArgs():
         system_build_target=None,
         local_instance=None,
         remote_host=None,
+        remote_image_dir=None,
         host_user=constants.GCE_USER,
         host_ssh_private_key_path=None,
         emulator_build_id=None,
