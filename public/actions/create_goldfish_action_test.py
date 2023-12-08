@@ -82,6 +82,7 @@ class CreateGoldfishActionTest(driver_test_lib.BaseDriverTest):
         self.avd_spec.gpu = self.GPU
         self.avd_spec.serial_log_file = None
         self.avd_spec.autoconnect = False
+        self.avd_spec.disable_external_ip = False
 
     def _CreateCfg(self):
         """A helper method that creates a mock configuration object."""
@@ -153,7 +154,8 @@ class CreateGoldfishActionTest(driver_test_lib.BaseDriverTest):
             avd_spec=none_avd_spec,
             extra_scopes=self.EXTRA_SCOPES,
             tags=None,
-            launch_args=self.LAUNCH_ARGS)
+            launch_args=self.LAUNCH_ARGS,
+            disable_external_ip=False)
 
         self.assertEqual(report.data, {
             "devices": [
@@ -211,7 +213,8 @@ class CreateGoldfishActionTest(driver_test_lib.BaseDriverTest):
             avd_spec=self.avd_spec,
             extra_scopes=self.EXTRA_SCOPES,
             tags=None,
-            launch_args=self.LAUNCH_ARGS)
+            launch_args=self.LAUNCH_ARGS,
+            disable_external_ip=False)
 
     def testCreateDevicesWithoutBuildId(self):
         """Test CreateDevices when emulator sysimage buildid is not provided."""
@@ -277,7 +280,8 @@ class CreateGoldfishActionTest(driver_test_lib.BaseDriverTest):
             avd_spec=none_avd_spec,
             extra_scopes=self.EXTRA_SCOPES,
             tags=None,
-            launch_args=self.LAUNCH_ARGS)
+            launch_args=self.LAUNCH_ARGS,
+            disable_external_ip=False)
 
         self.assertEqual(report.data, {
             "devices": [{
@@ -333,7 +337,8 @@ class CreateGoldfishActionTest(driver_test_lib.BaseDriverTest):
             avd_spec=self.avd_spec,
             extra_scopes=self.EXTRA_SCOPES,
             tags=None,
-            launch_args=self.LAUNCH_ARGS)
+            launch_args=self.LAUNCH_ARGS,
+            disable_external_ip=False)
 
     #pylint: disable=invalid-name
     def testCreateDevicesWithoutEmulatorBuildId(self):
@@ -392,7 +397,8 @@ class CreateGoldfishActionTest(driver_test_lib.BaseDriverTest):
             avd_spec=none_avd_spec,
             extra_scopes=self.EXTRA_SCOPES,
             tags=None,
-            launch_args=self.LAUNCH_ARGS)
+            launch_args=self.LAUNCH_ARGS,
+            disable_external_ip=False)
 
         self.assertEqual(report.data, {
             "devices": [{
@@ -448,7 +454,8 @@ class CreateGoldfishActionTest(driver_test_lib.BaseDriverTest):
             avd_spec=self.avd_spec,
             extra_scopes=self.EXTRA_SCOPES,
             tags=None,
-            launch_args=self.LAUNCH_ARGS)
+            launch_args=self.LAUNCH_ARGS,
+            disable_external_ip=False)
 
 
 if __name__ == "__main__":
