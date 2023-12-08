@@ -59,6 +59,7 @@ class GoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
                  "/home/vsoc-01/log/adb.log",
                  "/var/log/daemon.log"]
 
+    #pylint: disable=too-many-locals
     def __init__(self,
                  cfg,
                  build_target,
@@ -72,7 +73,8 @@ class GoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
                  avd_spec=None,
                  tags=None,
                  branch=None,
-                 emulator_branch=None):
+                 emulator_branch=None,
+                 disable_external_ip=False):
 
         """Initialize.
 
@@ -88,6 +90,8 @@ class GoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
                   ["http-server", "https-server"]
             branch: String, branch of the emulator build target.
             emulator_branch: String, branch of the emulator.
+            disable_external_ip: Boolean, true if instance external ip should be
+                                 disabled.
         """
 
         self.credentials = auth.CreateCredentials(cfg)
@@ -103,6 +107,7 @@ class GoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         self._blank_data_disk_size_gb = cfg.extra_data_disk_size_gb
         self._extra_scopes = cfg.extra_scopes
         self._tags = tags
+        self._disable_external_ip = disable_external_ip
 
         # Configure clients
         self._build_client = android_build_client.AndroidBuildClient(
@@ -168,7 +173,8 @@ class GoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
             avd_spec=self._avd_spec,
             tags=self._tags,
             extra_scopes=self._extra_scopes,
-            launch_args=self._cfg.launch_args)
+            launch_args=self._cfg.launch_args,
+            disable_external_ip=self._disable_external_ip)
 
         return instance
 
@@ -246,7 +252,8 @@ def CreateDevices(avd_spec=None,
                   branch=None,
                   tags=None,
                   report_internal_ip=False,
-                  boot_timeout_secs=None):
+                  boot_timeout_secs=None,
+                  disable_external_ip=False):
     """Create one or multiple Goldfish devices.
 
     Args:
@@ -274,6 +281,8 @@ def CreateDevices(avd_spec=None,
                             external ip.
         boot_timeout_secs: Integer, the maximum time in seconds used to
                            wait for the AVD to boot.
+        disable_external_ip: Boolean, true if instance external ip should be
+                                 disabled.
 
     Returns:
         A Report instance.
@@ -293,6 +302,7 @@ def CreateDevices(avd_spec=None,
         report_internal_ip = avd_spec.report_internal_ip
         client_adb_port = avd_spec.client_adb_port
         boot_timeout_secs = avd_spec.boot_timeout_secs
+        disable_external_ip = avd_spec.disable_external_ip
 
     if not emulator_build_target:
         emulator_build_target = cfg.emulator_build_target
@@ -329,10 +339,10 @@ def CreateDevices(avd_spec=None,
         "Creating a goldfish device in project %s, build_target: %s, "
         "build_id: %s, emulator_bid: %s, emulator_branch: %s, kernel_build_id: %s, "
         "kernel_branch: %s, kernel_build_target: %s, GPU: %s, num: %s, "
-        "serial_log_file: %s, "
-        "autoconnect: %s", cfg.project, build_target, build_id,
-        emulator_build_id, emulator_branch, kernel_build_id, kernel_branch,
-        kernel_build_target, gpu, num, serial_log_file, autoconnect)
+        "serial_log_file: %s, autoconnect: %s, disable_external_ip: %s",
+        cfg.project, build_target, build_id, emulator_build_id,
+        emulator_branch, kernel_build_id, kernel_branch, kernel_build_target,
+        gpu, num, serial_log_file, autoconnect, disable_external_ip)
 
     device_factory = GoldfishDeviceFactory(
         cfg, build_target, build_id,
@@ -343,7 +353,8 @@ def CreateDevices(avd_spec=None,
         emulator_branch=emulator_branch,
         kernel_build_id=kernel_build_id,
         kernel_branch=kernel_branch,
-        kernel_build_target=kernel_build_target)
+        kernel_build_target=kernel_build_target,
+        disable_external_ip=disable_external_ip)
 
     return common_operations.CreateDevices("create_gf", cfg, device_factory,
                                            num, constants.TYPE_GF,
