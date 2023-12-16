@@ -52,22 +52,29 @@ VendorImagePaths = collections.namedtuple(
     "VendorImagePaths",
     ["vendor", "vendor_dlkm", "odm", "odm_dlkm"])
 
-# The relative path to the base directory containing cuttelfish images, tools,
-# and runtime files. On a GCE instance, the directory is the SSH user's HOME.
+# The relative path to the base directory containing cuttelfish runtime files.
+# On a GCE instance, the directory is the SSH user's HOME.
 GCE_BASE_DIR = "."
 _REMOTE_HOST_BASE_DIR_FORMAT = "acloud_cf_%(num)d"
-# Relative paths in a base directory.
-_REMOTE_IMAGE_DIR = "acloud_image"
-_REMOTE_BOOT_IMAGE_PATH = remote_path.join(_REMOTE_IMAGE_DIR, "boot.img")
+# By default, fetch_cvd or UploadArtifacts creates remote cuttlefish images and
+# tools in the base directory. The user can set the image directory path by
+# --remote-image-dir.
+# The user may specify extra images such as --local-system-image and
+# --local-kernel-image. UploadExtraImages uploads them to "acloud_image"
+# subdirectory in the image directory. The following are the relative paths
+# under the image directory.
+_REMOTE_EXTRA_IMAGE_DIR = "acloud_image"
+_REMOTE_BOOT_IMAGE_PATH = remote_path.join(_REMOTE_EXTRA_IMAGE_DIR, "boot.img")
 _REMOTE_VENDOR_BOOT_IMAGE_PATH = remote_path.join(
-    _REMOTE_IMAGE_DIR, _VENDOR_BOOT_IMAGE_NAME)
-_REMOTE_VBMETA_IMAGE_PATH = remote_path.join(_REMOTE_IMAGE_DIR, "vbmeta.img")
+    _REMOTE_EXTRA_IMAGE_DIR, _VENDOR_BOOT_IMAGE_NAME)
+_REMOTE_VBMETA_IMAGE_PATH = remote_path.join(
+    _REMOTE_EXTRA_IMAGE_DIR, "vbmeta.img")
 _REMOTE_KERNEL_IMAGE_PATH = remote_path.join(
-    _REMOTE_IMAGE_DIR, _KERNEL_IMAGE_NAMES[0])
+    _REMOTE_EXTRA_IMAGE_DIR, _KERNEL_IMAGE_NAMES[0])
 _REMOTE_INITRAMFS_IMAGE_PATH = remote_path.join(
-    _REMOTE_IMAGE_DIR, _INITRAMFS_IMAGE_NAME)
-_REMOTE_SUPER_IMAGE_PATH = remote_path.join(_REMOTE_IMAGE_DIR,
-                                            _SUPER_IMAGE_NAME)
+    _REMOTE_EXTRA_IMAGE_DIR, _INITRAMFS_IMAGE_NAME)
+_REMOTE_SUPER_IMAGE_PATH = remote_path.join(
+    _REMOTE_EXTRA_IMAGE_DIR, _SUPER_IMAGE_NAME)
 
 # Remote host instance name
 _REMOTE_HOST_INSTANCE_NAME_FORMAT = (
@@ -169,27 +176,27 @@ def ExtractTargetFilesZip(zip_path, output_dir):
                 zip_file.extract(entry, output_dir)
 
 
-def _UploadImageZip(ssh_obj, remote_dir, image_zip):
+def _UploadImageZip(ssh_obj, remote_image_dir, image_zip):
     """Upload an image zip to a remote host and a GCE instance.
 
     Args:
         ssh_obj: An Ssh object.
-        remote_dir: The remote base directory.
+        remote_image_dir: The remote image directory.
         image_zip: The path to the image zip.
     """
-    remote_cmd = f"/usr/bin/install_zip.sh {remote_dir} < {image_zip}"
+    remote_cmd = f"/usr/bin/install_zip.sh {remote_image_dir} < {image_zip}"
     logger.debug("remote_cmd:\n %s", remote_cmd)
     ssh_obj.Run(remote_cmd)
 
 
-def _UploadImageDir(ssh_obj, remote_dir, image_dir):
+def _UploadImageDir(ssh_obj, remote_image_dir, image_dir):
     """Upload an image directory to a remote host or a GCE instance.
 
     The images are compressed for faster upload.
 
     Args:
         ssh_obj: An Ssh object.
-        remote_dir: The remote base directory.
+        remote_image_dir: The remote image directory.
         image_dir: The directory containing the files to be uploaded.
     """
     try:
@@ -208,48 +215,48 @@ def _UploadImageDir(ssh_obj, remote_dir, image_dir):
     artifact_files.append(constants.ANDROID_INFO_FILE)
     cmd = (f"tar -cf - --lzop -S -C {image_dir} {' '.join(artifact_files)} | "
            f"{ssh_obj.GetBaseCmd(constants.SSH_BIN)} -- "
-           f"tar -xf - --lzop -S -C {remote_dir}")
+           f"tar -xf - --lzop -S -C {remote_image_dir}")
     logger.debug("cmd:\n %s", cmd)
     ssh.ShellCmdWithRetry(cmd)
 
 
-def _UploadCvdHostPackage(ssh_obj, remote_dir, cvd_host_package):
+def _UploadCvdHostPackage(ssh_obj, remote_image_dir, cvd_host_package):
     """Upload a CVD host package to a remote host or a GCE instance.
 
     Args:
         ssh_obj: An Ssh object.
-        remote_dir: The remote base directory.
+        remote_image_dir: The remote base directory.
         cvd_host_package: The path to the CVD host package.
     """
     if os.path.isdir(cvd_host_package):
         cmd = (f"tar -cf - --lzop -S -C {cvd_host_package} . | "
                f"{ssh_obj.GetBaseCmd(constants.SSH_BIN)} -- "
-               f"tar -xf - --lzop -S -C {remote_dir}")
+               f"tar -xf - --lzop -S -C {remote_image_dir}")
         logger.debug("cmd:\n %s", cmd)
         ssh.ShellCmdWithRetry(cmd)
     else:
-        remote_cmd = f"tar -xzf - -C {remote_dir} < {cvd_host_package}"
+        remote_cmd = f"tar -xzf - -C {remote_image_dir} < {cvd_host_package}"
         logger.debug("remote_cmd:\n %s", remote_cmd)
         ssh_obj.Run(remote_cmd)
 
 
 @utils.TimeExecute(function_description="Processing and uploading local images")
-def UploadArtifacts(ssh_obj, remote_dir, image_path, cvd_host_package):
+def UploadArtifacts(ssh_obj, remote_image_dir, image_path, cvd_host_package):
     """Upload images and a CVD host package to a remote host or a GCE instance.
 
     Args:
         ssh_obj: An Ssh object.
-        remote_dir: The remote base directory.
+        remote_image_dir: The remote image directory.
         image_path: A string, the path to the image zip built by `m dist`,
                     the directory containing the images built by `m`, or
                     the directory containing extracted target files.
         cvd_host_package: A string, the path to the CVD host package in gzip.
     """
     if os.path.isdir(image_path):
-        _UploadImageDir(ssh_obj, remote_dir, FindImageDir(image_path))
+        _UploadImageDir(ssh_obj, remote_image_dir, FindImageDir(image_path))
     else:
-        _UploadImageZip(ssh_obj, remote_dir, image_path)
-    _UploadCvdHostPackage(ssh_obj, remote_dir, cvd_host_package)
+        _UploadImageZip(ssh_obj, remote_image_dir, image_path)
+    _UploadCvdHostPackage(ssh_obj, remote_image_dir, cvd_host_package)
 
 
 def FindBootImages(search_path):
@@ -297,13 +304,13 @@ def FindKernelImages(search_path):
 
 
 @utils.TimeExecute(function_description="Uploading local kernel images.")
-def _UploadKernelImages(ssh_obj, remote_dir, search_path):
+def _UploadKernelImages(ssh_obj, remote_image_dir, search_path):
     """Find and upload kernel or boot images to a remote host or a GCE
     instance.
 
     Args:
         ssh_obj: An Ssh object.
-        remote_dir: The remote base directory.
+        remote_image_dir: The remote image directory.
         search_path: A path to an image file or an image directory.
 
     Returns:
@@ -314,14 +321,15 @@ def _UploadKernelImages(ssh_obj, remote_dir, search_path):
         images.
     """
     # Assume that the caller cleaned up the remote home directory.
-    ssh_obj.Run("mkdir -p " + remote_path.join(remote_dir, _REMOTE_IMAGE_DIR))
+    ssh_obj.Run("mkdir -p " +
+                remote_path.join(remote_image_dir, _REMOTE_EXTRA_IMAGE_DIR))
 
     kernel_image_path, initramfs_image_path = FindKernelImages(search_path)
     if kernel_image_path and initramfs_image_path:
         remote_kernel_image_path = remote_path.join(
-            remote_dir, _REMOTE_KERNEL_IMAGE_PATH)
+            remote_image_dir, _REMOTE_KERNEL_IMAGE_PATH)
         remote_initramfs_image_path = remote_path.join(
-            remote_dir, _REMOTE_INITRAMFS_IMAGE_PATH)
+            remote_image_dir, _REMOTE_INITRAMFS_IMAGE_PATH)
         ssh_obj.ScpPushFile(kernel_image_path, remote_kernel_image_path)
         ssh_obj.ScpPushFile(initramfs_image_path, remote_initramfs_image_path)
         return ["-kernel_path", remote_kernel_image_path,
@@ -330,12 +338,12 @@ def _UploadKernelImages(ssh_obj, remote_dir, search_path):
     boot_image_path, vendor_boot_image_path = FindBootImages(search_path)
     if boot_image_path:
         remote_boot_image_path = remote_path.join(
-            remote_dir, _REMOTE_BOOT_IMAGE_PATH)
+            remote_image_dir, _REMOTE_BOOT_IMAGE_PATH)
         ssh_obj.ScpPushFile(boot_image_path, remote_boot_image_path)
         launch_cvd_args = ["-boot_image", remote_boot_image_path]
         if vendor_boot_image_path:
             remote_vendor_boot_image_path = remote_path.join(
-                remote_dir, _REMOTE_VENDOR_BOOT_IMAGE_PATH)
+                remote_image_dir, _REMOTE_VENDOR_BOOT_IMAGE_PATH)
             ssh_obj.ScpPushFile(vendor_boot_image_path,
                                 remote_vendor_boot_image_path)
             launch_cvd_args.extend(["-vendor_boot_image",
@@ -425,18 +433,18 @@ def _MixSuperImage(super_image_path, avd_spec, target_files_dir, ota):
 
 
 @utils.TimeExecute(function_description="Uploading disabled vbmeta image.")
-def _UploadVbmetaImage(ssh_obj, remote_dir, vbmeta_image_path):
+def _UploadVbmetaImage(ssh_obj, remote_image_dir, vbmeta_image_path):
     """Upload disabled vbmeta image to a remote host or a GCE instance.
 
     Args:
         ssh_obj: An Ssh object.
-        remote_dir: The remote base directory.
+        remote_image_dir: The remote image directory.
         vbmeta_image_path: The path to the vbmeta image.
 
     Returns:
         A list of strings, the launch_cvd arguments including the remote paths.
     """
-    remote_vbmeta_image_path = remote_path.join(remote_dir,
+    remote_vbmeta_image_path = remote_path.join(remote_image_dir,
                                                 _REMOTE_VBMETA_IMAGE_PATH)
     ssh_obj.ScpPushFile(vbmeta_image_path, remote_vbmeta_image_path)
     return ["-vbmeta_image", remote_vbmeta_image_path]
@@ -448,7 +456,7 @@ def AreTargetFilesRequired(avd_spec):
                 avd_spec.local_system_dlkm_image)
 
 
-def UploadExtraImages(ssh_obj, remote_dir, avd_spec, target_files_dir):
+def UploadExtraImages(ssh_obj, remote_image_dir, avd_spec, target_files_dir):
     """Find and upload the images specified in avd_spec.
 
     This function finds the kernel, system, and vendor images specified in
@@ -456,7 +464,7 @@ def UploadExtraImages(ssh_obj, remote_dir, avd_spec, target_files_dir):
 
     Args:
         ssh_obj: An Ssh object.
-        remote_dir: The remote base directory.
+        remote_image_dir: The remote image directory.
         avd_spec: An AvdSpec object containing extra image paths.
         target_files_dir: The path to an extracted target_files zip if the
                           avd_spec requires building a super image.
@@ -472,7 +480,7 @@ def UploadExtraImages(ssh_obj, remote_dir, avd_spec, target_files_dir):
     """
     extra_img_args = []
     if avd_spec.local_kernel_image:
-        extra_img_args += _UploadKernelImages(ssh_obj, remote_dir,
+        extra_img_args += _UploadKernelImages(ssh_obj, remote_image_dir,
                                               avd_spec.local_kernel_image)
 
     if AreTargetFilesRequired(avd_spec):
@@ -484,35 +492,36 @@ def UploadExtraImages(ssh_obj, remote_dir, avd_spec, target_files_dir):
             avd_spec.local_tool_dirs + create_common.GetNonEmptyEnvVars(
                 constants.ENV_ANDROID_SOONG_HOST_OUT,
                 constants.ENV_ANDROID_HOST_OUT))
-        ssh_obj.Run("mkdir -p " +
-                    remote_path.join(remote_dir, _REMOTE_IMAGE_DIR))
+        ssh_obj.Run(
+            "mkdir -p " +
+            remote_path.join(remote_image_dir, _REMOTE_EXTRA_IMAGE_DIR))
         with tempfile.TemporaryDirectory() as super_image_dir:
             _MixSuperImage(os.path.join(super_image_dir, _SUPER_IMAGE_NAME),
                            avd_spec, target_files_dir, ota)
-            extra_img_args += _UploadSuperImage(ssh_obj, remote_dir,
+            extra_img_args += _UploadSuperImage(ssh_obj, remote_image_dir,
                                                 super_image_dir)
 
             vbmeta_image_path = os.path.join(super_image_dir, "vbmeta.img")
             ota.MakeDisabledVbmetaImage(vbmeta_image_path)
-            extra_img_args += _UploadVbmetaImage(ssh_obj, remote_dir,
+            extra_img_args += _UploadVbmetaImage(ssh_obj, remote_image_dir,
                                                  vbmeta_image_path)
 
     return extra_img_args
 
 
 @utils.TimeExecute(function_description="Uploading super image.")
-def _UploadSuperImage(ssh_obj, remote_dir, super_image_dir):
+def _UploadSuperImage(ssh_obj, remote_image_dir, super_image_dir):
     """Upload a super image to a remote host or a GCE instance.
 
     Args:
         ssh_obj: An Ssh object.
-        remote_dir: The remote base directory.
+        remote_image_dir: The remote image directory.
         super_image_dir: The path to the directory containing the super image.
 
     Returns:
         A list of strings, the launch_cvd arguments including the remote paths.
     """
-    remote_super_image_path = remote_path.join(remote_dir,
+    remote_super_image_path = remote_path.join(remote_image_dir,
                                                _REMOTE_SUPER_IMAGE_PATH)
     remote_super_image_dir = remote_path.dirname(remote_super_image_path)
     cmd = (f"tar -cf - --lzop -S -C {super_image_dir} {_SUPER_IMAGE_NAME} | "
@@ -524,7 +533,7 @@ def _UploadSuperImage(ssh_obj, remote_dir, super_image_dir):
 
 
 def CleanUpRemoteCvd(ssh_obj, remote_dir, raise_error):
-    """Call stop_cvd and delete the files on a remote host or a GCE instance.
+    """Call stop_cvd and delete the files on a remote host.
 
     Args:
         ssh_obj: An Ssh object.
@@ -535,6 +544,7 @@ def CleanUpRemoteCvd(ssh_obj, remote_dir, raise_error):
     Raises:
         subprocess.CalledProcessError if any command fails.
     """
+    # TODO(b/293966645): Find stop_cvd in --remote-image-dir.
     home = remote_path.join("$HOME", remote_dir)
     stop_cvd_path = remote_path.join(remote_dir, "bin", "stop_cvd")
     stop_cvd_cmd = f"'HOME={home} {stop_cvd_path}'"
@@ -601,18 +611,19 @@ def ParseRemoteHostAddress(instance_name):
     return None
 
 
-def GetConfigFromRemoteAndroidInfo(ssh_obj, remote_dir):
+def GetConfigFromRemoteAndroidInfo(ssh_obj, remote_image_dir):
     """Get config from android-info.txt on a remote host or a GCE instance.
 
     Args:
         ssh_obj: An Ssh object.
-        remote_dir: The remote directory containing the images.
+        remote_image_dir: The remote image directory.
 
     Returns:
         A string, the config value. For example, "phone".
     """
     android_info = ssh_obj.GetCmdOutput(
-        "cat " + remote_path.join(remote_dir, constants.ANDROID_INFO_FILE))
+        "cat " +
+        remote_path.join(remote_image_dir, constants.ANDROID_INFO_FILE))
     logger.debug("Android info: %s", android_info)
     config_match = _CONFIG_PATTERN.search(android_info)
     if config_match:
@@ -701,9 +712,16 @@ def GetRemoteLaunchCvdCmd(remote_dir, avd_spec, config, extra_args):
     Returns:
         A string, the launch_cvd command.
     """
-    cmd = ["HOME=" + remote_path.join("$HOME", remote_dir),
-           remote_path.join(remote_dir, "bin", "launch_cvd"),
-           "-daemon"]
+    # launch_cvd requires ANDROID_HOST_OUT to be absolute.
+    cmd = ([f"{constants.ENV_ANDROID_HOST_OUT}="
+            f"$(readlink -n -m {avd_spec.remote_image_dir})",
+            f"{constants.ENV_ANDROID_PRODUCT_OUT}="
+            f"${constants.ENV_ANDROID_HOST_OUT}"]
+           if avd_spec.remote_image_dir else [])
+    cmd.extend(["HOME=" + remote_path.join("$HOME", remote_dir),
+                remote_path.join(avd_spec.remote_image_dir or remote_dir,
+                                 "bin", "launch_cvd"),
+                "-daemon"])
     cmd.extend(extra_args)
     cmd.extend(_GetLaunchCvdArgs(avd_spec, config))
     return " ".join(cmd)
@@ -774,17 +792,18 @@ def _GetRemoteRuntimeDirs(ssh_obj, remote_dir, base_instance_num,
     return legacy_runtime_dirs
 
 
-def GetRemoteFetcherConfigJson(remote_dir):
+def GetRemoteFetcherConfigJson(remote_image_dir):
     """Get the config created by fetch_cvd on a remote host or a GCE instance.
 
     Args:
-        remote_dir: The remote base directory.
+        remote_image_dir: The remote image directory.
 
     Returns:
         An object of report.LogFile.
     """
-    return report.LogFile(remote_path.join(remote_dir, "fetcher_config.json"),
-                          constants.LOG_TYPE_CUTTLEFISH_LOG)
+    return report.LogFile(
+        remote_path.join(remote_image_dir, "fetcher_config.json"),
+        constants.LOG_TYPE_CUTTLEFISH_LOG)
 
 
 def _GetRemoteTombstone(runtime_dir, name_suffix):
