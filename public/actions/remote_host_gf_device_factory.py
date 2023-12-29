@@ -646,6 +646,17 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
                 remote_image_dir, goldfish_utils.SYSTEM_QEMU_IMAGE_NAME)
             self._ssh.ScpPushFile(mixed_image, remote_disk_image_path)
 
+        # Adding the parameter to remote VerifiedBootParams.textproto unlocks
+        # the device so that the disabled vbmeta takes effect. An alternative
+        # is to append the parameter to the kernel command line by
+        # `emulator -qemu -append`, but that does not pass the compliance test.
+        remote_params_path = remote_path.join(
+            remote_image_dir, goldfish_utils.VERIFIED_BOOT_PARAMS_FILE_NAME)
+        # \\n is interpreted by shell and echo. \" is interpreted by shell.
+        param = r'\\nparam: \"androidboot.verifiedbootstate=orange\"'
+        self._ssh.Run(f"'test -f {remote_params_path} && "
+                      f"echo -e {param} >> {remote_params_path}'")
+
         return remote_disk_image_path
 
     def _MixAndUploadKernelImages(self, image_dir, boot_image_path, ota):
@@ -713,12 +724,6 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
             cmd.extend(("-ramdisk", remote_paths.ramdisk))
 
         cmd.extend(goldfish_utils.ConvertAvdSpecToArgs(self._avd_spec))
-
-        # Unlock the device so that the disabled vbmeta takes effect.
-        # These arguments must be at the end of the command line.
-        if self._ShouldMixDiskImage():
-            cmd.extend(("-qemu", "-append",
-                        "androidboot.verifiedbootstate=orange"))
 
         # Emulator does not support -stdouterr-file on macOS.
         self._ssh.Run(
