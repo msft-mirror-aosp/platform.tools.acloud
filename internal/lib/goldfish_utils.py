@@ -31,6 +31,7 @@ _UNPACKED_KERNEL_IMAGE_NAME = "kernel"
 _UNPACKED_RAMDISK_IMAGE_NAME = "ramdisk"
 # File names in a build environment or an SDK repository.
 SYSTEM_QEMU_IMAGE_NAME = "system-qemu.img"
+VERIFIED_BOOT_PARAMS_FILE_NAME = "VerifiedBootParams.textproto"
 _SDK_REPO_SYSTEM_IMAGE_NAME = "system.img"
 _MISC_INFO_FILE_NAME = "misc_info.txt"
 _SYSTEM_QEMU_CONFIG_FILE_NAME = "system-qemu-config.txt"

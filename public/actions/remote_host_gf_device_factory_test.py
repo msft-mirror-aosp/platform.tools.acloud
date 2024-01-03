@@ -77,6 +77,11 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
     _LOGS = [{"path": "acloud_gf_1/instance/kernel.log", "type": "KERNEL_LOG"},
              {"path": "acloud_gf_1/instance/emu_stderr.txt", "type": "TEXT"},
              {"path": "acloud_gf_1/instance/logcat.txt", "type": "LOGCAT"}]
+    _VERIFIED_BOOT_PARAMS_COMMAND = (
+        "'test -f acloud_gf_1/image/x86_64/VerifiedBootParams.textproto && "
+        r'echo -e \\nparam: \"androidboot.verifiedbootstate=orange\" >> '
+        "acloud_gf_1/image/x86_64/VerifiedBootParams.textproto'"
+    )
     _SSH_COMMAND = (
         "'export ANDROID_PRODUCT_OUT=~/acloud_gf_1/image/x86_64 "
         "ANDROID_TMP=~/acloud_gf_1/instance "
@@ -240,6 +245,8 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_gf_utils.ConvertAvdSpecToArgs.return_value = ["-gpu", "auto"]
         mock_gf_utils.MixDiskImage.return_value = "/mixed/disk"
         mock_gf_utils.SYSTEM_QEMU_IMAGE_NAME = "system-qemu.img"
+        mock_gf_utils.VERIFIED_BOOT_PARAMS_FILE_NAME = (
+            "VerifiedBootParams.textproto")
 
         factory = gf_factory.RemoteHostGoldfishDeviceFactory(
             self._mock_avd_spec)
@@ -260,6 +267,7 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_gf_utils.MixDiskImage.assert_called_once()
         self._mock_ssh.ScpPushFile.assert_called_with(
             "/mixed/disk", "acloud_gf_1/image/x86_64/system-qemu.img")
+        self._mock_ssh.Run.assert_any_call(self._VERIFIED_BOOT_PARAMS_COMMAND)
 
         mock_gf_utils.FormatRemoteHostInstanceName.assert_called()
         self.assertEqual(self._X86_64_BUILD_INFO, factory.GetBuildInfoDict())
