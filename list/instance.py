@@ -52,6 +52,7 @@ from acloud.internal.lib.gcompute_client import GetGCEHostName
 logger = logging.getLogger(__name__)
 
 _ACLOUD_CVD_TEMP = os.path.join(tempfile.gettempdir(), "acloud_cvd_temp")
+_CFG_KEY_INSTANCES = "instances"
 _CVD_RUNTIME_FOLDER_NAME = "cuttlefish_runtime"
 _CVD_BIN = "cvd"
 _CVD_BIN_FOLDER = "host_bins/bin"
@@ -162,6 +163,20 @@ def GetLocalInstanceConfig(local_instance_id):
         return cfg_path
     return None
 
+def GetInstanceId(cfg_path):
+    """Get the cuttlefish ID from config file.
+
+    Args:
+        cfg_path: Path to config file.
+
+    Return:
+        Cuttlefish ID.
+    """
+    with open(cfg_path, "r") as cf_config:
+        config_dict = json.load(cf_config)
+        instances = config_dict.get(_CFG_KEY_INSTANCES)
+        ins_id = int(min(instances.keys())) if instances else 1
+        return ins_id
 
 def GetAllLocalInstanceConfigs():
     """Get all cuttlefish runtime configs from the known locations.
@@ -171,18 +186,25 @@ def GetAllLocalInstanceConfigs():
         path.
     """
     id_cfg_pairs = []
+    id_set = set()
     # Check if any instance config is under home folder.
     cfg_path = GetDefaultCuttlefishConfig()
     if cfg_path:
-        id_cfg_pairs.append((1, cfg_path))
+        ins_id = GetInstanceId(cfg_path)
+
+        # skip redundant id in HOME and /tmp
+        if ins_id not in id_set:
+            id_set.add(ins_id)
+            id_cfg_pairs.append((ins_id, cfg_path))
 
     # Check if any instance config is under acloud cvd temp folder.
     if os.path.exists(_ACLOUD_CVD_TEMP):
         for ins_name in os.listdir(_ACLOUD_CVD_TEMP):
             ins_id = GetLocalInstanceIdByName(ins_name)
-            if ins_id is not None:
+            if ins_id is not None and ins_id not in id_set:
                 cfg_path = GetLocalInstanceConfig(ins_id)
                 if cfg_path:
+                    id_set.add(ins_id)
                     id_cfg_pairs.append((ins_id, cfg_path))
     return id_cfg_pairs
 
