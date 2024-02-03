@@ -59,6 +59,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                          ota_build_info={},
                          host_package_build_info={},
                          remote_host="192.0.2.100",
+                         remote_image_dir=None,
                          host_user="user1",
                          host_ssh_private_key_path=None,
                          report_internal_ip=False,
