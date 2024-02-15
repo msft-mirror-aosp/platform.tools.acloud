@@ -26,7 +26,6 @@ from acloud.internal import constants
 from acloud.internal.lib import android_build_client
 from acloud.internal.lib import auth
 from acloud.internal.lib import cvd_compute_client_multi_stage
-from acloud.internal.lib import cvd_utils
 from acloud.internal.lib import driver_test_lib
 from acloud.internal.lib import utils
 from acloud.list import list as list_instances
@@ -65,11 +64,10 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.avd_type = constants.TYPE_CF
         args.flavor = "phone"
         args.local_image = constants.FIND_IN_BUILD_ENV
-        args.local_system_image = None
-        args.local_vendor_image = None
         args.launch_args = None
         args.autoconnect = constants.INS_KEY_WEBRTC
         avd_spec_local_img = avd_spec.AVDSpec(args)
+        mock_cvd_utils.AreTargetFilesRequired.return_value = False
         fake_image_name = "/fake/aosp_cf_x86_phone-img-eng.username.zip"
         fake_host_package_name = "/fake/host_package.tar.gz"
         factory_local_img = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
@@ -125,9 +123,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.avd_type = constants.TYPE_CF
         args.flavor = "phone"
         args.local_image = constants.FIND_IN_BUILD_ENV
-        args.local_system_image = None
         args.adb_port = None
-        args.fastboot_port = None
         args.launch_args = None
         fake_avd_spec = avd_spec.AVDSpec(args)
         fake_avd_spec.cfg.enable_multi_stage = True
@@ -170,9 +166,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.avd_type = constants.TYPE_CF
         args.flavor = "phone"
         args.local_image = constants.FIND_IN_BUILD_ENV
-        args.local_system_image = None
         args.adb_port = None
-        args.fastboot_port = None
         args.launch_args = None
         fake_avd_spec = avd_spec.AVDSpec(args)
         fake_avd_spec.cfg.enable_multi_stage = True
@@ -202,9 +196,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.avd_type = constants.TYPE_CF
         args.flavor = "phone"
         args.local_image = "fake_local_image"
-        args.local_system_image = None
         args.adb_port = None
-        args.fastboot_port = None
         args.cheeps_betty_image = None
         args.launch_args = None
         avd_spec_local_image = avd_spec.AVDSpec(args)
@@ -213,7 +205,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             fake_image_name,
             fake_host_package_name)
         self.assertEqual(factory.GetBuildInfoDict(), None)
-        mock_cvd_utils.assert_not_called()
+        mock_cvd_utils.GetRemoteBuildInfoDict.assert_not_called()
 
         # Test image source type is remote.
         args.local_image = None
@@ -247,9 +239,8 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         fake_avd_spec.no_pull_log = False
         fake_avd_spec.base_instance_num = None
         fake_avd_spec.num_avds_per_instance = None
-        fake_avd_spec.local_system_image = None
-        fake_avd_spec.local_vendor_image = None
 
+        mock_cvd_utils.AreTargetFilesRequired.return_value = False
         mock_cvd_utils.FindRemoteLogs.return_value = [{"path": "/logcat"}]
         mock_cvd_utils.UploadExtraImages.return_value = [
             "-boot_image", "/boot/img"]
@@ -278,57 +269,29 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_cvd_utils.GetAdbPorts.assert_called_with(None, None)
         factory.GetVncPorts()
         mock_cvd_utils.GetVncPorts.assert_called_with(None, None)
-        factory.GetFastbootPorts()
-        mock_cvd_utils.GetFastbootPorts.assert_called_with(None, None)
         self.assertEqual({"instance": "failure"}, factory.GetFailures())
         self.assertEqual(2, len(factory.GetLogs().get("instance")))
 
     @mock.patch("acloud.public.actions.remote_instance_cf_device_factory."
-                "ota_tools")
-    def testLocalSystemAndVendorImageCreateInstance(self, mock_ota_tools):
-        """Test CreateInstance with local system image."""
+                "cvd_utils")
+    def testExtraImageCreateInstance(self, mock_cvd_utils):
+        """Test CreateInstance with local extra images."""
+        self.Patch(cvd_compute_client_multi_stage, "CvdComputeClient")
+        self.Patch(
+            remote_instance_cf_device_factory.RemoteInstanceDeviceFactory,
+            "CreateGceInstance", return_value="instance")
+        self.Patch(
+            remote_instance_cf_device_factory.RemoteInstanceDeviceFactory,
+            "_FindLogFiles")
+
+        mock_cvd_utils.AreTargetFilesRequired.return_value = True
+
         with tempfile.TemporaryDirectory() as temp_dir:
-            local_image_dir = os.path.join(temp_dir, "cf")
-            misc_info_path = os.path.join(local_image_dir, "misc_info.txt")
-            local_system_image_dir = os.path.join(temp_dir, "system")
-            local_system_image_path = os.path.join(
-                local_system_image_dir, "system.img")
-            local_vendor_image_dir = os.path.join(temp_dir, "vendor")
-            local_vendor_image_path = os.path.join(
-                local_vendor_image_dir, "vendor.img")
-            local_vendor_dlkm_image_path = os.path.join(
-                local_vendor_image_dir, "vendor_dlkm.img")
-            local_odm_image_path = os.path.join(
-                local_vendor_image_dir, "odm.img")
-            local_odm_dlkm_image_path = os.path.join(
-                local_vendor_image_dir, "odm_dlkm.img")
-            self.CreateFile(misc_info_path, b"key=value")
-            self.CreateFile(local_system_image_path)
-            self.CreateFile(local_vendor_image_path)
-            self.CreateFile(local_vendor_dlkm_image_path)
-            self.CreateFile(local_odm_image_path)
-            self.CreateFile(local_odm_dlkm_image_path)
-
-            self.Patch(cvd_utils, "UploadArtifacts")
-            self.Patch(cvd_utils, "UploadSuperImage")
-            self.Patch(cvd_utils, "UploadExtraImages")
-            self.Patch(cvd_compute_client_multi_stage, "CvdComputeClient")
-            self.Patch(
-                remote_instance_cf_device_factory.RemoteInstanceDeviceFactory,
-                "CreateGceInstance", return_value="instance")
-            self.Patch(
-                remote_instance_cf_device_factory.RemoteInstanceDeviceFactory,
-                "_FindLogFiles")
-            mock_ota_tools_object = mock_ota_tools.FindOtaTools.return_value
-
             args = mock.MagicMock()
             args.config_file = ""
             args.avd_type = constants.TYPE_CF
             args.flavor = "phone"
-            args.local_image = local_image_dir
-            args.local_system_image = local_system_image_dir
-            args.local_vendor_image = local_vendor_image_dir
-            args.local_tool = ["/ota/tools/dir"]
+            args.local_image = temp_dir
             args.launch_args = None
             args.no_pull_log = True
             avd_spec_local_img = avd_spec.AVDSpec(args)
@@ -339,16 +302,11 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
 
             factory_local_img.CreateInstance()
 
-            cvd_utils.UploadArtifacts.assert_called_once_with(
-                mock.ANY, mock.ANY, local_image_dir, mock.ANY)
-            mock_ota_tools_object.MixSuperImage.assert_called_once_with(
-                mock.ANY, misc_info_path, local_image_dir,
-                system_image=local_system_image_path,
-                vendor_image=local_vendor_image_path,
-                vendor_dlkm_image=local_vendor_dlkm_image_path,
-                odm_image=local_odm_image_path,
-                odm_dlkm_image=local_odm_dlkm_image_path)
-            cvd_utils.UploadSuperImage.assert_called_once()
+        mock_cvd_utils.UploadArtifacts.assert_called_once_with(
+            mock.ANY, mock_cvd_utils.GCE_BASE_DIR, temp_dir, mock.ANY)
+        mock_cvd_utils.UploadExtraImages.assert_called_once_with(
+            mock.ANY, mock_cvd_utils.GCE_BASE_DIR, avd_spec_local_img,
+            args.local_image)
 
     @mock.patch.object(remote_instance_cf_device_factory.RemoteInstanceDeviceFactory,
                        "CreateGceInstance")
@@ -369,9 +327,8 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         fake_avd_spec.no_pull_log = True
         fake_avd_spec.base_instance_num = 2
         fake_avd_spec.num_avds_per_instance = 3
-        fake_avd_spec.local_system_image = None
-        fake_avd_spec.local_vendor_image = None
 
+        mock_cvd_utils.AreTargetFilesRequired.return_value = False
         mock_cvd_utils.FindRemoteLogs.return_value = [{"path": "/logcat"}]
         mock_cvd_utils.UploadExtraImages.return_value = []
 
@@ -394,7 +351,9 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.assertFalse(factory.GetFailures())
         self.assertEqual(3, len(factory.GetLogs().get("instance")))
 
-    def testGetOpenWrtInfoDict(self):
+    @mock.patch("acloud.public.actions.remote_instance_cf_device_factory."
+                "cvd_utils")
+    def testGetOpenWrtInfoDict(self, mock_cvd_utils):
         """Test GetOpenWrtInfoDict."""
         self.Patch(cvd_compute_client_multi_stage.CvdComputeClient,
                    "GetSshConnectCmd", return_value="fake_ssh_command")
@@ -408,15 +367,14 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         avd_spec_no_openwrt = avd_spec.AVDSpec(args)
         factory = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
             avd_spec_no_openwrt)
-        self.assertEqual(None, factory.GetOpenWrtInfoDict())
+        self.assertIsNone(factory.GetOpenWrtInfoDict())
 
         args.openwrt = True
         avd_spec_openwrt = avd_spec.AVDSpec(args)
         factory = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
             avd_spec_openwrt)
-        expect_result = {"ssh_command": "fake_ssh_command",
-                         "screen_command": "screen ~/cuttlefish_runtime/console"}
-        self.assertEqual(expect_result, factory.GetOpenWrtInfoDict())
+        self.assertIsNotNone(factory.GetOpenWrtInfoDict())
+        mock_cvd_utils.GetOpenWrtInfoDict.assert_called()
 
 
 if __name__ == "__main__":

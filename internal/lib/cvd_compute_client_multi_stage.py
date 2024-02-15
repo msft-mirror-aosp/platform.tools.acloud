@@ -37,7 +37,6 @@ Android build, and start Android within the host instance.
 
 import logging
 import os
-import re
 import subprocess
 import tempfile
 import time
@@ -57,10 +56,6 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_WEBRTC_DEVICE_ID = "cvd-1"
 _FETCHER_NAME = "fetch_cvd"
-_NO_RETRY = 0
-# Launch cvd command for acloud report
-_LAUNCH_CVD_COMMAND = "launch_cvd_command"
-_CONFIG_RE = re.compile(r"^config=(?P<config>.+)")
 _TRUST_REMOTE_INSTANCE_COMMAND = (
     f"\"sudo cp -p ~/{constants.WEBRTC_CERTS_PATH}/{constants.SSL_CA_NAME}.pem "
     f"{constants.SSL_TRUST_CA_DIR}/{constants.SSL_CA_NAME}.crt;"
@@ -111,26 +106,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         self._execution_time = {constants.TIME_ARTIFACT: 0,
                                 constants.TIME_GCE: 0,
                                 constants.TIME_LAUNCH: 0}
-
-    def InitRemoteHost(self, ssh, ip, user, base_dir):
-        """Init remote host.
-
-        Check if we can ssh to the remote host, stop any cf instances running
-        on it, and remove existing files.
-
-        Args:
-            ssh: Ssh object.
-            ip: namedtuple (internal, external) that holds IP address of the
-                remote host, e.g. "external:140.110.20.1, internal:10.0.0.1"
-            user: String of user log in to the instance.
-            base_dir: The remote directory containing the images and tools.
-        """
-        self.SetStage(constants.STAGE_SSH_CONNECT)
-        self._ssh = ssh
-        self._ip = ip
-        self._user = user
-        self._ssh.WaitForSsh(timeout=self._ins_timeout_secs)
-        cvd_utils.CleanUpRemoteCvd(self._ssh, base_dir, raise_error=False)
 
     # pylint: disable=arguments-differ,broad-except
     def CreateInstance(self, instance, image_name, image_project,
@@ -196,25 +171,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             return f"nic0.{instance}.{self._zone}.c.{project}.internal.gcpnode.com"
         return f"nic0.{instance}.{self._zone}.c.{self._project}.internal.gcpnode.com"
 
-    def _GetConfigFromAndroidInfo(self, base_dir):
-        """Get config value from android-info.txt.
-
-        The config in android-info.txt would like "config=phone".
-
-        Args:
-            base_dir: The remote directory containing the images.
-
-        Returns:
-            Strings of config value.
-        """
-        android_info = self._ssh.GetCmdOutput(
-            f"cat {base_dir}/{constants.ANDROID_INFO_FILE}")
-        logger.debug("Android info: %s", android_info)
-        config_match = _CONFIG_RE.match(android_info)
-        if config_match:
-            return config_match.group("config")
-        return None
-
     @utils.TimeExecute(function_description="Launching AVD(s) and waiting for boot up",
                        result_evaluator=utils.BootEvaluator)
     def LaunchCvd(self, instance, avd_spec, base_dir, extra_args):
@@ -236,36 +192,21 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         """
         self.SetStage(constants.STAGE_BOOT_UP)
         timestart = time.time()
-        error_msg = ""
-        launch_cvd_args = list(extra_args)
-        config = self._GetConfigFromAndroidInfo(base_dir)
-        launch_cvd_args.extend(cvd_utils.GetLaunchCvdArgs(avd_spec, config))
-
+        config = cvd_utils.GetConfigFromRemoteAndroidInfo(self._ssh, base_dir)
+        cmd = cvd_utils.GetRemoteLaunchCvdCmd(
+            base_dir, avd_spec, config, extra_args)
         boot_timeout_secs = self._GetBootTimeout(
             avd_spec.boot_timeout_secs or constants.DEFAULT_CF_BOOT_TIMEOUT)
-        ssh_command = (f"'HOME=$HOME/{base_dir} "
-                       f"{base_dir}/bin/launch_cvd -daemon "
-                       f"{' '.join(launch_cvd_args)}'")
-        try:
-            self.ExtendReportData(_LAUNCH_CVD_COMMAND, ssh_command)
-            self._ssh.Run(ssh_command, boot_timeout_secs, retry=_NO_RETRY)
-            self._UpdateOpenWrtStatus(avd_spec)
-        except (subprocess.CalledProcessError, errors.DeviceConnectionError,
-                errors.LaunchCVDFail) as e:
-            error_msg = (f"Device {instance} did not finish on boot within "
-                         f"timeout ({boot_timeout_secs} secs)")
-            if constants.ERROR_MSG_VNC_NOT_SUPPORT in str(e):
-                error_msg = (
-                    "VNC is not supported in the current build. Please try WebRTC such "
-                    "as '$acloud create' or '$acloud create --autoconnect webrtc'")
-            if constants.ERROR_MSG_WEBRTC_NOT_SUPPORT in str(e):
-                error_msg = (
-                    "WEBRTC is not supported in the current build. Please try VNC such "
-                    "as '$acloud create --autoconnect vnc'")
-            utils.PrintColorString(str(e), utils.TextColors.FAIL)
 
+        self.ExtendReportData(constants.LAUNCH_CVD_COMMAND, cmd)
+        error_msg = cvd_utils.ExecuteRemoteLaunchCvd(
+            self._ssh, cmd, boot_timeout_secs)
         self._execution_time[constants.TIME_LAUNCH] = time.time() - timestart
-        return {instance: error_msg} if error_msg else {}
+
+        if error_msg:
+            return {instance: error_msg}
+        self._openwrt = avd_spec.openwrt
+        return {}
 
     def _GetBootTimeout(self, timeout_secs):
         """Get boot timeout.
@@ -384,7 +325,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
     @utils.TimeExecute(function_description="Downloading build on instance")
     def FetchBuild(self, default_build_info, system_build_info,
                    kernel_build_info, boot_build_info, bootloader_build_info,
-                   ota_build_info):
+                   ota_build_info, host_package_build_info):
         """Execute fetch_cvd on the remote instance to get Cuttlefish runtime files.
 
         Args:
@@ -394,6 +335,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             boot_build_info: The build that provides the boot image.
             bootloader_build_info: The build that provides the bootloader.
             ota_build_info: The build that provides the OTA tools.
+            host_package_build_info: The build that provides the host package.
 
         Returns:
             List of string args for fetch_cvd.
@@ -402,7 +344,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         fetch_cvd_args = ["-credential_source=gce"]
         fetch_cvd_build_args = self._build_api.GetFetchBuildArgs(
             default_build_info, system_build_info, kernel_build_info,
-            boot_build_info, bootloader_build_info, ota_build_info)
+            boot_build_info, bootloader_build_info, ota_build_info,
+            host_package_build_info)
         fetch_cvd_args.extend(fetch_cvd_build_args)
 
         self._ssh.Run("./fetch_cvd " + " ".join(fetch_cvd_args),
@@ -509,14 +452,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             stage: Integer, the stage would like STAGE_INIT, STAGE_GCE.
         """
         self._stage = stage
-
-    def _UpdateOpenWrtStatus(self, avd_spec):
-        """Update the OpenWrt device status.
-
-        Args:
-            avd_spec: An AVDSpec instance.
-        """
-        self._openwrt = avd_spec.openwrt if avd_spec else False
 
     @property
     def all_failures(self):

@@ -61,6 +61,8 @@ _EMULATOR_BIN_DIR_NAMES = ("bin64", "qemu")
 _SDK_REPO_EMULATOR_DIR_NAME = "emulator"
 _NON_MIXED_BACKUP_IMAGE_EXT = ".bak-non-mixed"
 _BUILD_PROP_FILE_NAME = "build.prop"
+# Additional data written to VerifiedBootParams.textproto.
+_UNLOCKING_PARAM = 'param: "androidboot.verifiedbootstate=orange"'
 # Timeout
 _DEFAULT_EMULATOR_TIMEOUT_SECS = 150
 _EMULATOR_TIMEOUT_ERROR = "Emulator did not boot within %(timeout)d secs."
@@ -386,6 +388,39 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                         system_qemu_img, new_image)
             shutil.copyfile(new_image, system_qemu_img)
 
+    @staticmethod
+    def _RewriteVerifiedBootParams(image_dir):
+        """Rewrite VerifiedBootParams.textproto.
+
+        This method appends the parameter that unlocks the device so that the
+        disabled vbmeta takes effect. An alternative is to append to the kernel
+        command line by `emulator -qemu -append`, but that does not pass the
+        compliance test.
+
+        Args:
+            image_dir: The directory containing VerifiedBootParams.textproto.
+        """
+        params_path = os.path.join(
+            image_dir, goldfish_utils.VERIFIED_BOOT_PARAMS_FILE_NAME)
+        with open(params_path, "r", encoding="utf-8") as params_file:
+            if _UNLOCKING_PARAM in params_file.read():
+                # The file was possibly rewritten in the previous invocation.
+                logging.info("%s conatins the parameter that unlocks the "
+                             "device already.", params_path)
+                return
+
+        bak_params_path = params_path + _NON_MIXED_BACKUP_IMAGE_EXT
+        # If the backup file exists, it was possibly created in the previous
+        # invocation and contains the original contents. The user can restore
+        # the original file by renaming it.
+        if not os.path.exists(bak_params_path):
+            logging.info("Copy %s to %s.", params_path, bak_params_path)
+            shutil.copyfile(params_path, bak_params_path)
+
+        logging.info("Write the unlocking parameter to %s.", params_path)
+        with open(params_path, "a", encoding="utf-8") as params_file:
+            params_file.writelines(["\n", _UNLOCKING_PARAM, "\n"])
+
     def _FindAndMixKernelImages(self, kernel_search_path, image_dir, tool_dirs,
                                 instance_dir):
         """Find kernel images and mix them with emulator images.
@@ -446,18 +481,17 @@ class GoldfishLocalImageLocalInstance(base_avd_create.BaseAVDCreate):
 
         if avd_spec.local_system_image:
             image_dir = self._FindImageDir(avd_spec.local_image_dir)
-            mixed_image = goldfish_utils.MixWithSystemImage(
+            # No known use case requires replacing system_ext and product.
+            system_image_path = create_common.FindSystemImages(
+                avd_spec.local_system_image).system
+            mixed_image = goldfish_utils.MixDiskImage(
                 os.path.join(instance_dir, "mix_disk"), image_dir,
-                create_common.FindSystemImage(avd_spec.local_system_image),
+                system_image_path, None,  # system_dlkm is not implemented.
                 ota_tools.FindOtaTools(ota_tools_search_paths))
 
             # TODO(b/142228085): Use -system instead of modifying image_dir.
             self._ReplaceSystemQemuImg(mixed_image, image_dir)
-
-            # Unlock the device so that the disabled vbmeta takes effect.
-            # These arguments must be at the end of the command line.
-            args.extend(("-qemu", "-append",
-                         "androidboot.verifiedbootstate=orange"))
+            self._RewriteVerifiedBootParams(image_dir)
 
         return args
 

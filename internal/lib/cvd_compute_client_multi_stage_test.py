@@ -116,7 +116,6 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.args.avd_type = constants.TYPE_CF
         self.args.flavor = "phone"
         self.args.adb_port = None
-        self.args.fastboot_port = None
         self.args.base_instance_num = None
         self.args.hw_property = "cpu:2,resolution:1080x1920,dpi:240,memory:4g,disk:10g"
         self.args.num_avds_per_instance = 2
@@ -183,14 +182,6 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(self.cvd_compute_client_multi_stage.stage,
                          device_stage)
 
-    def testGetConfigFromAndroidInfo(self):
-        """Test GetConfigFromAndroidInfo"""
-        self.Patch(Ssh, "GetCmdOutput", return_value="config=phone")
-        expected = "phone"
-        self.assertEqual(
-            self.cvd_compute_client_multi_stage._GetConfigFromAndroidInfo("dir"),
-            expected)
-
     @mock.patch.object(Ssh, "Run")
     @mock.patch.object(Ssh, "ScpPushFiles")
     def testUpdateCertificate(self, mock_upload, mock_trustremote):
@@ -232,16 +223,6 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
         self.Patch(os.path, "exists", return_value=False)
         with self.assertRaises(errors.CheckPathError):
             self.cvd_compute_client_multi_stage.UploadExtraFiles(extra_files)
-
-    def testUpdateOpenWrtStatus(self):
-        """Test UpdateOpenWrtStatus."""
-        self.cvd_compute_client_multi_stage._UpdateOpenWrtStatus(avd_spec=None)
-        self.assertEqual(False, self.cvd_compute_client_multi_stage.openwrt)
-
-        fake_avd_spec = mock.MagicMock()
-        fake_avd_spec.openwrt = True
-        self.cvd_compute_client_multi_stage._UpdateOpenWrtStatus(fake_avd_spec)
-        self.assertEqual(True, self.cvd_compute_client_multi_stage.openwrt)
 
 
 if __name__ == "__main__":

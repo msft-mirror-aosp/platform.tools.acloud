@@ -129,18 +129,35 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
         """
         if fetch_cvd_version == constants.LKGB:
             fetch_cvd_version = self.GetFetcherVersion()
-        utils.RetryExceptionType(
-            exception_types=(ssl.SSLError, errors.DriverError),
-            max_retries=self.MAX_RETRY,
-            functor=self.DownloadArtifact,
-            sleep_multiplier=self.RETRY_SLEEP_SECS,
-            retry_backoff_factor=utils.DEFAULT_RETRY_BACKOFF_FACTOR,
-            build_target=(self.FETCHER_ARM_VERSION_BUILD_TARGET
-                        if is_arm_version else self.FETCHER_BUILD_TARGET),
-            build_id=fetch_cvd_version,
-            resource_id=self.FETCHER_NAME,
-            local_dest=local_dest,
-            attempt_id=self.LATEST)
+        fetch_cvd_build_target = (
+            self.FETCHER_ARM_VERSION_BUILD_TARGET if is_arm_version
+            else self.FETCHER_BUILD_TARGET)
+        try:
+            utils.RetryExceptionType(
+                exception_types=(ssl.SSLError, errors.DriverError),
+                max_retries=self.MAX_RETRY,
+                functor=self.DownloadArtifact,
+                sleep_multiplier=self.RETRY_SLEEP_SECS,
+                retry_backoff_factor=utils.DEFAULT_RETRY_BACKOFF_FACTOR,
+                build_target=fetch_cvd_build_target,
+                build_id=fetch_cvd_version,
+                resource_id=self.FETCHER_NAME,
+                local_dest=local_dest,
+                attempt_id=self.LATEST)
+        except Exception:
+            logger.debug("Download fetch_cvd with build id: %s",
+                         constants.FETCH_CVD_SECOND_VERSION)
+            utils.RetryExceptionType(
+                exception_types=(ssl.SSLError, errors.DriverError),
+                max_retries=self.MAX_RETRY,
+                functor=self.DownloadArtifact,
+                sleep_multiplier=self.RETRY_SLEEP_SECS,
+                retry_backoff_factor=utils.DEFAULT_RETRY_BACKOFF_FACTOR,
+                build_target=fetch_cvd_build_target,
+                build_id=constants.FETCH_CVD_SECOND_VERSION,
+                resource_id=self.FETCHER_NAME,
+                local_dest=local_dest,
+                attempt_id=self.LATEST)
         fetch_cvd_stat = os.stat(local_dest)
         os.chmod(local_dest, fetch_cvd_stat.st_mode | stat.S_IEXEC)
 
@@ -166,7 +183,8 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
 
     def GetFetchBuildArgs(self, default_build_info, system_build_info,
                           kernel_build_info, boot_build_info,
-                          bootloader_build_info, ota_build_info):
+                          bootloader_build_info, ota_build_info,
+                          host_package_build_info):
         """Get args from build information for fetch_cvd.
 
         Each build_info is a dictionary that contains 3 items, for example,
@@ -186,6 +204,7 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
                              boot image name.
             bootloader_build_info: The build that provides the bootloader.
             ota_build_info: The build that provides the OTA tools.
+            host_package_build_info: The build that provides the host package.
 
         Returns:
             List of string args for fetch_cvd.
@@ -213,6 +232,9 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
         ota_build = self.ProcessBuild(ota_build_info)
         if ota_build:
             fetch_cvd_args.append(f"-otatools_build={ota_build}")
+        host_package_build = self.ProcessBuild(host_package_build_info)
+        if host_package_build:
+            fetch_cvd_args.append(f"-host_package_build={host_package_build}")
 
         return fetch_cvd_args
 

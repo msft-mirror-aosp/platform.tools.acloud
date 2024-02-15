@@ -75,6 +75,8 @@ _DEFAULT_BRANCH = "aosp-master"
 # the branch, avd type and device flavor:
 # aosp, cf and phone -> aosp_cf_x86_phone.
 _BRANCH_TARGET_PREFIX = {"aosp": "aosp_"}
+_BRANCH_TARGET_TRUNK_STAGEING = {"aosp-main": "-trunk_staging",
+                                 "git_main": "-trunk_staging"}
 
 
 def EscapeAnsi(line):
@@ -102,7 +104,6 @@ class AVDSpec():
         # Let's define the private class vars here and then process the user
         # args afterwards.
         self._client_adb_port = args.adb_port
-        self._client_fastboot_port = args.fastboot_port
         self._autoconnect = None
         self._cvd_host_package = None
         self._instance_name_to_reuse = None
@@ -121,6 +122,7 @@ class AVDSpec():
         self._local_instance_dir = None
         self._local_kernel_image = None
         self._local_system_image = None
+        self._local_system_dlkm_image = None
         self._local_vendor_image = None
         self._local_tool_dirs = None
         self._image_download_dir = None
@@ -135,10 +137,12 @@ class AVDSpec():
         self._kernel_build_info = {}
         self._boot_build_info = {}
         self._ota_build_info = {}
+        self._host_package_build_info = {}
         self._bootloader_build_info = {}
         self._hw_property = None
         self._hw_customize = False
         self._remote_host = None
+        self._remote_image_dir = None
         self._gce_metadata = None
         self._gce_only = None
         self._host_user = None
@@ -256,6 +260,10 @@ class AVDSpec():
             self._local_system_image = self._GetLocalImagePath(
                 args.local_system_image)
 
+        if args.local_system_dlkm_image is not None:
+            self._local_system_dlkm_image = self._GetLocalImagePath(
+                args.local_system_dlkm_image)
+
         if args.local_vendor_image is not None:
             self._local_vendor_image = self._GetLocalImagePath(
                 args.local_vendor_image)
@@ -358,6 +366,7 @@ class AVDSpec():
                                    if args.local_instance is None else
                                    constants.INSTANCE_TYPE_LOCAL)
         self._remote_host = args.remote_host
+        self._remote_image_dir = args.remote_image_dir
         self._host_user = args.host_user
         self._host_ssh_private_key_path = args.host_ssh_private_key_path
         self._local_instance_id = args.local_instance
@@ -622,7 +631,8 @@ class AVDSpec():
 
         self._remote_image[constants.BUILD_TARGET] = args.build_target
         if not self._remote_image[constants.BUILD_TARGET]:
-            self._remote_image[constants.BUILD_TARGET] = self._GetBuildTarget(args)
+            self._remote_image[constants.BUILD_TARGET] = self._GetBuildTarget(
+                args, self._remote_image[constants.BUILD_BRANCH])
         else:
             # If flavor isn't specified, try to infer it from build target,
             # if we can't, just default to phone flavor.
@@ -662,6 +672,10 @@ class AVDSpec():
             constants.BUILD_ID: args.bootloader_build_id,
             constants.BUILD_BRANCH: args.bootloader_branch,
             constants.BUILD_TARGET: args.bootloader_build_target}
+        self._host_package_build_info = {
+            constants.BUILD_ID: args.host_package_build_id,
+            constants.BUILD_BRANCH: args.host_package_branch,
+            constants.BUILD_TARGET: args.host_package_build_target}
 
     @staticmethod
     def _CheckCFBuildTarget(instance_type):
@@ -761,7 +775,7 @@ class AVDSpec():
             % _DEFAULT_BRANCH, utils.TextColors.WARNING)
         return _DEFAULT_BRANCH
 
-    def _GetBuildTarget(self, args):
+    def _GetBuildTarget(self, args, branch):
         """Infer build target if user doesn't specified target name.
 
         Target = {REPO_PREFIX}{avd_type}_{bitness}_{flavor}-
@@ -770,15 +784,17 @@ class AVDSpec():
 
         Args:
             args: Namespace object from argparse.parse_args.
+            branch: String, name of build branch.
 
         Returns:
             build_target: String, name of build target.
         """
-        branch = re.split("-|_", self._remote_image[constants.BUILD_BRANCH])[0]
-        return "%s%s_%s_%s-%s" % (
-            _BRANCH_TARGET_PREFIX.get(branch, ""),
+        branch_prefix = re.split("-|_", branch)[0]
+        return "%s%s_%s_%s%s-%s" % (
+            _BRANCH_TARGET_PREFIX.get(branch_prefix, ""),
             constants.AVD_TYPES_MAPPING[args.avd_type],
             _DEFAULT_BUILD_BITNESS, self._flavor,
+            _BRANCH_TARGET_TRUNK_STAGEING.get(branch, ""),
             _DEFAULT_BUILD_TYPE)
 
     @property
@@ -827,6 +843,11 @@ class AVDSpec():
         return self._local_system_image
 
     @property
+    def local_system_dlkm_image(self):
+        """Return local system_dlkm image path."""
+        return self._local_system_dlkm_image
+
+    @property
     def local_vendor_image(self):
         """Return local vendor image path."""
         return self._local_vendor_image
@@ -855,15 +876,7 @@ class AVDSpec():
     def connect_adb(self):
         """Auto-connect to adb.
 
-        Return: Boolean, whether adb autoconnect is enabled.
-        """
-        return self._autoconnect is not False
-
-    @property
-    def connect_fastboot(self):
-        """Auto-connect to fastboot.
-
-        Return: Boolean, whether fastboot autoconnect is enabled.
+        Return: Boolean, whether autoconnect is enabled.
         """
         return self._autoconnect is not False
 
@@ -1010,11 +1023,6 @@ class AVDSpec():
         return self._client_adb_port
 
     @property
-    def client_fastboot_port(self):
-        """Return the client fastboot port."""
-        return self._client_fastboot_port
-
-    @property
     def stable_host_image_name(self):
         """Return the Cuttlefish host image name."""
         return self._stable_host_image_name
@@ -1066,6 +1074,11 @@ class AVDSpec():
         return self._ota_build_info
 
     @property
+    def host_package_build_info(self):
+        """Return host_package_build_info."""
+        return self._host_package_build_info
+
+    @property
     def system_build_info(self):
         """Return system_build_info."""
         return self._system_build_info
@@ -1084,6 +1097,11 @@ class AVDSpec():
     def remote_host(self):
         """Return host."""
         return self._remote_host
+
+    @property
+    def remote_image_dir(self):
+        """Return remote_image_dir."""
+        return self._remote_image_dir
 
     @property
     def host_user(self):

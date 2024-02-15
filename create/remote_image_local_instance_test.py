@@ -60,6 +60,7 @@ class RemoteImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
         mock_proc.return_value = "/unit/test"
         avd_spec = mock.MagicMock()
         avd_spec.local_system_image = None
+        avd_spec.local_kernel_image = None
         avd_spec.local_vendor_image = None
         # raise errors.NoCuttlefishCommonInstalled
         self.Patch(setup_common, "PackageInstalled", return_value=False)
@@ -68,10 +69,12 @@ class RemoteImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
                           avd_spec)
 
         # Valid _DownloadAndProcessImageFiles run.
+        mock_launch_cvd = os.path.join("/unit/test", "bin", "launch_cvd")
         self.Patch(setup_common, "PackageInstalled", return_value=True)
         self.Patch(remote_image_local_instance,
                    "ConfirmDownloadRemoteImageDir", return_value="/tmp")
-        self.Patch(os.path, "exists", return_value=True)
+        mock_exists = self.Patch(
+            os.path, "exists", side_effect=lambda p: p == mock_launch_cvd)
         paths = self.RemoteImageLocalInstance.GetImageArtifactsPath(avd_spec)
         mock_proc.assert_called_once_with(avd_spec)
         self.assertEqual(paths.image_dir, "/unit/test")
@@ -84,15 +87,16 @@ class RemoteImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
         avd_spec.remote_image = self._fake_remote_image
         self.Patch(os, "makedirs")
         self.Patch(create_common, "DownloadRemoteArtifact")
-        self.Patch(os.path, "exists", side_effect=[True, False])
         self.Patch(create_common, "GetNonEmptyEnvVars")
         self.Patch(cvd_utils, "FindMiscInfo",
                    return_value="/mix_image_1234/MISC")
         self.Patch(cvd_utils, "FindImageDir",
                    return_value="/mix_image_1234/IMAGES")
         self.Patch(ota_tools, "FindOtaToolsDir", return_value="/ota_tools_dir")
-        self.Patch(create_common, "FindSystemImage",
-                   return_value="/system_image_path")
+        self.Patch(create_common, "FindSystemImages",
+                   return_value=("/system_image_path",
+                                 "/system_ext_image_path",
+                                 "/product_image_path"))
         self.Patch(self.RemoteImageLocalInstance, "_FindCvdHostBinaries",
                    side_effect=errors.GetCvdLocalHostPackageError("not found"))
         paths = self.RemoteImageLocalInstance.GetImageArtifactsPath(avd_spec)
@@ -105,7 +109,21 @@ class RemoteImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(paths.host_bins, "/unit/test")
         self.assertEqual(paths.ota_tools_dir, "/ota_tools_dir")
         self.assertEqual(paths.system_image, "/system_image_path")
+        self.assertEqual(paths.system_ext_image, "/system_ext_image_path")
+        self.assertEqual(paths.product_image, "/product_image_path")
         self.RemoteImageLocalInstance._FindCvdHostBinaries.assert_not_called()
+
+        # Boot and kernel images
+        avd_spec.local_kernel_image = "/test_local_kernel_image_dir"
+        self.Patch(self.RemoteImageLocalInstance, "FindBootOrKernelImages",
+                   return_value=("/boot_image_path", "/vendor_boot_image_path",
+                                 None, None))
+        paths = self.RemoteImageLocalInstance.GetImageArtifactsPath(avd_spec)
+        self.RemoteImageLocalInstance.FindBootOrKernelImages.assert_called()
+        self.assertEqual(paths.boot_image, "/boot_image_path")
+        self.assertEqual(paths.vendor_boot_image, "/vendor_boot_image_path")
+        self.assertIsNone(paths.kernel_image)
+        self.assertIsNone(paths.initramfs_image)
 
         # local vendor image, local tool including host bins
         avd_spec.local_vendor_image = "/test_local_vendor_image_dir"
@@ -113,7 +131,6 @@ class RemoteImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
             "vendor.img", "vendor_dlkm.img", "odm.img", "odm_dlkm.img")
         self.Patch(cvd_utils, "FindVendorImages",
                    return_value=vendor_image_paths)
-        self.Patch(os.path, "exists", side_effect=[True, False])
         self.Patch(self.RemoteImageLocalInstance, "_FindCvdHostBinaries",
                    return_value="/test_local_tool_dirs")
         paths = self.RemoteImageLocalInstance.GetImageArtifactsPath(avd_spec)
@@ -121,7 +138,6 @@ class RemoteImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
 
         # local vendor image, local tool without host bins
         avd_spec.local_vendor_image = "/test_local_vendor_image_dir"
-        self.Patch(os.path, "exists", side_effect=[True, False])
         self.Patch(self.RemoteImageLocalInstance, "_FindCvdHostBinaries",
                    side_effect=errors.GetCvdLocalHostPackageError("not found"))
         paths = self.RemoteImageLocalInstance.GetImageArtifactsPath(avd_spec)
@@ -129,10 +145,10 @@ class RemoteImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
 
         create_common.DownloadRemoteArtifact.reset_mock()
 
-        self.Patch(os.path, "exists", side_effect=[True, True])
+        mock_exists.side_effect = lambda p: p in (
+            mock_launch_cvd, os.path.join("/unit/test", "mix_image_1234"))
         self.RemoteImageLocalInstance.GetImageArtifactsPath(avd_spec)
         create_common.DownloadRemoteArtifact.assert_not_called()
-
 
     @mock.patch.object(shutil, "rmtree")
     def testDownloadAndProcessImageFiles(self, mock_rmtree):
