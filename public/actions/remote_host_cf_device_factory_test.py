@@ -98,7 +98,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_cvd_utils.GetRemoteHostBaseDir.return_value = "acloud_cf_2"
         mock_cvd_utils.FormatRemoteHostInstanceName.return_value = "inst"
         mock_cvd_utils.AreTargetFilesRequired.return_value = True
-        mock_cvd_utils.UploadExtraImages.return_value = ["extra"]
+        mock_cvd_utils.UploadExtraImages.return_value = [("-extra", "image")]
         mock_cvd_utils.ExecuteRemoteLaunchCvd.return_value = "failure"
         mock_cvd_utils.FindRemoteLogs.return_value = [log]
 
@@ -119,7 +119,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             mock_ssh_obj, "acloud_cf_2")
         # LaunchCvd
         mock_cvd_utils.GetRemoteLaunchCvdCmd.assert_called_with(
-            "acloud_cf_2", mock_avd_spec, mock.ANY, ["extra"])
+            "acloud_cf_2", mock_avd_spec, mock.ANY, ["-extra", "image"])
         mock_cvd_utils.ExecuteRemoteLaunchCvd.assert_called()
         # FindLogFiles
         mock_cvd_utils.FindRemoteLogs.assert_called_with(
@@ -412,7 +412,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_cvd_utils.FormatRemoteHostInstanceName.return_value = "inst"
         mock_cvd_utils.LoadRemoteImageArgs.return_value = None
         mock_cvd_utils.AreTargetFilesRequired.return_value = False
-        mock_cvd_utils.UploadExtraImages.return_value = ["arg1"]
+        mock_cvd_utils.UploadExtraImages.return_value = [("arg", "1")]
         mock_cvd_utils.ExecuteRemoteLaunchCvd.return_value = ""
         mock_cvd_utils.FindRemoteLogs.return_value = []
 
@@ -422,21 +422,21 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_cvd_utils.LoadRemoteImageArgs.assert_called_once_with(
             mock_ssh_obj, "mock_img_dir/acloud_image_args.txt")
         mock_cvd_utils.SaveRemoteImageArgs.assert_called_once_with(
-            mock_ssh_obj, "mock_img_dir/acloud_image_args.txt", ["arg1"])
+            mock_ssh_obj, "mock_img_dir/acloud_image_args.txt", [("arg", "1")])
         self._mock_build_api.DownloadFetchcvd.assert_called_once()
         print(mock_cvd_utils.GetRemoteLaunchCvdCmd.call_args[0][3])
-        self.assertEqual(["arg1"],
+        self.assertEqual(["arg", "1"],
                          mock_cvd_utils.GetRemoteLaunchCvdCmd.call_args[0][3])
 
         # Test reusing the remote image dir.
-        mock_cvd_utils.LoadRemoteImageArgs.return_value = ["arg2"]
+        mock_cvd_utils.LoadRemoteImageArgs.return_value = [["arg", "2"]]
         mock_cvd_utils.SaveRemoteImageArgs.reset_mock()
         self._mock_build_api.DownloadFetchcvd.reset_mock()
 
         self.assertEqual("inst", factory.CreateInstance())
         mock_cvd_utils.SaveRemoteImageArgs.assert_not_called()
         self._mock_build_api.DownloadFetchcvd.assert_not_called()
-        self.assertEqual(["arg2"],
+        self.assertEqual(["arg", "2"],
                          mock_cvd_utils.GetRemoteLaunchCvdCmd.call_args[0][3])
 
 
