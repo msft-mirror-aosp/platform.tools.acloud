@@ -199,8 +199,7 @@ Jan 12 12:00:00 ins-abcdefgh-5000000-sdk-x86-64-sdk launch_emulator[123]: VIRTUA
             zone=self.ZONE,
             gpu=self.GPU,
             tags=self.TAGS,
-            extra_scopes=self.EXTRA_SCOPES,
-            disable_external_ip=False)
+            extra_scopes=self.EXTRA_SCOPES)
 
     @mock.patch("getpass.getuser", return_value="fake_user")
     def testCreateInstanceWithAvdSpec(self, _mock_user):
@@ -271,8 +270,7 @@ Jan 12 12:00:00 ins-abcdefgh-5000000-sdk-x86-64-sdk launch_emulator[123]: VIRTUA
             zone=self.ZONE,
             gpu=self.GPU,
             tags=self.TAGS,
-            extra_scopes=self.EXTRA_SCOPES,
-            disable_external_ip=False)
+            extra_scopes=self.EXTRA_SCOPES)
 
 
 if __name__ == "__main__":
