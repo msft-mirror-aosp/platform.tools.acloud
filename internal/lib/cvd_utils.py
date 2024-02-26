@@ -547,7 +547,8 @@ def CleanUpRemoteCvd(ssh_obj, remote_dir, raise_error):
     Raises:
         subprocess.CalledProcessError if any command fails.
     """
-    # TODO(b/293966645): Find stop_cvd in --remote-image-dir.
+    # FIXME: Use the images and launch_cvd in --remote-image-dir when
+    # cuttlefish can reliably share images.
     home = remote_path.join("$HOME", remote_dir)
     stop_cvd_path = remote_path.join(remote_dir, "bin", "stop_cvd")
     stop_cvd_cmd = f"'HOME={home} {stop_cvd_path}'"
@@ -756,16 +757,11 @@ def GetRemoteLaunchCvdCmd(remote_dir, avd_spec, config, extra_args):
     Returns:
         A string, the launch_cvd command.
     """
-    # launch_cvd requires ANDROID_HOST_OUT to be absolute.
-    cmd = ([f"{constants.ENV_ANDROID_HOST_OUT}="
-            f"$(readlink -n -m {avd_spec.remote_image_dir})",
-            f"{constants.ENV_ANDROID_PRODUCT_OUT}="
-            f"${constants.ENV_ANDROID_HOST_OUT}"]
-           if avd_spec.remote_image_dir else [])
-    cmd.extend(["HOME=" + remote_path.join("$HOME", remote_dir),
-                remote_path.join(avd_spec.remote_image_dir or remote_dir,
-                                 "bin", "launch_cvd"),
-                "-daemon"])
+    # FIXME: Use the images and launch_cvd in avd_spec.remote_image_dir when
+    # cuttlefish can reliably share images.
+    cmd = ["HOME=" + remote_path.join("$HOME", remote_dir),
+           remote_path.join(remote_dir, "bin", "launch_cvd"),
+           "-daemon"]
     cmd.extend(extra_args)
     cmd.extend(_GetLaunchCvdArgs(avd_spec, config))
     return " ".join(cmd)

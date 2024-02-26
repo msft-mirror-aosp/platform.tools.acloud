@@ -198,9 +198,16 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         if not reuse_remote_image_dir:
             launch_cvd_args = self._InitRemoteImageDir()
 
-        if remote_image_dir and not reuse_remote_image_dir:
-            cvd_utils.SaveRemoteImageArgs(self._ssh, remote_args_path,
-                                          launch_cvd_args)
+        if remote_image_dir:
+            if not reuse_remote_image_dir:
+                cvd_utils.SaveRemoteImageArgs(self._ssh, remote_args_path,
+                                              launch_cvd_args)
+            # FIXME: Use the images in remote_image_dir when cuttlefish can
+            # reliably share images.
+            launch_cvd_args = self._ReplaceRemoteImageArgs(
+                launch_cvd_args, remote_image_dir, self._GetInstancePath())
+            self._CopyRemoteImageDir(remote_image_dir, self._GetInstancePath())
+
         return [arg for arg_pair in launch_cvd_args for arg in arg_pair]
 
     def _InitRemoteImageDir(self):
@@ -434,6 +441,37 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
                f"tar -xf - --lzop -S -C {self._GetArtifactPath()}")
         logger.debug("cmd:\n %s", cmd)
         ssh.ShellCmdWithRetry(cmd)
+
+    @staticmethod
+    def _ReplaceRemoteImageArgs(launch_cvd_args, old_dir, new_dir):
+        """Replace the prefix of launch_cvd path arguments.
+
+        Args:
+            launch_cvd_args: A list of string pairs. Each pair consists of a
+                             launch_cvd option and a remote path.
+            old_dir: The prefix of the paths to be replaced.
+            new_dir: The new prefix of the paths.
+
+        Returns:
+            A list of string pairs, the replaced arguments.
+        """
+        if any(remote_path.isabs(path) != remote_path.isabs(old_dir) for
+               _, path in launch_cvd_args):
+            raise ValueError(f"Cannot convert {launch_cvd_args} to relative "
+                             f"paths under {old_dir}")
+        return [(option,
+                 remote_path.join(new_dir, remote_path.relpath(path, old_dir)))
+                for option, path in launch_cvd_args]
+
+    @utils.TimeExecute(function_description="Copying images")
+    def _CopyRemoteImageDir(self, remote_src_dir, remote_dst_dir):
+        """Copy a remote directory recursively.
+
+        Args:
+            remote_src_dir: The source directory.
+            remote_dst_dir: The destination directory.
+        """
+        self._ssh.Run(f"cp -frT {remote_src_dir} {remote_dst_dir}")
 
     @utils.TimeExecute(
         function_description="Launching AVD(s) and waiting for boot up",
