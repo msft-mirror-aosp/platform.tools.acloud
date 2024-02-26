@@ -309,6 +309,55 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             "host-goldfish-192.0.2.1-5554-123456-sdk_x86_64-sdk")
         self.assertIsNone(result)
 
+    def testLoadRemoteImageArgs(self):
+        """Test LoadRemoteImageArgs."""
+        self.assertEqual(os.path, cvd_utils.remote_path)
+
+        with tempfile.TemporaryDirectory(prefix="cvd_utils") as temp_dir:
+            env = os.environ.copy()
+            env["HOME"] = temp_dir
+            # Execute the commands locally.
+            mock_ssh = mock.Mock()
+            mock_ssh.Run.side_effect = lambda cmd: subprocess.check_output(
+                "sh -c " + cmd, shell=True, cwd=temp_dir, env=env, text=True)
+            args_path = os.path.join(temp_dir, "args.txt")
+
+            # Test with an uninitialized directory.
+            args = cvd_utils.LoadRemoteImageArgs(mock_ssh, args_path)
+
+            self.assertIsNone(args)
+            mock_ssh.Run.assert_called_once_with(
+                f"'test ! -f {args_path} || cat {args_path}'")
+            self.assertFalse(os.path.exists(args_path))
+
+            # Test with an initialized directory.
+            self.CreateFile(args_path, b'["ok"]')
+
+            args = cvd_utils.LoadRemoteImageArgs(
+                mock_ssh, args_path)
+
+            self.assertEqual(args, ["ok"])
+
+    def testSaveRemoteImageArgs(self):
+        """Test SaveRemoteImageArgs."""
+        self.assertEqual(os.path, cvd_utils.remote_path)
+
+        with tempfile.TemporaryDirectory(prefix="cvd_utils") as temp_dir:
+            env = os.environ.copy()
+            env["HOME"] = temp_dir
+            mock_ssh = mock.Mock()
+            mock_ssh.Run.side_effect = lambda cmd: subprocess.check_call(
+                "sh -c " + cmd, shell=True, cwd=temp_dir, env=env, text=True)
+            args_path = os.path.join(temp_dir, "args.txt")
+
+            cvd_utils.SaveRemoteImageArgs(mock_ssh, args_path, ["ok"])
+
+            mock_ssh.Run.assert_called_with(
+                f"""'echo '"'"'["ok"]'"'"' > {args_path}'""")
+            with open(args_path, "r", encoding="utf-8") as args_file:
+                self.assertEqual(args_file.read().strip(), '["ok"]')
+
+
     def testGetConfigFromRemoteAndroidInfo(self):
         """Test GetConfigFromRemoteAndroidInfo."""
         mock_ssh = mock.Mock()
