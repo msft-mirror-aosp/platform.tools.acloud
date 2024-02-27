@@ -41,6 +41,7 @@ logger = logging.getLogger(__name__)
 _ALL_FILES = "*"
 _HOME_FOLDER = os.path.expanduser("~")
 _TEMP_PREFIX = "acloud_remote_host"
+_IMAGE_ARGS_FILE_NAME = "acloud_image_args.txt"
 
 
 class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
@@ -90,15 +91,18 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             A string, representing instance name.
         """
         start_time = time.time()
+        self._compute_client.SetStage(constants.STAGE_SSH_CONNECT)
         instance = self._InitRemotehost()
         start_time = self._compute_client.RecordTime(
             constants.TIME_GCE, start_time)
 
         process_artifacts_timestart = start_time
+        self._compute_client.SetStage(constants.STAGE_ARTIFACT)
         image_args = self._ProcessRemoteHostArtifacts()
         start_time = self._compute_client.RecordTime(
             constants.TIME_ARTIFACT, start_time)
 
+        self._compute_client.SetStage(constants.STAGE_BOOT_UP)
         error_msg = self._LaunchCvd(image_args, process_artifacts_timestart)
         start_time = self._compute_client.RecordTime(
             constants.TIME_LAUNCH, start_time)
@@ -147,7 +151,6 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         Returns:
             A string, representing instance name.
         """
-        self._compute_client.SetStage(constants.STAGE_SSH_CONNECT)
         # Get product name from the img zip file name or TARGET_PRODUCT.
         image_name = os.path.basename(
             self._local_image_artifact) if self._local_image_artifact else ""
@@ -175,7 +178,31 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         return instance
 
     def _ProcessRemoteHostArtifacts(self):
-        """Process remote host artifacts.
+        """Initialize or reuse the images on the remote host.
+
+        Returns:
+            A list of strings, the launch_cvd arguments.
+        """
+        remote_image_dir = self._avd_spec.remote_image_dir
+        if remote_image_dir:
+            remote_args_path = remote_path.join(remote_image_dir,
+                                                _IMAGE_ARGS_FILE_NAME)
+            launch_cvd_args = cvd_utils.LoadRemoteImageArgs(
+                self._ssh, remote_args_path)
+            if launch_cvd_args is not None:
+                logger.info("Reuse the images in %s", remote_image_dir)
+                return launch_cvd_args
+            logger.info("Create images in %s", remote_image_dir)
+
+        launch_cvd_args = self._InitRemoteImageDir()
+
+        if remote_image_dir:
+            cvd_utils.SaveRemoteImageArgs(self._ssh, remote_args_path,
+                                          launch_cvd_args)
+        return launch_cvd_args
+
+    def _InitRemoteImageDir(self):
+        """Create remote host artifacts.
 
         - If images source is local, tool will upload images from local site to
           remote host.
@@ -186,8 +213,6 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         Returns:
             A list of strings, the launch_cvd arguments.
         """
-        # TODO(b/293966645): Check if --remote-image-dir is initialized.
-        self._compute_client.SetStage(constants.STAGE_ARTIFACT)
         self._ssh.Run(f"mkdir -p {self._GetArtifactPath()}")
 
         launch_cvd_args = []
@@ -421,7 +446,6 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         Returns:
             The error message as a string. An empty string represents success.
         """
-        self._compute_client.SetStage(constants.STAGE_BOOT_UP)
         config = cvd_utils.GetConfigFromRemoteAndroidInfo(
             self._ssh, self._GetArtifactPath())
         cmd = cvd_utils.GetRemoteLaunchCvdCmd(
