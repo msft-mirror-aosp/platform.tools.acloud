@@ -165,8 +165,7 @@ class GoldfishComputeClient(android_compute_client.AndroidComputeClient):
                        avd_spec=None,
                        extra_scopes=None,
                        tags=None,
-                       launch_args=None,
-                       disable_external_ip=False):
+                       launch_args=None):
         """Create a goldfish instance given a stable host image and a build id.
 
         Args:
@@ -191,8 +190,6 @@ class GoldfishComputeClient(android_compute_client.AndroidComputeClient):
             tags: A list of tags to associate with the instance. e.g.
                  ["http-server", "https-server"]
             launch_args: String of args for launch command.
-            disable_external_ip: Boolean, true if instance external ip should be
-                                 disabled.
         """
         self._VerifyZoneByQuota()
         self._CheckMachineSize()
@@ -261,5 +258,4 @@ class GoldfishComputeClient(android_compute_client.AndroidComputeClient):
             zone=self._zone,
             gpu=gpu,
             tags=tags,
-            extra_scopes=extra_scopes,
-            disable_external_ip=disable_external_ip)
+            extra_scopes=extra_scopes)

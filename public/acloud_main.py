@@ -435,8 +435,7 @@ def main(argv=None):
             autoconnect=args.autoconnect,
             tags=args.tags,
             report_internal_ip=args.report_internal_ip,
-            boot_timeout_secs=args.boot_timeout_secs,
-            disable_external_ip=args.disable_external_ip)
+            boot_timeout_secs=args.boot_timeout_secs)
     elif args.which == delete_args.CMD_DELETE:
         reporter = delete.Run(args)
     elif args.which == list_args.CMD_LIST:
