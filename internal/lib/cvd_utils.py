@@ -316,7 +316,8 @@ def _UploadKernelImages(ssh_obj, remote_image_dir, search_path):
         search_path: A path to an image file or an image directory.
 
     Returns:
-        A list of strings, the launch_cvd arguments including the remote paths.
+        A list of string pairs. Each pair consists of a launch_cvd option and a
+        remote path.
 
     Raises:
         errors.GetLocalImageError if search_path does not contain kernel
@@ -334,22 +335,22 @@ def _UploadKernelImages(ssh_obj, remote_image_dir, search_path):
             remote_image_dir, _REMOTE_INITRAMFS_IMAGE_PATH)
         ssh_obj.ScpPushFile(kernel_image_path, remote_kernel_image_path)
         ssh_obj.ScpPushFile(initramfs_image_path, remote_initramfs_image_path)
-        return ["-kernel_path", remote_kernel_image_path,
-                "-initramfs_path", remote_initramfs_image_path]
+        return [("-kernel_path", remote_kernel_image_path),
+                ("-initramfs_path", remote_initramfs_image_path)]
 
     boot_image_path, vendor_boot_image_path = FindBootImages(search_path)
     if boot_image_path:
         remote_boot_image_path = remote_path.join(
             remote_image_dir, _REMOTE_BOOT_IMAGE_PATH)
         ssh_obj.ScpPushFile(boot_image_path, remote_boot_image_path)
-        launch_cvd_args = ["-boot_image", remote_boot_image_path]
+        launch_cvd_args = [("-boot_image", remote_boot_image_path)]
         if vendor_boot_image_path:
             remote_vendor_boot_image_path = remote_path.join(
                 remote_image_dir, _REMOTE_VENDOR_BOOT_IMAGE_PATH)
             ssh_obj.ScpPushFile(vendor_boot_image_path,
                                 remote_vendor_boot_image_path)
-            launch_cvd_args.extend(["-vendor_boot_image",
-                                    remote_vendor_boot_image_path])
+            launch_cvd_args.append(("-vendor_boot_image",
+                                    remote_vendor_boot_image_path))
         return launch_cvd_args
 
     raise errors.GetLocalImageError(
@@ -444,12 +445,12 @@ def _UploadVbmetaImage(ssh_obj, remote_image_dir, vbmeta_image_path):
         vbmeta_image_path: The path to the vbmeta image.
 
     Returns:
-        A list of strings, the launch_cvd arguments including the remote paths.
+        A pair of strings, the launch_cvd option and the remote path.
     """
     remote_vbmeta_image_path = remote_path.join(remote_image_dir,
                                                 _REMOTE_VBMETA_IMAGE_PATH)
     ssh_obj.ScpPushFile(vbmeta_image_path, remote_vbmeta_image_path)
-    return ["-vbmeta_image", remote_vbmeta_image_path]
+    return "-vbmeta_image", remote_vbmeta_image_path
 
 
 def AreTargetFilesRequired(avd_spec):
@@ -472,7 +473,8 @@ def UploadExtraImages(ssh_obj, remote_image_dir, avd_spec, target_files_dir):
                           avd_spec requires building a super image.
 
     Returns:
-        A list of strings, the launch_cvd arguments including the remote paths.
+        A list of string pairs. Each pair consists of a launch_cvd option and a
+        remote path.
 
     Raises:
         errors.GetLocalImageError if any specified image path does not exist.
@@ -500,13 +502,13 @@ def UploadExtraImages(ssh_obj, remote_image_dir, avd_spec, target_files_dir):
         with tempfile.TemporaryDirectory() as super_image_dir:
             _MixSuperImage(os.path.join(super_image_dir, _SUPER_IMAGE_NAME),
                            avd_spec, target_files_dir, ota)
-            extra_img_args += _UploadSuperImage(ssh_obj, remote_image_dir,
-                                                super_image_dir)
+            extra_img_args.append(_UploadSuperImage(ssh_obj, remote_image_dir,
+                                                    super_image_dir))
 
             vbmeta_image_path = os.path.join(super_image_dir, "vbmeta.img")
             ota.MakeDisabledVbmetaImage(vbmeta_image_path)
-            extra_img_args += _UploadVbmetaImage(ssh_obj, remote_image_dir,
-                                                 vbmeta_image_path)
+            extra_img_args.append(_UploadVbmetaImage(ssh_obj, remote_image_dir,
+                                                     vbmeta_image_path))
 
     return extra_img_args
 
@@ -521,7 +523,7 @@ def _UploadSuperImage(ssh_obj, remote_image_dir, super_image_dir):
         super_image_dir: The path to the directory containing the super image.
 
     Returns:
-        A list of strings, the launch_cvd arguments including the remote paths.
+        A pair of strings, the launch_cvd option and the remote path.
     """
     remote_super_image_path = remote_path.join(remote_image_dir,
                                                _REMOTE_SUPER_IMAGE_PATH)
@@ -530,8 +532,7 @@ def _UploadSuperImage(ssh_obj, remote_image_dir, super_image_dir):
            f"{ssh_obj.GetBaseCmd(constants.SSH_BIN)} -- "
            f"tar -xf - --lzop -S -C {remote_super_image_dir}")
     ssh.ShellCmdWithRetry(cmd)
-    launch_cvd_args = ["-super_image", remote_super_image_path]
-    return launch_cvd_args
+    return "-super_image", remote_super_image_path
 
 
 def CleanUpRemoteCvd(ssh_obj, remote_dir, raise_error):
@@ -546,7 +547,8 @@ def CleanUpRemoteCvd(ssh_obj, remote_dir, raise_error):
     Raises:
         subprocess.CalledProcessError if any command fails.
     """
-    # TODO(b/293966645): Find stop_cvd in --remote-image-dir.
+    # FIXME: Use the images and launch_cvd in --remote-image-dir when
+    # cuttlefish can reliably share images.
     home = remote_path.join("$HOME", remote_dir)
     stop_cvd_path = remote_path.join(remote_dir, "bin", "stop_cvd")
     stop_cvd_cmd = f"'HOME={home} {stop_cvd_path}'"
@@ -620,10 +622,10 @@ def LoadRemoteImageArgs(ssh_obj, remote_args_path):
 
     Args:
         ssh_obj: An Ssh object.
-        remote_image_dir: The remote path containing the arguments.
+        remote_args_path: The remote path containing the arguments.
 
     Returns:
-        A list of strings, the launch_cvd arguments.
+        A list of string pairs, the arguments generated by UploadExtraImages.
         None if the directory has not been initialized.
     """
     # If the file doesn't exist, the command returns 0 and outputs nothing.
@@ -646,7 +648,8 @@ def SaveRemoteImageArgs(ssh_obj, remote_args_path, launch_cvd_args):
     Args:
         ssh_obj: An Ssh object.
         remote_args_path: The remote path containing the arguments.
-        launch_cvd_args: A list of strings, the launch_cvd arguments.
+        launch_cvd_args: A list of string pairs, the arguments generated by
+                         UploadExtraImages.
     """
     # The json string is interpreted twice by SSH client and remote shell.
     args_str = shlex.quote(json.dumps(launch_cvd_args))
@@ -754,16 +757,11 @@ def GetRemoteLaunchCvdCmd(remote_dir, avd_spec, config, extra_args):
     Returns:
         A string, the launch_cvd command.
     """
-    # launch_cvd requires ANDROID_HOST_OUT to be absolute.
-    cmd = ([f"{constants.ENV_ANDROID_HOST_OUT}="
-            f"$(readlink -n -m {avd_spec.remote_image_dir})",
-            f"{constants.ENV_ANDROID_PRODUCT_OUT}="
-            f"${constants.ENV_ANDROID_HOST_OUT}"]
-           if avd_spec.remote_image_dir else [])
-    cmd.extend(["HOME=" + remote_path.join("$HOME", remote_dir),
-                remote_path.join(avd_spec.remote_image_dir or remote_dir,
-                                 "bin", "launch_cvd"),
-                "-daemon"])
+    # FIXME: Use the images and launch_cvd in avd_spec.remote_image_dir when
+    # cuttlefish can reliably share images.
+    cmd = ["HOME=" + remote_path.join("$HOME", remote_dir),
+           remote_path.join(remote_dir, "bin", "launch_cvd"),
+           "-daemon"]
     cmd.extend(extra_args)
     cmd.extend(_GetLaunchCvdArgs(avd_spec, config))
     return " ".join(cmd)
