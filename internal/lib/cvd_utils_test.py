@@ -159,7 +159,7 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
                                       local_vendor_image=None)
             args = cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec,
                                                None)
-            self.assertEqual(["-boot_image", "dir/acloud_image/boot.img"],
+            self.assertEqual([("-boot_image", "dir/acloud_image/boot.img")],
                              args)
             mock_ssh.Run.assert_called_once_with("mkdir -p dir/acloud_image")
             mock_ssh.ScpPushFile.assert_called_once_with(
@@ -170,8 +170,8 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             args = cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec,
                                                None)
             self.assertEqual(
-                ["-boot_image", "dir/acloud_image/boot.img",
-                 "-vendor_boot_image", "dir/acloud_image/vendor_boot.img"],
+                [("-boot_image", "dir/acloud_image/boot.img"),
+                 ("-vendor_boot_image", "dir/acloud_image/vendor_boot.img")],
                 args)
             mock_ssh.Run.assert_called_once()
             self.assertEqual(2, mock_ssh.ScpPushFile.call_count)
@@ -198,8 +198,8 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             args = cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec,
                                                None)
             self.assertEqual(
-                ["-kernel_path", "dir/acloud_image/kernel",
-                 "-initramfs_path", "dir/acloud_image/initramfs.img"],
+                [("-kernel_path", "dir/acloud_image/kernel"),
+                 ("-initramfs_path", "dir/acloud_image/initramfs.img")],
                 args)
             mock_ssh.Run.assert_called_once()
             self.assertEqual(2, mock_ssh.ScpPushFile.call_count)
@@ -232,8 +232,8 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
                                                target_files_dir)
 
         self.assertEqual(
-            ["-super_image", "dir/acloud_image/super.img",
-             "-vbmeta_image", "dir/acloud_image/vbmeta.img"],
+            [("-super_image", "dir/acloud_image/super.img"),
+             ("-vbmeta_image", "dir/acloud_image/vbmeta.img")],
             args)
         mock_find_ota_tools.assert_called_once_with([])
         mock_ssh.Run.assert_called_once_with("mkdir -p dir/acloud_image")
@@ -331,12 +331,11 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             self.assertFalse(os.path.exists(args_path))
 
             # Test with an initialized directory.
-            self.CreateFile(args_path, b'["ok"]')
+            self.CreateFile(args_path, b'[["arg", "1"]]')
 
-            args = cvd_utils.LoadRemoteImageArgs(
-                mock_ssh, args_path)
+            args = cvd_utils.LoadRemoteImageArgs(mock_ssh, args_path)
 
-            self.assertEqual(args, ["ok"])
+            self.assertEqual(args, [["arg", "1"]])
 
     def testSaveRemoteImageArgs(self):
         """Test SaveRemoteImageArgs."""
@@ -350,13 +349,12 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
                 "sh -c " + cmd, shell=True, cwd=temp_dir, env=env, text=True)
             args_path = os.path.join(temp_dir, "args.txt")
 
-            cvd_utils.SaveRemoteImageArgs(mock_ssh, args_path, ["ok"])
+            cvd_utils.SaveRemoteImageArgs(mock_ssh, args_path, [("arg", "1")])
 
             mock_ssh.Run.assert_called_with(
-                f"""'echo '"'"'["ok"]'"'"' > {args_path}'""")
+                f"""'echo '"'"'[["arg", "1"]]'"'"' > {args_path}'""")
             with open(args_path, "r", encoding="utf-8") as args_file:
-                self.assertEqual(args_file.read().strip(), '["ok"]')
-
+                self.assertEqual(args_file.read().strip(), '[["arg", "1"]]')
 
     def testGetConfigFromRemoteAndroidInfo(self):
         """Test GetConfigFromRemoteAndroidInfo."""
@@ -383,7 +381,6 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             cfg=mock_cfg,
             hw_customize=False,
             hw_property=hw_property,
-            remote_image_dir=None,
             connect_webrtc=False,
             connect_vnc=False,
             openwrt=False,
@@ -413,7 +410,6 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             cfg=mock_cfg,
             hw_customize=True,
             hw_property=hw_property,
-            remote_image_dir="img_dir",
             connect_webrtc=True,
             webrtc_device_id="pet-name",
             connect_vnc=True,
@@ -422,10 +418,7 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             base_instance_num=3,
             launch_args="--setupwizard_mode=REQUIRED")
         expected_cmd = (
-            "ANDROID_HOST_OUT=$(readlink -n -m img_dir) "
-            "ANDROID_PRODUCT_OUT=$ANDROID_HOST_OUT "
-            "HOME=$HOME/dir "
-            "img_dir/bin/launch_cvd -daemon --extra args "
+            "HOME=$HOME/dir dir/bin/launch_cvd -daemon --extra args "
             "-data_policy=create_if_missing -blank_data_image_mb=20480 "
             "-config=phone -x_res=1080 -y_res=1920 -dpi=240 "
             "-data_policy=always_create -blank_data_image_mb=10240 "

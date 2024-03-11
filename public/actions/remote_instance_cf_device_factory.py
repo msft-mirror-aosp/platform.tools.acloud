@@ -126,7 +126,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         if avd_spec.extra_files:
             self._compute_client.UploadExtraFiles(avd_spec.extra_files)
 
-        return launch_cvd_args
+        return [arg for arg_pair in launch_cvd_args for arg in arg_pair]
 
     @utils.TimeExecute(function_description="Downloading target_files archive")
     def _DownloadTargetFiles(self, download_dir):
