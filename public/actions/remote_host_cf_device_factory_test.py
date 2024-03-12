@@ -56,6 +56,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                          kernel_build_info={},
                          boot_build_info={},
                          bootloader_build_info={},
+                         android_efi_loader_build_info={},
                          ota_build_info={},
                          host_package_build_info={},
                          remote_host="192.0.2.100",

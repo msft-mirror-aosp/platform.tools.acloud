@@ -991,6 +991,10 @@ def GetRemoteBuildInfoDict(avd_spec):
         {"bootloader_" + key: val
          for key, val in avd_spec.bootloader_build_info.items() if val}
     )
+    build_info_dict.update(
+        {"android_efi_loader_" + key: val
+         for key, val in avd_spec.android_efi_loader_build_info.items() if val}
+    )
     return build_info_dict
 
 
