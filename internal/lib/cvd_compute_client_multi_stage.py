@@ -325,7 +325,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
     @utils.TimeExecute(function_description="Downloading build on instance")
     def FetchBuild(self, default_build_info, system_build_info,
                    kernel_build_info, boot_build_info, bootloader_build_info,
-                   ota_build_info, host_package_build_info):
+                   android_efi_loader_build_info, ota_build_info, host_package_build_info):
         """Execute fetch_cvd on the remote instance to get Cuttlefish runtime files.
 
         Args:
@@ -334,6 +334,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             kernel_build_info: The build that provides the kernel.
             boot_build_info: The build that provides the boot image.
             bootloader_build_info: The build that provides the bootloader.
+            android_efi_loader_build_info: The build that provides the Android EFI app.
             ota_build_info: The build that provides the OTA tools.
             host_package_build_info: The build that provides the host package.
 
@@ -344,8 +345,8 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         fetch_cvd_args = ["-credential_source=gce"]
         fetch_cvd_build_args = self._build_api.GetFetchBuildArgs(
             default_build_info, system_build_info, kernel_build_info,
-            boot_build_info, bootloader_build_info, ota_build_info,
-            host_package_build_info)
+            boot_build_info, bootloader_build_info, android_efi_loader_build_info,
+            ota_build_info, host_package_build_info)
         fetch_cvd_args.extend(fetch_cvd_build_args)
 
         self._ssh.Run("./fetch_cvd " + " ".join(fetch_cvd_args),
