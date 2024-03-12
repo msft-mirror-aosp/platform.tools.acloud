@@ -173,6 +173,18 @@ def AddCommonCreateArgs(parser):
         help="'cuttlefish only' Bootloader build target.",
         required=False)
     parser.add_argument(
+        "--android-efi-loader-build-id",
+        type=str,
+        dest="android_efi_loader_build_id",
+        help="'cuttlefish only' Android EFI loader build id, e.g. P2804227",
+        required=False)
+    parser.add_argument(
+        "--android-efi-loader-artifact",
+        type=str,
+        dest="android_efi_loader_artifact",
+        help="'cuttlefish only' Android EFI loader artifact name, e.g. gbl_aarch64.efi",
+        required=False)
+    parser.add_argument(
         "--kernel-build-id",
         type=str,
         dest="kernel_build_id",
