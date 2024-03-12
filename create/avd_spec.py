@@ -139,6 +139,7 @@ class AVDSpec():
         self._ota_build_info = {}
         self._host_package_build_info = {}
         self._bootloader_build_info = {}
+        self._android_efi_loader_build_info = {}
         self._hw_property = None
         self._hw_customize = False
         self._remote_host = None
@@ -672,6 +673,9 @@ class AVDSpec():
             constants.BUILD_ID: args.bootloader_build_id,
             constants.BUILD_BRANCH: args.bootloader_branch,
             constants.BUILD_TARGET: args.bootloader_build_target}
+        self._android_efi_loader_build_info = {
+            constants.BUILD_ID: args.android_efi_loader_build_id,
+            constants.BUILD_ARTIFACT: args.android_efi_loader_artifact}
         self._host_package_build_info = {
             constants.BUILD_ID: args.host_package_build_id,
             constants.BUILD_BRANCH: args.host_package_branch,
@@ -961,6 +965,11 @@ class AVDSpec():
     def bootloader_build_info(self):
         """Return bootloader build info."""
         return self._bootloader_build_info
+
+    @property
+    def android_efi_loader_build_info(self):
+        """Return android efi loader build info."""
+        return self._android_efi_loader_build_info
 
     @property
     def flavor(self):

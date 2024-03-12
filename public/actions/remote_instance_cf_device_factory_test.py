@@ -243,7 +243,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_cvd_utils.AreTargetFilesRequired.return_value = False
         mock_cvd_utils.FindRemoteLogs.return_value = [{"path": "/logcat"}]
         mock_cvd_utils.UploadExtraImages.return_value = [
-            "-boot_image", "/boot/img"]
+            ("-boot_image", "/boot/img")]
 
         fake_host_package_name = "/fake/host_package.tar.gz"
         fake_image_name = ""
