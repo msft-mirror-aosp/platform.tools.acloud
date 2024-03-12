@@ -66,9 +66,12 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
     LATEST = "latest"
     # FETCH_CVD variables.
     FETCHER_NAME = "fetch_cvd"
-    FETCHER_BRANCH = "aosp-master"
-    FETCHER_BUILD_TARGET = "aosp_cf_x86_64_phone-userdebug"
-    FETCHER_ARM_VERSION_BUILD_TARGET = "aosp_cf_arm64_phone-userdebug"
+    FETCHER_BUILD_TARGET = "aosp_cf_x86_64_phone-trunk_staging-userdebug"
+    FETCHER_BUILD_TARGET_ARM = "aosp_cf_arm64_only_phone-trunk_staging-userdebug"
+    # TODO(b/297085994): cvd fetch is migrating from AOSP to github artifacts, so
+    # temporary returning hardcoded values instead of LKGB
+    FETCHER_BUILD_ID = 11559438
+    FETCHER_BUILD_ID_ARM = 11559085
     MAX_RETRY = 3
     RETRY_SLEEP_SECS = 3
 
@@ -128,9 +131,9 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
             is_arm_version: is ARM version fetch_cvd.
         """
         if fetch_cvd_version == constants.LKGB:
-            fetch_cvd_version = self.GetFetcherVersion()
+            fetch_cvd_version = self.GetFetcherVersion(is_arm_version)
         fetch_cvd_build_target = (
-            self.FETCHER_ARM_VERSION_BUILD_TARGET if is_arm_version
+            self.FETCHER_BUILD_TARGET_ARM if is_arm_version
             else self.FETCHER_BUILD_TARGET)
         try:
             utils.RetryExceptionType(
@@ -238,13 +241,16 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
 
         return fetch_cvd_args
 
-    def GetFetcherVersion(self):
+    def GetFetcherVersion(self, is_arm_version=False):
         """Get fetch_cvd build id from LKGB.
 
         Returns:
             The build id of fetch_cvd.
         """
-        return self.GetLKGB(self.FETCHER_BUILD_TARGET, self.FETCHER_BRANCH)
+        # TODO(b/297085994): currently returning hardcoded values
+        # For more information, please check the BUILD_ID constant definition
+        # comment section
+        return self.FETCHER_BUILD_ID_ARM if is_arm_version else self.FETCHER_BUILD_ID
 
     @staticmethod
     # pylint: disable=broad-except
