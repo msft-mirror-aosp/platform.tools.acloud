@@ -162,15 +162,15 @@ class CvdRuntimeconfigFunctionTest(driver_test_lib.BaseDriverTest):
     def testGetIdFromInstanceDirStr(self):
         """Test GetIdFromInstanceDirStr."""
         fake_instance_dir = "/path-to-instance-dir"
-        self.assertEqual(cf_cfg._GetIdFromInstanceDirStr(fake_instance_dir), None)
+        self.assertEqual(cf_cfg._GetIdFromInstanceDirStr(fake_instance_dir, None), None)
 
         fake_instance_dir = "/fake-path/local-instance-1/"
-        self.assertEqual(cf_cfg._GetIdFromInstanceDirStr(fake_instance_dir), "1")
+        self.assertEqual(cf_cfg._GetIdFromInstanceDirStr(fake_instance_dir, None), "1")
 
         fake_home_path = "/home/fake_user/"
         self.Patch(os.path, 'expanduser', return_value=fake_home_path)
         fake_instance_dir = "/home/fake_user/local-instance/"
-        self.assertEqual(cf_cfg._GetIdFromInstanceDirStr(fake_instance_dir), "1")
+        self.assertEqual(cf_cfg._GetIdFromInstanceDirStr(fake_instance_dir, None), "1")
 
 
 if __name__ == "__main__":

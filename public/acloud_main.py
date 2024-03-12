@@ -481,10 +481,11 @@ if __name__ == "__main__":
         EXIT_CODE = constants.EXIT_BY_ERROR
         EXCEPTION_STACKTRACE = traceback.format_exc()
         EXCEPTION_LOG = str(e)
-        raise
-    finally:
-        # Log Exit event here to calculate the consuming time.
-        if LOG_METRICS:
-            metrics.LogExitEvent(EXIT_CODE,
-                                 stacktrace=EXCEPTION_STACKTRACE,
-                                 logs=EXCEPTION_LOG)
+        sys.stderr.write("Exception: %s" % (EXCEPTION_STACKTRACE))
+
+    # Log Exit event here to calculate the consuming time.
+    if LOG_METRICS:
+        metrics.LogExitEvent(EXIT_CODE,
+                             stacktrace=EXCEPTION_STACKTRACE,
+                             logs=EXCEPTION_LOG)
+    sys.exit(EXIT_CODE)
