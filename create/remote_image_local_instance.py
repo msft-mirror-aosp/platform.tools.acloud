@@ -122,6 +122,7 @@ def DownloadAndProcessImageFiles(avd_spec):
         avd_spec.kernel_build_info,
         avd_spec.boot_build_info,
         avd_spec.bootloader_build_info,
+        avd_spec.android_efi_loader_build_info,
         avd_spec.ota_build_info,
         avd_spec.host_package_build_info)
 
