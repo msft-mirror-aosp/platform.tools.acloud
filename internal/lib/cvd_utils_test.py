@@ -610,7 +610,8 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             remote_image=remote_image,
             kernel_build_info={"build_target": "kernel"},
             system_build_info={},
-            bootloader_build_info={})
+            bootloader_build_info={},
+            android_efi_loader_build_info = {})
         self.assertEqual(remote_image,
                          cvd_utils.GetRemoteBuildInfoDict(mock_avd_spec))
 
@@ -626,6 +627,10 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             "branch": "aosp_u-boot-mainline",
             "build_id": "400000",
             "build_target": "u-boot_crosvm_x86_64"}
+        android_efi_loader_build_info = {
+            "build_id": "500000",
+            "artifact": "gbl_aarch64.efi"
+        }
         all_build_info = {
             "kernel_branch": "aosp_kernel-common-android12-5.10",
             "kernel_build_id": "200000",
@@ -635,14 +640,18 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             "system_build_target": "aosp_x86_64-userdebug",
             "bootloader_branch": "aosp_u-boot-mainline",
             "bootloader_build_id": "400000",
-            "bootloader_build_target": "u-boot_crosvm_x86_64"}
+            "bootloader_build_target": "u-boot_crosvm_x86_64",
+            "android_efi_loader_build_id": "500000",
+            "android_efi_loader_artifact": "gbl_aarch64.efi"
+        }
         all_build_info.update(remote_image)
         mock_avd_spec = mock.Mock(
             spec=[],
             remote_image=remote_image,
             kernel_build_info=kernel_build_info,
             system_build_info=system_build_info,
-            bootloader_build_info=bootloader_build_info)
+            bootloader_build_info=bootloader_build_info,
+            android_efi_loader_build_info=android_efi_loader_build_info)
         self.assertEqual(all_build_info,
                          cvd_utils.GetRemoteBuildInfoDict(mock_avd_spec))
 
