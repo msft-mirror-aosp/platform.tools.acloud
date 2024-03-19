@@ -21,10 +21,12 @@ import json
 import logging
 import os
 import posixpath as remote_path
+import random
 import re
 import shlex
 import subprocess
 import tempfile
+import time
 import zipfile
 
 from acloud import errors
@@ -77,6 +79,11 @@ _REMOTE_INITRAMFS_IMAGE_PATH = remote_path.join(
     _REMOTE_EXTRA_IMAGE_DIR, _INITRAMFS_IMAGE_NAME)
 _REMOTE_SUPER_IMAGE_PATH = remote_path.join(
     _REMOTE_EXTRA_IMAGE_DIR, _SUPER_IMAGE_NAME)
+# The symbolic link to --remote-image-dir. It's in the base directory.
+_IMAGE_DIR_LINK_NAME = "image_dir_link"
+# The text file contains the number of references to --remote-image-dir.
+# Th path is --remote-image-dir + EXT.
+_REF_CNT_FILE_EXT = ".lock"
 
 # Remote host instance name
 _REMOTE_HOST_INSTANCE_NAME_FORMAT = (
@@ -549,6 +556,7 @@ def CleanUpRemoteCvd(ssh_obj, remote_dir, raise_error):
     """
     # FIXME: Use the images and launch_cvd in --remote-image-dir when
     # cuttlefish can reliably share images.
+    _DeleteRemoteImageDirLink(ssh_obj, remote_dir)
     home = remote_path.join("$HOME", remote_dir)
     stop_cvd_path = remote_path.join(remote_dir, "bin", "stop_cvd")
     stop_cvd_cmd = f"'HOME={home} {stop_cvd_path}'"
@@ -561,7 +569,7 @@ def CleanUpRemoteCvd(ssh_obj, remote_dir, raise_error):
             logger.debug(
                 "Failed to stop_cvd (possibly no running device): %s", e)
 
-    # This command deletes all files except hidden files under HOME.
+    # This command deletes all files except hidden files under remote_dir.
     # It does not raise an error if no files can be deleted.
     ssh_obj.Run(f"'rm -rf {remote_path.join(remote_dir, '*')}'")
 
@@ -615,45 +623,159 @@ def ParseRemoteHostAddress(instance_name):
     return None
 
 
-def LoadRemoteImageArgs(ssh_obj, remote_args_path):
-    """Load launch_cvd arguments from a remote path.
-
-    This method assumes that one acloud process accesses the path at a time.
+def PrepareRemoteImageDirLink(ssh_obj, remote_dir, remote_image_dir):
+    """Create a link to a directory containing images and tools.
 
     Args:
         ssh_obj: An Ssh object.
-        remote_args_path: The remote path containing the arguments.
+        remote_dir: The directory in which the link is created.
+        remote_image_dir: The directory that is linked to.
+    """
+    remote_link = remote_path.join(remote_dir, _IMAGE_DIR_LINK_NAME)
+
+    # If remote_image_dir is relative to HOME, compute the relative path based
+    # on remote_dir.
+    ln_cmd = ("ln -s " +
+              ("" if remote_path.isabs(remote_image_dir) else "-r ") +
+              f"{remote_image_dir} {remote_link}")
+
+    remote_ref_cnt = remote_path.normpath(remote_image_dir) + _REF_CNT_FILE_EXT
+    ref_cnt_cmd = (f"expr $(test -s {remote_ref_cnt} && "
+                   f"cat {remote_ref_cnt} || echo 0) + 1 > {remote_ref_cnt}")
+
+    # `flock` creates the file automatically.
+    # This command should create its parent directory before `flock`.
+    ssh_obj.Run(shlex.quote(
+        f"mkdir -p {remote_image_dir} && flock {remote_ref_cnt} -c " +
+        shlex.quote(
+            f"mkdir -p {remote_dir} {remote_image_dir} && "
+            f"{ln_cmd} && {ref_cnt_cmd}")))
+
+
+def _DeleteRemoteImageDirLink(ssh_obj, remote_dir):
+    """Delete the directories containing images and tools.
+
+    Args:
+        ssh_obj: An Ssh object.
+        remote_dir: The directory containing the link to the image directory.
+    """
+    remote_link = remote_path.join(remote_dir, _IMAGE_DIR_LINK_NAME)
+    # This command returns an absolute path if the link exists; otherwise
+    # an empty string. It raises an exception only if connection error.
+    remote_image_dir = ssh_obj.Run(
+        shlex.quote(f"readlink -n -e {remote_link} || true"))
+    if not remote_image_dir:
+        return
+
+    remote_ref_cnt = (remote_path.normpath(remote_image_dir) +
+                      _REF_CNT_FILE_EXT)
+    # `expr` returns 1 if the result is 0.
+    ref_cnt_cmd = (f"expr $(test -s {remote_ref_cnt} && "
+                   f"cat {remote_ref_cnt} || echo 1) - 1 > "
+                   f"{remote_ref_cnt}")
+
+    # `flock` creates the file automatically.
+    # This command should create its parent directory before `flock`.
+    ssh_obj.Run(shlex.quote(
+        f"mkdir -p {remote_image_dir} && flock {remote_ref_cnt} -c " +
+        shlex.quote(
+            f"rm -f {remote_link} && "
+            f"{ref_cnt_cmd} || "
+            f"rm -rf {remote_image_dir} {remote_ref_cnt}")))
+
+
+def LoadRemoteImageArgs(ssh_obj, remote_timestamp_path, remote_args_path,
+                        deadline):
+    """Load launch_cvd arguments from a remote path.
+
+    Acloud processes using the same --remote-image-dir synchronizes on
+    remote_timestamp_path and remote_args_path in the directory. This function
+    implements the synchronization in 3 steps:
+
+    1. This function checks whether remote_timestamp_path is empty. If it is,
+    this acloud process becomes the uploader. This function writes the upload
+    deadline to the file and returns None. The caller should upload files to
+    the --remote-image-dir and then call SaveRemoteImageArgs. The upload
+    deadline written to the file represents when this acloud process should
+    complete uploading.
+
+    2. If remote_timestamp_path is not empty, this function reads the upload
+    deadline from it. It then waits until remote_args_path contains the
+    arguments in a valid format, or the upload deadline passes.
+
+    3. If this function loads arguments from remote_args_path successfully,
+    it returns the arguments. Otherwise, the uploader misses the deadline. The
+    --remote-image-dir is not usable. This function raises an error. It does
+    not attempt to reset the --remote-image-dir.
+
+    Args:
+        ssh_obj: An Ssh object.
+        remote_timestamp_path: The remote path containing the time when the
+                               uploader will complete.
+        remote_args_path: The remote path where the arguments are loaded.
+        deadline: The deadline written to remote_timestamp_path if this process
+                  becomes the uploader.
 
     Returns:
         A list of string pairs, the arguments generated by UploadExtraImages.
         None if the directory has not been initialized.
+
+    Raises:
+        errors.CreateError if timeout.
     """
-    # If the file doesn't exist, the command returns 0 and outputs nothing.
-    args_str = ssh_obj.Run(shlex.quote(
-        f"test ! -f {remote_args_path} || cat {remote_args_path}"))
-    if not args_str:
+    timeout = int(deadline - time.time())
+    if timeout <= 0:
+        raise errors.CreateError("Timed out before loading remote image args.")
+
+    timestamp_cmd = (f"test -s {remote_timestamp_path} && "
+                     f"cat {remote_timestamp_path} || "
+                     f"expr $(date +%s) + {timeout} > {remote_timestamp_path}")
+    upload_deadline = ssh_obj.Run(shlex.quote(
+        f"flock {remote_timestamp_path} -c " +
+        shlex.quote(timestamp_cmd))).strip()
+    if not upload_deadline:
         return None
+
+    # Wait until remote_args_path is not empty or upload_deadline <= now.
+    wait_cmd = (f"test -s {remote_args_path} -o "
+                f"{upload_deadline} -le $(date +%s) || echo wait...")
+    timeout = deadline - time.time()
+    utils.PollAndWait(
+        lambda : ssh_obj.Run(shlex.quote(
+            f"flock {remote_args_path} -c " + shlex.quote(wait_cmd))),
+        expected_return="",
+        timeout_exception=errors.CreateError(
+            f"{remote_args_path} is not ready within {timeout} secs"),
+        timeout_secs=timeout,
+        sleep_interval_secs=10 + random.uniform(0, 5))
+
+    args_str = ssh_obj.Run(shlex.quote(
+        f"flock {remote_args_path} -c " +
+        shlex.quote(f"cat {remote_args_path}")))
+    if not args_str:
+        raise errors.CreateError(
+            f"The uploader did not meet the deadline {upload_deadline}. "
+            f"{remote_args_path} is unusable.")
     try:
         return json.loads(args_str)
     except json.JSONDecodeError as e:
-        logger.error("Unable to load %s: %s", remote_args_path, e)
-        return None
+        raise errors.CreateError(f"Cannot load {remote_args_path}: {e}")
 
 
 def SaveRemoteImageArgs(ssh_obj, remote_args_path, launch_cvd_args):
     """Save launch_cvd arguments to a remote path.
 
-    This method assumes that one acloud process accesses the path at a time.
-
     Args:
         ssh_obj: An Ssh object.
-        remote_args_path: The remote path containing the arguments.
+        remote_args_path: The remote path where the arguments are saved.
         launch_cvd_args: A list of string pairs, the arguments generated by
                          UploadExtraImages.
     """
-    # The json string is interpreted twice by SSH client and remote shell.
+    # args_str is interpreted three times by SSH, remote shell, and flock.
     args_str = shlex.quote(json.dumps(launch_cvd_args))
-    ssh_obj.Run(shlex.quote(f"echo {args_str} > {remote_args_path}"))
+    ssh_obj.Run(shlex.quote(
+        f"flock {remote_args_path} -c " +
+        shlex.quote(f"echo {args_str} > {remote_args_path}")))
 
 
 def GetConfigFromRemoteAndroidInfo(ssh_obj, remote_image_dir):
