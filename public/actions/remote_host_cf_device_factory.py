@@ -100,10 +100,18 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         deadline = start_time + (self._avd_spec.boot_timeout_secs or
                                  constants.DEFAULT_CF_BOOT_TIMEOUT)
         self._compute_client.SetStage(constants.STAGE_ARTIFACT)
-        # TODO(b/293966645): Handle errors.CreateError.
-        image_args = self._ProcessRemoteHostArtifacts(deadline)
-        start_time = self._compute_client.RecordTime(
-            constants.TIME_ARTIFACT, start_time)
+        try:
+            image_args = self._ProcessRemoteHostArtifacts(deadline)
+        except (errors.CreateError, errors.DriverError,
+                subprocess.CalledProcessError) as e:
+            logger.exception("Fail to prepare artifacts.")
+            self._all_failures[instance] = str(e)
+            # If an SSH error or timeout happens, report the name for the
+            # caller to clean up this instance.
+            return instance
+        finally:
+            start_time = self._compute_client.RecordTime(
+                constants.TIME_ARTIFACT, start_time)
 
         self._compute_client.SetStage(constants.STAGE_BOOT_UP)
         error_msg = self._LaunchCvd(image_args, deadline)
@@ -467,11 +475,14 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
 
         Returns:
             A list of string pairs, the replaced arguments.
+
+        Raises:
+            errors.CreateError if any path cannot be replaced.
         """
         if any(remote_path.isabs(path) != remote_path.isabs(old_dir) for
                _, path in launch_cvd_args):
-            raise ValueError(f"Cannot convert {launch_cvd_args} to relative "
-                             f"paths under {old_dir}")
+            raise errors.CreateError(f"Cannot convert {launch_cvd_args} to "
+                                     f"relative paths under {old_dir}")
         return [(option,
                  remote_path.join(new_dir, remote_path.relpath(path, old_dir)))
                 for option, path in launch_cvd_args]
