@@ -13,6 +13,7 @@
 // limitations under the License.
 
 package {
+    default_team: "trendy_team_partner_eng",
     default_applicable_licenses: ["tools_acloud_license"],
 }
 
@@ -37,7 +38,7 @@ python_binary_host {
     main: "public/acloud_main.py",
     srcs: [
         "public/acloud_main.py",
-        "errors.py"
+        "errors.py",
     ],
     data: [
         "public/data/default.config",
@@ -110,7 +111,7 @@ python_test_host {
         // TODO(b/270225397)
         unit_test: false,
         tags: ["no-remote"],
-    }
+    },
 }
 
 python_library_host {
@@ -124,7 +125,7 @@ python_library_host {
         "public/*_test.py",
         "public/actions/*_test.py",
         "public/acloud_main.py",
-    ]
+    ],
 }
 
 python_library_host {
@@ -136,7 +137,7 @@ python_library_host {
     ],
     exclude_srcs: [
         "internal/lib/*_test.py",
-    ]
+    ],
 }
 
 python_library_host {
@@ -150,89 +151,89 @@ python_library_host {
     },
 }
 
-python_library_host{
+python_library_host {
     name: "acloud_setup",
     pkg_path: "acloud",
     srcs: [
-         "setup/*.py",
+        "setup/*.py",
     ],
     exclude_srcs: [
         "setup/*_test.py",
     ],
 }
 
-python_library_host{
+python_library_host {
     name: "acloud_create",
     pkg_path: "acloud",
     srcs: [
-         "create/*.py",
+        "create/*.py",
     ],
 }
 
-python_library_host{
+python_library_host {
     name: "acloud_delete",
     pkg_path: "acloud",
     srcs: [
-         "delete/*.py",
+        "delete/*.py",
     ],
 }
 
-python_library_host{
+python_library_host {
     name: "acloud_list",
     pkg_path: "acloud",
     srcs: [
-         "list/*.py",
+        "list/*.py",
     ],
 }
 
-python_library_host{
+python_library_host {
     name: "acloud_reconnect",
     pkg_path: "acloud",
     srcs: [
-         "reconnect/*.py",
+        "reconnect/*.py",
     ],
 }
 
-python_library_host{
+python_library_host {
     name: "acloud_pull",
     pkg_path: "acloud",
     srcs: [
-         "pull/*.py",
+        "pull/*.py",
     ],
 }
 
-python_library_host{
+python_library_host {
     name: "acloud_powerwash",
     pkg_path: "acloud",
     srcs: [
-         "powerwash/*.py",
+        "powerwash/*.py",
     ],
 }
 
-python_library_host{
+python_library_host {
     name: "acloud_restart",
     pkg_path: "acloud",
     srcs: [
-         "restart/*.py",
+        "restart/*.py",
     ],
 }
 
-python_library_host{
+python_library_host {
     name: "acloud_hostcleanup",
     pkg_path: "acloud",
     srcs: [
-         "hostcleanup/*.py",
+        "hostcleanup/*.py",
     ],
 }
 
-python_library_host{
+python_library_host {
     name: "acloud_metrics",
     pkg_path: "acloud",
     srcs: [
-         "metrics/*.py",
+        "metrics/*.py",
     ],
     libs: [
-         "asuite_cc_client",
+        "asuite_cc_client",
     ],
 }
 
