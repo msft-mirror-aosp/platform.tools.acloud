@@ -627,6 +627,18 @@ def GetCreateArgParser(subparser):
         "$ANDROID_PRODUCT_OUT if no argument is provided. e.g., "
         "--local-vendor-image, or --local-vendor-image /path/to/dir")
     create_parser.add_argument(
+        "--local-vendor_boot-image", "--local-vendor-boot-image",
+        const=constants.FIND_IN_BUILD_ENV,
+        type=str,
+        dest="local_vendor_boot_image",
+        nargs="?",
+        required=False,
+        help="'cuttlefish only' Use the locally built vendor boot image for "
+        "the AVD. Look for the vendor_boot.img in $ANDROID_PRODUCT_OUT "
+        "if no argument is provided. e.g., --local-vendor-boot-image, or "
+        "--local-vendor-boot-image /path/to/dir, or "
+        "--local-vendor-boot-image /path/to/img")
+    create_parser.add_argument(
         "--local-tool",
         type=str,
         dest="local_tool",

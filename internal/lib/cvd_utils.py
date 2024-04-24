@@ -313,14 +313,17 @@ def FindKernelImages(search_path):
 
 
 @utils.TimeExecute(function_description="Uploading local kernel images.")
-def _UploadKernelImages(ssh_obj, remote_image_dir, search_path):
+def _UploadKernelImages(ssh_obj, remote_image_dir, kernel_search_path,
+                        vendor_boot_search_path):
     """Find and upload kernel or boot images to a remote host or a GCE
     instance.
 
     Args:
         ssh_obj: An Ssh object.
         remote_image_dir: The remote image directory.
-        search_path: A path to an image file or an image directory.
+        kernel_search_path: A path to an image file or an image directory.
+        vendor_boot_search_path: A path to a vendor boot image file or an image
+                                 directory.
 
     Returns:
         A list of string pairs. Each pair consists of a launch_cvd option and a
@@ -334,7 +337,26 @@ def _UploadKernelImages(ssh_obj, remote_image_dir, search_path):
     ssh_obj.Run("mkdir -p " +
                 remote_path.join(remote_image_dir, _REMOTE_EXTRA_IMAGE_DIR))
 
-    kernel_image_path, initramfs_image_path = FindKernelImages(search_path)
+    # Find images
+    kernel_image_path = None
+    initramfs_image_path = None
+    boot_image_path = None
+    vendor_boot_image_path = None
+
+    if kernel_search_path:
+        kernel_image_path, initramfs_image_path = FindKernelImages(
+            kernel_search_path)
+        if not (kernel_image_path and initramfs_image_path):
+            boot_image_path, vendor_boot_image_path = FindBootImages(
+                kernel_search_path)
+
+    if vendor_boot_search_path:
+        vendor_boot_image_path = create_common.FindVendorBootImage(
+            vendor_boot_search_path)
+
+    # Upload
+    launch_cvd_args = []
+
     if kernel_image_path and initramfs_image_path:
         remote_kernel_image_path = remote_path.join(
             remote_image_dir, _REMOTE_KERNEL_IMAGE_PATH)
@@ -342,26 +364,29 @@ def _UploadKernelImages(ssh_obj, remote_image_dir, search_path):
             remote_image_dir, _REMOTE_INITRAMFS_IMAGE_PATH)
         ssh_obj.ScpPushFile(kernel_image_path, remote_kernel_image_path)
         ssh_obj.ScpPushFile(initramfs_image_path, remote_initramfs_image_path)
-        return [("-kernel_path", remote_kernel_image_path),
-                ("-initramfs_path", remote_initramfs_image_path)]
+        launch_cvd_args.append(("-kernel_path", remote_kernel_image_path))
+        launch_cvd_args.append(("-initramfs_path", remote_initramfs_image_path))
 
-    boot_image_path, vendor_boot_image_path = FindBootImages(search_path)
     if boot_image_path:
         remote_boot_image_path = remote_path.join(
             remote_image_dir, _REMOTE_BOOT_IMAGE_PATH)
         ssh_obj.ScpPushFile(boot_image_path, remote_boot_image_path)
-        launch_cvd_args = [("-boot_image", remote_boot_image_path)]
-        if vendor_boot_image_path:
-            remote_vendor_boot_image_path = remote_path.join(
-                remote_image_dir, _REMOTE_VENDOR_BOOT_IMAGE_PATH)
-            ssh_obj.ScpPushFile(vendor_boot_image_path,
-                                remote_vendor_boot_image_path)
-            launch_cvd_args.append(("-vendor_boot_image",
-                                    remote_vendor_boot_image_path))
-        return launch_cvd_args
+        launch_cvd_args.append(("-boot_image", remote_boot_image_path))
 
-    raise errors.GetLocalImageError(
-        f"{search_path} is not a boot image or a directory containing images.")
+    if vendor_boot_image_path:
+        remote_vendor_boot_image_path = remote_path.join(
+            remote_image_dir, _REMOTE_VENDOR_BOOT_IMAGE_PATH)
+        ssh_obj.ScpPushFile(vendor_boot_image_path,
+                            remote_vendor_boot_image_path)
+        launch_cvd_args.append(
+            ("-vendor_boot_image", remote_vendor_boot_image_path))
+
+    if not launch_cvd_args:
+        raise errors.GetLocalImageError(
+            f"{kernel_search_path}, {vendor_boot_search_path} is not a boot "
+            "image or a directory containing images.")
+
+    return launch_cvd_args
 
 
 def _FindSystemDlkmImage(search_path):
@@ -490,9 +515,11 @@ def UploadExtraImages(ssh_obj, remote_image_dir, avd_spec, target_files_dir):
         ValueError if target_files_dir is required but not specified.
     """
     extra_img_args = []
-    if avd_spec.local_kernel_image:
+    if avd_spec.local_kernel_image or avd_spec.local_vendor_boot_image:
         extra_img_args += _UploadKernelImages(ssh_obj, remote_image_dir,
-                                              avd_spec.local_kernel_image)
+                                              avd_spec.local_kernel_image,
+                                              avd_spec.local_vendor_boot_image)
+
 
     if AreTargetFilesRequired(avd_spec):
         if not target_files_dir:
