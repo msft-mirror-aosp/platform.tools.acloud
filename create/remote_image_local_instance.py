@@ -292,6 +292,10 @@ class RemoteImageLocalInstance(local_image_local_instance.LocalImageLocalInstanc
             ) = self.FindBootOrKernelImages(
                 os.path.abspath(avd_spec.local_kernel_image))
 
+        if avd_spec.local_vendor_boot_image:
+            vendor_boot_image_path = create_common.FindVendorBootImage(
+                avd_spec.local_vendor_boot_image)
+
         if avd_spec.local_vendor_image:
             vendor_image_paths = cvd_utils.FindVendorImages(
                 avd_spec.local_vendor_image)
