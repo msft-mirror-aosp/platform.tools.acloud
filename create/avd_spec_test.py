@@ -43,6 +43,7 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.args.local_image = None
         self.args.local_kernel_image = None
         self.args.local_system_image = None
+        self.args.local_vendor_boot_image = None
         self.args.config_file = ""
         self.args.build_target = "fake_build_target"
         self.args.adb_port = None
@@ -132,10 +133,12 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.args.local_kernel_image = expected_image_file
         self.args.local_system_image = expected_image_file
         self.args.local_system_dlkm_image = expected_image_file
+        self.args.local_vendor_boot_image = expected_image_file
         self.AvdSpec._ProcessImageArgs(self.args)
         self.assertEqual(self.AvdSpec.local_kernel_image, expected_image_file)
         self.assertEqual(self.AvdSpec.local_system_image, expected_image_file)
         self.assertEqual(self.AvdSpec.local_system_dlkm_image, expected_image_file)
+        self.assertEqual(self.AvdSpec.local_vendor_boot_image, expected_image_file)
 
         # Specified --local-*-image without args.
         self.args.local_kernel_image = constants.FIND_IN_BUILD_ENV

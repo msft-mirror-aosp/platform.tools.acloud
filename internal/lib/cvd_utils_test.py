@@ -156,7 +156,8 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             mock_avd_spec = mock.Mock(local_kernel_image="boot.img",
                                       local_system_image=None,
                                       local_system_dlkm_image=None,
-                                      local_vendor_image=None)
+                                      local_vendor_image=None,
+                                      local_vendor_boot_image=None)
             args = cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec,
                                                None)
             self.assertEqual([("-boot_image", "dir/acloud_image/boot.img")],
@@ -188,7 +189,8 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
             mock_avd_spec = mock.Mock(local_kernel_image=kernel_image_path,
                                       local_system_image=None,
                                       local_system_dlkm_image=None,
-                                      local_vendor_image=None)
+                                      local_vendor_image=None,
+                                      local_vendor_boot_image=None)
             with self.assertRaises(errors.GetLocalImageError):
                 cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec,
                                             None)
@@ -220,6 +222,7 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
                                       local_system_image=extra_image_dir,
                                       local_system_dlkm_image=extra_image_dir,
                                       local_vendor_image=extra_image_dir,
+                                      local_vendor_boot_image=None,
                                       local_tool_dirs=[])
             self.CreateFile(
                 os.path.join(target_files_dir, "IMAGES", "boot.img"))
@@ -257,6 +260,44 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
         mock_ota_tools_object.MakeDisabledVbmetaImage.assert_called_once()
         mock_ssh.ScpPushFile.assert_called_once_with(
             mock.ANY, "dir/acloud_image/vbmeta.img")
+
+
+    def testUploadVendorBootImages(self):
+        """Test UploadExtraImages."""
+        mock_ssh = mock.Mock()
+        with tempfile.TemporaryDirectory(prefix="cvd_utils") as image_dir:
+            vendor_boot_image_path = os.path.join(image_dir,
+                                                  "vendor_boot-debug_test.img")
+            self.CreateFile(vendor_boot_image_path)
+
+            mock_avd_spec = mock.Mock(
+                local_kernel_image=None,
+                local_system_image=None,
+                local_system_dlkm_image=None,
+                local_vendor_image=None,
+                local_vendor_boot_image=vendor_boot_image_path)
+
+            args = cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec,
+                                               None)
+            self.assertEqual(
+                [("-vendor_boot_image", "dir/acloud_image/vendor_boot.img")],
+                args)
+            mock_ssh.Run.assert_called_once()
+            mock_ssh.ScpPushFile.assert_called_once_with(
+                mock.ANY, "dir/acloud_image/vendor_boot.img")
+
+            mock_ssh.reset_mock()
+            self.CreateFile(os.path.join(image_dir, "vendor_boot.img"))
+            mock_avd_spec.local_vendor_boot_image = image_dir
+            args = cvd_utils.UploadExtraImages(mock_ssh, "dir", mock_avd_spec,
+                                               None)
+            self.assertEqual(
+                [("-vendor_boot_image", "dir/acloud_image/vendor_boot.img")],
+                args)
+            mock_ssh.Run.assert_called_once()
+            mock_ssh.ScpPushFile.assert_called_once_with(
+                mock.ANY, "dir/acloud_image/vendor_boot.img")
+
 
     def testCleanUpRemoteCvd(self):
         """Test CleanUpRemoteCvd."""

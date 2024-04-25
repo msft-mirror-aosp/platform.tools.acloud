@@ -41,6 +41,7 @@ def _CreateArgs():
         local_kernel_image=None,
         local_system_image=None,
         local_instance_dir=None,
+        local_vendor_boot_image=None,
         kernel_branch=None,
         kernel_build_id=None,
         kernel_build_target="kernel",

@@ -62,6 +62,7 @@ class RemoteImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
         avd_spec.local_system_image = None
         avd_spec.local_kernel_image = None
         avd_spec.local_vendor_image = None
+        avd_spec.local_vendor_boot_image = None
         # raise errors.NoCuttlefishCommonInstalled
         self.Patch(setup_common, "PackageInstalled", return_value=False)
         self.assertRaises(errors.NoCuttlefishCommonInstalled,

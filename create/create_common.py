@@ -40,6 +40,7 @@ _TARGET_FILES_IMAGES_DIR_NAME = "IMAGES"
 _SYSTEM_IMAGE_NAME = "system.img"
 _SYSTEM_EXT_IMAGE_NAME = "system_ext.img"
 _PRODUCT_IMAGE_NAME = "product.img"
+_VENDOR_BOOT_IMAGE_NAME_PATTERN = r"vendor_boot\.img"
 
 _ANDROID_BOOT_IMAGE_MAGIC = b"ANDROID!"
 
@@ -218,6 +219,11 @@ def FindBootImage(path, raise_error=True):
         raise errors.GetLocalImageError(
             f"{boot_image_path} is not a boot image.")
     return boot_image_path
+
+
+def FindVendorBootImage(path, raise_error=True):
+    """Find a vendor boot image file in the given path."""
+    return FindLocalImage(path, _VENDOR_BOOT_IMAGE_NAME_PATTERN, raise_error)
 
 
 def FindSystemImages(path):

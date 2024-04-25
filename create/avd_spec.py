@@ -124,6 +124,7 @@ class AVDSpec():
         self._local_system_image = None
         self._local_system_dlkm_image = None
         self._local_vendor_image = None
+        self._local_vendor_boot_image = None
         self._local_tool_dirs = None
         self._image_download_dir = None
         self._num_of_instances = None
@@ -268,6 +269,10 @@ class AVDSpec():
         if args.local_vendor_image is not None:
             self._local_vendor_image = self._GetLocalImagePath(
                 args.local_vendor_image)
+
+        if args.local_vendor_boot_image is not None:
+            self._local_vendor_boot_image = self._GetLocalImagePath(
+                args.local_vendor_boot_image)
 
         self.image_download_dir = (
             args.image_download_dir if args.image_download_dir
@@ -855,6 +860,11 @@ class AVDSpec():
     def local_vendor_image(self):
         """Return local vendor image path."""
         return self._local_vendor_image
+
+    @property
+    def local_vendor_boot_image(self):
+        """Return local vendor boot image path."""
+        return self._local_vendor_boot_image
 
     @property
     def local_tool_dirs(self):
