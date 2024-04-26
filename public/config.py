@@ -62,14 +62,17 @@ logger = logging.getLogger(__name__)
 _DEFAULT_CONFIG_FILE = "acloud.config"
 _DEFAULT_HW_PROPERTY = "cpu:4,resolution:720x1280,dpi:320,memory:4g"
 
-# VERSION
+# Resources
+_INTERNAL_CONFIG_FILE = "default.config"
 _VERSION_FILE = "VERSION"
 _UNKNOWN = "UNKNOWN"
 _NUM_INSTANCES_ARG = "-num_instances"
 
 
-def _Resources():
-    return importlib.resources.files("acloud.public.data")
+def _OpenTextResource(resource):
+    # Acloud binary does not have the embedded launcher, and it should be
+    # compatible with python3.7 installed on the test servers.
+    return importlib.resources.open_text("acloud.public.data", resource)
 
 
 def GetVersion():
@@ -82,7 +85,7 @@ def GetVersion():
         String of the acloud version.
     """
     try:
-        with _Resources().joinpath(_VERSION_FILE).open("r") as version_file:
+        with _OpenTextResource(_VERSION_FILE) as version_file:
             return version_file.read()
     except FileNotFoundError:
         return _UNKNOWN
@@ -378,7 +381,7 @@ class AcloudConfigManager():
         internal_cfg = None
         usr_cfg = None
         try:
-            with _Resources().joinpath("default.config").open('r') as cfg_file:
+            with _OpenTextResource(_INTERNAL_CONFIG_FILE) as cfg_file:
                 internal_cfg = self.LoadConfigFromProtocolBuffer(
                     cfg_file, internal_config_pb2.InternalConfig)
         except OSError as e:
