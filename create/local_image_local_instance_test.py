@@ -360,6 +360,7 @@ EOF"""
                 local_kernel_image=None,
                 local_system_image=None,
                 local_vendor_image=None,
+                local_vendor_boot_image=None,
                 local_tool_dirs=[cvd_dir])
 
             with self.assertRaisesRegex(
@@ -425,6 +426,7 @@ EOF"""
                 local_kernel_image=extra_image_dir,
                 local_system_image=extra_image_dir,
                 local_vendor_image=extra_image_dir,
+                local_vendor_boot_image=None,
                 local_tool_dirs=[])
 
             with mock.patch.dict("acloud.create.local_image_local_instance."
@@ -474,6 +476,7 @@ EOF"""
                 local_kernel_image=kernel_image_dir,
                 local_system_image=system_image_path,
                 local_vendor_image=None,
+                local_vendor_boot_image=None,
                 local_tool_dirs=[ota_tools_dir, cvd_dir])
 
             with mock.patch.dict("acloud.create.local_image_local_instance."
