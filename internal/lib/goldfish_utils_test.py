@@ -37,6 +37,7 @@ class GoldfishUtilsTest(unittest.TestCase):
                    "build_target": "sdk_phone_x86_64-userdebug"}
     _INSTANCE_NAME = ("host-goldfish-192.0.2.1-5554-"
                       "123456-sdk_phone_x86_64-userdebug")
+    _INSTANCE_NAME_WITHOUT_INFO = "host-goldfish-192.0.2.1-5554-userbuild"
     _INVALID_NAME = "host-192.0.2.1-123456-aosp_cf_x86_phone-userdebug"
 
     @staticmethod
@@ -102,6 +103,29 @@ class GoldfishUtilsTest(unittest.TestCase):
         self.assertEqual((kernel_path, ramdisk_path),
                          goldfish_utils.FindKernelImages(self._temp_dir))
 
+    def testFindSystemDlkmImage(self):
+        """Test FindSystemDlkmImage."""
+        system_dlkm_image_path = os.path.join(self._temp_dir, "test.img")
+        self._CreateEmptyFile(system_dlkm_image_path)
+        self.assertEqual(
+            system_dlkm_image_path,
+            goldfish_utils.FindSystemDlkmImage(system_dlkm_image_path))
+
+        with self.assertRaises(errors.GetLocalImageError):
+            goldfish_utils.FindSystemDlkmImage(self._temp_dir)
+
+        system_dlkm_image_path = os.path.join(self._temp_dir,
+                                              "system_dlkm.img")
+        self._CreateEmptyFile(system_dlkm_image_path)
+        self.assertEqual(system_dlkm_image_path,
+                         goldfish_utils.FindSystemDlkmImage(self._temp_dir))
+
+        system_dlkm_image_path = os.path.join(self._temp_dir,
+                                              "system_dlkm.flatten.ext4.img")
+        self._CreateEmptyFile(system_dlkm_image_path)
+        self.assertEqual(system_dlkm_image_path,
+                         goldfish_utils.FindSystemDlkmImage(self._temp_dir))
+
     def testFindDiskImage(self):
         """Test FindDiskImage."""
         with self.assertRaises(errors.GetLocalImageError):
@@ -117,22 +141,25 @@ class GoldfishUtilsTest(unittest.TestCase):
         self.assertEqual(disk_path,
                          goldfish_utils.FindDiskImage(self._temp_dir))
 
-    def testMixWithSystemImage(self):
-        """Test MixWithSystemImage."""
+    def testMixDiskImage(self):
+        """Test MixDiskImage."""
         mock_ota = mock.Mock()
         mix_dir = os.path.join(self._temp_dir, "mix_disk")
         image_dir = os.path.join(self._temp_dir, "image_dir")
         misc_info_path = os.path.join(image_dir, "misc_info.txt")
         qemu_config_path = os.path.join(image_dir, "system-qemu-config.txt")
         system_image_path = os.path.join(self._temp_dir, "system.img")
+        system_dlkm_image_path = os.path.join(self._temp_dir,
+                                              "system_dlkm.img")
         vendor_image_path = os.path.join(image_dir, "vendor.img")
         vbmeta_image_path = os.path.join(mix_dir, "disabled_vbmeta.img")
         super_image_path = os.path.join(mix_dir, "mixed_super.img")
         self._CreateEmptyFile(misc_info_path)
         self._CreateEmptyFile(qemu_config_path)
 
-        disk_image = goldfish_utils.MixWithSystemImage(
-            mix_dir, image_dir, system_image_path, mock_ota)
+        disk_image = goldfish_utils.MixDiskImage(
+            mix_dir, image_dir, system_image_path, system_dlkm_image_path,
+            mock_ota)
 
         self.assertTrue(os.path.isdir(mix_dir))
         self.assertEqual(os.path.join(mix_dir, "mixed_disk.img"), disk_image)
@@ -142,7 +169,9 @@ class GoldfishUtilsTest(unittest.TestCase):
         get_image = mock_ota.BuildSuperImage.call_args[0][2]
         self._CreateEmptyFile(vendor_image_path)
         self._CreateEmptyFile(system_image_path)
+        self._CreateEmptyFile(system_dlkm_image_path)
         self.assertEqual(system_image_path, get_image("system"))
+        self.assertEqual(system_dlkm_image_path, get_image("system_dlkm"))
         self.assertEqual(vendor_image_path, get_image("vendor"))
 
         mock_ota.MakeDisabledVbmetaImage.assert_called_with(vbmeta_image_path)
@@ -170,6 +199,10 @@ class GoldfishUtilsTest(unittest.TestCase):
         instance_name = goldfish_utils.FormatRemoteHostInstanceName(
             self._IP_ADDRESS, self._CONSOLE_PORT, self._BUILD_INFO)
         self.assertEqual(self._INSTANCE_NAME, instance_name)
+
+        instance_name = goldfish_utils.FormatRemoteHostInstanceName(
+            self._IP_ADDRESS, self._CONSOLE_PORT, {})
+        self.assertEqual(self._INSTANCE_NAME_WITHOUT_INFO, instance_name)
 
     def testConvertAvdSpecToArgs(self):
         """Test ConvertAvdSpecToArgs."""

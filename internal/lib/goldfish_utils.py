@@ -31,6 +31,7 @@ _UNPACKED_KERNEL_IMAGE_NAME = "kernel"
 _UNPACKED_RAMDISK_IMAGE_NAME = "ramdisk"
 # File names in a build environment or an SDK repository.
 SYSTEM_QEMU_IMAGE_NAME = "system-qemu.img"
+VERIFIED_BOOT_PARAMS_FILE_NAME = "VerifiedBootParams.textproto"
 _SDK_REPO_SYSTEM_IMAGE_NAME = "system.img"
 _MISC_INFO_FILE_NAME = "misc_info.txt"
 _SYSTEM_QEMU_CONFIG_FILE_NAME = "system-qemu-config.txt"
@@ -38,9 +39,14 @@ _SYSTEM_QEMU_CONFIG_FILE_NAME = "system-qemu-config.txt"
 _DISK_IMAGE_NAMES = (SYSTEM_QEMU_IMAGE_NAME, _SDK_REPO_SYSTEM_IMAGE_NAME)
 _KERNEL_IMAGE_NAMES = ("kernel-ranchu", "kernel-ranchu-64", "kernel")
 _RAMDISK_IMAGE_NAMES = ("ramdisk-qemu.img", "ramdisk.img")
+_SYSTEM_DLKM_IMAGE_NAMES = (
+    "system_dlkm.flatten.erofs.img",  # GKI artifact
+    "system_dlkm.flatten.ext4.img",  # GKI artifact
+    "system_dlkm.img",  # goldfish artifact
+)
 # Remote host instance name.
 _REMOTE_HOST_INSTANCE_NAME_FORMAT = (
-    "host-goldfish-%(ip_addr)s-%(console_port)s-%(build_id)s-%(build_target)s")
+    "host-goldfish-%(ip_addr)s-%(console_port)s-%(build_info)s")
 _REMOTE_HOST_INSTANCE_NAME_PATTERN = re.compile(
     r"host-goldfish-(?P<ip_addr>[\d.]+)-(?P<console_port>\d+)-.+")
 
@@ -159,6 +165,23 @@ def FindKernelImages(image_dir):
             _FindFileByNames(image_dir, _RAMDISK_IMAGE_NAMES))
 
 
+def FindSystemDlkmImage(search_path):
+    """Find system_dlkm image in a path.
+
+    Args:
+        search_path: A path to an image file or an image directory.
+
+    Returns:
+        The system_dlkm image path.
+
+    Raises:
+        errors.GetLocalImageError if search_path does not contain a
+        system_dlkm image.
+    """
+    return (search_path if os.path.isfile(search_path) else
+            _FindFileByNames(search_path, _SYSTEM_DLKM_IMAGE_NAMES))
+
+
 def FindDiskImage(image_dir):
     """Find an emulator disk image in a directory.
 
@@ -174,14 +197,16 @@ def FindDiskImage(image_dir):
     return _FindFileByNames(image_dir, _DISK_IMAGE_NAMES)
 
 
-def MixWithSystemImage(output_dir, image_dir, system_image_path, ota):
-    """Mix emulator images and a system image into a disk image.
+def MixDiskImage(output_dir, image_dir, system_image_path,
+                 system_dlkm_image_path, ota):
+    """Mix emulator images into a disk image.
 
     Args:
         output_dir: The path to the output directory.
         image_dir: The input directory that provides images except
                    system.img.
-        system_image_path: The path to the system image.
+        system_image_path: A string or None, the system image path.
+        system_dlkm_image_path: A string or None, the system_dlkm image path.
         ota: An instance of ota_tools.OtaTools.
 
     Returns:
@@ -198,7 +223,9 @@ def MixWithSystemImage(output_dir, image_dir, system_image_path, ota):
         mixed_super_image_path,
         _FindFileByNames(image_dir, [_MISC_INFO_FILE_NAME]),
         lambda partition: ota_tools.GetImageForPartition(
-            partition, image_dir, system=system_image_path))
+            partition, image_dir,
+            system=system_image_path,
+            system_dlkm=system_dlkm_image_path))
 
     # Create the vbmeta image.
     vbmeta_image_path = os.path.join(output_dir, "disabled_vbmeta.img")
@@ -226,11 +253,16 @@ def FormatRemoteHostInstanceName(ip_addr, console_port, build_info):
     Returns:
         A string, the instance name.
     """
+    build_id = build_info.get(constants.BUILD_ID)
+    build_target = build_info.get(constants.BUILD_TARGET)
+    build_info_str = (f"{build_id}-{build_target}" if
+                      build_id and build_target else
+                      "userbuild")
     return _REMOTE_HOST_INSTANCE_NAME_FORMAT % {
         "ip_addr": ip_addr,
         "console_port": console_port,
-        "build_id": build_info.get(constants.BUILD_ID),
-        "build_target": build_info.get(constants.BUILD_TARGET)}
+        "build_info": build_info_str,
+    }
 
 
 def ParseRemoteHostConsoleAddress(instance_name):

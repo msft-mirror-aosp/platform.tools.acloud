@@ -75,6 +75,8 @@ _DEFAULT_BRANCH = "aosp-master"
 # the branch, avd type and device flavor:
 # aosp, cf and phone -> aosp_cf_x86_phone.
 _BRANCH_TARGET_PREFIX = {"aosp": "aosp_"}
+_BRANCH_TARGET_TRUNK_STAGEING = {"aosp-main": "-trunk_staging",
+                                 "git_main": "-trunk_staging"}
 
 
 def EscapeAnsi(line):
@@ -102,7 +104,6 @@ class AVDSpec():
         # Let's define the private class vars here and then process the user
         # args afterwards.
         self._client_adb_port = args.adb_port
-        self._client_fastboot_port = args.fastboot_port
         self._autoconnect = None
         self._cvd_host_package = None
         self._instance_name_to_reuse = None
@@ -121,7 +122,9 @@ class AVDSpec():
         self._local_instance_dir = None
         self._local_kernel_image = None
         self._local_system_image = None
+        self._local_system_dlkm_image = None
         self._local_vendor_image = None
+        self._local_vendor_boot_image = None
         self._local_tool_dirs = None
         self._image_download_dir = None
         self._num_of_instances = None
@@ -130,15 +133,18 @@ class AVDSpec():
         self._mkcert = None
         self._oxygen = None
         self._openwrt = None
-        self._remote_image = None
-        self._system_build_info = None
-        self._kernel_build_info = None
-        self._boot_build_info = None
-        self._ota_build_info = None
-        self._bootloader_build_info = None
+        self._remote_image = {}
+        self._system_build_info = {}
+        self._kernel_build_info = {}
+        self._boot_build_info = {}
+        self._ota_build_info = {}
+        self._host_package_build_info = {}
+        self._bootloader_build_info = {}
+        self._android_efi_loader_build_info = {}
         self._hw_property = None
         self._hw_customize = False
         self._remote_host = None
+        self._remote_image_dir = None
         self._gce_metadata = None
         self._gce_only = None
         self._host_user = None
@@ -161,6 +167,7 @@ class AVDSpec():
         # emulator_* are only used for goldfish avd_type.
         self._emulator_build_id = None
         self._emulator_build_target = None
+        self._emulator_zip = None
 
         # Fields only used for cheeps type.
         self._stable_cheeps_host_image_name = None
@@ -255,9 +262,17 @@ class AVDSpec():
             self._local_system_image = self._GetLocalImagePath(
                 args.local_system_image)
 
+        if args.local_system_dlkm_image is not None:
+            self._local_system_dlkm_image = self._GetLocalImagePath(
+                args.local_system_dlkm_image)
+
         if args.local_vendor_image is not None:
             self._local_vendor_image = self._GetLocalImagePath(
                 args.local_vendor_image)
+
+        if args.local_vendor_boot_image is not None:
+            self._local_vendor_boot_image = self._GetLocalImagePath(
+                args.local_vendor_boot_image)
 
         self.image_download_dir = (
             args.image_download_dir if args.image_download_dir
@@ -357,6 +372,7 @@ class AVDSpec():
                                    if args.local_instance is None else
                                    constants.INSTANCE_TYPE_LOCAL)
         self._remote_host = args.remote_host
+        self._remote_image_dir = args.remote_image_dir
         self._host_user = args.host_user
         self._host_ssh_private_key_path = args.host_ssh_private_key_path
         self._local_instance_id = args.local_instance
@@ -374,6 +390,7 @@ class AVDSpec():
         self._emulator_build_id = args.emulator_build_id
         self._emulator_build_target = (args.emulator_build_target
                                        or self._cfg.emulator_build_target)
+        self._emulator_zip = args.emulator_zip
         self._gpu = args.gpu
         self._disk_type = (args.disk_type or self._cfg.disk_type)
         self._base_instance_num = args.base_instance_num
@@ -461,11 +478,11 @@ class AVDSpec():
         elif self._avd_type == constants.TYPE_FVP:
             self._ProcessFVPLocalImageArgs()
         elif self._avd_type == constants.TYPE_GF:
-            self._local_image_dir = self._GetLocalImagePath(
-                args.local_image)
-            if not os.path.isdir(self._local_image_dir):
-                raise errors.GetLocalImageError("%s is not a directory." %
-                                                args.local_image)
+            local_image_path = self._GetLocalImagePath(args.local_image)
+            if os.path.isdir(local_image_path):
+                self._local_image_dir = local_image_path
+            else:
+                self._local_image_artifact = local_image_path
         elif self._avd_type == constants.TYPE_GCE:
             self._local_image_artifact = self._GetGceLocalImagePath(
                 args.local_image)
@@ -613,7 +630,6 @@ class AVDSpec():
         Args:
             args: Namespace object from argparse.parse_args.
         """
-        self._remote_image = {}
         self._remote_image[constants.BUILD_BRANCH] = args.branch
         if not self._remote_image[constants.BUILD_BRANCH]:
             self._remote_image[constants.BUILD_BRANCH] = self._GetBuildBranch(
@@ -621,7 +637,8 @@ class AVDSpec():
 
         self._remote_image[constants.BUILD_TARGET] = args.build_target
         if not self._remote_image[constants.BUILD_TARGET]:
-            self._remote_image[constants.BUILD_TARGET] = self._GetBuildTarget(args)
+            self._remote_image[constants.BUILD_TARGET] = self._GetBuildTarget(
+                args, self._remote_image[constants.BUILD_BRANCH])
         else:
             # If flavor isn't specified, try to infer it from build target,
             # if we can't, just default to phone flavor.
@@ -661,6 +678,13 @@ class AVDSpec():
             constants.BUILD_ID: args.bootloader_build_id,
             constants.BUILD_BRANCH: args.bootloader_branch,
             constants.BUILD_TARGET: args.bootloader_build_target}
+        self._android_efi_loader_build_info = {
+            constants.BUILD_ID: args.android_efi_loader_build_id,
+            constants.BUILD_ARTIFACT: args.android_efi_loader_artifact}
+        self._host_package_build_info = {
+            constants.BUILD_ID: args.host_package_build_id,
+            constants.BUILD_BRANCH: args.host_package_branch,
+            constants.BUILD_TARGET: args.host_package_build_target}
 
     @staticmethod
     def _CheckCFBuildTarget(instance_type):
@@ -760,7 +784,7 @@ class AVDSpec():
             % _DEFAULT_BRANCH, utils.TextColors.WARNING)
         return _DEFAULT_BRANCH
 
-    def _GetBuildTarget(self, args):
+    def _GetBuildTarget(self, args, branch):
         """Infer build target if user doesn't specified target name.
 
         Target = {REPO_PREFIX}{avd_type}_{bitness}_{flavor}-
@@ -769,15 +793,17 @@ class AVDSpec():
 
         Args:
             args: Namespace object from argparse.parse_args.
+            branch: String, name of build branch.
 
         Returns:
             build_target: String, name of build target.
         """
-        branch = re.split("-|_", self._remote_image[constants.BUILD_BRANCH])[0]
-        return "%s%s_%s_%s-%s" % (
-            _BRANCH_TARGET_PREFIX.get(branch, ""),
+        branch_prefix = re.split("-|_", branch)[0]
+        return "%s%s_%s_%s%s-%s" % (
+            _BRANCH_TARGET_PREFIX.get(branch_prefix, ""),
             constants.AVD_TYPES_MAPPING[args.avd_type],
             _DEFAULT_BUILD_BITNESS, self._flavor,
+            _BRANCH_TARGET_TRUNK_STAGEING.get(branch, ""),
             _DEFAULT_BUILD_TYPE)
 
     @property
@@ -826,9 +852,19 @@ class AVDSpec():
         return self._local_system_image
 
     @property
+    def local_system_dlkm_image(self):
+        """Return local system_dlkm image path."""
+        return self._local_system_dlkm_image
+
+    @property
     def local_vendor_image(self):
         """Return local vendor image path."""
         return self._local_vendor_image
+
+    @property
+    def local_vendor_boot_image(self):
+        """Return local vendor boot image path."""
+        return self._local_vendor_boot_image
 
     @property
     def local_tool_dirs(self):
@@ -854,15 +890,7 @@ class AVDSpec():
     def connect_adb(self):
         """Auto-connect to adb.
 
-        Return: Boolean, whether adb autoconnect is enabled.
-        """
-        return self._autoconnect is not False
-
-    @property
-    def connect_fastboot(self):
-        """Auto-connect to fastboot.
-
-        Return: Boolean, whether fastboot autoconnect is enabled.
+        Return: Boolean, whether autoconnect is enabled.
         """
         return self._autoconnect is not False
 
@@ -949,6 +977,11 @@ class AVDSpec():
         return self._bootloader_build_info
 
     @property
+    def android_efi_loader_build_info(self):
+        """Return android efi loader build info."""
+        return self._android_efi_loader_build_info
+
+    @property
     def flavor(self):
         """Return flavor."""
         return self._flavor
@@ -999,14 +1032,14 @@ class AVDSpec():
         return self._emulator_build_target
 
     @property
+    def emulator_zip(self):
+        """Return emulator_zip."""
+        return self._emulator_zip
+
+    @property
     def client_adb_port(self):
         """Return the client adb port."""
         return self._client_adb_port
-
-    @property
-    def client_fastboot_port(self):
-        """Return the client fastboot port."""
-        return self._client_fastboot_port
 
     @property
     def stable_host_image_name(self):
@@ -1060,6 +1093,11 @@ class AVDSpec():
         return self._ota_build_info
 
     @property
+    def host_package_build_info(self):
+        """Return host_package_build_info."""
+        return self._host_package_build_info
+
+    @property
     def system_build_info(self):
         """Return system_build_info."""
         return self._system_build_info
@@ -1078,6 +1116,11 @@ class AVDSpec():
     def remote_host(self):
         """Return host."""
         return self._remote_host
+
+    @property
+    def remote_image_dir(self):
+        """Return remote_image_dir."""
+        return self._remote_image_dir
 
     @property
     def host_user(self):

@@ -30,7 +30,6 @@ def _CreateArgs():
         flavor=None,
         num=1,
         adb_port=None,
-        fastboot_port=None,
         hw_property=None,
         stable_cheeps_host_image_name=None,
         stable_cheeps_host_image_project=None,
@@ -42,6 +41,7 @@ def _CreateArgs():
         local_kernel_image=None,
         local_system_image=None,
         local_instance_dir=None,
+        local_vendor_boot_image=None,
         kernel_branch=None,
         kernel_build_id=None,
         kernel_build_target="kernel",
@@ -54,10 +54,12 @@ def _CreateArgs():
         system_build_target=None,
         local_instance=None,
         remote_host=None,
+        remote_image_dir=None,
         host_user=constants.GCE_USER,
         host_ssh_private_key_path=None,
         emulator_build_id=None,
         emulator_build_target=None,
+        emulator_zip=None,
         avd_type=constants.TYPE_CF,
         autoconnect=constants.INS_KEY_WEBRTC)
     return mock_args

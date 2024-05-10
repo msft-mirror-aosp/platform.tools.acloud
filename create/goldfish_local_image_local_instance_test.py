@@ -22,9 +22,10 @@ from unittest import mock
 
 from acloud import errors
 import acloud.create.goldfish_local_image_local_instance as instance_module
+from acloud.internal.lib import driver_test_lib
 
 
-class GoldfishLocalImageLocalInstance(unittest.TestCase):
+class GoldfishLocalImageLocalInstance(driver_test_lib.BaseDriverTest):
     """Test GoldfishLocalImageLocalInstance methods."""
 
     def setUp(self):
@@ -60,8 +61,8 @@ class GoldfishLocalImageLocalInstance(unittest.TestCase):
         with open(path, "w") as _:
             pass
 
-    def _MockMixWithSystemImage(self, output_dir, *_args):
-        """Mock goldfish_utils.MixWithSystemImage."""
+    def _MockMixDiskImage(self, output_dir, *_args):
+        """Mock goldfish_utils.MixDiskImage."""
         self.assertEqual(os.path.join(self._instance_dir, "mix_disk"),
                          output_dir)
         output_path = os.path.join(output_dir, "mixed_disk.img")
@@ -115,8 +116,9 @@ class GoldfishLocalImageLocalInstance(unittest.TestCase):
         mock_popen.side_effect = self._MockPopen
 
         mock_gf_utils.SYSTEM_QEMU_IMAGE_NAME = "system-qemu.img"
-        mock_gf_utils.MixWithSystemImage.side_effect = (
-            self._MockMixWithSystemImage)
+        mock_gf_utils.VERIFIED_BOOT_PARAMS_FILE_NAME = (
+            "VerifiedBootParams.textproto")
+        mock_gf_utils.MixDiskImage.side_effect = self._MockMixDiskImage
         mock_gf_utils.MixWithBootImage.side_effect = self._MockMixWithBootImage
         mock_gf_utils.ConvertAvdSpecToArgs.return_value = ["-gpu", "auto"]
 
@@ -167,7 +169,6 @@ class GoldfishLocalImageLocalInstance(unittest.TestCase):
                 ]
             }
         ]
-
 
     # pylint: disable=protected-access
     @mock.patch("acloud.create.goldfish_local_image_local_instance.instance."
@@ -350,6 +351,9 @@ class GoldfishLocalImageLocalInstance(unittest.TestCase):
         self._CreateEmptyFile(system_image_path)
         self._CreateEmptyFile(os.path.join(self._image_dir, "x86", "system",
                                            "build.prop"))
+        params_path = os.path.join(self._image_dir, "x86",
+                                   "VerifiedBootParams.textproto")
+        self._CreateEmptyFile(params_path)
 
         mock_avd_spec = self._CreateMockAvdSpec(
             local_instance_id=3,
@@ -371,17 +375,19 @@ class GoldfishLocalImageLocalInstance(unittest.TestCase):
 
         mock_ota_tools.FindOtaTools.assert_called_once_with([self._tool_dir])
 
-        mock_gf_utils.MixWithSystemImage.assert_called_once_with(
+        mock_gf_utils.MixDiskImage.assert_called_once_with(
             mock.ANY, os.path.join(self._image_dir, "x86"), system_image_path,
-            mock_ota_tools.FindOtaTools.return_value)
+            None, mock_ota_tools.FindOtaTools.return_value)
+        self.assertTrue(os.path.isfile(params_path + ".bak-non-mixed"))
+        with open(params_path, "r", encoding="utf-8") as params_file:
+            self.assertEqual(
+                params_file.read(),
+                '\nparam: "androidboot.verifiedbootstate=orange"\n')
 
         mock_utils.SetExecutable.assert_called_with(self._emulator_path)
         mock_popen.assert_called_once()
-        self.assertEqual(
-            mock_popen.call_args[0][0],
-            self._GetExpectedEmulatorArgs(
-                "-no-window", "-qemu", "-append",
-                "androidboot.verifiedbootstate=orange"))
+        self.assertEqual(mock_popen.call_args[0][0],
+                         self._GetExpectedEmulatorArgs("-no-window"))
         self._mock_proc.poll.assert_called()
 
     # pylint: disable=protected-access
@@ -401,7 +407,7 @@ class GoldfishLocalImageLocalInstance(unittest.TestCase):
         image_subdir = os.path.join(self._image_dir, "x86")
         boot_image_path = os.path.join(self._temp_dir, "kernel_images",
                                        "boot-5.10.img")
-        self._CreateEmptyFile(boot_image_path)
+        self.CreateFile(boot_image_path, b"ANDROID!")
         self._CreateEmptyFile(os.path.join(image_subdir, "system.img"))
         self._CreateEmptyFile(os.path.join(image_subdir, "build.prop"))
 
@@ -496,10 +502,13 @@ class GoldfishLocalImageLocalInstance(unittest.TestCase):
 
         system_image_path = os.path.join(self._image_dir, "system.img")
         self._CreateEmptyFile(system_image_path)
-        self._CreateEmptyFile(os.path.join(self._image_dir,
-                                           "system-qemu.img"))
+        disk_image_path = os.path.join(self._image_dir, "system-qemu.img")
+        self._CreateEmptyFile(disk_image_path)
         self._CreateEmptyFile(os.path.join(self._image_dir, "system",
                                            "build.prop"))
+        params_path = os.path.join(self._image_dir,
+                                   "VerifiedBootParams.textproto")
+        self._CreateEmptyFile(params_path)
 
         mock_environ = {"ANDROID_EMULATOR_PREBUILTS":
                         os.path.join(self._tool_dir, "emulator"),
@@ -529,17 +538,20 @@ class GoldfishLocalImageLocalInstance(unittest.TestCase):
             os.path.join(self._tool_dir, "soong"),
             os.path.join(self._tool_dir, "host")])
 
-        mock_gf_utils.MixWithSystemImage.assert_called_once_with(
-            mock.ANY, self._image_dir, system_image_path,
+        mock_gf_utils.MixDiskImage.assert_called_once_with(
+            mock.ANY, self._image_dir, system_image_path, None,
             mock_ota_tools.FindOtaTools.return_value)
+        self.assertTrue(os.path.isfile(disk_image_path + ".bak-non-mixed"))
+        self.assertTrue(os.path.isfile(params_path + ".bak-non-mixed"))
+        with open(params_path, "r", encoding="utf-8") as params_file:
+            self.assertEqual(
+                params_file.read(),
+                '\nparam: "androidboot.verifiedbootstate=orange"\n')
 
         mock_utils.SetExecutable.assert_called_with(self._emulator_path)
         mock_popen.assert_called_once()
-        self.assertEqual(
-            mock_popen.call_args[0][0],
-            self._GetExpectedEmulatorArgs(
-                "-no-window", "-qemu", "-append",
-                "androidboot.verifiedbootstate=orange"))
+        self.assertEqual(mock_popen.call_args[0][0],
+                         self._GetExpectedEmulatorArgs("-no-window"))
         self._mock_proc.poll.assert_called()
 
 

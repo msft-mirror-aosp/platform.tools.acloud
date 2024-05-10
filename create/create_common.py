@@ -30,8 +30,26 @@ from acloud.internal.lib import utils
 
 logger = logging.getLogger(__name__)
 
+# The boot image name pattern supports the following cases:
+# - Cuttlefish ANDROID_PRODUCT_OUT directory conatins boot.img.
+# - In Android 12, the officially released GKI (Generic Kernel Image) name is
+#   boot-<kernel version>.img.
+# - In Android 13, the name is boot.img.
+_BOOT_IMAGE_NAME_PATTERN = r"boot(-[\d.]+)?\.img"
+_TARGET_FILES_IMAGES_DIR_NAME = "IMAGES"
+_SYSTEM_IMAGE_NAME = "system.img"
+_SYSTEM_EXT_IMAGE_NAME = "system_ext.img"
+_PRODUCT_IMAGE_NAME = "product.img"
+_VENDOR_BOOT_IMAGE_NAME_PATTERN = r"vendor_boot\.img"
+
+_ANDROID_BOOT_IMAGE_MAGIC = b"ANDROID!"
+
 # Store the file path to upload to the remote instance.
 ExtraFile = collections.namedtuple("ExtraFile", ["source", "target"])
+
+SystemImagePaths = collections.namedtuple(
+    "SystemImagePaths",
+    ["system", "system_ext", "product"])
 
 
 def ParseExtraFilesArgs(files_info, path_separator=","):
@@ -136,10 +154,11 @@ def GetCvdHostPackage(package_path=None):
         dirs_to_check.append(dist_dir)
 
     for path in dirs_to_check:
-        cvd_host_package = os.path.join(path, constants.CVD_HOST_PACKAGE)
-        if os.path.exists(cvd_host_package):
-            logger.debug("cvd host package: %s", cvd_host_package)
-            return cvd_host_package
+        for name in [constants.CVD_HOST_TARBALL, constants.CVD_HOST_PACKAGE]:
+            cvd_host_package = os.path.join(path, name)
+            if os.path.exists(cvd_host_package):
+                logger.debug("cvd host package: %s", cvd_host_package)
+                return cvd_host_package
     raise errors.GetCvdLocalHostPackageError(
         "Can't find the cvd host package (Try lunching a cuttlefish target"
         " like aosp_cf_x86_64_phone-userdebug and running 'm'): \n%s" %
@@ -166,15 +185,80 @@ def FindLocalImage(path, default_name_pattern, raise_error=True):
                  re.fullmatch(default_name_pattern, name)]
         if not names:
             if raise_error:
-                raise errors.GetLocalImageError("No image in %s." % path)
+                raise errors.GetLocalImageError(f"No image in {path}.")
             return None
         if len(names) != 1:
-            raise errors.GetLocalImageError("More than one image in %s: %s" %
-                                            (path, " ".join(names)))
+            raise errors.GetLocalImageError(
+                f"More than one image in {path}: {' '.join(names)}")
         path = os.path.join(path, names[0])
     if os.path.isfile(path):
         return path
-    raise errors.GetLocalImageError("%s is not a file." % path)
+    raise errors.GetLocalImageError(f"{path} is not a file.")
+
+
+def _IsBootImage(image_path):
+    """Check if a file is an Android boot image by reading the magic bytes.
+
+    Args:
+        image_path: The file path.
+
+    Returns:
+        A boolean, whether the file is a boot image.
+    """
+    if not os.path.isfile(image_path):
+        return False
+    with open(image_path, "rb") as image_file:
+        return image_file.read(8) == _ANDROID_BOOT_IMAGE_MAGIC
+
+
+def FindBootImage(path, raise_error=True):
+    """Find a boot image file in the given path."""
+    boot_image_path = FindLocalImage(path, _BOOT_IMAGE_NAME_PATTERN,
+                                     raise_error)
+    if boot_image_path and not _IsBootImage(boot_image_path):
+        raise errors.GetLocalImageError(
+            f"{boot_image_path} is not a boot image.")
+    return boot_image_path
+
+
+def FindVendorBootImage(path, raise_error=True):
+    """Find a vendor boot image file in the given path."""
+    return FindLocalImage(path, _VENDOR_BOOT_IMAGE_NAME_PATTERN, raise_error)
+
+
+def FindSystemImages(path):
+    """Find system, system_ext, and product image files in a given path.
+
+    Args:
+        path: A string, the search path.
+
+    Returns:
+        The absolute paths to system, system_ext and product images.
+        The paths to system_ext and product can be None.
+
+    Raises:
+        GetLocalImageError if this method cannot find the system image.
+    """
+    path = os.path.abspath(path)
+    if os.path.isfile(path):
+        return SystemImagePaths(path, None, None)
+
+    image_dir = path
+    system_image_path = os.path.join(image_dir, _SYSTEM_IMAGE_NAME)
+    if not os.path.isfile(system_image_path):
+        image_dir = os.path.join(path, _TARGET_FILES_IMAGES_DIR_NAME)
+        system_image_path = os.path.join(image_dir, _SYSTEM_IMAGE_NAME)
+        if not os.path.isfile(system_image_path):
+            raise errors.GetLocalImageError(
+                f"No {_SYSTEM_IMAGE_NAME} in {path}.")
+
+    system_ext_image_path = os.path.join(image_dir, _SYSTEM_EXT_IMAGE_NAME)
+    product_image_path = os.path.join(image_dir, _PRODUCT_IMAGE_NAME)
+    return SystemImagePaths(
+        system_image_path,
+        (system_ext_image_path if os.path.isfile(system_ext_image_path) else
+         None),
+        (product_image_path if os.path.isfile(product_image_path) else None))
 
 
 def DownloadRemoteArtifact(cfg, build_target, build_id, artifact, extract_path,

@@ -43,10 +43,10 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.args.local_image = None
         self.args.local_kernel_image = None
         self.args.local_system_image = None
+        self.args.local_vendor_boot_image = None
         self.args.config_file = ""
         self.args.build_target = "fake_build_target"
         self.args.adb_port = None
-        self.args.fastboot_port = None
         self.args.launch_args = None
         self.Patch(list_instances, "ChooseOneRemoteInstance", return_value=mock.MagicMock())
         self.Patch(list_instances, "GetInstancesFromInstanceNames", return_value=mock.MagicMock())
@@ -121,22 +121,29 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         # Specified --local-*-image with dirs.
         self.args.local_kernel_image = expected_image_dir
         self.args.local_system_image = expected_image_dir
+        self.args.local_system_dlkm_image = expected_image_dir
         self.args.local_vendor_image = expected_image_dir
         self.AvdSpec._ProcessImageArgs(self.args)
         self.assertEqual(self.AvdSpec.local_kernel_image, expected_image_dir)
         self.assertEqual(self.AvdSpec.local_system_image, expected_image_dir)
+        self.assertEqual(self.AvdSpec.local_system_dlkm_image, expected_image_dir)
         self.assertEqual(self.AvdSpec.local_vendor_image, expected_image_dir)
 
         # Specified --local-*-image with files.
         self.args.local_kernel_image = expected_image_file
         self.args.local_system_image = expected_image_file
+        self.args.local_system_dlkm_image = expected_image_file
+        self.args.local_vendor_boot_image = expected_image_file
         self.AvdSpec._ProcessImageArgs(self.args)
         self.assertEqual(self.AvdSpec.local_kernel_image, expected_image_file)
         self.assertEqual(self.AvdSpec.local_system_image, expected_image_file)
+        self.assertEqual(self.AvdSpec.local_system_dlkm_image, expected_image_file)
+        self.assertEqual(self.AvdSpec.local_vendor_boot_image, expected_image_file)
 
         # Specified --local-*-image without args.
         self.args.local_kernel_image = constants.FIND_IN_BUILD_ENV
         self.args.local_system_image = constants.FIND_IN_BUILD_ENV
+        self.args.local_system_dlkm_image = constants.FIND_IN_BUILD_ENV
         self.args.local_vendor_image = constants.FIND_IN_BUILD_ENV
         with mock.patch("acloud.create.avd_spec.utils."
                         "GetBuildEnvironmentVariable",
@@ -144,6 +151,7 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
             self.AvdSpec._ProcessImageArgs(self.args)
         self.assertEqual(self.AvdSpec.local_kernel_image, expected_image_dir)
         self.assertEqual(self.AvdSpec.local_system_image, expected_image_dir)
+        self.assertEqual(self.AvdSpec.local_system_dlkm_image, expected_image_dir)
         self.assertEqual(self.AvdSpec.local_vendor_image, expected_image_dir)
 
     def testProcessAutoconnect(self):
@@ -249,25 +257,32 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
     # pylint: disable=protected-access
     def testGetBuildTarget(self):
         """Test get build target name."""
-        self.AvdSpec._remote_image[constants.BUILD_BRANCH] = "git_branch"
+        branch = "git_branch"
         self.AvdSpec._flavor = constants.FLAVOR_IOT
         self.args.avd_type = constants.TYPE_GCE
         self.assertEqual(
-            self.AvdSpec._GetBuildTarget(self.args),
+            self.AvdSpec._GetBuildTarget(self.args, branch),
             "gce_x86_64_iot-userdebug")
 
-        self.AvdSpec._remote_image[constants.BUILD_BRANCH] = "aosp-master"
+        branch = "aosp-master"
         self.AvdSpec._flavor = constants.FLAVOR_PHONE
         self.args.avd_type = constants.TYPE_CF
         self.assertEqual(
-            self.AvdSpec._GetBuildTarget(self.args),
+            self.AvdSpec._GetBuildTarget(self.args, branch),
             "aosp_cf_x86_64_phone-userdebug")
 
-        self.AvdSpec._remote_image[constants.BUILD_BRANCH] = "git_branch"
+        branch = "aosp-main"
         self.AvdSpec._flavor = constants.FLAVOR_PHONE
         self.args.avd_type = constants.TYPE_CF
         self.assertEqual(
-            self.AvdSpec._GetBuildTarget(self.args),
+            self.AvdSpec._GetBuildTarget(self.args, branch),
+            "aosp_cf_x86_64_phone-trunk_staging-userdebug")
+
+        branch = "git_branch"
+        self.AvdSpec._flavor = constants.FLAVOR_PHONE
+        self.args.avd_type = constants.TYPE_CF
+        self.assertEqual(
+            self.AvdSpec._GetBuildTarget(self.args, branch),
             "cf_x86_64_phone-userdebug")
 
     # pylint: disable=protected-access
@@ -500,7 +515,6 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.AvdSpec._ProcessMiscArgs(self.args)
         self.assertEqual(self.AvdSpec.autoconnect, False)
         self.assertEqual(self.AvdSpec.connect_adb, False)
-        self.assertEqual(self.AvdSpec.connect_fastboot, False)
         self.assertEqual(self.AvdSpec.connect_vnc, False)
         self.assertEqual(self.AvdSpec.connect_webrtc, False)
 
@@ -508,7 +522,6 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.AvdSpec._ProcessMiscArgs(self.args)
         self.assertEqual(self.AvdSpec.autoconnect, True)
         self.assertEqual(self.AvdSpec.connect_adb, True)
-        self.assertEqual(self.AvdSpec.connect_fastboot, True)
         self.assertEqual(self.AvdSpec.connect_vnc, True)
         self.assertEqual(self.AvdSpec.connect_webrtc, False)
 
@@ -516,15 +529,6 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.AvdSpec._ProcessMiscArgs(self.args)
         self.assertEqual(self.AvdSpec.autoconnect, True)
         self.assertEqual(self.AvdSpec.connect_adb, True)
-        self.assertEqual(self.AvdSpec.connect_fastboot, True)
-        self.assertEqual(self.AvdSpec.connect_vnc, False)
-        self.assertEqual(self.AvdSpec.connect_webrtc, False)
-
-        self.args.autoconnect = constants.INS_KEY_FASTBOOT
-        self.AvdSpec._ProcessMiscArgs(self.args)
-        self.assertEqual(self.AvdSpec.autoconnect, True)
-        self.assertEqual(self.AvdSpec.connect_adb, True)
-        self.assertEqual(self.AvdSpec.connect_fastboot, True)
         self.assertEqual(self.AvdSpec.connect_vnc, False)
         self.assertEqual(self.AvdSpec.connect_webrtc, False)
 
@@ -532,7 +536,6 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.AvdSpec._ProcessMiscArgs(self.args)
         self.assertEqual(self.AvdSpec.autoconnect, True)
         self.assertEqual(self.AvdSpec.connect_adb, True)
-        self.assertEqual(self.AvdSpec.connect_fastboot, True)
         self.assertEqual(self.AvdSpec.connect_vnc, False)
         self.assertEqual(self.AvdSpec.connect_webrtc, True)
 

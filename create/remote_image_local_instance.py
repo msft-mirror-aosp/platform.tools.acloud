@@ -53,7 +53,6 @@ _HOME_FOLDER = os.path.expanduser("~")
 # for the downloaded image artifacts.
 _REQUIRED_SPACE = 10
 
-_SYSTEM_IMAGE_NAME_PATTERN = r"system\.img"
 _SYSTEM_MIX_IMAGE_DIR = "mix_image_{build_id}"
 
 
@@ -123,7 +122,9 @@ def DownloadAndProcessImageFiles(avd_spec):
         avd_spec.kernel_build_info,
         avd_spec.boot_build_info,
         avd_spec.bootloader_build_info,
-        avd_spec.ota_build_info)
+        avd_spec.android_efi_loader_build_info,
+        avd_spec.ota_build_info,
+        avd_spec.host_package_build_info)
 
     fetch_cvd_args_str = " ".join(fetch_cvd_build_args)
     fetch_cvd_args_file = os.path.join(extract_path,
@@ -201,6 +202,7 @@ class RemoteImageLocalInstance(local_image_local_instance.LocalImageLocalInstanc
     LocalImageLocalInstance.
     """
 
+    # pylint: disable=too-many-locals
     def GetImageArtifactsPath(self, avd_spec):
         """Download the image artifacts and return the paths to them.
 
@@ -233,6 +235,12 @@ class RemoteImageLocalInstance(local_image_local_instance.LocalImageLocalInstanc
         misc_info_path = None
         ota_tools_dir = None
         system_image_path = None
+        system_ext_image_path = None
+        product_image_path = None
+        boot_image_path = None
+        vendor_boot_image_path = None
+        kernel_image_path = None
+        initramfs_image_path = None
         vendor_image_path = None
         vendor_dlkm_image_path = None
         odm_image_path = None
@@ -241,13 +249,14 @@ class RemoteImageLocalInstance(local_image_local_instance.LocalImageLocalInstanc
         if avd_spec.local_system_image or avd_spec.local_vendor_image:
             build_id = avd_spec.remote_image[constants.BUILD_ID]
             build_target = avd_spec.remote_image[constants.BUILD_TARGET]
-            mix_image_dir =os.path.join(
+            mix_image_dir = os.path.join(
                 image_dir, _SYSTEM_MIX_IMAGE_DIR.format(build_id=build_id))
             if not os.path.exists(mix_image_dir):
                 os.makedirs(mix_image_dir)
                 create_common.DownloadRemoteArtifact(
                     avd_spec.cfg, build_target, build_id,
-                    cvd_utils.GetMixBuildTargetFilename(build_target, build_id),
+                    cvd_utils.GetMixBuildTargetFilename(
+                        build_target, build_id),
                     mix_image_dir, decompress=True)
             misc_info_path = cvd_utils.FindMiscInfo(mix_image_dir)
             mix_image_dir = cvd_utils.FindImageDir(mix_image_dir)
@@ -266,9 +275,27 @@ class RemoteImageLocalInstance(local_image_local_instance.LocalImageLocalInstanc
                     host_bins_path = self._FindCvdHostBinaries(tool_dirs)
                 except errors.GetCvdLocalHostPackageError:
                     logger.debug("fall back to downloaded cvd host binaries")
+
         if avd_spec.local_system_image:
-            system_image_path = create_common.FindLocalImage(
-                avd_spec.local_system_image, _SYSTEM_IMAGE_NAME_PATTERN)
+            (
+                system_image_path,
+                system_ext_image_path,
+                product_image_path,
+            ) = create_common.FindSystemImages(avd_spec.local_system_image)
+
+        if avd_spec.local_kernel_image:
+            (
+                boot_image_path,
+                vendor_boot_image_path,
+                kernel_image_path,
+                initramfs_image_path,
+            ) = self.FindBootOrKernelImages(
+                os.path.abspath(avd_spec.local_kernel_image))
+
+        if avd_spec.local_vendor_boot_image:
+            vendor_boot_image_path = create_common.FindVendorBootImage(
+                avd_spec.local_vendor_boot_image)
+
         if avd_spec.local_vendor_image:
             vendor_image_paths = cvd_utils.FindVendorImages(
                 avd_spec.local_vendor_image)
@@ -277,9 +304,6 @@ class RemoteImageLocalInstance(local_image_local_instance.LocalImageLocalInstanc
             odm_image_path = vendor_image_paths.odm
             odm_dlkm_image_path = vendor_image_paths.odm_dlkm
 
-
-        # This method does not set the optional fields because launch_cvd loads
-        # the paths from the fetcher config in image_dir.
         return local_image_local_instance.ArtifactPaths(
             image_dir=mix_image_dir or image_dir,
             host_bins=host_bins_path,
@@ -287,11 +311,13 @@ class RemoteImageLocalInstance(local_image_local_instance.LocalImageLocalInstanc
             misc_info=misc_info_path,
             ota_tools_dir=ota_tools_dir,
             system_image=system_image_path,
+            system_ext_image=system_ext_image_path,
+            product_image=product_image_path,
             vendor_image=vendor_image_path,
             vendor_dlkm_image=vendor_dlkm_image_path,
             odm_image=odm_image_path,
             odm_dlkm_image=odm_dlkm_image_path,
-            boot_image=None,
-            vendor_boot_image=None,
-            kernel_image=None,
-            initramfs_image=None)
+            boot_image=boot_image_path,
+            vendor_boot_image=vendor_boot_image_path,
+            kernel_image=kernel_image_path,
+            initramfs_image=initramfs_image_path)

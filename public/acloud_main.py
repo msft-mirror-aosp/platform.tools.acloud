@@ -70,6 +70,7 @@ Try $acloud [cmd] --help for further details.
 from __future__ import print_function
 import argparse
 import logging
+import os
 import sys
 import traceback
 
@@ -122,6 +123,7 @@ ACLOUD_LOGGER = "acloud"
 _LOGGER = logging.getLogger(ACLOUD_LOGGER)
 NO_ERROR_MESSAGE = ""
 PROG = "acloud"
+DEFAULT_SUPPORT_ARGS = ["--version", "-h", "--help"]
 
 # Commands
 CMD_CREATE_GOLDFISH = "create_gf"
@@ -145,16 +147,18 @@ def _ParseArgs(args):
     Returns:
         Parsed args and a list of unknown argument strings.
     """
-    usage = ",".join([
+    acloud_cmds = [
         setup_args.CMD_SETUP,
         create_args.CMD_CREATE,
         list_args.CMD_LIST,
         delete_args.CMD_DELETE,
         reconnect_args.CMD_RECONNECT,
+        powerwash_args.CMD_POWERWASH,
         pull_args.CMD_PULL,
         restart_args.CMD_RESTART,
         hostcleanup_args.CMD_HOSTCLEANUP,
-    ])
+        CMD_CREATE_GOLDFISH]
+    usage = ",".join(acloud_cmds)
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -243,7 +247,8 @@ def _ParseArgs(args):
     for subparser in subparser_list:
         acloud_common.AddCommonArguments(subparser)
 
-    if not args:
+    support_args = acloud_cmds + DEFAULT_SUPPORT_ARGS
+    if not args or args[0] not in support_args:
         parser.print_help()
         sys.exit(constants.EXIT_BY_WRONG_CMD)
 
@@ -289,6 +294,18 @@ def _VerifyArgs(parsed_args):
                 "--serial_log_file must ends with .tar.gz")
 
 
+def _ValidateAuthFile(cfg):
+    """Check if the authentication file exist.
+
+    Args:
+        cfg: AcloudConfig object.
+    """
+    auth_file = os.path.join(os.path.expanduser("~"), cfg.creds_cache_file)
+    if not os.path.exists(auth_file):
+        print("Notice: Acloud will bring up browser to proceed authentication. "
+              "For cloudtop, please run in remote desktop.")
+
+
 def _ParsingConfig(args, cfg):
     """Parse config to check if missing any field.
 
@@ -300,14 +317,14 @@ def _ParsingConfig(args, cfg):
         error message about list of missing config fields.
     """
     missing_fields = []
-    if args.which == create_args.CMD_CREATE and args.local_instance is None:
+    if (args.which == create_args.CMD_CREATE and
+            args.local_instance is None and not args.remote_host):
         missing_fields = cfg.GetMissingFields(_CREATE_REQUIRE_FIELDS)
     if missing_fields:
-        return (
-            "Config file (%s) missing required fields: %s, please add these "
-            "fields or reset config file. For reset config information: "
-            "go/acloud-googler-setup#reset-configuration" %
-            (config.GetUserConfigPath(args.config_file), missing_fields))
+        return (f"Config file ({config.GetUserConfigPath(args.config_file)}) "
+                f"missing required fields: {missing_fields}, please add these "
+                "fields or reset config file. For reset config information: "
+                "go/acloud-googler-setup#reset-configuration")
     return None
 
 
@@ -383,6 +400,7 @@ def main(argv=None):
 
     cfg = config.GetAcloudConfig(args)
     parsing_config_error = _ParsingConfig(args, cfg)
+    _ValidateAuthFile(cfg)
     # TODO: Move this check into the functions it is actually needed.
     # Check access.
     # device_driver.CheckAccess(cfg)
@@ -463,10 +481,11 @@ if __name__ == "__main__":
         EXIT_CODE = constants.EXIT_BY_ERROR
         EXCEPTION_STACKTRACE = traceback.format_exc()
         EXCEPTION_LOG = str(e)
-        raise
-    finally:
-        # Log Exit event here to calculate the consuming time.
-        if LOG_METRICS:
-            metrics.LogExitEvent(EXIT_CODE,
-                                 stacktrace=EXCEPTION_STACKTRACE,
-                                 logs=EXCEPTION_LOG)
+        sys.stderr.write("Exception: %s" % (EXCEPTION_STACKTRACE))
+
+    # Log Exit event here to calculate the consuming time.
+    if LOG_METRICS:
+        metrics.LogExitEvent(EXIT_CODE,
+                             stacktrace=EXCEPTION_STACKTRACE,
+                             logs=EXCEPTION_LOG)
+    sys.exit(EXIT_CODE)

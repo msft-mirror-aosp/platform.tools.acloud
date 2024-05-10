@@ -74,14 +74,13 @@ from acloud.setup import mkcert
 
 logger = logging.getLogger(__name__)
 
-_SYSTEM_IMAGE_NAME_PATTERN = r"system\.img"
 _SUPER_IMAGE_NAME = "super.img"
 _MIXED_SUPER_IMAGE_NAME = "mixed_super.img"
 _CMD_CVD_START = " start"
 _CMD_CVD_VERSION = " version"
 _CMD_LAUNCH_CVD_ARGS = (
     " -daemon -config=%s -system_image_dir %s -instance_dir %s "
-    "-undefok=report_anonymous_usage_stats,config,proxy_fastboot "
+    "-undefok=report_anonymous_usage_stats,config "
     "-report_anonymous_usage_stats=y")
 _CMD_LAUNCH_CVD_HW_ARGS = " -cpus %s -x_res %s -y_res %s -dpi %s -memory_mb %s"
 _CMD_LAUNCH_CVD_DISK_ARGS = (
@@ -95,8 +94,6 @@ _CMD_LAUNCH_CVD_KERNEL_IMAGE_ARG = " -kernel_path=%s"
 _CMD_LAUNCH_CVD_INITRAMFS_IMAGE_ARG = " -initramfs_path=%s"
 _CMD_LAUNCH_CVD_VBMETA_IMAGE_ARG = " -vbmeta_image=%s"
 _CMD_LAUNCH_CVD_NO_ADB_ARG = " -run_adb_connector=false"
-# Supported since U.
-_CMD_LAUNCH_CVD_NO_FASTBOOT_ARG = " -proxy_fastboot=false"
 _CMD_LAUNCH_CVD_INSTANCE_NUMS_ARG = " -instance_nums=%s"
 # Connect the OpenWrt device via console file.
 _CMD_LAUNCH_CVD_CONSOLE_ARG = " -console=true"
@@ -128,9 +125,9 @@ _CONFIRM_RELAUNCH = ("\nCuttlefish AVD[id:%d] is already running. \n"
 ArtifactPaths = collections.namedtuple(
     "ArtifactPaths",
     ["image_dir", "host_bins", "host_artifacts", "misc_info", "ota_tools_dir",
-     "system_image", "boot_image", "vendor_boot_image", "kernel_image",
-     "initramfs_image", "vendor_image", "vendor_dlkm_image", "odm_image",
-     "odm_dlkm_image"])
+     "system_image", "system_ext_image", "product_image",
+     "boot_image", "vendor_boot_image", "kernel_image", "initramfs_image",
+     "vendor_image", "vendor_dlkm_image", "odm_image", "odm_dlkm_image"])
 
 
 class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
@@ -179,11 +176,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             # Set the state to in-use if the instances start successfully.
             # Failing instances are not set to in-use so that the user can
             # restart them with the same IDs.
-            # TODO(b/261109137): Remove the condition of local_instance_dir
-            #                    when the testing infrastructure supports
-            #                    allocating instance IDs.
-            if (result_report.status == report.Status.SUCCESS or
-                    avd_spec.local_instance_dir):
+            if result_report.status == report.Status.SUCCESS:
                 for ins_lock in ins_locks:
                     ins_lock.SetInUse(True)
             return result_report
@@ -280,14 +273,15 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                 super_image_path, artifact_paths.misc_info,
                 artifact_paths.image_dir,
                 system_image=artifact_paths.system_image,
+                system_ext_image=artifact_paths.system_ext_image,
+                product_image=artifact_paths.product_image,
                 vendor_image=artifact_paths.vendor_image,
                 vendor_dlkm_image=artifact_paths.vendor_dlkm_image,
                 odm_image=artifact_paths.odm_image,
                 odm_dlkm_image=artifact_paths.odm_dlkm_image)
-            if artifact_paths.vendor_image:
-                vbmeta_image_path = os.path.join(cvd_home_dir,
-                                                 "disabled_vbmeta.img")
-                ota.MakeDisabledVbmetaImage(vbmeta_image_path)
+            vbmeta_image_path = os.path.join(cvd_home_dir,
+                                             "disabled_vbmeta.img")
+            ota.MakeDisabledVbmetaImage(vbmeta_image_path)
         runtime_dir = instance.GetLocalInstanceRuntimeDir(local_instance_id)
         # TODO(b/168171781): cvd_status of list/delete via the symbolic.
         self.PrepareLocalCvdToolsLink(cvd_home_dir, artifact_paths.host_bins)
@@ -304,7 +298,6 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                          constants.ANDROID_INFO_FILE))
         cmd = self.PrepareLaunchCVDCmd(hw_property,
                                        avd_spec.connect_adb,
-                                       avd_spec.connect_fastboot,
                                        artifact_paths,
                                        runtime_dir,
                                        avd_spec.connect_webrtc,
@@ -434,7 +427,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                 f"{constants.ENV_ANDROID_PRODUCT_OUT}.")
 
     @staticmethod
-    def _FindBootOrKernelImages(image_path):
+    def FindBootOrKernelImages(image_path):
         """Find boot, vendor_boot, kernel, and initramfs images in a path.
 
         This method expects image_path to be:
@@ -502,13 +495,18 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             image_dir = cvd_utils.FindImageDir(image_dir)
             ota_tools_dir = os.path.abspath(
                 ota_tools.FindOtaToolsDir(tool_dirs))
-            system_image_path = create_common.FindLocalImage(
-                avd_spec.local_system_image, _SYSTEM_IMAGE_NAME_PATTERN)
+            (
+                system_image_path,
+                system_ext_image_path,
+                product_image_path,
+            ) = create_common.FindSystemImages(avd_spec.local_system_image)
         else:
             self._VerifyExtractedImgZip(image_dir)
             misc_info_path = None
             ota_tools_dir = None
             system_image_path = None
+            system_ext_image_path = None
+            product_image_path = None
 
         if avd_spec.local_kernel_image:
             (
@@ -516,13 +514,17 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                 vendor_boot_image_path,
                 kernel_image_path,
                 initramfs_image_path,
-            ) = self._FindBootOrKernelImages(
+            ) = self.FindBootOrKernelImages(
                 os.path.abspath(avd_spec.local_kernel_image))
         else:
             boot_image_path = None
             vendor_boot_image_path = None
             kernel_image_path = None
             initramfs_image_path = None
+
+        if avd_spec.local_vendor_boot_image:
+            vendor_boot_image_path = create_common.FindVendorBootImage(
+                avd_spec.local_vendor_boot_image)
 
         if avd_spec.local_vendor_image:
             vendor_image_paths = cvd_utils.FindVendorImages(
@@ -542,6 +544,8 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                              misc_info=misc_info_path,
                              ota_tools_dir=ota_tools_dir,
                              system_image=system_image_path,
+                             system_ext_image=system_ext_image_path,
+                             product_image=product_image_path,
                              boot_image=boot_image_path,
                              vendor_boot_image=vendor_boot_image_path,
                              kernel_image=kernel_image_path,
@@ -574,10 +578,10 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
 
     # pylint: disable=too-many-branches
     @staticmethod
-    def PrepareLaunchCVDCmd(hw_property, connect_adb, connect_fastboot,
-                            artifact_paths, runtime_dir, connect_webrtc,
-                            connect_vnc, super_image_path, launch_args,
-                            config, openwrt=False, use_launch_cvd=False,
+    def PrepareLaunchCVDCmd(hw_property, connect_adb, artifact_paths,
+                            runtime_dir, connect_webrtc, connect_vnc,
+                            super_image_path, launch_args, config,
+                            openwrt=False, use_launch_cvd=False,
                             instance_ids=None, webrtc_device_id=None,
                             vbmeta_image_path=None):
         """Prepare launch_cvd command.
@@ -589,7 +593,6 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             hw_property: dict object of hw property.
             artifact_paths: ArtifactPaths object.
             connect_adb: Boolean flag that enables adb_connector.
-            connect_fastboot: Boolean flag that enables fastboot_proxy.
             runtime_dir: String of runtime directory path.
             connect_webrtc: Boolean of connect_webrtc.
             connect_vnc: Boolean of connect_vnc.
@@ -623,9 +626,6 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
 
         if not connect_adb:
             launch_cvd_w_args = launch_cvd_w_args + _CMD_LAUNCH_CVD_NO_ADB_ARG
-
-        if not connect_fastboot:
-            launch_cvd_w_args = launch_cvd_w_args + _CMD_LAUNCH_CVD_NO_FASTBOOT_ARG
 
         if connect_webrtc:
             launch_cvd_w_args = launch_cvd_w_args + _CMD_LAUNCH_CVD_WEBRTC_ARGS
@@ -825,6 +825,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
         cvd_env[constants.ENV_CUTTLEFISH_CONFIG_FILE] = (
             instance.GetLocalInstanceConfigPath(local_instance_id))
         cvd_env[constants.ENV_CVD_ACQUIRE_FILE_LOCK] = "false"
+        cvd_env[constants.ENV_LAUNCHED_BY_ACLOUD] = "true"
         stdout_file = os.path.join(cvd_home_dir, _STDOUT)
         stderr_file = os.path.join(cvd_home_dir, _STDERR)
         # Check the result of launch_cvd command.

@@ -26,10 +26,10 @@ from acloud.internal.lib import utils
 
 logger = logging.getLogger(__name__)
 
-_SSH_CMD = ("-i %(rsa_key_file)s -o LogLevel=ERROR "
+_SSH_CMD = ("-i %(rsa_key_file)s -o LogLevel=ERROR -o ControlPath=none "
             "-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no")
 _SSH_IDENTITY = "-l %(login_user)s %(ip_addr)s"
-_SSH_CMD_MAX_RETRY = 5
+SSH_CMD_DEFAULT_RETRY = 5
 _SSH_CMD_RETRY_SLEEP = 3
 _CONNECTION_TIMEOUT = 10
 _MAX_REPORTED_ERROR_LINES = 10
@@ -108,6 +108,9 @@ def _SshLogOutput(cmd, timeout=None, show_output=False, hide_error_msg=False):
         show_output: Boolean, True to show command output in screen.
         hide_error_msg: Boolean, True to hide error message.
 
+    Returns:
+        A string, stdout and stderr.
+
     Raises:
         errors.DeviceConnectionError: Failed to connect to the GCE instance.
         subprocess.CalledProcessError: The process exited with an error on the instance.
@@ -145,6 +148,7 @@ def _SshLogOutput(cmd, timeout=None, show_output=False, hide_error_msg=False):
         if constants.ERROR_MSG_WEBRTC_NOT_SUPPORT in stdout:
             raise errors.LaunchCVDFail(constants.ERROR_MSG_WEBRTC_NOT_SUPPORT)
         raise subprocess.CalledProcessError(process.returncode, cmd)
+    return stdout
 
 
 def _GetErrorMessage(stdout):
@@ -185,7 +189,7 @@ def _FilterUnusedContent(content):
 
 
 def ShellCmdWithRetry(cmd, timeout=None, show_output=False,
-                      retry=_SSH_CMD_MAX_RETRY):
+                      retry=SSH_CMD_DEFAULT_RETRY):
     """Runs a shell command on remote device.
 
     If the network is unstable and causes SSH connect fail, it will retry. When
@@ -199,12 +203,15 @@ def ShellCmdWithRetry(cmd, timeout=None, show_output=False,
         show_output: Boolean, True to show command output in screen.
         retry: Integer, the retry times.
 
+    Returns:
+        A string, stdout and stderr.
+
     Raises:
         errors.DeviceConnectionError: For any non-zero return code of remote_cmd.
         errors.LaunchCVDFail: Happened on launch_cvd with specific pattern of error message.
         subprocess.CalledProcessError: The process exited with an error on the instance.
     """
-    utils.RetryExceptionType(
+    return utils.RetryExceptionType(
         exception_types=(errors.DeviceConnectionError,
                          errors.LaunchCVDFail,
                          subprocess.CalledProcessError),
@@ -257,7 +264,7 @@ class Ssh():
                 extra_args_ssh_tunnel)
 
     def Run(self, target_command, timeout=None, show_output=False,
-            retry=_SSH_CMD_MAX_RETRY):
+            retry=SSH_CMD_DEFAULT_RETRY):
         """Run a shell command over SSH on a remote instance.
 
         Example:
@@ -273,11 +280,15 @@ class Ssh():
             timeout: Integer, the maximum time to wait for the command to respond.
             show_output: Boolean, True to show command output in screen.
             retry: Integer, the retry times.
+
+        Returns:
+            A string, stdout and stderr.
         """
-        ShellCmdWithRetry(self.GetBaseCmd(constants.SSH_BIN) + " " + target_command,
-                          timeout,
-                          show_output,
-                          retry)
+        return ShellCmdWithRetry(
+            self.GetBaseCmd(constants.SSH_BIN) + " " + target_command,
+            timeout,
+            show_output,
+            retry)
 
     def GetBaseCmd(self, execute_bin):
         """Get a base command over SSH on a remote instance.
@@ -346,7 +357,7 @@ class Ssh():
                 "Ssh isn't ready in the remote instance.") from e
 
     @utils.TimeExecute(function_description="Waiting for SSH server")
-    def WaitForSsh(self, timeout=None, max_retry=_SSH_CMD_MAX_RETRY):
+    def WaitForSsh(self, timeout=None, max_retry=SSH_CMD_DEFAULT_RETRY):
         """Wait until the remote instance is ready to accept commands over SSH.
 
         Args:

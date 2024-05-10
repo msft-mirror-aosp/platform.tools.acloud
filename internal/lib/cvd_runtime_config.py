@@ -30,14 +30,13 @@ _CFG_KEY_VNC_PORT = "vnc_server_port"
 # The adb port field name changes from "host_port" to "adb_host_port".
 _CFG_KEY_ADB_PORT = "host_port"
 _CFG_KEY_ADB_HOST_PORT = "adb_host_port"
-_CFG_KEY_FASTBOOT_HOST_PORT = "fastboot_host_port"
 _CFG_KEY_ENABLE_WEBRTC = "enable_webrtc"
 # TODO(148648620): Check instance_home_[id] for backward compatible.
 _RE_LOCAL_INSTANCE_ID = re.compile(r".+(?:local-instance-|instance_home_)"
                                    r"(?P<ins_id>\d+).+")
 
 
-def _GetIdFromInstanceDirStr(instance_dir):
+def _GetIdFromInstanceDirStr(instance_dir, config_dict):
     """Look for instance id from the path of instance dir.
 
     Args:
@@ -52,7 +51,15 @@ def _GetIdFromInstanceDirStr(instance_dir):
 
     # To support the device which is not created by acloud.
     if os.path.expanduser("~") in instance_dir:
-        return "1"
+        if config_dict:
+            instances = config_dict.get(_CFG_KEY_INSTANCES)
+            if instances:
+                return min(instances.keys())
+            else:
+                # Old runtime config doesn't have "instances" information.
+                return "1"
+        else:
+            return "1"
 
     return None
 
@@ -117,10 +124,10 @@ class CvdRuntimeConfig():
         if not config_path and not raw_data:
             raise errors.ConfigError("No cuttlefish config found!")
         self._config_path = config_path
-        self._instance_id = "1" if raw_data else _GetIdFromInstanceDirStr(
-            config_path)
         self._config_dict = self._GetCuttlefishRuntimeConfig(config_path,
                                                              raw_data)
+        self._instance_id = "1" if raw_data else _GetIdFromInstanceDirStr(
+            config_path, self._config_dict)
         self._instances = self._config_dict.get(_CFG_KEY_INSTANCES)
         # Old runtime config doesn't have "instances" information.
         self._instance_ids = list(self._instances.keys()) if self._instances else ["1"]
@@ -151,7 +158,6 @@ class CvdRuntimeConfig():
             self._adb_port = (ins_dict.get(_CFG_KEY_ADB_PORT) or
                               ins_dict.get(_CFG_KEY_ADB_HOST_PORT))
             self._adb_ip_port = ins_dict.get(_CFG_KEY_ADB_IP_PORT)
-            self._fastboot_port = ins_dict.get(_CFG_KEY_FASTBOOT_HOST_PORT)
             self._virtual_disk_paths = ins_dict.get(_CFG_KEY_VIRTUAL_DISK_PATHS)
             if not self._cvd_tools_path:
                 self._cvd_tools_path = os.path.dirname(
@@ -221,11 +227,6 @@ class CvdRuntimeConfig():
     def adb_port(self):
         """Return adb_port."""
         return self._adb_port
-
-    @property
-    def fastboot_port(self):
-        """Return fastboot_port"""
-        return self._fastboot_port
 
     @property
     def config_path(self):
