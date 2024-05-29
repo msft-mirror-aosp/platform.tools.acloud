@@ -179,18 +179,18 @@ def _ParseArgs(args):
     create_gf_parser.required = False
     create_gf_parser.set_defaults(which=CMD_CREATE_GOLDFISH)
     create_gf_parser.add_argument(
-        "--emulator_build_id",
+        "--emulator-build-id",
         type=str,
         dest="emulator_build_id",
         required=False,
         help="Emulator build used to run the images. e.g. 4669466.")
     create_gf_parser.add_argument(
-        "--emulator_branch",
+        "--emulator-branch",
         type=str,
         dest="emulator_branch",
         required=False,
         help="Emulator build branch name, e.g. aosp-emu-master-dev. If specified"
-        " without emulator_build_id, the last green build will be used.")
+        " without emulator-build-id, the last green build will be used.")
     create_gf_parser.add_argument(
         "--emulator-build-target",
         dest="emulator_build_target",
@@ -198,7 +198,7 @@ def _ParseArgs(args):
         help="Emulator build target used to run the images. e.g. "
         "emulator-linux_x64_nolocationui.")
     create_gf_parser.add_argument(
-        "--base_image",
+        "--base-image",
         type=str,
         dest="base_image",
         required=False,
@@ -212,6 +212,25 @@ def _ParseArgs(args):
         required=False,
         default=None,
         help="Tags to be set on to the created instance. e.g. https-server.")
+    # Arguments in old format
+    create_gf_parser.add_argument(
+        "--emulator_build_id",
+        type=str,
+        dest="emulator_build_id",
+        required=False,
+        help=argparse.SUPPRESS)
+    create_gf_parser.add_argument(
+        "--emulator_branch",
+        type=str,
+        dest="emulator_branch",
+        required=False,
+        help=argparse.SUPPRESS)
+    create_gf_parser.add_argument(
+        "--base_image",
+        type=str,
+        dest="base_image",
+        required=False,
+        help=argparse.SUPPRESS)
 
     create_args.AddCommonCreateArgs(create_gf_parser)
     subparser_list.append(create_gf_parser)
@@ -276,10 +295,10 @@ def _VerifyArgs(parsed_args):
         if not parsed_args.emulator_build_id and not parsed_args.build_id and (
                 not parsed_args.emulator_branch and not parsed_args.branch):
             raise errors.CommandArgError(
-                "Must specify either --build_id or --branch or "
-                "--emulator_branch or --emulator_build_id")
+                "Must specify either --build-id or --branch or "
+                "--emulator-branch or --emulator-build-id")
         if not parsed_args.build_target:
-            raise errors.CommandArgError("Must specify --build_target")
+            raise errors.CommandArgError("Must specify --build-target")
         if (parsed_args.system_branch
                 or parsed_args.system_build_id
                 or parsed_args.system_build_target):
@@ -291,7 +310,7 @@ def _VerifyArgs(parsed_args):
         if (parsed_args.serial_log_file
                 and not parsed_args.serial_log_file.endswith(".tar.gz")):
             raise errors.CommandArgError(
-                "--serial_log_file must ends with .tar.gz")
+                "--serial-log-file must ends with .tar.gz")
 
 
 def _ValidateAuthFile(cfg):
@@ -332,7 +351,7 @@ def _SetupLogging(log_file, verbose):
     """Setup logging.
 
     This function define the logging policy in below manners.
-    - without -v , -vv ,--log_file:
+    - without -v , -vv ,--log-file:
     Only display critical log and print() message on screen.
 
     - with -v:
@@ -343,7 +362,7 @@ def _SetupLogging(log_file, verbose):
     Display INFO/DEBUG log and set StreamHandler to root logger to turn on all
     acloud modules and 3p libraries logging.
 
-    - with --log_file.
+    - with --log-file.
     Dump logs to FileHandler with DEBUG level.
 
     Args:
@@ -372,7 +391,7 @@ def _SetupLogging(log_file, verbose):
     shandler.setLevel(shandler_level)
     logger.addHandler(shandler)
     # Set the default level to DEBUG, the other handlers will handle
-    # their own levels via the args supplied (-v and --log_file).
+    # their own levels via the args supplied (-v and --log-file).
     logger.setLevel(logging.DEBUG)
 
     # Add FileHandler if log_file is provided.
