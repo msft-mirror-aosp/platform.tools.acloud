@@ -44,6 +44,7 @@ TODO:
 """
 
 import logging
+import importlib.resources
 import os
 
 from google.protobuf import text_format
@@ -58,15 +59,20 @@ from acloud.create import create_args
 
 logger = logging.getLogger(__name__)
 
-_CONFIG_DATA_PATH = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "data")
 _DEFAULT_CONFIG_FILE = "acloud.config"
 _DEFAULT_HW_PROPERTY = "cpu:4,resolution:720x1280,dpi:320,memory:4g"
 
-# VERSION
+# Resources
+_INTERNAL_CONFIG_FILE = "default.config"
 _VERSION_FILE = "VERSION"
 _UNKNOWN = "UNKNOWN"
 _NUM_INSTANCES_ARG = "-num_instances"
+
+
+def _OpenTextResource(resource):
+    # Acloud binary does not have the embedded launcher, and it should be
+    # compatible with python3.7 installed on the test servers.
+    return importlib.resources.open_text("acloud.public.data", resource)
 
 
 def GetVersion():
@@ -78,11 +84,11 @@ def GetVersion():
     Returns:
         String of the acloud version.
     """
-    version_file_path = os.path.join(_CONFIG_DATA_PATH, _VERSION_FILE)
-    if os.path.exists(version_file_path):
-        with open(version_file_path) as version_file:
+    try:
+        with _OpenTextResource(_VERSION_FILE) as version_file:
             return version_file.read()
-    return _UNKNOWN
+    except FileNotFoundError:
+        return _UNKNOWN
 
 
 def GetDefaultConfigFile():
@@ -347,20 +353,13 @@ class AcloudConfig():
 class AcloudConfigManager():
     """A class that loads configurations."""
 
-    _DEFAULT_INTERNAL_CONFIG_PATH = os.path.join(_CONFIG_DATA_PATH,
-                                                 "default.config")
-
-    def __init__(self,
-                 user_config_path,
-                 internal_config_path=_DEFAULT_INTERNAL_CONFIG_PATH):
+    def __init__(self, user_config_path):
         """Initialize with user specified paths to configs.
 
         Args:
             user_config_path: path to the user config.
-            internal_config_path: path to the internal conifg.
         """
         self.user_config_path = user_config_path
-        self._internal_config_path = internal_config_path
 
     def Load(self):
         """Load the configurations.
@@ -382,9 +381,9 @@ class AcloudConfigManager():
         internal_cfg = None
         usr_cfg = None
         try:
-            with open(self._internal_config_path) as config_file:
+            with _OpenTextResource(_INTERNAL_CONFIG_FILE) as cfg_file:
                 internal_cfg = self.LoadConfigFromProtocolBuffer(
-                    config_file, internal_config_pb2.InternalConfig)
+                    cfg_file, internal_config_pb2.InternalConfig)
         except OSError as e:
             raise errors.ConfigError("Could not load config files: %s" % str(e))
         # Load user config file

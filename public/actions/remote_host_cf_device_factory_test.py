@@ -18,9 +18,11 @@ import time
 import unittest
 from unittest import mock
 
+from acloud import errors
 from acloud.internal import constants
 from acloud.internal.lib import driver_test_lib
 from acloud.public.actions import remote_host_cf_device_factory
+
 
 class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
     """Test RemoteHostDeviceFactory."""
@@ -445,6 +447,31 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self._mock_build_api.DownloadFetchcvd.assert_not_called()
         self.assertEqual(["arg", "acloud_cf_1/2"],
                          mock_cvd_utils.GetRemoteLaunchCvdCmd.call_args[0][3])
+
+    @mock.patch("acloud.public.actions.remote_host_cf_device_factory.ssh")
+    @mock.patch("acloud.public.actions.remote_host_cf_device_factory."
+                "cvd_utils")
+    @mock.patch("acloud.public.actions.remote_host_cf_device_factory."
+                "subprocess.check_call")
+    def testCreateInstanceWithCreateError(self, _mock_check_call,
+                                          mock_cvd_utils, mock_ssh):
+        """Test CreateInstance with CreateError."""
+        mock_avd_spec = self._CreateMockAvdSpec()
+        mock_avd_spec.remote_image_dir = "mock_img_dir"
+
+        mock_ssh_obj = mock.Mock()
+        mock_ssh.Ssh.return_value = mock_ssh_obj
+
+        mock_cvd_utils.GetRemoteHostBaseDir.return_value = "acloud_cf_1"
+        mock_cvd_utils.FormatRemoteHostInstanceName.return_value = "inst"
+        mock_cvd_utils.LoadRemoteImageArgs.side_effect = errors.CreateError(
+            "failure")
+        factory = remote_host_cf_device_factory.RemoteHostDeviceFactory(
+            mock_avd_spec)
+
+        self.assertEqual("inst", factory.CreateInstance())
+        self.assertEqual({"inst": "failure"}, factory.GetFailures())
+        mock_cvd_utils.ExecuteRemoteLaunchCvd.assert_not_called()
 
 
 if __name__ == "__main__":
