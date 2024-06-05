@@ -70,6 +70,7 @@ Try $acloud [cmd] --help for further details.
 from __future__ import print_function
 import argparse
 import logging
+import os
 import sys
 import traceback
 
@@ -122,6 +123,7 @@ ACLOUD_LOGGER = "acloud"
 _LOGGER = logging.getLogger(ACLOUD_LOGGER)
 NO_ERROR_MESSAGE = ""
 PROG = "acloud"
+DEFAULT_SUPPORT_ARGS = ["--version", "-h", "--help"]
 
 # Commands
 CMD_CREATE_GOLDFISH = "create_gf"
@@ -145,16 +147,18 @@ def _ParseArgs(args):
     Returns:
         Parsed args and a list of unknown argument strings.
     """
-    usage = ",".join([
+    acloud_cmds = [
         setup_args.CMD_SETUP,
         create_args.CMD_CREATE,
         list_args.CMD_LIST,
         delete_args.CMD_DELETE,
         reconnect_args.CMD_RECONNECT,
+        powerwash_args.CMD_POWERWASH,
         pull_args.CMD_PULL,
         restart_args.CMD_RESTART,
         hostcleanup_args.CMD_HOSTCLEANUP,
-    ])
+        CMD_CREATE_GOLDFISH]
+    usage = ",".join(acloud_cmds)
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -175,18 +179,18 @@ def _ParseArgs(args):
     create_gf_parser.required = False
     create_gf_parser.set_defaults(which=CMD_CREATE_GOLDFISH)
     create_gf_parser.add_argument(
-        "--emulator_build_id",
+        "--emulator-build-id",
         type=str,
         dest="emulator_build_id",
         required=False,
         help="Emulator build used to run the images. e.g. 4669466.")
     create_gf_parser.add_argument(
-        "--emulator_branch",
+        "--emulator-branch",
         type=str,
         dest="emulator_branch",
         required=False,
         help="Emulator build branch name, e.g. aosp-emu-master-dev. If specified"
-        " without emulator_build_id, the last green build will be used.")
+        " without emulator-build-id, the last green build will be used.")
     create_gf_parser.add_argument(
         "--emulator-build-target",
         dest="emulator_build_target",
@@ -194,7 +198,7 @@ def _ParseArgs(args):
         help="Emulator build target used to run the images. e.g. "
         "emulator-linux_x64_nolocationui.")
     create_gf_parser.add_argument(
-        "--base_image",
+        "--base-image",
         type=str,
         dest="base_image",
         required=False,
@@ -208,6 +212,25 @@ def _ParseArgs(args):
         required=False,
         default=None,
         help="Tags to be set on to the created instance. e.g. https-server.")
+    # Arguments in old format
+    create_gf_parser.add_argument(
+        "--emulator_build_id",
+        type=str,
+        dest="emulator_build_id",
+        required=False,
+        help=argparse.SUPPRESS)
+    create_gf_parser.add_argument(
+        "--emulator_branch",
+        type=str,
+        dest="emulator_branch",
+        required=False,
+        help=argparse.SUPPRESS)
+    create_gf_parser.add_argument(
+        "--base_image",
+        type=str,
+        dest="base_image",
+        required=False,
+        help=argparse.SUPPRESS)
 
     create_args.AddCommonCreateArgs(create_gf_parser)
     subparser_list.append(create_gf_parser)
@@ -243,7 +266,8 @@ def _ParseArgs(args):
     for subparser in subparser_list:
         acloud_common.AddCommonArguments(subparser)
 
-    if not args:
+    support_args = acloud_cmds + DEFAULT_SUPPORT_ARGS
+    if not args or args[0] not in support_args:
         parser.print_help()
         sys.exit(constants.EXIT_BY_WRONG_CMD)
 
@@ -271,10 +295,10 @@ def _VerifyArgs(parsed_args):
         if not parsed_args.emulator_build_id and not parsed_args.build_id and (
                 not parsed_args.emulator_branch and not parsed_args.branch):
             raise errors.CommandArgError(
-                "Must specify either --build_id or --branch or "
-                "--emulator_branch or --emulator_build_id")
+                "Must specify either --build-id or --branch or "
+                "--emulator-branch or --emulator-build-id")
         if not parsed_args.build_target:
-            raise errors.CommandArgError("Must specify --build_target")
+            raise errors.CommandArgError("Must specify --build-target")
         if (parsed_args.system_branch
                 or parsed_args.system_build_id
                 or parsed_args.system_build_target):
@@ -286,7 +310,19 @@ def _VerifyArgs(parsed_args):
         if (parsed_args.serial_log_file
                 and not parsed_args.serial_log_file.endswith(".tar.gz")):
             raise errors.CommandArgError(
-                "--serial_log_file must ends with .tar.gz")
+                "--serial-log-file must ends with .tar.gz")
+
+
+def _ValidateAuthFile(cfg):
+    """Check if the authentication file exist.
+
+    Args:
+        cfg: AcloudConfig object.
+    """
+    auth_file = os.path.join(os.path.expanduser("~"), cfg.creds_cache_file)
+    if not os.path.exists(auth_file):
+        print("Notice: Acloud will bring up browser to proceed authentication. "
+              "For cloudtop, please run in remote desktop.")
 
 
 def _ParsingConfig(args, cfg):
@@ -300,14 +336,14 @@ def _ParsingConfig(args, cfg):
         error message about list of missing config fields.
     """
     missing_fields = []
-    if args.which == create_args.CMD_CREATE and args.local_instance is None:
+    if (args.which == create_args.CMD_CREATE and
+            args.local_instance is None and not args.remote_host):
         missing_fields = cfg.GetMissingFields(_CREATE_REQUIRE_FIELDS)
     if missing_fields:
-        return (
-            "Config file (%s) missing required fields: %s, please add these "
-            "fields or reset config file. For reset config information: "
-            "go/acloud-googler-setup#reset-configuration" %
-            (config.GetUserConfigPath(args.config_file), missing_fields))
+        return (f"Config file ({config.GetUserConfigPath(args.config_file)}) "
+                f"missing required fields: {missing_fields}, please add these "
+                "fields or reset config file. For reset config information: "
+                "go/acloud-googler-setup#reset-configuration")
     return None
 
 
@@ -315,7 +351,7 @@ def _SetupLogging(log_file, verbose):
     """Setup logging.
 
     This function define the logging policy in below manners.
-    - without -v , -vv ,--log_file:
+    - without -v , -vv ,--log-file:
     Only display critical log and print() message on screen.
 
     - with -v:
@@ -326,7 +362,7 @@ def _SetupLogging(log_file, verbose):
     Display INFO/DEBUG log and set StreamHandler to root logger to turn on all
     acloud modules and 3p libraries logging.
 
-    - with --log_file.
+    - with --log-file.
     Dump logs to FileHandler with DEBUG level.
 
     Args:
@@ -355,7 +391,7 @@ def _SetupLogging(log_file, verbose):
     shandler.setLevel(shandler_level)
     logger.addHandler(shandler)
     # Set the default level to DEBUG, the other handlers will handle
-    # their own levels via the args supplied (-v and --log_file).
+    # their own levels via the args supplied (-v and --log-file).
     logger.setLevel(logging.DEBUG)
 
     # Add FileHandler if log_file is provided.
@@ -383,6 +419,7 @@ def main(argv=None):
 
     cfg = config.GetAcloudConfig(args)
     parsing_config_error = _ParsingConfig(args, cfg)
+    _ValidateAuthFile(cfg)
     # TODO: Move this check into the functions it is actually needed.
     # Check access.
     # device_driver.CheckAccess(cfg)
@@ -463,10 +500,11 @@ if __name__ == "__main__":
         EXIT_CODE = constants.EXIT_BY_ERROR
         EXCEPTION_STACKTRACE = traceback.format_exc()
         EXCEPTION_LOG = str(e)
-        raise
-    finally:
-        # Log Exit event here to calculate the consuming time.
-        if LOG_METRICS:
-            metrics.LogExitEvent(EXIT_CODE,
-                                 stacktrace=EXCEPTION_STACKTRACE,
-                                 logs=EXCEPTION_LOG)
+        sys.stderr.write("Exception: %s" % (EXCEPTION_STACKTRACE))
+
+    # Log Exit event here to calculate the consuming time.
+    if LOG_METRICS:
+        metrics.LogExitEvent(EXIT_CODE,
+                             stacktrace=EXCEPTION_STACKTRACE,
+                             logs=EXCEPTION_LOG)
+    sys.exit(EXIT_CODE)

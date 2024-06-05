@@ -111,14 +111,13 @@ INSTANCE_NAME = "instance_name"
 GCE_USER = "vsoc-01"
 VNC_PORT = "vnc_port"
 ADB_PORT = "adb_port"
-FASTBOOT_PORT = "fastboot_port"
 WEBRTC_PORT = "webrtc_port"
 DEVICE_SERIAL = "device_serial"
 LOGS = "logs"
 BASE_INSTANCE_NUM = "base_instance_num"
+LAUNCH_CVD_COMMAND = "launch_cvd_command"
 # For cuttlefish remote instances
 CF_ADB_PORT = 6520
-CF_FASTBOOT_PORT = 7520
 CF_VNC_PORT = 6444
 # For cheeps remote instances
 CHEEPS_ADB_PORT = 9222
@@ -148,13 +147,14 @@ CMD_STOP_CVD = "stop_cvd"
 CMD_RUN_CVD = "run_cvd"
 ENV_ANDROID_BUILD_TOP = "ANDROID_BUILD_TOP"
 ENV_ANDROID_EMULATOR_PREBUILTS = "ANDROID_EMULATOR_PREBUILTS"
-# TODO(b/172535794): Remove the deprecated "ANDROID_HOST_OUT" by 2021Q4.
 ENV_ANDROID_HOST_OUT = "ANDROID_HOST_OUT"
 ENV_ANDROID_PRODUCT_OUT = "ANDROID_PRODUCT_OUT"
 ENV_ANDROID_SOONG_HOST_OUT = "ANDROID_SOONG_HOST_OUT"
 ENV_ANDROID_TMP = "ANDROID_TMP"
 ENV_BUILD_TARGET = "TARGET_PRODUCT"
+# For cvd to run in compatible mode.
 ENV_CVD_ACQUIRE_FILE_LOCK = "CVD_ACQUIRE_FILE_LOCK"
+ENV_LAUNCHED_BY_ACLOUD = "LAUNCHED_BY_ACLOUD"
 
 LOCALHOST = "0.0.0.0"
 LOCALHOST_ADB_SERIAL = LOCALHOST + ":%d"
@@ -176,7 +176,6 @@ INS_KEY_STATUS = "status"
 INS_KEY_DISPLAY = "display"
 INS_KEY_IP = "ip"
 INS_KEY_ADB = "adb"
-INS_KEY_FASTBOOT = "fastboot"
 INS_KEY_VNC = "vnc"
 INS_KEY_WEBRTC = "webrtc"
 INS_KEY_WEBRTC_PORT = "webrtc_port"
@@ -262,6 +261,8 @@ ERROR_MSG_SSO_INVALID = "stuck at SSO"
 # The name of download image tool.
 FETCH_CVD = "fetch_cvd"
 FETCH_CVD_ARGS_FILE = "fetch-cvd-args.txt"
+# The version is used when downloading LKGB fetch_cvd failed.
+FETCH_CVD_SECOND_VERSION = "10176216"
 # Last known good build
 LKGB = "LKGB"
 

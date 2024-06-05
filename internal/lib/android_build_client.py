@@ -66,9 +66,12 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
     LATEST = "latest"
     # FETCH_CVD variables.
     FETCHER_NAME = "fetch_cvd"
-    FETCHER_BRANCH = "aosp-master"
-    FETCHER_BUILD_TARGET = "aosp_cf_x86_64_phone-userdebug"
-    FETCHER_ARM_VERSION_BUILD_TARGET = "aosp_cf_arm64_phone-userdebug"
+    FETCHER_BUILD_TARGET = "aosp_cf_x86_64_phone-trunk_staging-userdebug"
+    FETCHER_BUILD_TARGET_ARM = "aosp_cf_arm64_only_phone-trunk_staging-userdebug"
+    # TODO(b/297085994): cvd fetch is migrating from AOSP to github artifacts, so
+    # temporary returning hardcoded values instead of LKGB
+    FETCHER_BUILD_ID = 11559438
+    FETCHER_BUILD_ID_ARM = 11559085
     MAX_RETRY = 3
     RETRY_SLEEP_SECS = 3
 
@@ -128,28 +131,46 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
             is_arm_version: is ARM version fetch_cvd.
         """
         if fetch_cvd_version == constants.LKGB:
-            fetch_cvd_version = self.GetFetcherVersion()
-        utils.RetryExceptionType(
-            exception_types=(ssl.SSLError, errors.DriverError),
-            max_retries=self.MAX_RETRY,
-            functor=self.DownloadArtifact,
-            sleep_multiplier=self.RETRY_SLEEP_SECS,
-            retry_backoff_factor=utils.DEFAULT_RETRY_BACKOFF_FACTOR,
-            build_target=(self.FETCHER_ARM_VERSION_BUILD_TARGET
-                        if is_arm_version else self.FETCHER_BUILD_TARGET),
-            build_id=fetch_cvd_version,
-            resource_id=self.FETCHER_NAME,
-            local_dest=local_dest,
-            attempt_id=self.LATEST)
+            fetch_cvd_version = self.GetFetcherVersion(is_arm_version)
+        fetch_cvd_build_target = (
+            self.FETCHER_BUILD_TARGET_ARM if is_arm_version
+            else self.FETCHER_BUILD_TARGET)
+        try:
+            utils.RetryExceptionType(
+                exception_types=(ssl.SSLError, errors.DriverError),
+                max_retries=self.MAX_RETRY,
+                functor=self.DownloadArtifact,
+                sleep_multiplier=self.RETRY_SLEEP_SECS,
+                retry_backoff_factor=utils.DEFAULT_RETRY_BACKOFF_FACTOR,
+                build_target=fetch_cvd_build_target,
+                build_id=fetch_cvd_version,
+                resource_id=self.FETCHER_NAME,
+                local_dest=local_dest,
+                attempt_id=self.LATEST)
+        except Exception:
+            logger.debug("Download fetch_cvd with build id: %s",
+                         constants.FETCH_CVD_SECOND_VERSION)
+            utils.RetryExceptionType(
+                exception_types=(ssl.SSLError, errors.DriverError),
+                max_retries=self.MAX_RETRY,
+                functor=self.DownloadArtifact,
+                sleep_multiplier=self.RETRY_SLEEP_SECS,
+                retry_backoff_factor=utils.DEFAULT_RETRY_BACKOFF_FACTOR,
+                build_target=fetch_cvd_build_target,
+                build_id=constants.FETCH_CVD_SECOND_VERSION,
+                resource_id=self.FETCHER_NAME,
+                local_dest=local_dest,
+                attempt_id=self.LATEST)
         fetch_cvd_stat = os.stat(local_dest)
         os.chmod(local_dest, fetch_cvd_stat.st_mode | stat.S_IEXEC)
 
     @staticmethod
-    def ProcessBuild(build_info):
+    def ProcessBuild(build_info, ignore_artifact=False):
         """Create a Cuttlefish fetch_cvd build string.
 
         Args:
             build_info: The dictionary that contains build information.
+            ignore_artifact: Avoid adding artifact part to fetch_cvd build string
 
         Returns:
             A string, used in the fetch_cvd cmd or None if all args are None.
@@ -157,16 +178,22 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
         build_id = build_info.get(constants.BUILD_ID)
         build_target = build_info.get(constants.BUILD_TARGET)
         branch = build_info.get(constants.BUILD_BRANCH)
-        if not build_target:
-            return build_id or branch
+        artifact = build_info.get(constants.BUILD_ARTIFACT)
 
-        if build_target and not branch:
-            branch = _DEFAULT_BRANCH
-        return (build_id or branch) + "/" + build_target
+        result = build_id or branch
+        if build_target is not None:
+            result = result or _DEFAULT_BRANCH
+            result += "/" + build_target
+
+        if not ignore_artifact and artifact:
+            result += "{" + artifact + "}"
+
+        return result
 
     def GetFetchBuildArgs(self, default_build_info, system_build_info,
                           kernel_build_info, boot_build_info,
-                          bootloader_build_info, ota_build_info):
+                          bootloader_build_info, android_efi_loader_build_info,
+                          ota_build_info, host_package_build_info):
         """Get args from build information for fetch_cvd.
 
         Each build_info is a dictionary that contains 3 items, for example,
@@ -185,7 +212,9 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
                              constants.BUILD_ARTIFACT which is mapped to the
                              boot image name.
             bootloader_build_info: The build that provides the bootloader.
+            android_efi_loader_build_info: The build that provides the Android EFI loader.
             ota_build_info: The build that provides the OTA tools.
+            host_package_build_info: The build that provides the host package.
 
         Returns:
             List of string args for fetch_cvd.
@@ -201,10 +230,13 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
         bootloader_build = self.ProcessBuild(bootloader_build_info)
         if bootloader_build:
             fetch_cvd_args.append(f"-bootloader_build={bootloader_build}")
+        android_efi_loader_build = self.ProcessBuild(android_efi_loader_build_info)
+        if android_efi_loader_build:
+            fetch_cvd_args.append(f"-android_efi_loader_build {android_efi_loader_build}")
         kernel_build = self.GetKernelBuild(kernel_build_info)
         if kernel_build:
             fetch_cvd_args.append(f"-kernel_build={kernel_build}")
-        boot_build = self.ProcessBuild(boot_build_info)
+        boot_build = self.ProcessBuild(boot_build_info, ignore_artifact=True)
         if boot_build:
             fetch_cvd_args.append(f"-boot_build={boot_build}")
             boot_artifact = boot_build_info.get(constants.BUILD_ARTIFACT)
@@ -213,16 +245,22 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
         ota_build = self.ProcessBuild(ota_build_info)
         if ota_build:
             fetch_cvd_args.append(f"-otatools_build={ota_build}")
+        host_package_build = self.ProcessBuild(host_package_build_info)
+        if host_package_build:
+            fetch_cvd_args.append(f"-host_package_build={host_package_build}")
 
         return fetch_cvd_args
 
-    def GetFetcherVersion(self):
+    def GetFetcherVersion(self, is_arm_version=False):
         """Get fetch_cvd build id from LKGB.
 
         Returns:
             The build id of fetch_cvd.
         """
-        return self.GetLKGB(self.FETCHER_BUILD_TARGET, self.FETCHER_BRANCH)
+        # TODO(b/297085994): currently returning hardcoded values
+        # For more information, please check the BUILD_ID constant definition
+        # comment section
+        return self.FETCHER_BUILD_ID_ARM if is_arm_version else self.FETCHER_BUILD_ID
 
     @staticmethod
     # pylint: disable=broad-except

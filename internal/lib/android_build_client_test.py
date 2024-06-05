@@ -179,16 +179,24 @@ class AndroidBuildClientTest(driver_test_lib.BaseDriverTest):
         ota_build = {constants.BUILD_ID: "4567",
                      constants.BUILD_BRANCH: "ota_branch",
                      constants.BUILD_TARGET: "ota_target"}
+        bootloader_build = {constants.BUILD_ID: "10111213",
+                            constants.BUILD_TARGET: "boot_crosvm_x86_64"}
+        android_efi_loader_build = {constants.BUILD_ID: "6789",
+                                    constants.BUILD_ARTIFACT: "gbl_x86_32.efi"}
         boot_build = {constants.BUILD_ID: "5678",
                       constants.BUILD_BRANCH: "boot_branch",
                       constants.BUILD_TARGET: "boot_target",
                       constants.BUILD_ARTIFACT: "boot-5.10.img"}
+        host_package_build = {constants.BUILD_ID: "6789",
+                              constants.BUILD_BRANCH: "host_package_branch",
+                              constants.BUILD_TARGET: "host_package_target"}
 
         # Test base image.
         expected_args = ["-default_build=1234/base_target"]
         self.assertEqual(
             expected_args,
-            self.client.GetFetchBuildArgs(default_build, {}, {}, {}, {}, {}))
+            self.client.GetFetchBuildArgs(
+                default_build, {}, {}, {}, {}, {}, {}, {}))
 
         # Test base image with system image.
         expected_args = ["-default_build=1234/base_target",
@@ -196,7 +204,7 @@ class AndroidBuildClientTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(
             expected_args,
             self.client.GetFetchBuildArgs(
-                default_build, system_build, {}, {}, {}, {}))
+                default_build, system_build, {}, {}, {}, {}, {}, {}))
 
         # Test base image with kernel image.
         expected_args = ["-default_build=1234/base_target",
@@ -204,7 +212,7 @@ class AndroidBuildClientTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(
             expected_args,
             self.client.GetFetchBuildArgs(
-                default_build, {}, kernel_build, {}, {}, {}))
+                default_build, {}, kernel_build, {}, {}, {}, {}, {}))
 
         # Test base image with boot image.
         expected_args = ["-default_build=1234/base_target",
@@ -213,7 +221,23 @@ class AndroidBuildClientTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(
             expected_args,
             self.client.GetFetchBuildArgs(
-                default_build, {}, {}, boot_build, {}, {}))
+                default_build, {}, {}, boot_build, {}, {}, {}, {}))
+
+        # Test base image with bootloader.
+        expected_args = ["-default_build=1234/base_target",
+                         "-bootloader_build=10111213/boot_crosvm_x86_64"]
+        self.assertEqual(
+            expected_args,
+            self.client.GetFetchBuildArgs(
+                default_build, {}, {}, {}, bootloader_build, {}, {}, {}))
+
+        # Test base image with android efi.
+        expected_args = ["-default_build=1234/base_target",
+                         "-android_efi_loader_build 6789{gbl_x86_32.efi}"]
+        self.assertEqual(
+            expected_args,
+            self.client.GetFetchBuildArgs(
+                default_build, {}, {}, {}, {}, android_efi_loader_build, {}, {}))
 
         # Test base image with otatools.
         expected_args = ["-default_build=1234/base_target",
@@ -221,7 +245,15 @@ class AndroidBuildClientTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(
             expected_args,
             self.client.GetFetchBuildArgs(
-                default_build, {}, {}, {}, {}, ota_build))
+                default_build, {}, {}, {}, {}, {}, ota_build, {}))
+
+        # Test base image with host_package.
+        expected_args = ["-default_build=1234/base_target",
+                         "-host_package_build=6789/host_package_target"]
+        self.assertEqual(
+            expected_args,
+            self.client.GetFetchBuildArgs(
+                default_build, {}, {}, {}, {}, {}, {}, host_package_build))
 
     def testGetFetchCertArg(self):
         """Test GetFetchCertArg."""
