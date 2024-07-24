@@ -522,6 +522,10 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
             kernel_image_path = None
             initramfs_image_path = None
 
+        if avd_spec.local_vendor_boot_image:
+            vendor_boot_image_path = create_common.FindVendorBootImage(
+                avd_spec.local_vendor_boot_image)
+
         if avd_spec.local_vendor_image:
             vendor_image_paths = cvd_utils.FindVendorImages(
                 avd_spec.local_vendor_image)

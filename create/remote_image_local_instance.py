@@ -122,6 +122,7 @@ def DownloadAndProcessImageFiles(avd_spec):
         avd_spec.kernel_build_info,
         avd_spec.boot_build_info,
         avd_spec.bootloader_build_info,
+        avd_spec.android_efi_loader_build_info,
         avd_spec.ota_build_info,
         avd_spec.host_package_build_info)
 
@@ -290,6 +291,10 @@ class RemoteImageLocalInstance(local_image_local_instance.LocalImageLocalInstanc
                 initramfs_image_path,
             ) = self.FindBootOrKernelImages(
                 os.path.abspath(avd_spec.local_kernel_image))
+
+        if avd_spec.local_vendor_boot_image:
+            vendor_boot_image_path = create_common.FindVendorBootImage(
+                avd_spec.local_vendor_boot_image)
 
         if avd_spec.local_vendor_image:
             vendor_image_paths = cvd_utils.FindVendorImages(

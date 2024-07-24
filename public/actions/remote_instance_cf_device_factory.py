@@ -111,6 +111,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
                     avd_spec.kernel_build_info,
                     avd_spec.boot_build_info,
                     avd_spec.bootloader_build_info,
+                    avd_spec.android_efi_loader_build_info,
                     avd_spec.ota_build_info,
                     avd_spec.host_package_build_info)
 
@@ -126,7 +127,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         if avd_spec.extra_files:
             self._compute_client.UploadExtraFiles(avd_spec.extra_files)
 
-        return launch_cvd_args
+        return [arg for arg_pair in launch_cvd_args for arg in arg_pair]
 
     @utils.TimeExecute(function_description="Downloading target_files archive")
     def _DownloadTargetFiles(self, download_dir):

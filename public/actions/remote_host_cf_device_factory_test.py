@@ -18,9 +18,11 @@ import time
 import unittest
 from unittest import mock
 
+from acloud import errors
 from acloud.internal import constants
 from acloud.internal.lib import driver_test_lib
 from acloud.public.actions import remote_host_cf_device_factory
+
 
 class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
     """Test RemoteHostDeviceFactory."""
@@ -56,6 +58,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                          kernel_build_info={},
                          boot_build_info={},
                          bootloader_build_info={},
+                         android_efi_loader_build_info={},
                          ota_build_info={},
                          host_package_build_info={},
                          remote_host="192.0.2.100",
@@ -98,7 +101,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_cvd_utils.GetRemoteHostBaseDir.return_value = "acloud_cf_2"
         mock_cvd_utils.FormatRemoteHostInstanceName.return_value = "inst"
         mock_cvd_utils.AreTargetFilesRequired.return_value = True
-        mock_cvd_utils.UploadExtraImages.return_value = ["extra"]
+        mock_cvd_utils.UploadExtraImages.return_value = [("-extra", "image")]
         mock_cvd_utils.ExecuteRemoteLaunchCvd.return_value = "failure"
         mock_cvd_utils.FindRemoteLogs.return_value = [log]
 
@@ -119,7 +122,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             mock_ssh_obj, "acloud_cf_2")
         # LaunchCvd
         mock_cvd_utils.GetRemoteLaunchCvdCmd.assert_called_with(
-            "acloud_cf_2", mock_avd_spec, mock.ANY, ["extra"])
+            "acloud_cf_2", mock_avd_spec, mock.ANY, ["-extra", "image"])
         mock_cvd_utils.ExecuteRemoteLaunchCvd.assert_called()
         # FindLogFiles
         mock_cvd_utils.FindRemoteLogs.assert_called_with(
@@ -401,9 +404,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
 
         mock_ssh_obj = mock.Mock()
         mock_ssh.Ssh.return_value = mock_ssh_obj
-        mock_ssh_obj.GetBaseCmd.return_value = "/mock/ssh"
         # Test initializing the remote image dir.
-        mock_ssh_obj.Run.return_value = ""
         mock_glob.glob.return_value = ["/mock/super.img"]
         factory = remote_host_cf_device_factory.RemoteHostDeviceFactory(
             mock_avd_spec)
@@ -412,32 +413,65 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_cvd_utils.FormatRemoteHostInstanceName.return_value = "inst"
         mock_cvd_utils.LoadRemoteImageArgs.return_value = None
         mock_cvd_utils.AreTargetFilesRequired.return_value = False
-        mock_cvd_utils.UploadExtraImages.return_value = ["arg1"]
+        mock_cvd_utils.UploadExtraImages.return_value = [
+            ("arg", "mock_img_dir/1")]
         mock_cvd_utils.ExecuteRemoteLaunchCvd.return_value = ""
         mock_cvd_utils.FindRemoteLogs.return_value = []
 
         self._mock_build_api.GetFetchBuildArgs.return_value = ["-test"]
 
         self.assertEqual("inst", factory.CreateInstance())
+        mock_cvd_utils.PrepareRemoteImageDirLink.assert_called_once_with(
+            mock_ssh_obj, "acloud_cf_1", "mock_img_dir")
         mock_cvd_utils.LoadRemoteImageArgs.assert_called_once_with(
-            mock_ssh_obj, "mock_img_dir/acloud_image_args.txt")
+            mock_ssh_obj, "mock_img_dir/acloud_image_timestamp.txt",
+            "mock_img_dir/acloud_image_args.txt", mock.ANY)
         mock_cvd_utils.SaveRemoteImageArgs.assert_called_once_with(
-            mock_ssh_obj, "mock_img_dir/acloud_image_args.txt", ["arg1"])
+            mock_ssh_obj, "mock_img_dir/acloud_image_args.txt",
+            [("arg", "mock_img_dir/1")])
+        mock_ssh_obj.Run.assert_called_with("cp -frT mock_img_dir acloud_cf_1")
         self._mock_build_api.DownloadFetchcvd.assert_called_once()
-        print(mock_cvd_utils.GetRemoteLaunchCvdCmd.call_args[0][3])
-        self.assertEqual(["arg1"],
+        self.assertEqual(["arg", "acloud_cf_1/1"],
                          mock_cvd_utils.GetRemoteLaunchCvdCmd.call_args[0][3])
 
         # Test reusing the remote image dir.
-        mock_cvd_utils.LoadRemoteImageArgs.return_value = ["arg2"]
+        mock_cvd_utils.LoadRemoteImageArgs.return_value = [
+            ["arg", "mock_img_dir/2"]]
         mock_cvd_utils.SaveRemoteImageArgs.reset_mock()
+        mock_ssh_obj.reset_mock()
         self._mock_build_api.DownloadFetchcvd.reset_mock()
 
         self.assertEqual("inst", factory.CreateInstance())
         mock_cvd_utils.SaveRemoteImageArgs.assert_not_called()
+        mock_ssh_obj.Run.assert_called_with("cp -frT mock_img_dir acloud_cf_1")
         self._mock_build_api.DownloadFetchcvd.assert_not_called()
-        self.assertEqual(["arg2"],
+        self.assertEqual(["arg", "acloud_cf_1/2"],
                          mock_cvd_utils.GetRemoteLaunchCvdCmd.call_args[0][3])
+
+    @mock.patch("acloud.public.actions.remote_host_cf_device_factory.ssh")
+    @mock.patch("acloud.public.actions.remote_host_cf_device_factory."
+                "cvd_utils")
+    @mock.patch("acloud.public.actions.remote_host_cf_device_factory."
+                "subprocess.check_call")
+    def testCreateInstanceWithCreateError(self, _mock_check_call,
+                                          mock_cvd_utils, mock_ssh):
+        """Test CreateInstance with CreateError."""
+        mock_avd_spec = self._CreateMockAvdSpec()
+        mock_avd_spec.remote_image_dir = "mock_img_dir"
+
+        mock_ssh_obj = mock.Mock()
+        mock_ssh.Ssh.return_value = mock_ssh_obj
+
+        mock_cvd_utils.GetRemoteHostBaseDir.return_value = "acloud_cf_1"
+        mock_cvd_utils.FormatRemoteHostInstanceName.return_value = "inst"
+        mock_cvd_utils.LoadRemoteImageArgs.side_effect = errors.CreateError(
+            "failure")
+        factory = remote_host_cf_device_factory.RemoteHostDeviceFactory(
+            mock_avd_spec)
+
+        self.assertEqual("inst", factory.CreateInstance())
+        self.assertEqual({"inst": "failure"}, factory.GetFailures())
+        mock_cvd_utils.ExecuteRemoteLaunchCvd.assert_not_called()
 
 
 if __name__ == "__main__":

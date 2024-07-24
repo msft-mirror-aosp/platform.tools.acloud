@@ -124,6 +124,7 @@ class AVDSpec():
         self._local_system_image = None
         self._local_system_dlkm_image = None
         self._local_vendor_image = None
+        self._local_vendor_boot_image = None
         self._local_tool_dirs = None
         self._image_download_dir = None
         self._num_of_instances = None
@@ -139,6 +140,7 @@ class AVDSpec():
         self._ota_build_info = {}
         self._host_package_build_info = {}
         self._bootloader_build_info = {}
+        self._android_efi_loader_build_info = {}
         self._hw_property = None
         self._hw_customize = False
         self._remote_host = None
@@ -267,6 +269,10 @@ class AVDSpec():
         if args.local_vendor_image is not None:
             self._local_vendor_image = self._GetLocalImagePath(
                 args.local_vendor_image)
+
+        if args.local_vendor_boot_image is not None:
+            self._local_vendor_boot_image = self._GetLocalImagePath(
+                args.local_vendor_boot_image)
 
         self.image_download_dir = (
             args.image_download_dir if args.image_download_dir
@@ -672,6 +678,9 @@ class AVDSpec():
             constants.BUILD_ID: args.bootloader_build_id,
             constants.BUILD_BRANCH: args.bootloader_branch,
             constants.BUILD_TARGET: args.bootloader_build_target}
+        self._android_efi_loader_build_info = {
+            constants.BUILD_ID: args.android_efi_loader_build_id,
+            constants.BUILD_ARTIFACT: args.android_efi_loader_artifact}
         self._host_package_build_info = {
             constants.BUILD_ID: args.host_package_build_id,
             constants.BUILD_BRANCH: args.host_package_branch,
@@ -853,6 +862,11 @@ class AVDSpec():
         return self._local_vendor_image
 
     @property
+    def local_vendor_boot_image(self):
+        """Return local vendor boot image path."""
+        return self._local_vendor_boot_image
+
+    @property
     def local_tool_dirs(self):
         """Return a list of local tool directories."""
         return self._local_tool_dirs
@@ -961,6 +975,11 @@ class AVDSpec():
     def bootloader_build_info(self):
         """Return bootloader build info."""
         return self._bootloader_build_info
+
+    @property
+    def android_efi_loader_build_info(self):
+        """Return android efi loader build info."""
+        return self._android_efi_loader_build_info
 
     @property
     def flavor(self):
