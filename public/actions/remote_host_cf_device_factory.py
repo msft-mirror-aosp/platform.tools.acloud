@@ -346,8 +346,9 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             self._avd_spec.host_package_build_info)
 
         fetch_cvd_args = self._avd_spec.fetch_cvd_wrapper.split(',') + [
+            f"-fetch_cvd_path={constants.CMD_CVD_FETCH[0]}",
+            constants.CMD_CVD_FETCH[1],
             f"-directory={self._GetArtifactPath()}",
-            f"-fetch_cvd_path={self._GetArtifactPath(constants.FETCH_CVD)}",
             self._GetRemoteFetchCredentialArg()]
         fetch_cvd_args.extend(fetch_cvd_build_args)
 
@@ -372,9 +373,9 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             self._avd_spec.ota_build_info,
             self._avd_spec.host_package_build_info)
 
-        fetch_cvd_args = [self._GetArtifactPath(constants.FETCH_CVD),
-                          f"-directory={self._GetArtifactPath()}",
-                          self._GetRemoteFetchCredentialArg()]
+        fetch_cvd_args = list(constants.CMD_CVD_FETCH)
+        fetch_cvd_args.extend([f"-directory={self._GetArtifactPath()}",
+                               self._GetRemoteFetchCredentialArg()])
         fetch_cvd_args.extend(fetch_cvd_build_args)
 
         ssh_cmd = self._ssh.GetBaseCmd(constants.SSH_BIN)
@@ -384,17 +385,13 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
 
     @utils.TimeExecute(function_description="Download and upload fetch_cvd")
     def _UploadFetchCvd(self, extract_path):
-        """Download fetch_cvd, duplicate service account json private key when available and upload
+        """Duplicate service account json private key when available and upload
            to remote host.
 
         Args:
             extract_path: String, a path include extracted files.
         """
         cfg = self._avd_spec.cfg
-        is_arm_flavor = cvd_utils.RunOnArmMachine(self._ssh) and self._avd_spec.remote_fetch
-        fetch_cvd = os.path.join(extract_path, constants.FETCH_CVD)
-        self._build_api.DownloadFetchcvd(
-            fetch_cvd, self._avd_spec.fetch_cvd_version, is_arm_flavor)
         # Duplicate fetch_cvd API key when available
         if cfg.service_account_json_private_key_path:
             shutil.copyfile(
@@ -419,9 +416,6 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         cfg = self._avd_spec.cfg
 
         # Download images with fetch_cvd
-        fetch_cvd = os.path.join(extract_path, constants.FETCH_CVD)
-        self._build_api.DownloadFetchcvd(
-            fetch_cvd, self._avd_spec.fetch_cvd_version)
         fetch_cvd_build_args = self._build_api.GetFetchBuildArgs(
             self._avd_spec.remote_image,
             self._avd_spec.system_build_info,
@@ -433,8 +427,8 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             self._avd_spec.host_package_build_info)
         creds_cache_file = os.path.join(_HOME_FOLDER, cfg.creds_cache_file)
         fetch_cvd_cert_arg = self._build_api.GetFetchCertArg(creds_cache_file)
-        fetch_cvd_args = [fetch_cvd, f"-directory={extract_path}",
-                          fetch_cvd_cert_arg]
+        fetch_cvd_args = list(constants.CMD_CVD_FETCH)
+        fetch_cvd_args.extend([f"-directory={extract_path}", fetch_cvd_cert_arg])
         fetch_cvd_args.extend(fetch_cvd_build_args)
         logger.debug("Download images command: %s", fetch_cvd_args)
         try:
