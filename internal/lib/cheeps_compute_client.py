@@ -102,7 +102,7 @@ class CheepsComputeClient(android_compute_client.AndroidComputeClient):
             instance=instance,
             image_name=image_name,
             image_project=image_project,
-            disk_args=None,
+            disk_type='pd-balanced',
             metadata=metadata,
             machine_type=self._machine_type,
             network=self._network,
