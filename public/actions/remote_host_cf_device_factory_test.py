@@ -270,7 +270,6 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self._mock_build_api.DownloadArtifact.assert_called_once_with(
             "aosp_cf_x86_64_phone-userdebug", "100000", "mock.zip", mock.ANY)
         mock_cvd_utils.ExtractTargetFilesZip.assert_called_once()
-        self._mock_build_api.DownloadFetchcvd.assert_called_once()
         mock_check_call.assert_called_once()
         mock_ssh.ShellCmdWithRetry.assert_called_once()
         self.assertRegex(mock_ssh.ShellCmdWithRetry.call_args[0][0],
@@ -315,13 +314,12 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.assertEqual("inst", factory.CreateInstance())
         mock_cvd_utils.CleanUpRemoteCvd.assert_called_once()
         mock_ssh_obj.Run.assert_called_with("mkdir -p acloud_cf_1")
-        self._mock_build_api.DownloadFetchcvd.assert_called_once()
         mock_shutil.copyfile.assert_called_with("/mock/key", mock.ANY)
         self.assertRegex(mock_ssh.ShellCmdWithRetry.call_args_list[0][0][0],
                          r"^tar -cf - --lzop -S -C \S+ fetch_cvd \| "
                          r"/mock/ssh -- tar -xf - --lzop -S -C acloud_cf_1$")
         self.assertRegex(mock_ssh.ShellCmdWithRetry.call_args_list[1][0][0],
-                         r"^/mock/ssh -- acloud_cf_1/fetch_cvd "
+                         r"^/mock/ssh -- cvd fetch "
                          r"-directory=acloud_cf_1 "
                          r"-credential_source=acloud_cf_1/credential_key.json "
                          r"-test$")
@@ -368,7 +366,6 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.assertEqual("inst", factory.CreateInstance())
         mock_cvd_utils.CleanUpRemoteCvd.assert_called_once()
         mock_ssh_obj.Run.assert_called_with("mkdir -p acloud_cf_1")
-        self._mock_build_api.DownloadFetchcvd.assert_called_once()
         mock_shutil.copyfile.assert_called_with("/mock/key", mock.ANY)
         self.assertRegex(mock_ssh.ShellCmdWithRetry.call_args_list[0][0][0],
                          r"^tar -cf - --lzop -S -C \S+ fetch_cvd \| "
@@ -378,8 +375,9 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                          r"GOOGLE_APPLICATION_CREDENTIALS=/fake_key.json "
                          r"CACHE_CONFIG=/home/shared/cache.properties "
                          r"java -jar /home/shared/FetchCvdWrapper.jar "
+                         r"-fetch_cvd_path=cvd "
+                         r"fetch "
                          r"-directory=acloud_cf_1 "
-                         r"-fetch_cvd_path=acloud_cf_1/fetch_cvd "
                          r"-credential_source=acloud_cf_1/credential_key.json "
                          r"-test$")
         mock_cvd_utils.ExecuteRemoteLaunchCvd.assert_called()
@@ -430,7 +428,6 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             mock_ssh_obj, "mock_img_dir/acloud_image_args.txt",
             [("arg", "mock_img_dir/1")])
         mock_ssh_obj.Run.assert_called_with("cp -frT mock_img_dir acloud_cf_1")
-        self._mock_build_api.DownloadFetchcvd.assert_called_once()
         self.assertEqual(["arg", "acloud_cf_1/1"],
                          mock_cvd_utils.GetRemoteLaunchCvdCmd.call_args[0][3])
 
@@ -439,12 +436,10 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             ["arg", "mock_img_dir/2"]]
         mock_cvd_utils.SaveRemoteImageArgs.reset_mock()
         mock_ssh_obj.reset_mock()
-        self._mock_build_api.DownloadFetchcvd.reset_mock()
 
         self.assertEqual("inst", factory.CreateInstance())
         mock_cvd_utils.SaveRemoteImageArgs.assert_not_called()
         mock_ssh_obj.Run.assert_called_with("cp -frT mock_img_dir acloud_cf_1")
-        self._mock_build_api.DownloadFetchcvd.assert_not_called()
         self.assertEqual(["arg", "acloud_cf_1/2"],
                          mock_cvd_utils.GetRemoteLaunchCvdCmd.call_args[0][3])
 
