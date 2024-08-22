@@ -25,6 +25,7 @@ from acloud.internal.lib import utils
 from acloud.public.actions import common_operations
 from acloud.public.actions import remote_instance_cf_device_factory
 from acloud.public.actions import remote_instance_fvp_device_factory
+from acloud.public.actions import remote_instance_trusty_device_factory
 from acloud.public import report
 
 
@@ -53,6 +54,10 @@ class LocalImageRemoteInstance(base_avd_create.BaseAVDCreate):
             device_factory = remote_instance_fvp_device_factory.RemoteInstanceDeviceFactory(
                 avd_spec)
             command = "create_fvp"
+        elif avd_spec.avd_type == constants.TYPE_TRUSTY:
+            device_factory = remote_instance_trusty_device_factory.RemoteInstanceDeviceFactory(
+                avd_spec, avd_spec.local_image_artifact)
+            command = "create_trusty"
 
         create_report = common_operations.CreateDevices(
             command, avd_spec.cfg, device_factory,
