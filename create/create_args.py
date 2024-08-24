@@ -561,7 +561,7 @@ def GetCreateArgParser(subparser):
         dest="avd_type",
         default=constants.TYPE_CF,
         choices=[constants.TYPE_GCE, constants.TYPE_CF, constants.TYPE_GF, constants.TYPE_CHEEPS,
-                 constants.TYPE_FVP],
+                 constants.TYPE_FVP, constants.TYPE_TRUSTY],
         help="Android Virtual Device type (default %s)." % constants.TYPE_CF)
     create_parser.add_argument(
         "--config", "--flavor",
@@ -639,6 +639,15 @@ def GetCreateArgParser(subparser):
         "--local-vendor-boot-image /path/to/dir, or "
         "--local-vendor-boot-image /path/to/img")
     create_parser.add_argument(
+        "--local-trusty-image",
+        type=str,
+        dest="local_trusty_image",
+        required=False,
+        help="'trusty only' Use the specified path for the locally built "
+        "trusty emulator images package, built with "
+        "PACKAGE_TRUSTY_IMAGE_TARBALL=true in the Trusty build. E.g., "
+        "/path/trusty_image_package.tar.gz")
+    create_parser.add_argument(
         "--local-tool",
         type=str,
         dest="local_tool",
@@ -655,6 +664,13 @@ def GetCreateArgParser(subparser):
         required=False,
         help="Use the specified path of the cvd host package to create "
         "instances. e.g. /path/cvd-host_package_v1.tar.gz")
+    create_parser.add_argument(
+        "--trusty-host-package",
+        type=str,
+        dest="trusty_host_package",
+        required=False,
+        help="Use the specified path of the trusty host package to create "
+        "instances. e.g. /path/trusty-host_package.zip")
     create_parser.add_argument(
         "--image-download-dir",
         type=str,
@@ -844,7 +860,7 @@ def _VerifyLocalArgs(args):
     Raises:
         errors.CheckPathError: Image path doesn't exist.
         errors.UnsupportedCreateArgs: The specified avd type does not support
-                                      --local-system-image.
+                                      a provided argument.
         errors.UnsupportedLocalInstanceId: Local instance ID is invalid.
     """
     if args.local_image and not os.path.exists(args.local_image):
@@ -977,6 +993,43 @@ def _VerifyGoldfishArgs(args):
             "remote host.")
 
 
+def _VerifyTrustyArgs(args):
+    """Verify trusty args.
+
+    Args:
+        args: Namespace object from argparse.parse_args.
+
+    Raises:
+        errors.UnsupportedCreateArgs: When specified arguments are
+                                      unsupported for trusty.
+        errors.CheckPathError: A specified local path does not exist.
+    """
+    if args.avd_type != constants.TYPE_TRUSTY:
+        if args.local_trusty_image:
+            raise errors.UnsupportedCreateArgs(
+                "--local-trusty-image is only valid with "
+                f"avd_type == {constants.TYPE_TRUSTY}")
+        if args.trusty_host_package:
+            raise errors.UnsupportedCreateArgs(
+                "--trusty-host-package is only valid with "
+                f"avd_type == {constants.TYPE_TRUSTY}")
+        # Only check these args if AVD type is Trusty
+        return
+
+    if args.local_trusty_image is None:
+        raise errors.UnsupportedCreateArgs(
+            "Trusty image package not provided, use --local-trusty-image to "
+            "specify path to trusty_image_package.tar.gz containing trusty "
+            "images.")
+    if not os.path.exists(args.local_trusty_image):
+        raise errors.CheckPathError(
+            f"Specified path doesn't exist: {args.local_trusty_image}")
+    if args.trusty_host_package:
+        if not os.path.exists(args.trusty_host_package):
+            raise errors.CheckPathError(
+                f"Specified path doesn't exist: {args.trusty_host_package}")
+
+
 def VerifyArgs(args):
     """Verify args.
 
@@ -1043,5 +1096,6 @@ def VerifyArgs(args):
                          "passed in together.")
 
     _VerifyGoldfishArgs(args)
+    _VerifyTrustyArgs(args)
     _VerifyLocalArgs(args)
     _VerifyHostArgs(args)
