@@ -199,6 +199,10 @@ class GetCvdLocalHostPackageError(CreateError):
     """Can't find the lost host package."""
 
 
+class GetTrustyLocalHostPackageError(CreateError):
+    """Can't find the trusty host package."""
+
+
 class GetSdkRepoPackageError(CreateError):
     """Can't find the local SDK repository package for goldfish."""
 

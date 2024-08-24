@@ -42,6 +42,8 @@ def _CreateArgs():
         local_system_image=None,
         local_instance_dir=None,
         local_vendor_boot_image=None,
+        local_trusty_image=None,
+        trusty_host_package=None,
         kernel_branch=None,
         kernel_build_id=None,
         kernel_build_target="kernel",
@@ -177,6 +179,18 @@ class CreateArgsTest(driver_test_lib.BaseDriverTest):
         mock_args.kernel_build_id = "fake_kernel_1234567"
         self.assertRaises(errors.UnsupportedCreateArgs,
                           create_args._VerifyLocalArgs, mock_args)
+
+        # wrong avd_type
+        mock_args = _CreateArgs()
+        mock_args.local_trusty_image = "/tmp/trusty_image_package.tar.gz"
+        self.assertRaises(errors.UnsupportedCreateArgs,
+                          create_args.VerifyArgs, mock_args)
+
+        # wrong avd_type
+        mock_args = _CreateArgs()
+        mock_args.trusty_host_package = "/tmp/trusty_host_package.zip"
+        self.assertRaises(errors.UnsupportedCreateArgs,
+                          create_args.VerifyArgs, mock_args)
 
 
 if __name__ == "__main__":

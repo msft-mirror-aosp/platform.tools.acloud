@@ -43,6 +43,7 @@ TYPE_CF = "cuttlefish"
 TYPE_GCE = "gce"
 TYPE_GF = "goldfish"
 TYPE_FVP = "fvp"
+TYPE_TRUSTY = "trusty"
 
 # Image types
 IMAGE_SRC_REMOTE = "remote_image"
@@ -55,6 +56,7 @@ AVD_TYPES_MAPPING = {
     TYPE_GF: "sdk",
     # Cheeps uses the cheets target.
     TYPE_CHEEPS: "cheets",
+    TYPE_TRUSTY: "trusty",
 }
 
 # Instance types
@@ -132,6 +134,8 @@ GF_ADB_PORT = 5555
 GF_VNC_PORT = 6444
 # For FVP remote instances (no VNC support)
 FVP_ADB_PORT = 5555
+# For Trusty remote instances (no VNC support)
+TRUSTY_ADB_PORT = 5555
 # Maximum port number
 MAX_PORT = 65535
 # Time info to write in report.
