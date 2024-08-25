@@ -265,7 +265,8 @@ def UploadArtifacts(ssh_obj, remote_image_dir, image_path, cvd_host_package):
         _UploadImageDir(ssh_obj, remote_image_dir, FindImageDir(image_path))
     else:
         _UploadImageZip(ssh_obj, remote_image_dir, image_path)
-    _UploadCvdHostPackage(ssh_obj, remote_image_dir, cvd_host_package)
+    if cvd_host_package:
+        _UploadCvdHostPackage(ssh_obj, remote_image_dir, cvd_host_package)
 
 
 def FindBootImages(search_path):
