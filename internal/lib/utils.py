@@ -94,6 +94,7 @@ AVD_PORT_DICT = {
     constants.TYPE_CHEEPS: ForwardedPorts(constants.CHEEPS_VNC_PORT,
                                           constants.CHEEPS_ADB_PORT),
     constants.TYPE_FVP: ForwardedPorts(None, constants.FVP_ADB_PORT),
+    constants.TYPE_TRUSTY: ForwardedPorts(None, constants.TRUSTY_ADB_PORT),
 }
 
 _VNC_BIN = "ssvnc"
