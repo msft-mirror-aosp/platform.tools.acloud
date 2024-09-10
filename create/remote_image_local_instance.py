@@ -136,19 +136,21 @@ def DownloadAndProcessImageFiles(avd_spec):
     if not os.path.exists(extract_path):
         os.makedirs(extract_path)
 
-        # Download rom images via fetch_cvd
-        fetch_cvd = os.path.join(extract_path, constants.FETCH_CVD)
-        build_api.DownloadFetchcvd(fetch_cvd, avd_spec.fetch_cvd_version)
+        # Download rom images via cvd fetch
+        fetch_cvd_args = list(constants.CMD_CVD_FETCH)
         creds_cache_file = os.path.join(_HOME_FOLDER, cfg.creds_cache_file)
         fetch_cvd_cert_arg = build_api.GetFetchCertArg(creds_cache_file)
-        fetch_cvd_args = [fetch_cvd, "-directory=%s" % extract_path,
-                          fetch_cvd_cert_arg]
+        fetch_cvd_args.extend([f"-directory={extract_path}",
+                          fetch_cvd_cert_arg])
         fetch_cvd_args.extend(fetch_cvd_build_args)
         logger.debug("Download images command: %s", fetch_cvd_args)
+        if not setup_common.PackageInstalled(constants.CUTTLEFISH_COMMOM_PKG):
+            raise errors.NoCuttlefishCommonInstalled(
+                "cuttlefish-common package is required to run cvd fetch")
         try:
             subprocess.check_call(fetch_cvd_args)
         except subprocess.CalledProcessError as e:
-            raise errors.GetRemoteImageError("Fails to download images: %s" % e)
+            raise errors.GetRemoteImageError(f"Fails to download images: {e}")
 
         # Save the fetch cvd build args when the fetch command succeeds
         with open(fetch_cvd_args_file, "w") as output:
