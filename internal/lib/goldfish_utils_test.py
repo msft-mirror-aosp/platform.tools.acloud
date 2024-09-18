@@ -32,11 +32,14 @@ class GoldfishUtilsTest(unittest.TestCase):
 
     # Remote host instance name.
     _IP_ADDRESS = "192.0.2.1"
+    _DOMAIN_NAME = "host.NAME-1234"
     _CONSOLE_PORT = 5554
     _BUILD_INFO = {"build_id": "123456",
                    "build_target": "sdk_phone_x86_64-userdebug"}
-    _INSTANCE_NAME = ("host-goldfish-192.0.2.1-5554-"
-                      "123456-sdk_phone_x86_64-userdebug")
+    _INSTANCE_NAME_WITH_IP = ("host-goldfish-192.0.2.1-5554-"
+                              "123456-sdk_phone_x86_64-userdebug")
+    _INSTANCE_NAME_WITH_DOMAIN = ("host-goldfish-host.NAME_1234-5554-"
+                                  "123456-sdk_phone_x86_64-userdebug")
     _INSTANCE_NAME_WITHOUT_INFO = "host-goldfish-192.0.2.1-5554-userbuild"
     _INVALID_NAME = "host-192.0.2.1-123456-aosp_cf_x86_phone-userdebug"
 
@@ -187,8 +190,12 @@ class GoldfishUtilsTest(unittest.TestCase):
     def testParseRemoteHostConsoleAddress(self):
         """Test ParseRemoteHostConsoleAddress."""
         console_addr = goldfish_utils.ParseRemoteHostConsoleAddress(
-            self._INSTANCE_NAME)
+            self._INSTANCE_NAME_WITH_IP)
         self.assertEqual((self._IP_ADDRESS, self._CONSOLE_PORT), console_addr)
+
+        console_addr = goldfish_utils.ParseRemoteHostConsoleAddress(
+            self._INSTANCE_NAME_WITH_DOMAIN)
+        self.assertEqual((self._DOMAIN_NAME, self._CONSOLE_PORT), console_addr)
 
         console_addr = goldfish_utils.ParseRemoteHostConsoleAddress(
             self._INVALID_NAME)
@@ -198,7 +205,11 @@ class GoldfishUtilsTest(unittest.TestCase):
         """Test FormatRemoteHostInstanceName."""
         instance_name = goldfish_utils.FormatRemoteHostInstanceName(
             self._IP_ADDRESS, self._CONSOLE_PORT, self._BUILD_INFO)
-        self.assertEqual(self._INSTANCE_NAME, instance_name)
+        self.assertEqual(self._INSTANCE_NAME_WITH_IP, instance_name)
+
+        instance_name = goldfish_utils.FormatRemoteHostInstanceName(
+            self._DOMAIN_NAME, self._CONSOLE_PORT, self._BUILD_INFO)
+        self.assertEqual(self._INSTANCE_NAME_WITH_DOMAIN, instance_name)
 
         instance_name = goldfish_utils.FormatRemoteHostInstanceName(
             self._IP_ADDRESS, self._CONSOLE_PORT, {})

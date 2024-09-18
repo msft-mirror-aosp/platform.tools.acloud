@@ -35,11 +35,12 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
     # Remote host instance name.
     _PRODUCT_NAME = "aosp_cf_x86_64_phone"
     _BUILD_ID = "2263051"
-    _REMOTE_HOST_IP = "192.0.2.1"
+    _REMOTE_HOSTNAME_1 = "192.0.2.1"
+    _REMOTE_HOSTNAME_2 = "host.NAME-1234"
     _REMOTE_HOST_INSTANCE_NAME_1 = (
         "host-192.0.2.1-1-2263051-aosp_cf_x86_64_phone")
     _REMOTE_HOST_INSTANCE_NAME_2 = (
-        "host-192.0.2.1-2-2263051-aosp_cf_x86_64_phone")
+        "host-host.NAME_1234-2-2263051-aosp_cf_x86_64_phone")
 
     def testGetAdbPorts(self):
         """Test GetAdbPorts."""
@@ -347,22 +348,22 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
     def testFormatRemoteHostInstanceName(self):
         """Test FormatRemoteHostInstanceName."""
         name = cvd_utils.FormatRemoteHostInstanceName(
-            self._REMOTE_HOST_IP, None, self._BUILD_ID, self._PRODUCT_NAME)
+            self._REMOTE_HOSTNAME_1, None, self._BUILD_ID, self._PRODUCT_NAME)
         self.assertEqual(name, self._REMOTE_HOST_INSTANCE_NAME_1)
 
         name = cvd_utils.FormatRemoteHostInstanceName(
-            self._REMOTE_HOST_IP, 2, self._BUILD_ID, self._PRODUCT_NAME)
+            self._REMOTE_HOSTNAME_2, 2, self._BUILD_ID, self._PRODUCT_NAME)
         self.assertEqual(name, self._REMOTE_HOST_INSTANCE_NAME_2)
 
     def testParseRemoteHostAddress(self):
         """Test ParseRemoteHostAddress."""
         result = cvd_utils.ParseRemoteHostAddress(
             self._REMOTE_HOST_INSTANCE_NAME_1)
-        self.assertEqual(result, (self._REMOTE_HOST_IP, "acloud_cf_1"))
+        self.assertEqual(result, (self._REMOTE_HOSTNAME_1, "acloud_cf_1"))
 
         result = cvd_utils.ParseRemoteHostAddress(
             self._REMOTE_HOST_INSTANCE_NAME_2)
-        self.assertEqual(result, (self._REMOTE_HOST_IP, "acloud_cf_2"))
+        self.assertEqual(result, (self._REMOTE_HOSTNAME_2, "acloud_cf_2"))
 
         result = cvd_utils.ParseRemoteHostAddress(
             "host-goldfish-192.0.2.1-5554-123456-sdk_x86_64-sdk")
