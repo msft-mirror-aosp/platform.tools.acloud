@@ -45,10 +45,11 @@ _SYSTEM_DLKM_IMAGE_NAMES = (
     "system_dlkm.img",  # goldfish artifact
 )
 # Remote host instance name.
+# hostname can be a domain name. "-" in hostname must be replaced with "_".
 _REMOTE_HOST_INSTANCE_NAME_FORMAT = (
-    "host-goldfish-%(ip_addr)s-%(console_port)s-%(build_info)s")
+    "host-goldfish-%(hostname)s-%(console_port)s-%(build_info)s")
 _REMOTE_HOST_INSTANCE_NAME_PATTERN = re.compile(
-    r"host-goldfish-(?P<ip_addr>[\d.]+)-(?P<console_port>\d+)-.+")
+    r"host-goldfish-(?P<hostname>[\w.]+)-(?P<console_port>\d+)-.+")
 
 
 def _FindFileByNames(parent_dir, names):
@@ -242,11 +243,11 @@ def MixDiskImage(output_dir, image_dir, system_image_path,
     return disk_image
 
 
-def FormatRemoteHostInstanceName(ip_addr, console_port, build_info):
+def FormatRemoteHostInstanceName(hostname, console_port, build_info):
     """Convert address and build info to a remote host instance name.
 
     Args:
-        ip_addr: A string, the IP address of the host.
+        hostname: A string, the IPv4 address or domain name of the host.
         console_port: An integer, the emulator console port.
         build_info: A dict containing the build ID and target.
 
@@ -259,7 +260,7 @@ def FormatRemoteHostInstanceName(ip_addr, console_port, build_info):
                       build_id and build_target else
                       "userbuild")
     return _REMOTE_HOST_INSTANCE_NAME_FORMAT % {
-        "ip_addr": ip_addr,
+        "hostname": hostname.replace("-", "_"),
         "console_port": console_port,
         "build_info": build_info_str,
     }
@@ -272,11 +273,12 @@ def ParseRemoteHostConsoleAddress(instance_name):
         instance_name: A string, the instance name.
 
     Returns:
-        The IP address as a string and the console port as an integer.
+        The hostname as a string and the console port as an integer.
         None if the name does not represent a goldfish instance on remote host.
     """
     match = _REMOTE_HOST_INSTANCE_NAME_PATTERN.fullmatch(instance_name)
-    return ((match.group("ip_addr"), int(match.group("console_port")))
+    return ((match.group("hostname").replace("_", "-"),
+             int(match.group("console_port")))
             if match else None)
 
 
