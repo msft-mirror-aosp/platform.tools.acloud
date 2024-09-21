@@ -231,7 +231,7 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         return_value = "Manifest branch:"
         fake_subprocess.communicate = mock.MagicMock(return_value=(return_value, ''))
         self.Patch(subprocess, "Popen", return_value=fake_subprocess)
-        self.assertEqual(self.AvdSpec._GetBranchFromRepo(), "aosp-master")
+        self.assertEqual(self.AvdSpec._GetBranchFromRepo(), "aosp-main")
 
     def testGetBuildBranch(self):
         """Test GetBuildBranch function"""
