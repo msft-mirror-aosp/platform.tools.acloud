@@ -65,11 +65,11 @@ _Y_RES = "y_res"
 _COMMAND_GIT_REMOTE = ["git", "remote"]
 
 # The branch prefix is necessary for the Android Build system to know what we're
-# talking about. For instance, on an aosp remote repo in the master branch,
-# Android Build will recognize it as aosp-master.
+# talking about. For instance, on an aosp remote repo in the main branch,
+# Android Build will recognize it as aosp-main.
 _BRANCH_PREFIX = {"aosp": "aosp-"}
 _DEFAULT_BRANCH_PREFIX = "git_"
-_DEFAULT_BRANCH = "aosp-master"
+_DEFAULT_BRANCH = "aosp-main"
 
 # The target prefix is needed to help concoct the lunch target name given a
 # the branch, avd type and device flavor:
@@ -790,10 +790,10 @@ class AVDSpec():
         """Get branch information from command "repo info".
 
         If branch can't get from "repo info", it will be set as default branch
-        "aosp-master".
+        "aosp-main".
 
         Returns:
-            branch: String, git branch name. e.g. "aosp-master"
+            branch: String, git branch name. e.g. "aosp-main"
         """
         branch = None
         # TODO(149460014): Migrate acloud to py3, then remove this
