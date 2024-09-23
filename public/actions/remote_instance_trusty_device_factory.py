@@ -35,11 +35,10 @@ from acloud.pull import pull
 
 logger = logging.getLogger(__name__)
 _CONFIG_JSON_FILENAME = "config.json"
-_TRUSTY_HOST_TARBALL = "trusty-host_package.zip"
+_TRUSTY_HOST_TARBALL = "trusty-host_package.tar.gz"
 _TRUSTY_HOST_PACKAGE = "trusty-host_package"
 _REMOTE_STDOUT_PATH = "kernel.log"
 _REMOTE_STDERR_PATH = "qemu_trusty_err.log"
-_REMOTE_HOST_OUT_PATH = "out/host/linux-x86"
 
 
 def _FindHostPackage(package_path=None):
@@ -111,21 +110,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
                 self._ssh,
                 cvd_utils.GCE_BASE_DIR,
                 (self._local_image_artifact or avd_spec.local_image_dir),
-                None)
-
-            # Upload and unzip Trusty host tools zip. We do not do this with
-            # UploadArtifacts above because the host package for Trusty is not
-            # built as a .tar.gz as the cuttlefish host tools are.
-            remote_host_package = remote_path.join(
-                cvd_utils.GCE_BASE_DIR,
-                os.path.basename(self._host_package_artifact))
-            self._ssh.ScpPushFile(
-                self._host_package_artifact, remote_host_package)
-            remote_cmd = (
-                f"unzip {remote_host_package} "
-                f"-d {cvd_utils.GCE_BASE_DIR}")
-            logger.debug("remote_cmd:\n %s", remote_cmd)
-            self._ssh.Run(remote_cmd)
+                self._host_package_artifact)
 
             # Upload Trusty image archive
             remote_cmd = (f"tar -xzf - -C {cvd_utils.GCE_BASE_DIR} < "
@@ -134,18 +119,15 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             self._ssh.Run(remote_cmd)
 
             config = {
-                "linux": "linux-build",
+                "linux": "kernel",
                 "linux_arch": "arm64",
                 "atf": "atf/qemu/debug",
-                "qemu": remote_path.join(
-                    _REMOTE_HOST_OUT_PATH, "bin/trusty_qemu_system_aarch64"),
+                "qemu": "bin/trusty_qemu_system_aarch64",
                 "extra_qemu_flags": ["-machine", "gic-version=2"],
-                "image_dir": ".",
-                "rpmbd": remote_path.join(
-                    _REMOTE_HOST_OUT_PATH, "bin/rpmb_dev"),
+                "android_image_dir": ".",
+                "rpmbd": "bin/rpmb_dev",
                 "arch": "arm64",
-                "android": True,
-                "adb": remote_path.join(_REMOTE_HOST_OUT_PATH, "bin/adb"),
+                "adb": "bin/adb",
             }
 
             with tempfile.NamedTemporaryFile(mode="w+t") as config_json_file:
@@ -163,15 +145,11 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
     def _StartTrusty(self):
         """Start the model on the GCE instance."""
 
-        # We need to pass the absolute path to the ./usr/share directory to qemu
-        # using `pwd` on the remote instance because the run script runs qemu
-        # from the atf directory containing the bl*.bin binaries, not the
-        # current directory. We use an explicit subshell so we can run this
-        # command in the background.
+        # We use an explicit subshell so we can run this command in the
+        # background.
         cmd = "-- sh -c " + shlex.quote(shlex.quote(
             f"{cvd_utils.GCE_BASE_DIR}/run.py "
-            f"--config={_CONFIG_JSON_FILENAME} -- "
-            f"-L `pwd`/{_REMOTE_HOST_OUT_PATH}/usr/share"
+            f"--config={_CONFIG_JSON_FILENAME} "
             f"> {_REMOTE_STDOUT_PATH} 2> {_REMOTE_STDERR_PATH} &"
         ))
         self._ssh.Run(cmd, self._avd_spec.boot_timeout_secs or 30, retry=0)
