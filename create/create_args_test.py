@@ -188,7 +188,7 @@ class CreateArgsTest(driver_test_lib.BaseDriverTest):
 
         # wrong avd_type
         mock_args = _CreateArgs()
-        mock_args.trusty_host_package = "/tmp/trusty_host_package.zip"
+        mock_args.trusty_host_package = "/tmp/trusty_host_package.tar.gz"
         self.assertRaises(errors.UnsupportedCreateArgs,
                           create_args.VerifyArgs, mock_args)
 
