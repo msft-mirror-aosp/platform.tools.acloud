@@ -670,7 +670,7 @@ def GetCreateArgParser(subparser):
         dest="trusty_host_package",
         required=False,
         help="Use the specified path of the trusty host package to create "
-        "instances. e.g. /path/trusty-host_package.zip")
+        "instances. e.g. /path/trusty-host_package.tar.gz")
     create_parser.add_argument(
         "--image-download-dir",
         type=str,
