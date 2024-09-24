@@ -30,6 +30,7 @@ from acloud.internal.lib import oxygen_client
 from acloud.internal.lib import utils
 from acloud.public.actions import common_operations
 from acloud.public.actions import remote_instance_cf_device_factory
+from acloud.public.actions import remote_instance_trusty_device_factory
 from acloud.public import report
 
 
@@ -62,13 +63,22 @@ class RemoteImageRemoteInstance(base_avd_create.BaseAVDCreate):
             return self._LeaseOxygenAVD(avd_spec)
         if avd_spec.gce_only:
             return self._CreateGceInstance(avd_spec)
-        device_factory = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
-            avd_spec)
+        if avd_spec.avd_type == constants.TYPE_CF:
+            command = "create_cf"
+            device_factory = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
+                avd_spec)
+        elif avd_spec.avd_type == constants.TYPE_TRUSTY:
+            command = "create_trusty"
+            device_factory = remote_instance_trusty_device_factory.RemoteInstanceDeviceFactory(
+                avd_spec)
+        else:
+            # This type isn't correctly registered in create.py.
+            raise ValueError(f"Unsupported AVD type: {avd_spec.avd_type}")
         create_report = common_operations.CreateDevices(
-            "create_cf", avd_spec.cfg, device_factory, avd_spec.num,
+            command, avd_spec.cfg, device_factory, avd_spec.num,
             report_internal_ip=avd_spec.report_internal_ip,
             autoconnect=avd_spec.autoconnect,
-            avd_type=constants.TYPE_CF,
+            avd_type=avd_spec.avd_type,
             boot_timeout_secs=avd_spec.boot_timeout_secs,
             unlock_screen=avd_spec.unlock_screen,
             wait_for_boot=False,
