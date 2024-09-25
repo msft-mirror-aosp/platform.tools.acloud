@@ -44,6 +44,9 @@ def _CreateArgs():
         local_vendor_boot_image=None,
         local_trusty_image=None,
         trusty_host_package=None,
+        trusty_build_id=None,
+        trusty_branch=None,
+        trusty_build_target=None,
         kernel_branch=None,
         kernel_build_id=None,
         kernel_build_target="kernel",
@@ -54,6 +57,14 @@ def _CreateArgs():
         system_branch=None,
         system_build_id=None,
         system_build_target=None,
+        bootloader_branch=None,
+        bootloader_build_id=None,
+        bootloader_build_target=None,
+        android_efi_loader_build_id=None,
+        android_efi_loader_artifact=None,
+        ota_branch=None,
+        ota_build_id=None,
+        ota_build_target=None,
         local_instance=None,
         remote_host=None,
         remote_image_dir=None,
@@ -128,6 +139,34 @@ class CreateArgsTest(driver_test_lib.BaseDriverTest):
         mock_args.remote_host = "192.0.2.2"
         create_args.VerifyArgs(mock_args)
 
+    def testVerifyTrustyArgs(self):
+        """test trusty arguments."""
+        self.Patch(os.path, "exists", return_value=True)
+
+        # wrong avd_type.
+        mock_args = _CreateArgs()
+        mock_args.local_trusty_image = "trusty_image_package.tar.gz"
+        self.assertRaises(errors.UnsupportedCreateArgs,
+                          create_args.VerifyArgs, mock_args)
+        mock_args = _CreateArgs()
+        mock_args.trusty_host_package = "trusty-host_package.tar.gz"
+        self.assertRaises(errors.UnsupportedCreateArgs,
+                          create_args.VerifyArgs, mock_args)
+        mock_args.local_trusty_image = "trusty_image_package.tar.gz"
+        # valid args for Trusty avd type.
+        mock_args.avd_type = constants.TYPE_TRUSTY
+        create_args.VerifyArgs(mock_args)
+        # local image requires trusty image path
+        mock_args.local_trusty_image = None
+        mock_args.local_image = True
+        self.assertRaises(errors.UnsupportedCreateArgs,
+                          create_args.VerifyArgs, mock_args)
+        # remote image requires an explicit build target
+        mock_args.build_target = None
+        mock_args.local_image = False
+        self.assertRaises(errors.UnsupportedCreateArgs,
+                          create_args.VerifyArgs, mock_args)
+
     def testVerifyArgs_ConnectWebRTC(self):
         """test VerifyArgs args.autconnect webrtc.
 
@@ -179,18 +218,6 @@ class CreateArgsTest(driver_test_lib.BaseDriverTest):
         mock_args.kernel_build_id = "fake_kernel_1234567"
         self.assertRaises(errors.UnsupportedCreateArgs,
                           create_args._VerifyLocalArgs, mock_args)
-
-        # wrong avd_type
-        mock_args = _CreateArgs()
-        mock_args.local_trusty_image = "/tmp/trusty_image_package.tar.gz"
-        self.assertRaises(errors.UnsupportedCreateArgs,
-                          create_args.VerifyArgs, mock_args)
-
-        # wrong avd_type
-        mock_args = _CreateArgs()
-        mock_args.trusty_host_package = "/tmp/trusty_host_package.tar.gz"
-        self.assertRaises(errors.UnsupportedCreateArgs,
-                          create_args.VerifyArgs, mock_args)
 
 
 if __name__ == "__main__":
