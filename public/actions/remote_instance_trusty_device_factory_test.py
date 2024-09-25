@@ -46,6 +46,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         super().setUp()
         self.Patch(auth, "CreateCredentials", return_value=mock.MagicMock())
         self.Patch(android_build_client.AndroidBuildClient, "InitResourceHandle")
+        self.Patch(android_build_client.AndroidBuildClient, "DownloadArtifact")
         self.Patch(cvd_compute_client_multi_stage.CvdComputeClient, "InitResourceHandle")
         self.Patch(list_instances, "GetInstancesFromInstanceNames", return_value=mock.MagicMock())
         self.Patch(list_instances, "ChooseOneRemoteInstance", return_value=mock.MagicMock())
@@ -54,9 +55,8 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
     # pylint: disable=protected-access
     @mock.patch("acloud.public.actions.remote_instance_trusty_device_factory."
                 "cvd_utils")
-    def testProcessArtifacts(self, mock_cvd_utils):
-        """test ProcessArtifacts."""
-        # Test image source type is local.
+    def testLocalImage(self, mock_cvd_utils):
+        """test ProcessArtifacts with local image."""
         fake_emulator_package = "/fake/trusty_build/trusty_image_package.tar.gz"
         fake_image_name = "/fake/qemu_trusty_arm64-img-eng.username.zip"
         fake_host_package_name = "/fake/trusty_host_package.tar.gz"
@@ -72,8 +72,10 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         args.local_trusty_image = fake_emulator_package
         args.trusty_host_package = fake_host_package_name
         args.reuse_gce = None
-        avd_spec_local_img = avd_spec.AVDSpec(args)
         mock_cvd_utils.GCE_BASE_DIR = "gce_base_dir"
+
+        # Test local images
+        avd_spec_local_img = avd_spec.AVDSpec(args)
 
         self.Patch(os.path, "exists", return_value=True)
         factory_local_img = remote_instance_trusty_device_factory.RemoteInstanceDeviceFactory(
@@ -102,6 +104,72 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(temp_config, _EXPECTED_CONFIG_JSON)
         mock_ssh.ScpPushFile.assert_called_with(
             fake_tmp_path, f"{mock_cvd_utils.GCE_BASE_DIR}/config.json")
+
+    # pylint: disable=protected-access
+    @mock.patch("acloud.public.actions.remote_instance_trusty_device_factory."
+                "cvd_utils")
+    def testRemoteImage(self, mock_cvd_utils):
+        """test ProcessArtifacts with remote image source."""
+        fake_tmp_path = "/fake/tmp_file"
+
+        args = mock.MagicMock()
+        args.config_file = ""
+        args.avd_type = constants.TYPE_TRUSTY
+        args.flavor = "phone"
+        args.local_image = None
+        args.launch_args = None
+        args.autoconnect = constants.INS_KEY_WEBRTC
+        args.local_trusty_image = None
+        args.reuse_gce = None
+        args.build_id = "default_build_id"
+        args.branch = "default_branch"
+        args.build_target = "default_target"
+        args.kernel_build_id = "kernel_build_id"
+        args.kernel_build_target = "kernel_target"
+        args.host_package_build_id = None
+        args.host_package_branch = None
+        args.host_package_build_target = None
+        mock_cvd_utils.GCE_BASE_DIR = "gce_base_dir"
+
+        avd_spec_remote_img = avd_spec.AVDSpec(args)
+        factory_remote_img = remote_instance_trusty_device_factory.RemoteInstanceDeviceFactory(
+            avd_spec_remote_img)
+        mock_ssh = mock.Mock()
+        factory_remote_img._ssh = mock_ssh
+
+        temp_file_mock = mock.MagicMock()
+        temp_file_mock.__enter__().name = fake_tmp_path
+        self.Patch(tempfile, "NamedTemporaryFile", return_value=temp_file_mock)
+
+        factory_remote_img._ProcessArtifacts()
+
+        # Download trusty image package
+        factory_remote_img.GetComputeClient().build_api.DownloadArtifact.called_once()
+
+        mock_ssh.Run.assert_has_calls(
+            [
+                mock.call(
+                    "cvd fetch -credential_source=gce "
+                    "-default_build=default_build_id/default_target "
+                    "-kernel_build=kernel_build_id/kernel_target "
+                    "-host_package_build=default_build_id/default_target{trusty-host_package.tar.gz}",
+                    timeout=300,
+                ),
+                mock.call(
+                    f"cd {mock_cvd_utils.GCE_BASE_DIR}/bin && "
+                    "./replace_ramdisk_modules "
+                    f"--android-ramdisk={mock_cvd_utils.GCE_BASE_DIR}/ramdisk.img "
+                    f"--kernel-ramdisk={mock_cvd_utils.GCE_BASE_DIR}/initramfs.img "
+                    f"--output-ramdisk={mock_cvd_utils.GCE_BASE_DIR}/ramdisk.img",
+                    timeout=300,
+                ),
+                mock.call(
+                    f"tar -xzf - -C {mock_cvd_utils.GCE_BASE_DIR} "
+                    f"< {fake_tmp_path}"
+                ),
+            ]
+        )
+
 
     @mock.patch.object(remote_instance_trusty_device_factory.RemoteInstanceDeviceFactory,
                        "CreateGceInstance")
