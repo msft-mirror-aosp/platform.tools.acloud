@@ -400,6 +400,11 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.AvdSpec._ProcessRemoteBuildArgs(self.args)
         self.assertTrue(self.AvdSpec.avd_type == "goldfish")
 
+        # Verify auto-assigned avd_type if build_target contains "_trusty_".
+        self.args.build_target = "qemu_trusty_arm64-trunk_staging-userdebug"
+        self.AvdSpec._ProcessRemoteBuildArgs(self.args)
+        self.assertTrue(self.AvdSpec.avd_type == "trusty")
+
         # Verify extra build info.
         self.args.system_branch = "system_branch"
         self.args.system_build_target = "system_build_target"
@@ -576,6 +581,16 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.args.fetch_cvd_build_id = "23456"
         self.AvdSpec._ProcessMiscArgs(self.args)
         self.assertEqual(self.AvdSpec.fetch_cvd_version, "23456")
+
+        self.args.trusty_branch = "trusty_branch"
+        self.args.trusty_build_id = "trusty_build_id"
+        self.args.trusty_build_target = "trusty_build_target"
+        self.AvdSpec._ProcessMiscArgs(self.args)
+        self.assertEqual(
+            {constants.BUILD_BRANCH: "trusty_branch",
+             constants.BUILD_TARGET: "trusty_build_target",
+             constants.BUILD_ID: "trusty_build_id"},
+            self.AvdSpec.trusty_build_info)
 
 
 if __name__ == "__main__":

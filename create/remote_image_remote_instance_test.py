@@ -63,6 +63,7 @@ class RemoteImageRemoteInstanceTest(driver_test_lib.BaseDriverTest):
         avd_spec.connect_webrtc = True
         avd_spec.connect_vnc = False
         avd_spec.gce_only = False
+        avd_spec.avd_type = constants.TYPE_CF
         create_report = mock.Mock()
         create_report.status = report.Status.SUCCESS
         self.Patch(common_operations, "CreateDevices",

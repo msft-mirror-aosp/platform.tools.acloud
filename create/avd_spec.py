@@ -180,6 +180,7 @@ class AVDSpec():
         # Fields only used for trusty type.
         self._local_trusty_image = None
         self._trusty_host_package = None
+        self._trusty_build_info = {}
 
         # The maximum time in seconds used to wait for the AVD to boot.
         self._boot_timeout_secs = None
@@ -430,6 +431,11 @@ class AVDSpec():
             if self._instance_name_to_reuse is None:
                 instance = list_instance.ChooseOneRemoteInstance(self._cfg)
                 self._instance_name_to_reuse = instance.name
+
+        self._trusty_build_info = {
+            constants.BUILD_ID: args.trusty_build_id,
+            constants.BUILD_BRANCH: args.trusty_branch,
+            constants.BUILD_TARGET: args.trusty_build_target}
 
     def _GetFetchCVDVersion(self, args):
         """Get the fetch_cvd version.
@@ -1226,6 +1232,11 @@ class AVDSpec():
     def trusty_host_package(self):
         """Return trusty_host_package."""
         return self._trusty_host_package
+
+    @property
+    def trusty_build_info(self):
+        """Return trusty_build_info."""
+        return self._trusty_build_info
 
     @property
     def extra_files(self):
