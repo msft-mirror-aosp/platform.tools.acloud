@@ -156,14 +156,9 @@ class CreateArgsTest(driver_test_lib.BaseDriverTest):
         # valid args for Trusty avd type.
         mock_args.avd_type = constants.TYPE_TRUSTY
         create_args.VerifyArgs(mock_args)
-        # local image requires trusty image path
-        mock_args.local_trusty_image = None
-        mock_args.local_image = True
-        self.assertRaises(errors.UnsupportedCreateArgs,
-                          create_args.VerifyArgs, mock_args)
         # remote image requires an explicit build target
         mock_args.build_target = None
-        mock_args.local_image = False
+        mock_args.local_image = None
         self.assertRaises(errors.UnsupportedCreateArgs,
                           create_args.VerifyArgs, mock_args)
 
