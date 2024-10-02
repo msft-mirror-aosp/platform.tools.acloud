@@ -119,12 +119,14 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
                 cvd_utils.GCE_BASE_DIR,
                 (self._local_image_artifact or avd_spec.local_image_dir),
                 self._host_package_artifact)
-            self._UploadTrustyImages(avd_spec.local_trusty_image)
         elif avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
             self._FetchBuild()
             if self._compute_client.build_api.GetKernelBuild(
                     avd_spec.kernel_build_info):
                 self._ReplaceModules()
+        if avd_spec.local_trusty_image:
+            self._UploadTrustyImages(avd_spec.local_trusty_image)
+        else:
             self._FetchAndUploadTrustyImages()
 
         config = {
