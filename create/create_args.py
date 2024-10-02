@@ -1078,21 +1078,15 @@ def _VerifyTrustyArgs(args):
                 f"{arg_type} is not supported for Trusty."
             )
 
-    if args.local_image:
-        if args.local_trusty_image is None:
-            raise errors.UnsupportedCreateArgs(
-                "Trusty image package not provided, use --local-trusty-image to "
-                "specify path to trusty_image_package.tar.gz containing trusty "
-                "images.")
+    if args.local_image is None and not args.build_target:
+        raise errors.UnsupportedCreateArgs(
+            "Trusty android build target not provided and cannot be "
+            "auto-detected, use --build-target to specify a build target, "
+            "e.g. qemu_trusty_arm64-trunk_staging-userdebug")
+    if args.local_trusty_image:
         if not os.path.exists(args.local_trusty_image):
             raise errors.CheckPathError(
                 f"Specified path doesn't exist: {args.local_trusty_image}")
-    else:
-        if args.build_target is None:
-            raise errors.UnsupportedCreateArgs(
-                "Trusty build target not provided and cannot be auto-detected, "
-                "use --build-target to specify a Trusty build target, e.g. "
-                "qemu_trusty_arm64-trunk_staging-userdebug")
     if args.trusty_host_package:
         if not os.path.exists(args.trusty_host_package):
             raise errors.CheckPathError(
