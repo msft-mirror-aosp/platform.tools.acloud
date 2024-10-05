@@ -432,6 +432,7 @@ class AVDSpec():
                 instance = list_instance.ChooseOneRemoteInstance(self._cfg)
                 self._instance_name_to_reuse = instance.name
 
+        self._local_trusty_image = args.local_trusty_image
         self._trusty_build_info = {
             constants.BUILD_ID: args.trusty_build_id,
             constants.BUILD_BRANCH: args.trusty_branch,
@@ -490,7 +491,6 @@ class AVDSpec():
             self._ProcessFVPLocalImageArgs()
         elif self._avd_type == constants.TYPE_TRUSTY:
             self._ProcessTrustyLocalImageArgs(args.local_image)
-            self._local_trusty_image = args.local_trusty_image
         elif self._avd_type == constants.TYPE_GF:
             local_image_path = self._GetLocalImagePath(args.local_image)
             if os.path.isdir(local_image_path):
