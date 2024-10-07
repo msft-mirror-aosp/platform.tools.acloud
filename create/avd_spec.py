@@ -65,11 +65,11 @@ _Y_RES = "y_res"
 _COMMAND_GIT_REMOTE = ["git", "remote"]
 
 # The branch prefix is necessary for the Android Build system to know what we're
-# talking about. For instance, on an aosp remote repo in the master branch,
-# Android Build will recognize it as aosp-master.
+# talking about. For instance, on an aosp remote repo in the main branch,
+# Android Build will recognize it as aosp-main.
 _BRANCH_PREFIX = {"aosp": "aosp-"}
 _DEFAULT_BRANCH_PREFIX = "git_"
-_DEFAULT_BRANCH = "aosp-master"
+_DEFAULT_BRANCH = "aosp-main"
 
 # The target prefix is needed to help concoct the lunch target name given a
 # the branch, avd type and device flavor:
@@ -176,6 +176,11 @@ class AVDSpec():
         self._password = None
         self._cheeps_betty_image = None
         self._cheeps_features = None
+
+        # Fields only used for trusty type.
+        self._local_trusty_image = None
+        self._trusty_host_package = None
+        self._trusty_build_info = {}
 
         # The maximum time in seconds used to wait for the AVD to boot.
         self._boot_timeout_secs = None
@@ -379,6 +384,7 @@ class AVDSpec():
         self._local_instance_dir = args.local_instance_dir
         self._local_tool_dirs = args.local_tool
         self._cvd_host_package = args.cvd_host_package
+        self._trusty_host_package = args.trusty_host_package
         self._num_of_instances = args.num
         self._num_avds_per_instance = args.num_avds_per_instance
         self._no_pull_log = args.no_pull_log
@@ -425,6 +431,12 @@ class AVDSpec():
             if self._instance_name_to_reuse is None:
                 instance = list_instance.ChooseOneRemoteInstance(self._cfg)
                 self._instance_name_to_reuse = instance.name
+
+        self._local_trusty_image = args.local_trusty_image
+        self._trusty_build_info = {
+            constants.BUILD_ID: args.trusty_build_id,
+            constants.BUILD_BRANCH: args.trusty_branch,
+            constants.BUILD_TARGET: args.trusty_build_target}
 
     def _GetFetchCVDVersion(self, args):
         """Get the fetch_cvd version.
@@ -477,6 +489,8 @@ class AVDSpec():
             self._ProcessCFLocalImageArgs(args.local_image, args.flavor)
         elif self._avd_type == constants.TYPE_FVP:
             self._ProcessFVPLocalImageArgs()
+        elif self._avd_type == constants.TYPE_TRUSTY:
+            self._ProcessTrustyLocalImageArgs(args.local_image)
         elif self._avd_type == constants.TYPE_GF:
             local_image_path = self._GetLocalImagePath(args.local_image)
             if os.path.isdir(local_image_path):
@@ -621,6 +635,38 @@ class AVDSpec():
                 "No image found(Did you choose a lunch target and run `m`?)"
                 ": %s.\n " % self._local_image_dir)
 
+    def _ProcessTrustyLocalImageArgs(self, local_image_arg):
+        """Get local built image path for Trusty-type AVD."""
+        if local_image_arg == constants.FIND_IN_BUILD_ENV:
+            build_target = utils.GetBuildEnvironmentVariable(
+                constants.ENV_BUILD_TARGET)
+            if build_target != "qemu_trusty_arm64":
+                utils.PrintColorString(
+                    f"{build_target} is not a trusty target (Try lunching "
+                    "qemu_trusty_arm64-trunk_staging-userdebug "
+                    "and running 'm')",
+                    utils.TextColors.WARNING)
+            local_image_path = utils.GetBuildEnvironmentVariable(
+                _ENV_ANDROID_PRODUCT_OUT)
+            # Since dir is provided, check that any images exist to ensure user
+            # didn't forget to 'make' before launch AVD.
+            image_list = glob.glob(os.path.join(local_image_path, "*.img"))
+            if not image_list:
+                raise errors.GetLocalImageError(
+                    "No image found(Did you choose a lunch target and run `m`?)" +
+                    f": {local_image_path}.\n ")
+        else:
+            local_image_path = local_image_arg
+
+        if os.path.isfile(local_image_path):
+            self._local_image_artifact = local_image_arg
+            # Since file is provided and I assume it's a zip, so print the
+            # warning message.
+            utils.PrintColorString(_LOCAL_ZIP_WARNING_MSG,
+                                   utils.TextColors.WARNING)
+        else:
+            self._local_image_dir = local_image_path
+
     def _ProcessRemoteBuildArgs(self, args):
         """Get the remote build args.
 
@@ -750,10 +796,10 @@ class AVDSpec():
         """Get branch information from command "repo info".
 
         If branch can't get from "repo info", it will be set as default branch
-        "aosp-master".
+        "aosp-main".
 
         Returns:
-            branch: String, git branch name. e.g. "aosp-master"
+            branch: String, git branch name. e.g. "aosp-main"
         """
         branch = None
         # TODO(149460014): Migrate acloud to py3, then remove this
@@ -865,6 +911,11 @@ class AVDSpec():
     def local_vendor_boot_image(self):
         """Return local vendor boot image path."""
         return self._local_vendor_boot_image
+
+    @property
+    def local_trusty_image(self):
+        """Return local trusty qemu package path."""
+        return self._local_trusty_image
 
     @property
     def local_tool_dirs(self):
@@ -1176,6 +1227,16 @@ class AVDSpec():
     def cvd_host_package(self):
         """Return cvd_host_package."""
         return self._cvd_host_package
+
+    @property
+    def trusty_host_package(self):
+        """Return trusty_host_package."""
+        return self._trusty_host_package
+
+    @property
+    def trusty_build_info(self):
+        """Return trusty_build_info."""
+        return self._trusty_build_info
 
     @property
     def extra_files(self):

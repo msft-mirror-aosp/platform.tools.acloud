@@ -86,11 +86,12 @@ _IMAGE_DIR_LINK_NAME = "image_dir_link"
 _REF_CNT_FILE_EXT = ".lock"
 
 # Remote host instance name
+# hostname can be a domain name. "-" in hostname must be replaced with "_".
 _REMOTE_HOST_INSTANCE_NAME_FORMAT = (
     constants.INSTANCE_TYPE_HOST +
-    "-%(ip_addr)s-%(num)d-%(build_id)s-%(build_target)s")
+    "-%(hostname)s-%(num)d-%(build_id)s-%(build_target)s")
 _REMOTE_HOST_INSTANCE_NAME_PATTERN = re.compile(
-    constants.INSTANCE_TYPE_HOST + r"-(?P<ip_addr>[\d.]+)-(?P<num>\d+)-.+")
+    constants.INSTANCE_TYPE_HOST + r"-(?P<hostname>[\w.]+)-(?P<num>\d+)-.+")
 # android-info.txt contents.
 _CONFIG_PATTERN = re.compile(r"^config=(?P<config>.+)$", re.MULTILINE)
 # launch_cvd arguments.
@@ -265,7 +266,8 @@ def UploadArtifacts(ssh_obj, remote_image_dir, image_path, cvd_host_package):
         _UploadImageDir(ssh_obj, remote_image_dir, FindImageDir(image_path))
     else:
         _UploadImageZip(ssh_obj, remote_image_dir, image_path)
-    _UploadCvdHostPackage(ssh_obj, remote_image_dir, cvd_host_package)
+    if cvd_host_package:
+        _UploadCvdHostPackage(ssh_obj, remote_image_dir, cvd_host_package)
 
 
 def FindBootImages(search_path):
@@ -613,12 +615,12 @@ def GetRemoteHostBaseDir(base_instance_num):
     return _REMOTE_HOST_BASE_DIR_FORMAT % {"num": base_instance_num or 1}
 
 
-def FormatRemoteHostInstanceName(ip_addr, base_instance_num, build_id,
+def FormatRemoteHostInstanceName(hostname, base_instance_num, build_id,
                                  build_target):
-    """Convert an IP address and build info to an instance name.
+    """Convert a hostname and build info to an instance name.
 
     Args:
-        ip_addr: String, the IP address of the remote host.
+        hostname: String, the IPv4 address or domain name of the remote host.
         base_instance_num: Integer or None, the instance number of the device.
         build_id: String, the build id.
         build_target: String, the build target, e.g., aosp_cf_x86_64_phone.
@@ -627,25 +629,25 @@ def FormatRemoteHostInstanceName(ip_addr, base_instance_num, build_id,
         String, the instance name.
     """
     return _REMOTE_HOST_INSTANCE_NAME_FORMAT % {
-        "ip_addr": ip_addr,
+        "hostname": hostname.replace("-", "_"),
         "num": base_instance_num or 1,
         "build_id": build_id,
         "build_target": build_target}
 
 
 def ParseRemoteHostAddress(instance_name):
-    """Parse IP address from a remote host instance name.
+    """Parse hostname from a remote host instance name.
 
     Args:
         instance_name: String, the instance name.
 
     Returns:
-        The IP address and the base directory as strings.
+        The hostname and the base directory as strings.
         None if the name does not represent a remote host instance.
     """
     match = _REMOTE_HOST_INSTANCE_NAME_PATTERN.fullmatch(instance_name)
     if match:
-        return (match.group("ip_addr"),
+        return (match.group("hostname").replace("_", "-"),
                 GetRemoteHostBaseDir(int(match.group("num"))))
     return None
 

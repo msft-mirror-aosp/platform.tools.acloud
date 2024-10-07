@@ -88,6 +88,11 @@ _CREATOR_CLASS_DICT = {
     # FVP types
     (constants.TYPE_FVP, constants.IMAGE_SRC_LOCAL, constants.INSTANCE_TYPE_REMOTE):
         local_image_remote_instance.LocalImageRemoteInstance,
+    # Trusty types
+    (constants.TYPE_TRUSTY, constants.IMAGE_SRC_LOCAL, constants.INSTANCE_TYPE_REMOTE):
+        local_image_remote_instance.LocalImageRemoteInstance,
+    (constants.TYPE_TRUSTY, constants.IMAGE_SRC_REMOTE, constants.INSTANCE_TYPE_REMOTE):
+        remote_image_remote_instance.RemoteImageRemoteInstance,
 }
 
 
