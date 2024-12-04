@@ -18,8 +18,10 @@ device factory."""
 import logging
 import os
 import shutil
+import subprocess
 import tempfile
 
+from acloud import errors
 from acloud.create import create_common
 from acloud.internal import constants
 from acloud.internal.lib import cvd_utils
@@ -71,9 +73,15 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         except Exception as e:
             self._SetFailures(instance, e)
 
-        self._FindLogFiles(
-            instance,
-            instance in self.GetFailures() and not self._avd_spec.no_pull_log)
+        try:
+            self._FindLogFiles(
+                instance,
+                (instance in self.GetFailures() and
+                 not self._avd_spec.no_pull_log))
+        except (errors.SubprocessFail, errors.DeviceConnectionError,
+                subprocess.CalledProcessError) as e:
+            logger.error("Fail to find log files: %s", e)
+
         return instance
 
     def _ProcessArtifacts(self):

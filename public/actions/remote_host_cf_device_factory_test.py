@@ -97,6 +97,8 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         factory = remote_host_cf_device_factory.RemoteHostDeviceFactory(
             mock_avd_spec, cvd_host_package_artifact="/mock/cvd.tar.gz")
 
+        mock_pull.PullLogs.side_effect = errors.DeviceConnectionError
+
         log = {"path": "/log.txt"}
         mock_cvd_utils.GetRemoteHostBaseDir.return_value = "acloud_cf_2"
         mock_cvd_utils.FormatRemoteHostInstanceName.return_value = "inst"
