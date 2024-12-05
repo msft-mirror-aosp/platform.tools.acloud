@@ -21,6 +21,7 @@ import uuid
 
 from unittest import mock
 
+from acloud import errors
 from acloud.create import avd_spec
 from acloud.internal import constants
 from acloud.internal.lib import android_build_client
@@ -244,6 +245,8 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_cvd_utils.FindRemoteLogs.return_value = [{"path": "/logcat"}]
         mock_cvd_utils.UploadExtraImages.return_value = [
             ("-boot_image", "/boot/img")]
+
+        mock_pull.PullLogs.side_effect = errors.DeviceConnectionError
 
         fake_host_package_name = "/fake/host_package.tar.gz"
         fake_image_name = ""
