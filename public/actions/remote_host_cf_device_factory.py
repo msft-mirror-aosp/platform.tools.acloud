@@ -120,8 +120,14 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
 
         if error_msg:
             self._all_failures[instance] = error_msg
-        self._FindLogFiles(
-            instance, (error_msg and not self._avd_spec.no_pull_log))
+
+        try:
+            self._FindLogFiles(
+                instance, (error_msg and not self._avd_spec.no_pull_log))
+        except (errors.SubprocessFail, errors.DeviceConnectionError,
+                subprocess.CalledProcessError) as e:
+            logger.error("Fail to find log files: %s", e)
+
         return instance
 
     def _GetInstancePath(self, relative_path=""):
