@@ -159,6 +159,7 @@ class AVDSpec():
         self._connect_hostname = None
         self._fetch_cvd_wrapper = None
         self._fetch_cvd_version = None
+        self._enable_fetch_local_caching = None
 
         # Create config instance for android_build_client to query build api.
         self._cfg = config.GetAcloudConfig(args)
@@ -422,6 +423,7 @@ class AVDSpec():
         self._connect_hostname = args.connect_hostname or self._cfg.connect_hostname
         self._fetch_cvd_wrapper = args.fetch_cvd_wrapper
         self._fetch_cvd_version = self._GetFetchCVDVersion(args)
+        self._enable_fetch_local_caching = args.enable_fetch_local_caching
 
         if args.reuse_gce:
             if args.reuse_gce != constants.SELECT_ONE_GCE_INSTANCE:
@@ -986,6 +988,13 @@ class AVDSpec():
         Return: Boolean, whether fetch cvd in remote host.
         """
         return self._fetch_cvd_wrapper
+
+    @property
+    def enable_fetch_local_caching(self):
+        """Use cvd fetch local caching
+        Return: Boolean
+        """
+        return self._enable_fetch_local_caching
 
     @property
     def fetch_cvd_version(self):
