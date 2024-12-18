@@ -161,7 +161,7 @@ def GetCvdHostPackage(package_path=None):
                 return cvd_host_package
     raise errors.GetCvdLocalHostPackageError(
         "Can't find the cvd host package (Try lunching a cuttlefish target"
-        " like aosp_cf_x86_64_phone-userdebug and running 'm'): \n%s" %
+        " like aosp_cf_x86_64_phone-trunk_staging-userdebug and running 'm'): \n%s" %
         '\n'.join(dirs_to_check))
 
 
