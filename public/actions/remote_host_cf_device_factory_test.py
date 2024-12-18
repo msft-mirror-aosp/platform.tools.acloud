@@ -97,6 +97,8 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         factory = remote_host_cf_device_factory.RemoteHostDeviceFactory(
             mock_avd_spec, cvd_host_package_artifact="/mock/cvd.tar.gz")
 
+        mock_pull.PullLogs.side_effect = errors.DeviceConnectionError
+
         log = {"path": "/log.txt"}
         mock_cvd_utils.GetRemoteHostBaseDir.return_value = "acloud_cf_2"
         mock_cvd_utils.FormatRemoteHostInstanceName.return_value = "inst"
@@ -320,8 +322,9 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                          r"/mock/ssh -- tar -xf - --lzop -S -C acloud_cf_1$")
         self.assertRegex(mock_ssh.ShellCmdWithRetry.call_args_list[1][0][0],
                          r"^/mock/ssh -- cvd fetch "
-                         r"-directory=acloud_cf_1 "
+                         r"-target_directory=acloud_cf_1 "
                          r"-credential_source=acloud_cf_1/credential_key.json "
+                         r"-enable_caching=false "
                          r"-test$")
         mock_cvd_utils.ExecuteRemoteLaunchCvd.assert_called()
         mock_pull.GetAllLogFilePaths.assert_not_called()
@@ -377,8 +380,9 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                          r"java -jar /home/shared/FetchCvdWrapper.jar "
                          r"-fetch_cvd_path=cvd "
                          r"fetch "
-                         r"-directory=acloud_cf_1 "
+                         r"-target_directory=acloud_cf_1 "
                          r"-credential_source=acloud_cf_1/credential_key.json "
+                         r"-enable_caching=false"
                          r"-test$")
         mock_cvd_utils.ExecuteRemoteLaunchCvd.assert_called()
         mock_pull.GetAllLogFilePaths.assert_not_called()

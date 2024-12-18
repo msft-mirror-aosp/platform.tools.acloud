@@ -261,19 +261,21 @@ def AddCommonCreateArgs(parser):
         type=str,
         dest="host_package_branch",
         required=False,
-        help="'cuttlefish only' Host package branch name. e.g. aosp-main")
+        help="'cuttlefish and trusty only' Host package branch name. e.g. "
+        "aosp-main")
     parser.add_argument(
         "--host-package-build-id", "--host_package_build_id",
         type=str,
         dest="host_package_build_id",
         required=False,
-        help="'cuttlefish only' Host package build id, e.g. 2145099, P2804227")
+        help="'cuttlefish and trusty only' Host package build id, e.g. "
+        "2145099, P2804227")
     parser.add_argument(
         "--host-package-build-target", "--host_package_build_target",
         type=str,
         dest="host_package_build_target",
         required=False,
-        help="'cuttlefish only' Host package build target, e.g. "
+        help="'cuttlefish and trusty only' Host package build target, e.g. "
         "cf_x86_64_phone-userdebug.")
     parser.add_argument(
         "--system-branch",
@@ -514,6 +516,15 @@ def AddCommonCreateArgs(parser):
         " provided static executable fetch cvd wrapper file. "
         " (Still in experiment, this flag only works on lab hosts"
         " with special setup.)")
+    parser.add_argument(
+        "--enable_fetch_local_caching",
+        action="store_true",
+        dest="enable_fetch_local_caching",
+        required=False,
+        help="'cuttlefish only' When enabled, fetched artifacts may be saved "
+        "to a local cache to avoid network requests on repeated fetches of the"
+        " same artifacts."
+    )
 
 
 def GetCreateArgParser(subparser):
@@ -639,15 +650,6 @@ def GetCreateArgParser(subparser):
         "--local-vendor-boot-image /path/to/dir, or "
         "--local-vendor-boot-image /path/to/img")
     create_parser.add_argument(
-        "--local-trusty-image",
-        type=str,
-        dest="local_trusty_image",
-        required=False,
-        help="'trusty only' Use the specified path for the locally built "
-        "trusty emulator images package, built with "
-        "PACKAGE_TRUSTY_IMAGE_TARBALL=true in the Trusty build. E.g., "
-        "/path/trusty_image_package.tar.gz")
-    create_parser.add_argument(
         "--local-tool",
         type=str,
         dest="local_tool",
@@ -664,13 +666,6 @@ def GetCreateArgParser(subparser):
         required=False,
         help="Use the specified path of the cvd host package to create "
         "instances. e.g. /path/cvd-host_package_v1.tar.gz")
-    create_parser.add_argument(
-        "--trusty-host-package",
-        type=str,
-        dest="trusty_host_package",
-        required=False,
-        help="Use the specified path of the trusty host package to create "
-        "instances. e.g. /path/trusty-host_package.zip")
     create_parser.add_argument(
         "--image-download-dir",
         type=str,
@@ -835,6 +830,43 @@ def GetCreateArgParser(subparser):
         action="append",
         default=[],
         help=("'cheeps only' Cheeps feature to enable. Can be repeated."))
+
+    # Arguments for trusty type
+    create_parser.add_argument(
+        "--trusty-host-package",
+        type=str,
+        dest="trusty_host_package",
+        required=False,
+        help="Use the specified path of the trusty host package to create "
+        "instances. e.g. /path/trusty-host_package.tar.gz")
+    create_parser.add_argument(
+        "--local-trusty-image",
+        type=str,
+        dest="local_trusty_image",
+        required=False,
+        help="'trusty only' Use the specified path for the locally built "
+        "trusty emulator images package, built with "
+        "PACKAGE_TRUSTY_IMAGE_TARBALL=true in the Trusty build. E.g., "
+        "/path/trusty_image_package.tar.gz")
+    create_parser.add_argument(
+        "--trusty-build-id",
+        type=str,
+        dest="trusty_build_id",
+        required=False,
+        help="Trusty image package build ID, e.g., 8747889, 8748012.")
+    create_parser.add_argument(
+        "--trusty-branch",
+        type=str,
+        dest="trusty_branch",
+        required=False,
+        help="Trusty image package branch, e.g., aosp-trusty-master.")
+    create_parser.add_argument(
+        "--trusty-build-target",
+        type=str,
+        dest="trusty_build_target",
+        required=False,
+        help="Trusty image package build target, "
+        "e.g., qemu_generic_arm64_test_debug.")
 
     AddCommonCreateArgs(create_parser)
     return create_parser
@@ -1016,14 +1048,54 @@ def _VerifyTrustyArgs(args):
         # Only check these args if AVD type is Trusty
         return
 
-    if args.local_trusty_image is None:
+    for arg_type, unsupported_args in [
+        (
+            "--boot-*",
+            [
+                args.boot_build_id,
+                args.boot_build_target,
+                args.boot_branch,
+                args.boot_artifact,
+            ],
+        ),
+        (
+            "--bootloader-*",
+            [
+                args.bootloader_build_id,
+                args.bootloader_build_target,
+                args.bootloader_branch,
+            ],
+        ),
+        (
+            "--android-efi-loader-*",
+            [
+                args.android_efi_loader_build_id,
+                args.android_efi_loader_artifact,
+            ],
+        ),
+        (
+            "--ota-*",
+            [
+                args.ota_branch,
+                args.ota_build_target,
+                args.ota_build_id,
+            ],
+        ),
+    ]:
+        if any(unsupported_args):
+            raise errors.UnsupportedCreateArgs(
+                f"{arg_type} is not supported for Trusty."
+            )
+
+    if args.local_image is None and not args.build_target:
         raise errors.UnsupportedCreateArgs(
-            "Trusty image package not provided, use --local-trusty-image to "
-            "specify path to trusty_image_package.tar.gz containing trusty "
-            "images.")
-    if not os.path.exists(args.local_trusty_image):
-        raise errors.CheckPathError(
-            f"Specified path doesn't exist: {args.local_trusty_image}")
+            "Trusty android build target not provided and cannot be "
+            "auto-detected, use --build-target to specify a build target, "
+            "e.g. qemu_trusty_arm64-trunk_staging-userdebug")
+    if args.local_trusty_image:
+        if not os.path.exists(args.local_trusty_image):
+            raise errors.CheckPathError(
+                f"Specified path doesn't exist: {args.local_trusty_image}")
     if args.trusty_host_package:
         if not os.path.exists(args.trusty_host_package):
             raise errors.CheckPathError(
