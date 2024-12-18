@@ -65,11 +65,11 @@ _Y_RES = "y_res"
 _COMMAND_GIT_REMOTE = ["git", "remote"]
 
 # The branch prefix is necessary for the Android Build system to know what we're
-# talking about. For instance, on an aosp remote repo in the master branch,
-# Android Build will recognize it as aosp-master.
+# talking about. For instance, on an aosp remote repo in the main branch,
+# Android Build will recognize it as aosp-main.
 _BRANCH_PREFIX = {"aosp": "aosp-"}
 _DEFAULT_BRANCH_PREFIX = "git_"
-_DEFAULT_BRANCH = "aosp-master"
+_DEFAULT_BRANCH = "aosp-main"
 
 # The target prefix is needed to help concoct the lunch target name given a
 # the branch, avd type and device flavor:
@@ -159,6 +159,7 @@ class AVDSpec():
         self._connect_hostname = None
         self._fetch_cvd_wrapper = None
         self._fetch_cvd_version = None
+        self._enable_fetch_local_caching = None
 
         # Create config instance for android_build_client to query build api.
         self._cfg = config.GetAcloudConfig(args)
@@ -180,6 +181,7 @@ class AVDSpec():
         # Fields only used for trusty type.
         self._local_trusty_image = None
         self._trusty_host_package = None
+        self._trusty_build_info = {}
 
         # The maximum time in seconds used to wait for the AVD to boot.
         self._boot_timeout_secs = None
@@ -421,6 +423,7 @@ class AVDSpec():
         self._connect_hostname = args.connect_hostname or self._cfg.connect_hostname
         self._fetch_cvd_wrapper = args.fetch_cvd_wrapper
         self._fetch_cvd_version = self._GetFetchCVDVersion(args)
+        self._enable_fetch_local_caching = args.enable_fetch_local_caching
 
         if args.reuse_gce:
             if args.reuse_gce != constants.SELECT_ONE_GCE_INSTANCE:
@@ -430,6 +433,12 @@ class AVDSpec():
             if self._instance_name_to_reuse is None:
                 instance = list_instance.ChooseOneRemoteInstance(self._cfg)
                 self._instance_name_to_reuse = instance.name
+
+        self._local_trusty_image = args.local_trusty_image
+        self._trusty_build_info = {
+            constants.BUILD_ID: args.trusty_build_id,
+            constants.BUILD_BRANCH: args.trusty_branch,
+            constants.BUILD_TARGET: args.trusty_build_target}
 
     def _GetFetchCVDVersion(self, args):
         """Get the fetch_cvd version.
@@ -484,7 +493,6 @@ class AVDSpec():
             self._ProcessFVPLocalImageArgs()
         elif self._avd_type == constants.TYPE_TRUSTY:
             self._ProcessTrustyLocalImageArgs(args.local_image)
-            self._local_trusty_image = args.local_trusty_image
         elif self._avd_type == constants.TYPE_GF:
             local_image_path = self._GetLocalImagePath(args.local_image)
             if os.path.isdir(local_image_path):
@@ -790,10 +798,10 @@ class AVDSpec():
         """Get branch information from command "repo info".
 
         If branch can't get from "repo info", it will be set as default branch
-        "aosp-master".
+        "aosp-main".
 
         Returns:
-            branch: String, git branch name. e.g. "aosp-master"
+            branch: String, git branch name. e.g. "aosp-main"
         """
         branch = None
         # TODO(149460014): Migrate acloud to py3, then remove this
@@ -980,6 +988,13 @@ class AVDSpec():
         Return: Boolean, whether fetch cvd in remote host.
         """
         return self._fetch_cvd_wrapper
+
+    @property
+    def enable_fetch_local_caching(self):
+        """Use cvd fetch local caching
+        Return: Boolean
+        """
+        return self._enable_fetch_local_caching
 
     @property
     def fetch_cvd_version(self):
@@ -1226,6 +1241,11 @@ class AVDSpec():
     def trusty_host_package(self):
         """Return trusty_host_package."""
         return self._trusty_host_package
+
+    @property
+    def trusty_build_info(self):
+        """Return trusty_build_info."""
+        return self._trusty_build_info
 
     @property
     def extra_files(self):
