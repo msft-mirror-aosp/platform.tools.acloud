@@ -140,8 +140,11 @@ def DownloadAndProcessImageFiles(avd_spec):
         fetch_cvd_args = list(constants.CMD_CVD_FETCH)
         creds_cache_file = os.path.join(_HOME_FOLDER, cfg.creds_cache_file)
         fetch_cvd_cert_arg = build_api.GetFetchCertArg(creds_cache_file)
-        fetch_cvd_args.extend([f"-directory={extract_path}",
+        fetch_cvd_args.extend([f"-target_directory={extract_path}",
                           fetch_cvd_cert_arg])
+        # Android boolean parsing does not recognize capitalized True/False as valid
+        lowercase_enable_value = str(avd_spec.enable_fetch_local_caching).lower()
+        fetch_cvd_args.extend([f"-enable_caching={lowercase_enable_value}"])
         fetch_cvd_args.extend(fetch_cvd_build_args)
         logger.debug("Download images command: %s", fetch_cvd_args)
         if not setup_common.PackageInstalled(constants.CUTTLEFISH_COMMOM_PKG):

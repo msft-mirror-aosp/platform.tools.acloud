@@ -351,11 +351,14 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             self._avd_spec.ota_build_info,
             self._avd_spec.host_package_build_info)
 
+        # Android boolean parsing does not recognize capitalized True/False as valid
+        lowercase_enable_value = str(self._avd_spec.enable_fetch_local_caching).lower()
         fetch_cvd_args = self._avd_spec.fetch_cvd_wrapper.split(',') + [
             f"-fetch_cvd_path={constants.CMD_CVD_FETCH[0]}",
             constants.CMD_CVD_FETCH[1],
-            f"-directory={self._GetArtifactPath()}",
-            self._GetRemoteFetchCredentialArg()]
+            f"-target_directory={self._GetArtifactPath()}",
+            self._GetRemoteFetchCredentialArg(),
+            f"-enable_caching={lowercase_enable_value}"]
         fetch_cvd_args.extend(fetch_cvd_build_args)
 
         ssh_cmd = self._ssh.GetBaseCmd(constants.SSH_BIN)
@@ -380,8 +383,11 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             self._avd_spec.host_package_build_info)
 
         fetch_cvd_args = list(constants.CMD_CVD_FETCH)
-        fetch_cvd_args.extend([f"-directory={self._GetArtifactPath()}",
-                               self._GetRemoteFetchCredentialArg()])
+        # Android boolean parsing does not recognize capitalized True/False as valid
+        lowercase_enable_value = str(self._avd_spec.enable_fetch_local_caching).lower()
+        fetch_cvd_args.extend([f"-target_directory={self._GetArtifactPath()}",
+                               self._GetRemoteFetchCredentialArg(),
+                               f"-enable_caching={lowercase_enable_value}"])
         fetch_cvd_args.extend(fetch_cvd_build_args)
 
         ssh_cmd = self._ssh.GetBaseCmd(constants.SSH_BIN)
@@ -434,7 +440,11 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         creds_cache_file = os.path.join(_HOME_FOLDER, cfg.creds_cache_file)
         fetch_cvd_cert_arg = self._build_api.GetFetchCertArg(creds_cache_file)
         fetch_cvd_args = list(constants.CMD_CVD_FETCH)
-        fetch_cvd_args.extend([f"-directory={extract_path}", fetch_cvd_cert_arg])
+        # Android boolean parsing does not recognize capitalized True/False as valid
+        lowercase_enable_value = str(self._avd_spec.enable_fetch_local_caching).lower()
+        fetch_cvd_args.extend([f"-target_directory={extract_path}",
+                               fetch_cvd_cert_arg,
+                               f"-enable_caching={lowercase_enable_value}"])
         fetch_cvd_args.extend(fetch_cvd_build_args)
         logger.debug("Download images command: %s", fetch_cvd_args)
         try:

@@ -322,8 +322,9 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                          r"/mock/ssh -- tar -xf - --lzop -S -C acloud_cf_1$")
         self.assertRegex(mock_ssh.ShellCmdWithRetry.call_args_list[1][0][0],
                          r"^/mock/ssh -- cvd fetch "
-                         r"-directory=acloud_cf_1 "
+                         r"-target_directory=acloud_cf_1 "
                          r"-credential_source=acloud_cf_1/credential_key.json "
+                         r"-enable_caching=false "
                          r"-test$")
         mock_cvd_utils.ExecuteRemoteLaunchCvd.assert_called()
         mock_pull.GetAllLogFilePaths.assert_not_called()
@@ -379,8 +380,9 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                          r"java -jar /home/shared/FetchCvdWrapper.jar "
                          r"-fetch_cvd_path=cvd "
                          r"fetch "
-                         r"-directory=acloud_cf_1 "
+                         r"-target_directory=acloud_cf_1 "
                          r"-credential_source=acloud_cf_1/credential_key.json "
+                         r"-enable_caching=false"
                          r"-test$")
         mock_cvd_utils.ExecuteRemoteLaunchCvd.assert_called()
         mock_pull.GetAllLogFilePaths.assert_not_called()
