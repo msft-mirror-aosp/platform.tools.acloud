@@ -516,6 +516,15 @@ def AddCommonCreateArgs(parser):
         " provided static executable fetch cvd wrapper file. "
         " (Still in experiment, this flag only works on lab hosts"
         " with special setup.)")
+    parser.add_argument(
+        "--enable_fetch_local_caching",
+        action="store_true",
+        dest="enable_fetch_local_caching",
+        required=False,
+        help="'cuttlefish only' When enabled, fetched artifacts may be saved "
+        "to a local cache to avoid network requests on repeated fetches of the"
+        " same artifacts."
+    )
 
 
 def GetCreateArgParser(subparser):
