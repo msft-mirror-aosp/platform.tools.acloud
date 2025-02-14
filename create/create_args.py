@@ -399,6 +399,16 @@ def AddCommonCreateArgs(parser):
         required=False,
         help=argparse.SUPPRESS)
     parser.add_argument(
+        "--mix-system_dlkm-into-vendor-ramdisk",
+        dest="mix_system_dlkm_into_vendor_ramdisk",
+        action="store_true",
+        required=False,
+        # Extract system_dlkm image and mix it into vendor ramdisk. The mixing
+        # process overwrites some of the modules in the vendor ramdisk. It is
+        # effective only if both --local-boot-image and
+        # --local-system_dlkm-image are specified.
+        help=argparse.SUPPRESS)
+    parser.add_argument(
         "--remote-image-dir",
         dest="remote_image_dir",
         required=False,
@@ -895,13 +905,25 @@ def _VerifyLocalArgs(args):
                                       a provided argument.
         errors.UnsupportedLocalInstanceId: Local instance ID is invalid.
     """
-    if args.local_image and not os.path.exists(args.local_image):
-        raise errors.CheckPathError(
-            "Specified path doesn't exist: %s" % args.local_image)
+    for local_path in [args.local_image, args.local_instance_dir,
+                       args.local_kernel_image, args.local_system_image,
+                       args.local_system_dlkm_image, args.local_vendor_image,
+                       args.local_vendor_boot_image] + args.local_tool:
+        if local_path and not os.path.exists(local_path):
+            raise errors.CheckPathError(
+                f"Specified path doesn't exist: {local_path}")
 
     if args.local_instance_dir and not os.path.exists(args.local_instance_dir):
         raise errors.CheckPathError(
             "Specified path doesn't exist: %s" % args.local_instance_dir)
+
+    if args.mix_system_dlkm_into_vendor_ramdisk and (
+            args.local_kernel_image is None or
+            args.local_system_dlkm_image is None):
+        raise errors.UnsupportedCreateArgs(
+            "If --mix-system_dlkm-into-vendor-ramdisk is specified, "
+            "--local-system_dlkm-image and --local-kernel-image must be "
+            "specified.")
 
     if not (args.local_system_image is None or
             args.avd_type in (constants.TYPE_CF, constants.TYPE_GF)):
@@ -917,16 +939,6 @@ def _VerifyLocalArgs(args):
             "your local image folder: '%s'." % (
             args.local_image if args.local_image else
             utils.GetBuildEnvironmentVariable(constants.ENV_ANDROID_PRODUCT_OUT)))
-
-    if (args.local_system_image and
-            not os.path.exists(args.local_system_image)):
-        raise errors.CheckPathError(
-            "Specified path doesn't exist: %s" % args.local_system_image)
-
-    for tool_dir in args.local_tool:
-        if not os.path.exists(tool_dir):
-            raise errors.CheckPathError(
-                "Specified path doesn't exist: %s" % tool_dir)
 
 
 def _VerifyHostArgs(args):
@@ -978,11 +990,13 @@ def _VerifyGoldfishArgs(args):
     goldfish_only_flags = [
         args.emulator_build_id,
         args.emulator_build_target,
-        args.emulator_zip
+        args.emulator_zip,
+        args.mix_system_dlkm_into_vendor_ramdisk,
     ]
     if args.avd_type != constants.TYPE_GF and any(goldfish_only_flags):
         raise errors.UnsupportedCreateArgs(
-            f"--emulator-* is only valid with avd_type == {constants.TYPE_GF}")
+            "--emulator-* and --mix-system_dlkm-into-vendor-ramdisk are only "
+            f"valid with avd_type == {constants.TYPE_GF}")
 
     # Exclude kernel_build_target because the default value isn't empty.
     remote_kernel_flags = [
