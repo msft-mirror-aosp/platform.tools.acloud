@@ -160,6 +160,7 @@ class AVDSpec():
         self._fetch_cvd_wrapper = None
         self._fetch_cvd_version = None
         self._enable_fetch_local_caching = None
+        self._mix_system_dlkm_into_vendor_ramdisk = None
 
         # Create config instance for android_build_client to query build api.
         self._cfg = config.GetAcloudConfig(args)
@@ -424,6 +425,8 @@ class AVDSpec():
         self._fetch_cvd_wrapper = args.fetch_cvd_wrapper
         self._fetch_cvd_version = self._GetFetchCVDVersion(args)
         self._enable_fetch_local_caching = args.enable_fetch_local_caching
+        self._mix_system_dlkm_into_vendor_ramdisk = (
+            args.mix_system_dlkm_into_vendor_ramdisk)
 
         if args.reuse_gce:
             if args.reuse_gce != constants.SELECT_ONE_GCE_INSTANCE:
@@ -1266,3 +1269,8 @@ class AVDSpec():
     def connect_hostname(self):
         """Return connect_hostname"""
         return self._connect_hostname
+
+    @property
+    def mix_system_dlkm_into_vendor_ramdisk(self):
+        """Return mix_system_dlkm_into_vendor_ramdisk."""
+        return self._mix_system_dlkm_into_vendor_ramdisk
