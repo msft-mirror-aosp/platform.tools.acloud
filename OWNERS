@@ -1,5 +1,2 @@
-herbertxue@google.com
-hsinyichen@google.com
-kevcheng@google.com
-samchiu@google.com
-file:device/google/cuttlefish:/OWNERS
+set noparent
+file:device/google/cuttlefish:/OWNERS_techleads
