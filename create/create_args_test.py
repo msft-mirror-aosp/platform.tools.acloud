@@ -40,8 +40,10 @@ def _CreateArgs():
         local_image=None,
         local_kernel_image=None,
         local_system_image=None,
+        local_system_dlkm_image=None,
         local_instance_dir=None,
         local_vendor_boot_image=None,
+        local_tool=[],
         local_trusty_image=None,
         trusty_host_package=None,
         trusty_build_id=None,
@@ -73,6 +75,7 @@ def _CreateArgs():
         emulator_build_id=None,
         emulator_build_target=None,
         emulator_zip=None,
+        mix_system_dlkm_into_vendor_ramdisk=False,
         avd_type=constants.TYPE_CF,
         autoconnect=constants.INS_KEY_WEBRTC)
     return mock_args
@@ -194,6 +197,7 @@ class CreateArgsTest(driver_test_lib.BaseDriverTest):
         mock_args = _CreateArgs()
         mock_args.local_system_image = "/tmp/local_system_image_dir"
         mock_args.avd_type = "cheeps"
+        self.Patch(os.path, "exists", return_value=True)
         self.assertRaises(errors.UnsupportedCreateArgs,
                           create_args._VerifyLocalArgs, mock_args)
         mock_args.avd_type = "cuttlefish"
