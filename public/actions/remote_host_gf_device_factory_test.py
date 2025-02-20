@@ -67,6 +67,7 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         "local_kernel_image": None,
         "local_system_image": None,
         "local_system_dlkm_image": None,
+        "mix_system_dlkm_into_vendor_ramdisk": False,
         "local_tool_dirs": [],
         "base_instance_num": None,
         "boot_timeout_secs": None,
@@ -303,7 +304,8 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(
             5, self._mock_android_build_client.DownloadArtifact.call_count)
         # Images.
-        mock_gf_utils.MixWithBootImage.assert_called_once()
+        mock_gf_utils.MixWithBootImage.assert_called_once_with(
+             mock.ANY, mock.ANY, mock.ANY, None, mock.ANY)
         self._mock_ssh.ScpPushFile.assert_any_call(
             "/path/to/kernel", "acloud_gf_1/kernel")
         self._mock_ssh.ScpPushFile.assert_any_call(
@@ -340,8 +342,12 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             self._mock_avd_spec.local_system_image = system_image_path
             self._mock_avd_spec.local_system_dlkm_image = (
                 system_dlkm_image_path)
+            self._mock_avd_spec.mix_system_dlkm_into_vendor_ramdisk = True
             self._mock_avd_spec.local_tool_dirs.append("/otatools")
             mock_gf_utils.ConvertAvdSpecToArgs.return_value = ["-gpu", "auto"]
+            mock_gf_utils.FindBootImage.return_value = boot_image_path
+            mock_gf_utils.FindSystemDlkmImage.return_value = (
+                system_dlkm_image_path)
             mock_gf_utils.MixWithBootImage.return_value = (
                 "/path/to/kernel", "/path/to/ramdisk")
             self._mock_create_credentials.side_effect = AssertionError(
@@ -351,8 +357,8 @@ class RemoteHostGoldfishDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                 self._mock_avd_spec)
             factory.CreateInstance()
 
-            mock_gf_utils.FindSystemDlkmImage.assert_called_once()
-            mock_gf_utils.MixWithBootImage.assert_called_once()
+            mock_gf_utils.MixWithBootImage.assert_called_once_with(
+                mock.ANY, mock.ANY, boot_image_path, system_dlkm_image_path, mock.ANY)
             mock_gf_utils.MixDiskImage.assert_called_once()
             mock_ota_tools.FindOtaToolsDir.assert_called_once()
             self.assertEqual("/otatools",

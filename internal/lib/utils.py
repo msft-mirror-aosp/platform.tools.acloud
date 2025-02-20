@@ -1551,9 +1551,8 @@ def Popen(*command, **popen_args):
     proc = None
     try:
         logger.info("Execute %s", command)
-        popen_args["stdin"] = subprocess.PIPE
-        popen_args["stdout"] = subprocess.PIPE
-        popen_args["stderr"] = subprocess.PIPE
+        for io_arg in ("stdin", "stdout", "stderr"):
+            popen_args.setdefault(io_arg, subprocess.PIPE)
 
         # Some OTA tools are Python scripts in different versions. The
         # PYTHONPATH for acloud may be incompatible with the tools.

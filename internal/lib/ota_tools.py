@@ -26,6 +26,9 @@ _BIN_DIR_NAME = "bin"
 _LPMAKE = "lpmake"
 _BUILD_SUPER_IMAGE = "build_super_image"
 _AVBTOOL = "avbtool"
+_FSCK_EROFS= "fsck.erofs"
+_LZ4 = "lz4"
+_MKBOOTFS = "mkbootfs"
 _SGDISK = "sgdisk"
 _SIMG2IMG = "simg2img"
 _MK_COMBINED_IMG = "mk_combined_img"
@@ -33,6 +36,9 @@ _UNPACK_BOOTIMG = "unpack_bootimg"
 
 _BUILD_SUPER_IMAGE_TIMEOUT_SECS = 30
 _AVBTOOL_TIMEOUT_SECS = 30
+_FSCK_EROFS_TIMEOUT_SECS = 30
+_LZ4_TIMEOUT_SECS = 30
+_MKBOOTFS_TIMEOUT_SECS = 30
 _MK_COMBINED_IMG_TIMEOUT_SECS = 180
 _UNPACK_BOOTIMG_TIMEOUT_SECS = 30
 
@@ -206,6 +212,31 @@ class OtaTools:
             if new_misc_info_path:
                 os.remove(new_misc_info_path)
 
+    @utils.TimeExecute(function_description="Extract EROFS image")
+    @utils.TimeoutException(_FSCK_EROFS_TIMEOUT_SECS)
+    def ExtractErofsImage(self, output_dir, image_path):
+        """Use fsck.erofs to extract an image.
+
+        Args:
+            output_dir: The path to the output files.
+            image_path: The path to the EROFS image.
+        """
+        fsck_erofs = self._GetBinary(_FSCK_EROFS)
+        utils.Popen(fsck_erofs, "--extract=" + output_dir, image_path)
+
+    @utils.TimeExecute(function_description="lz4")
+    @utils.TimeoutException(_LZ4_TIMEOUT_SECS)
+    def Lz4(self, output_path, input_path):
+        """Compress a file into lz4.
+
+        Args:
+            output_path: The path to the output file.
+            input_path: The path to the input file.
+        """
+        lz4 = self._GetBinary(_LZ4)
+        # -l is the legacy format for Linux kernel.
+        utils.Popen(lz4, "-l", "-f", input_path, output_path)
+
     @utils.TimeExecute(function_description="Make disabled vbmeta image.")
     @utils.TimeoutException(_AVBTOOL_TIMEOUT_SECS)
     def MakeDisabledVbmetaImage(self, output_path):
@@ -219,6 +250,19 @@ class OtaTools:
                     "--flag", "2",
                     "--padding_size", "4096",
                     "--output", output_path)
+
+    @utils.TimeExecute(function_description="mkbootfs")
+    @utils.TimeoutException(_MKBOOTFS_TIMEOUT_SECS)
+    def MkBootFs(self, output_path, input_dir):
+        """Use mkbootfs to create a cpio file.
+
+         Args:
+             output_path: The path to the output file.
+             input_dir: The path to the input directory.
+         """
+        mkbootfs = self._GetBinary(_MKBOOTFS)
+        with open(output_path, "wb") as output_file:
+            utils.Popen(mkbootfs, input_dir, stdout=output_file)
 
     @staticmethod
     def _RewriteSystemQemuConfig(output_file, input_file, get_image):
