@@ -75,17 +75,26 @@ class GoldfishUtilsTest(unittest.TestCase):
             with open(os.path.join(out_dir, "ramdisk"), "w") as ramdisk:
                 ramdisk.write("boot")
 
+        def _MockLz4(out_path, _input_path):
+            with open(out_path, "w") as out_file:
+                out_file.write("system_dlkm")
+
         mock_ota = mock.Mock()
         mock_ota.UnpackBootImg.side_effect = _MockUnpackBootImg
+        mock_ota.Lz4.side_effect = _MockLz4
 
         kernel_path, ramdisk_path = goldfish_utils.MixWithBootImage(
-            mix_dir, image_dir, boot_image_path, mock_ota)
+            mix_dir, image_dir, boot_image_path, "/mock/system_dlkm", mock_ota)
 
         mock_ota.UnpackBootImg.assert_called_with(unpack_dir, boot_image_path)
+        mock_ota.ExtractErofsImage.assert_called_once_with(
+            mock.ANY, "/mock/system_dlkm")
+        mock_ota.MkBootFs.assert_called_once()
+        mock_ota.Lz4.assert_called_once()
         self.assertEqual(os.path.join(unpack_dir, "kernel"), kernel_path)
         self.assertEqual(os.path.join(mix_dir, "mixed_ramdisk"), ramdisk_path)
         with open(ramdisk_path, "r") as ramdisk:
-            self.assertEqual("originalboot", ramdisk.read())
+            self.assertEqual("originalbootsystem_dlkm", ramdisk.read())
 
     def testFindKernelImage(self):
         """Test FindKernelImage."""

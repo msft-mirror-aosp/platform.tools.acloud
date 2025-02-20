@@ -17,6 +17,7 @@
 import os
 import re
 import shutil
+import tempfile
 
 from acloud import errors
 from acloud.internal import constants
@@ -98,33 +99,60 @@ def _UnpackBootImage(output_dir, boot_image_path, ota):
     return kernel_path, ramdisk_path
 
 
-def _MixRamdiskImages(output_path, original_ramdisk_path,
-                      boot_ramdisk_path):
-    """Mix an emulator ramdisk with a boot ramdisk.
+def _ConvertSystemDlkmToRamdisk(output_path, system_dlkm_image_path, ota):
+    """Convert a system_dlkm image to a ramdisk.
+
+    This function creates a ramdisk that will be passed to _MixRamdiskImages.
+    The ramdisk includes kernel modules only. They will overwrite some of the
+    modules on emulator ramdisk.
+
+    Args:
+        output_path: The path to the output image.
+        system_dlkm_image_path: The path to the input image.
+        ota: An instance of ota_tools.OtaTools.
+    """
+    with tempfile.NamedTemporaryFile(
+            prefix="system_dlkm", suffix=".cpio") as system_dlkm_cpio:
+        with tempfile.TemporaryDirectory(
+                prefix="system_dlkm", suffix=".dir") as system_dlkm_dir:
+            # ext4 is not supported.
+            ota.ExtractErofsImage(system_dlkm_dir, system_dlkm_image_path)
+            # Do not overwrite modules.alias, modules.dep, modules.load, and
+            # modules.softdep when _MixRamdiskImages.
+            for parent_dir, _, file_names in os.walk(system_dlkm_dir):
+                for file_name in file_names:
+                    if not file_name.endswith(".ko"):
+                        os.remove(os.path.join(parent_dir, file_name))
+            ota.MkBootFs(system_dlkm_cpio.name, system_dlkm_dir)
+            ota.Lz4(output_path, system_dlkm_cpio.name)
+
+
+def _MixRamdiskImages(output_path, *ramdisk_paths):
+    """Mix an emulator ramdisk with other ramdisks.
 
     An emulator ramdisk consists of a boot ramdisk and a vendor ramdisk.
-    This method overlays a new boot ramdisk on the emulator ramdisk by
-    concatenating them.
+    This function overlays a new boot ramdisk and an optional system_dlkm
+    ramdisk on the emulator ramdisk by concatenating them.
 
     Args:
         output_path: The path to the output ramdisk.
-        original_ramdisk_path: The path to the emulator ramdisk.
-        boot_ramdisk_path: The path to the boot ramdisk.
+        ramdisk_paths: The path to the ramdisks to be overlaid.
     """
     with open(output_path, "wb") as mixed_ramdisk:
-        with open(original_ramdisk_path, "rb") as ramdisk:
-            shutil.copyfileobj(ramdisk, mixed_ramdisk)
-        with open(boot_ramdisk_path, "rb") as ramdisk:
-            shutil.copyfileobj(ramdisk, mixed_ramdisk)
+        for ramdisk_path in ramdisk_paths:
+            with open(ramdisk_path, "rb") as ramdisk:
+                shutil.copyfileobj(ramdisk, mixed_ramdisk)
 
 
-def MixWithBootImage(output_dir, image_dir, boot_image_path, ota):
+def MixWithBootImage(output_dir, image_dir, boot_image_path,
+                     system_dlkm_image_path, ota):
     """Mix emulator kernel images with a boot image.
 
     Args:
         output_dir: The directory containing the output and intermediate files.
         image_dir: The directory containing emulator kernel and ramdisk images.
         boot_image_path: The path to the boot image.
+        system_dlkm_image_path: The path to the system_dlkm_image. Can be None.
         ota: An instance of ota_tools.OtaTools.
 
     Returns:
@@ -140,13 +168,26 @@ def MixWithBootImage(output_dir, image_dir, boot_image_path, ota):
 
     kernel_path, boot_ramdisk_path = _UnpackBootImage(
         unpack_dir, boot_image_path, ota)
-    # The ramdisk unpacked from boot_image_path does not include emulator's
-    # kernel modules. The ramdisk in image_dir contains the modules. This
-    # method mixes the two ramdisks.
+    # The ramdisk in image_dir contains the emulator's kernel modules.
+    # The ramdisk unpacked from boot_image_path contains no module.
+    # The ramdisk converted from system_dlkm_image_path contains the modules
+    # that must be updated with the kernel.
     mixed_ramdisk_path = os.path.join(output_dir, _MIXED_RAMDISK_IMAGE_NAME)
-    original_ramdisk_path = _FindFileByNames(image_dir, _RAMDISK_IMAGE_NAMES)
-    _MixRamdiskImages(mixed_ramdisk_path, original_ramdisk_path,
-                      boot_ramdisk_path)
+    ramdisks = [_FindFileByNames(image_dir, _RAMDISK_IMAGE_NAMES),
+                boot_ramdisk_path]
+    system_dlkm_ramdisk = None
+    try:
+        if system_dlkm_image_path:
+            system_dlkm_ramdisk = tempfile.NamedTemporaryFile(
+                prefix="system_dlkm", suffix=".lz4")
+            _ConvertSystemDlkmToRamdisk(
+                system_dlkm_ramdisk.name, system_dlkm_image_path, ota)
+            ramdisks.append(system_dlkm_ramdisk.name)
+
+        _MixRamdiskImages(mixed_ramdisk_path, *ramdisks)
+    finally:
+        if system_dlkm_ramdisk:
+            system_dlkm_ramdisk.close()
     return kernel_path, mixed_ramdisk_path
 
 

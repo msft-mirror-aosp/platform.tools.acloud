@@ -240,6 +240,26 @@ class OtaToolsTest(unittest.TestCase):
         self.assertEqual(mock_popen.call_args[0][0], expected_cmd)
         self.assertFalse(mock_popen.call_args[1]["env"])
 
+    @mock.patch("acloud.internal.lib.utils.subprocess.Popen")
+    def testMkBootFs(self, mock_popen):
+        """Test MkBootFs."""
+        mkbootfs = self._CreateBinary("mkbootfs")
+        output_path = os.path.join(self._temp_dir, "out")
+
+        mock_popen.return_value = self._MockPopen(return_value=0)
+        mock_open = mock.mock_open()
+
+        with mock.patch("acloud.internal.lib.ota_tools.open",
+                        mock_open):
+            self._ota.MkBootFs(output_path, "/in/dir")
+
+        expected_cmd = (mkbootfs, "/in/dir")
+
+        mock_popen.assert_called_once()
+        mock_open.assert_called_once_with(output_path, "wb")
+        self.assertEqual(mock_popen.call_args[0][0], expected_cmd)
+        self.assertEqual(mock_popen.call_args[1]["stdout"], mock_open())
+
     # pylint: disable=broad-except
     def _TestMkCombinedImg(self, mock_popen, mock_popen_object,
                            expected_error=None):
