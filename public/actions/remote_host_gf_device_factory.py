@@ -557,7 +557,8 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
                 if artifact_paths.boot_image:
                     remote_kernel_path, remote_ramdisk_path = (
                         self._MixAndUploadKernelImages(
-                            image_dir, artifact_paths.boot_image, ota))
+                            image_dir, artifact_paths.boot_image,
+                            artifact_paths.system_dlkm_image, ota))
 
         return RemotePaths(remote_image_dir, remote_emulator_dir,
                            remote_kernel_path, remote_ramdisk_path)
@@ -659,12 +660,15 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
 
         return remote_disk_image_path
 
-    def _MixAndUploadKernelImages(self, image_dir, boot_image_path, ota):
+    def _MixAndUploadKernelImages(self, image_dir, boot_image_path,
+                                  system_dlkm_image_path, ota):
         """Mix emulator kernel images with a boot image and upload them.
 
         Args:
             image_dir: The directory containing emulator images.
             boot_image_path: The path to the boot image.
+            system_dlkm_image_path: The path to the system_dlkm image.
+                                    Can be None.
             ota: An instance of ota_tools.OtaTools.
 
         Returns:
@@ -674,7 +678,10 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
         remote_ramdisk_path = self._GetInstancePath(_REMOTE_RAMDISK_PATH)
         with tempfile.TemporaryDirectory("host_gf_kernel") as temp_dir:
             kernel_path, ramdisk_path = goldfish_utils.MixWithBootImage(
-                temp_dir, image_dir, boot_image_path, ota)
+                temp_dir, image_dir, boot_image_path,
+                (system_dlkm_image_path if
+                 self._avd_spec.mix_system_dlkm_into_vendor_ramdisk else None),
+                ota)
 
             self._ssh.ScpPushFile(kernel_path, remote_kernel_path)
             self._ssh.ScpPushFile(ramdisk_path, remote_ramdisk_path)
