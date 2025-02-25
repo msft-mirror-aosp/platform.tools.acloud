@@ -83,13 +83,12 @@ def Run(args):
 def _PrintWelcomeMessage():
     """Print welcome message when acloud setup been called."""
 
-    # pylint: disable=anomalous-backslash-in-string
-    asc_art = "                                    \n" \
-            "   ___  _______   ____  __  _____ \n" \
-            "  / _ |/ ___/ /  / __ \/ / / / _ \\ \n" \
-            " / __ / /__/ /__/ /_/ / /_/ / // /  \n" \
-            "/_/ |_\\___/____/\\____/\\____/____/ \n" \
-            "                                  \n"
+    asc_art = r"                                   " + "\n" \
+              r"   ___  _______   ____  __  _____  " + "\n" \
+              r"  / _ |/ ___/ /  / __ \/ / / / _ \ " + "\n" \
+              r" / __ / /__/ /__/ /_/ / /_/ / // / " + "\n" \
+              r"/_/ |_\___/____/\____/\____/____/  " + "\n" \
+              r"                                   " + "\n"
 
     print("\nWelcome to")
     print(asc_art)
