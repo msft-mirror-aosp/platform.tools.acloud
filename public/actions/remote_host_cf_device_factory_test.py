@@ -78,6 +78,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                          num_avds_per_instance=None,
                          fetch_cvd_version="123456",
                          openwrt=True,
+                         enable_fetch_local_caching=False,
                          cfg=mock_cfg)
 
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory.ssh")
@@ -382,7 +383,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                          r"fetch "
                          r"-target_directory=acloud_cf_1 "
                          r"-credential_source=acloud_cf_1/credential_key.json "
-                         r"-enable_caching=false"
+                         r"-enable_caching=false "
                          r"-test$")
         mock_cvd_utils.ExecuteRemoteLaunchCvd.assert_called()
         mock_pull.GetAllLogFilePaths.assert_not_called()
