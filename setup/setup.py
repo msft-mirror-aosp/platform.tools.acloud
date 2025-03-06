@@ -83,13 +83,12 @@ def Run(args):
 def _PrintWelcomeMessage():
     """Print welcome message when acloud setup been called."""
 
-    # pylint: disable=anomalous-backslash-in-string
-    asc_art = "                                    \n" \
-            "   ___  _______   ____  __  _____ \n" \
-            "  / _ |/ ___/ /  / __ \/ / / / _ \\ \n" \
-            " / __ / /__/ /__/ /_/ / /_/ / // /  \n" \
-            "/_/ |_\\___/____/\\____/\\____/____/ \n" \
-            "                                  \n"
+    asc_art = r"                                   " + "\n" \
+              r"   ___  _______   ____  __  _____  " + "\n" \
+              r"  / _ |/ ___/ /  / __ \/ / / / _ \ " + "\n" \
+              r" / __ / /__/ /__/ /_/ / /_/ / // / " + "\n" \
+              r"/_/ |_\___/____/\____/\____/____/  " + "\n" \
+              r"                                   " + "\n"
 
     print("\nWelcome to")
     print(asc_art)
@@ -109,7 +108,7 @@ def _RunPreSetup():
     setup occurs (e.g. copying configs).
     """
     if constants.ENV_ANDROID_BUILD_TOP not in os.environ:
-        print("Can't find $%s." % constants.ENV_ANDROID_BUILD_TOP)
+        print(f"Can't find ${constants.ENV_ANDROID_BUILD_TOP}.")
         print("Please run '#source build/envsetup.sh && lunch <target>' first.")
         sys.exit(constants.EXIT_BY_USER)
 
@@ -134,6 +133,6 @@ def _UpdateConfig(config_file, field, value):
     config_mgr = config.AcloudConfigManager(config_file)
     config_mgr.Load()
     user_config = config_mgr.user_config_path
-    print("Your config (%s) is updated." % user_config)
+    print(f"Your config ({user_config}) is updated.")
     gcp_setup_runner.UpdateConfigFile(user_config, field, value)
     _PrintUsage()
