@@ -67,12 +67,8 @@ python_binary_host {
     dist: {
         targets: ["droidcore"],
     },
-    version: {
-        py3: {
-            // TODO(b/174041232): Make acloud work with embedded_launcher
-            embedded_launcher: false,
-        },
-    },
+    // TODO(b/174041232): Make acloud work with embedded_launcher
+    embedded_launcher: false,
 }
 
 python_test_host {
