@@ -203,6 +203,10 @@ class GetTrustyLocalHostPackageError(CreateError):
     """Can't find the trusty host package."""
 
 
+class GetTrustyLocalImagePackageError(CreateError):
+    """Can't find the trusty image package."""
+
+
 class GetSdkRepoPackageError(CreateError):
     """Can't find the local SDK repository package for goldfish."""
 
