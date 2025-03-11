@@ -70,7 +70,8 @@ def _FindHostPackage(package_path=None):
     raise errors.GetTrustyLocalHostPackageError(
         "Can't find the trusty host package (Try lunching a trusty target "
         "like qemu_trusty_arm64-trunk_staging-userdebug and running 'm'): \n"
-        + "\n".join(dirs_to_check))
+        + "\n".join(dirs_to_check)
+    )
 
 
 class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
@@ -79,8 +80,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
     def __init__(self, avd_spec, local_android_image_artifact=None):
         super().__init__(avd_spec, local_android_image_artifact)
         self._all_logs = {}
-        self._host_package_artifact = _FindHostPackage(
-            avd_spec.trusty_host_package)
+        self._host_package_artifact = _FindHostPackage(avd_spec.trusty_host_package)
 
     # pylint: disable=broad-except
     def CreateInstance(self):
@@ -100,8 +100,8 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             self._SetFailures(instance, traceback.format_exception(e))
 
         self._FindLogFiles(
-            instance,
-            instance in self.GetFailures() and not self._avd_spec.no_pull_log)
+            instance, instance in self.GetFailures() and not self._avd_spec.no_pull_log
+        )
         return instance
 
     def _ProcessArtifacts(self):
@@ -118,11 +118,13 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
                 self._ssh,
                 cvd_utils.GCE_BASE_DIR,
                 (self._local_image_artifact or avd_spec.local_image_dir),
-                self._host_package_artifact)
+                self._host_package_artifact,
+            )
         elif avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
             self._FetchBuild()
             if self._compute_client.build_api.GetKernelBuild(
-                    avd_spec.kernel_build_info):
+                avd_spec.kernel_build_info
+            ):
                 self._ReplaceModules()
         if avd_spec.local_trusty_image:
             self._UploadTrustyImages(avd_spec.local_trusty_image)
@@ -144,7 +146,8 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             json.dump(config, config_json_file)
             config_json_file.flush()
             remote_config_path = remote_path.join(
-                cvd_utils.GCE_BASE_DIR, _CONFIG_JSON_FILENAME)
+                cvd_utils.GCE_BASE_DIR, _CONFIG_JSON_FILENAME
+            )
             self._ssh.ScpPushFile(config_json_file.name, remote_config_path)
 
     # We are building our own command-line instead of using
@@ -164,16 +167,16 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         # can override the artifact filename.
         host_package = avd_spec.host_package_build_info.copy()
         if not (
-            host_package[constants.BUILD_ID]
-            or host_package[constants.BUILD_BRANCH]
+            host_package[constants.BUILD_ID] or host_package[constants.BUILD_BRANCH]
         ):
-            host_package[constants.BUILD_ID] = avd_spec.remote_image[
-                constants.BUILD_ID]
+            host_package[constants.BUILD_ID] = avd_spec.remote_image[constants.BUILD_ID]
             host_package[constants.BUILD_BRANCH] = avd_spec.remote_image[
-                constants.BUILD_BRANCH]
+                constants.BUILD_BRANCH
+            ]
         if not host_package[constants.BUILD_TARGET]:
             host_package[constants.BUILD_TARGET] = avd_spec.remote_image[
-                constants.BUILD_TARGET]
+                constants.BUILD_TARGET
+            ]
         host_package.setdefault(constants.BUILD_ARTIFACT, _TRUSTY_HOST_TARBALL)
 
         fetch_args = build_client.GetFetchBuildArgs(
@@ -186,11 +189,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             {},
             host_package,
         )
-        fetch_cmd = (
-            constants.CMD_CVD_FETCH
-            + ["-credential_source=gce"]
-            + fetch_args
-        )
+        fetch_cmd = constants.CMD_CVD_FETCH + ["-credential_source=gce"] + fetch_args
         self._ssh.Run(" ".join(fetch_cmd), timeout=constants.DEFAULT_SSH_TIMEOUT)
 
     def _ReplaceModules(self):
@@ -204,7 +203,8 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             f"--android-ramdisk={android_ramdisk} "
             f"--kernel-ramdisk={kernel_ramdisk} "
             f"--output-ramdisk={android_ramdisk}",
-            timeout=constants.DEFAULT_SSH_TIMEOUT)
+            timeout=constants.DEFAULT_SSH_TIMEOUT,
+        )
 
     @utils.TimeExecute(function_description="Downloading and uploading Trusty image")
     def _FetchAndUploadTrustyImages(self):
@@ -213,12 +213,10 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         trusty_build_info = self._avd_spec.trusty_build_info
         build_id = trusty_build_info[constants.BUILD_ID]
         build_branch = (
-            trusty_build_info[constants.BUILD_BRANCH]
-            or _DEFAULT_TRUSTY_BUILD_BRANCH
+            trusty_build_info[constants.BUILD_BRANCH] or _DEFAULT_TRUSTY_BUILD_BRANCH
         )
         build_target = (
-            trusty_build_info[constants.BUILD_TARGET]
-            or _DEFAULT_TRUSTY_BUILD_TARGET
+            trusty_build_info[constants.BUILD_TARGET] or _DEFAULT_TRUSTY_BUILD_TARGET
         )
         if not build_id:
             build_id = build_client.GetLKGB(build_target, build_branch)
@@ -234,8 +232,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
 
     def _UploadTrustyImages(self, archive_path):
         """Upload Trusty image archive"""
-        remote_cmd = (f"tar -xzf - -C {cvd_utils.GCE_BASE_DIR} < "
-                      + archive_path)
+        remote_cmd = f"tar -xzf - -C {cvd_utils.GCE_BASE_DIR} < " + archive_path
         logger.debug("remote_cmd:\n %s", remote_cmd)
         self._ssh.Run(remote_cmd)
 
@@ -245,11 +242,13 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
 
         # We use an explicit subshell so we can run this command in the
         # background.
-        cmd = "-- sh -c " + shlex.quote(shlex.quote(
-            f"{cvd_utils.GCE_BASE_DIR}/run.py "
-            f"--config={_CONFIG_JSON_FILENAME} "
-            f"> {_REMOTE_STDOUT_PATH} 2> {_REMOTE_STDERR_PATH} &"
-        ))
+        cmd = "-- sh -c " + shlex.quote(
+            shlex.quote(
+                f"{cvd_utils.GCE_BASE_DIR}/run.py "
+                f"--config={_CONFIG_JSON_FILENAME} "
+                f"> {_REMOTE_STDOUT_PATH} 2> {_REMOTE_STDERR_PATH} &"
+            )
+        )
         self._ssh.Run(cmd, self._avd_spec.boot_timeout_secs or 30, retry=0)
 
     def _FindLogFiles(self, instance, download):
@@ -262,12 +261,9 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         """
         logs = [cvd_utils.HOST_KERNEL_LOG]
         if self._avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
-            logs.append(
-                cvd_utils.GetRemoteFetcherConfigJson(cvd_utils.GCE_BASE_DIR))
-        logs.append(
-            report.LogFile(_REMOTE_STDOUT_PATH, constants.LOG_TYPE_KERNEL_LOG))
-        logs.append(
-            report.LogFile(_REMOTE_STDERR_PATH, constants.LOG_TYPE_TEXT))
+            logs.append(cvd_utils.GetRemoteFetcherConfigJson(cvd_utils.GCE_BASE_DIR))
+        logs.append(report.LogFile(_REMOTE_STDOUT_PATH, constants.LOG_TYPE_KERNEL_LOG))
+        logs.append(report.LogFile(_REMOTE_STDERR_PATH, constants.LOG_TYPE_TEXT))
         self._all_logs[instance] = logs
 
         logger.debug("logs: %s", logs)
@@ -276,7 +272,8 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             log_paths = [log["path"] for log in logs]
             error_log_folder = pull.PullLogs(self._ssh, log_paths, instance)
             self._compute_client.ExtendReportData(
-                constants.ERROR_LOG_FOLDER, error_log_folder)
+                constants.ERROR_LOG_FOLDER, error_log_folder
+            )
 
     def GetLogs(self):
         """Get all device logs.
