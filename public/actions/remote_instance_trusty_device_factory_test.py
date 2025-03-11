@@ -33,10 +33,11 @@ from acloud.public.actions import remote_instance_trusty_device_factory
 
 logger = logging.getLogger(__name__)
 
-_EXPECTED_CONFIG_JSON = '''{"linux": "kernel", "linux_arch": "arm64", \
-"atf": "atf/qemu/debug", "qemu": "bin/trusty_qemu_system_aarch64", \
-"extra_qemu_flags": ["-machine", "gic-version=2"], "android_image_dir": ".", \
-"rpmbd": "bin/rpmb_dev", "arch": "arm64", "adb": "bin/adb"}'''
+_EXPECTED_CONFIG_JSON = """{"linux": "kernel", "linux_arch": "arm64", \
+"initrd": "ramdisk.img", "atf": "atf/qemu/debug", \
+"qemu": "bin/trusty_qemu_system_aarch64", \
+"extra_qemu_flags": ["-machine", "gic-version=3"], "android_image_dir": ".", \
+"rpmbd": "bin/rpmb_dev", "arch": "arm64", "adb": "bin/adb"}"""
 
 
 class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
