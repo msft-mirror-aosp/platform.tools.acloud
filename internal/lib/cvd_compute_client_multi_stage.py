@@ -55,7 +55,6 @@ from acloud.setup import mkcert
 logger = logging.getLogger(__name__)
 
 _DEFAULT_WEBRTC_DEVICE_ID = "cvd-1"
-_FETCHER_NAME = "fetch_cvd"
 _TRUST_REMOTE_INSTANCE_COMMAND = (
     f"\"sudo cp -p ~/{constants.WEBRTC_CERTS_PATH}/{constants.SSL_CA_NAME}.pem "
     f"{constants.SSL_TRUST_CA_DIR}/{constants.SSL_CA_NAME}.crt;"
@@ -303,25 +302,6 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         self._execution_time[constants.TIME_GCE] = time.time() - timestart
         return ip
 
-    @utils.TimeExecute(function_description="Uploading build fetcher to instance")
-    def UpdateFetchCvd(self, fetch_cvd_version):
-        """Download fetch_cvd from the Build API, and upload it to a remote instance.
-
-        The version of fetch_cvd to use is retrieved from the configuration file. Once fetch_cvd
-        is on the instance, future commands can use it to download relevant Cuttlefish files from
-        the Build API on the instance itself.
-
-        Args:
-            fetch_cvd_version: String. The build id of fetch_cvd.
-        """
-        self.SetStage(constants.STAGE_ARTIFACT)
-        download_dir = tempfile.mkdtemp()
-        download_target = os.path.join(download_dir, _FETCHER_NAME)
-        self._build_api.DownloadFetchcvd(download_target, fetch_cvd_version)
-        self._ssh.ScpPushFile(src_file=download_target, dst_file=_FETCHER_NAME)
-        os.remove(download_target)
-        os.rmdir(download_dir)
-
     @utils.TimeExecute(function_description="Downloading build on instance")
     def FetchBuild(self, default_build_info, system_build_info,
                    kernel_build_info, boot_build_info, bootloader_build_info,
@@ -341,15 +321,16 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
         Returns:
             List of string args for fetch_cvd.
         """
+        self.SetStage(constants.STAGE_ARTIFACT)
         timestart = time.time()
-        fetch_cvd_args = ["-credential_source=gce"]
+        cmd = list(constants.CMD_CVD_FETCH) + ["-credential_source=gce"]
         fetch_cvd_build_args = self._build_api.GetFetchBuildArgs(
             default_build_info, system_build_info, kernel_build_info,
             boot_build_info, bootloader_build_info, android_efi_loader_build_info,
             ota_build_info, host_package_build_info)
-        fetch_cvd_args.extend(fetch_cvd_build_args)
+        cmd.extend(fetch_cvd_build_args)
 
-        self._ssh.Run("./fetch_cvd " + " ".join(fetch_cvd_args),
+        self._ssh.Run(" ".join(cmd),
                       timeout=constants.DEFAULT_SSH_TIMEOUT)
         self._execution_time[constants.TIME_ARTIFACT] = time.time() - timestart
 

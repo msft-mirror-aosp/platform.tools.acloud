@@ -46,7 +46,6 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_cfg = mock.Mock(spec=[],
                              ssh_private_key_path="/mock/id_rsa",
                              extra_args_ssh_tunnel="extra args",
-                             fetch_cvd_version="123456",
                              creds_cache_file="credential",
                              service_account_json_private_key_path="/mock/key")
         return mock.Mock(spec=[],
@@ -76,7 +75,6 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                          fetch_cvd_wrapper=None,
                          base_instance_num=None,
                          num_avds_per_instance=None,
-                         fetch_cvd_version="123456",
                          openwrt=True,
                          cfg=mock_cfg)
 

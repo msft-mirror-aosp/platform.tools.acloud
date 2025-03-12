@@ -43,7 +43,6 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         self.Patch(android_build_client.AndroidBuildClient, "InitResourceHandle")
         self.Patch(cvd_compute_client_multi_stage.CvdComputeClient, "InitResourceHandle")
         self.Patch(cvd_compute_client_multi_stage.CvdComputeClient, "LaunchCvd")
-        self.Patch(cvd_compute_client_multi_stage.CvdComputeClient, "UpdateFetchCvd")
         self.Patch(cvd_compute_client_multi_stage.CvdComputeClient, "FetchBuild")
         self.Patch(list_instances, "GetInstancesFromInstanceNames", return_value=mock.MagicMock())
         self.Patch(list_instances, "ChooseOneRemoteInstance", return_value=mock.MagicMock())
@@ -111,7 +110,6 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         factory_remote_img._ProcessArtifacts()
 
         compute_client = factory_remote_img.GetComputeClient()
-        compute_client.UpdateFetchCvd.assert_called_once()
         compute_client.FetchBuild.assert_called_once()
 
     # pylint: disable=protected-access

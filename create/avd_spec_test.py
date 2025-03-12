@@ -573,15 +573,6 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.mock_config.connect_hostname = False
         self.assertTrue(self.AvdSpec.connect_hostname)
 
-        # Verify fetch_cvd_version
-        self.args.fetch_cvd_build_id = None
-        self.AvdSpec._ProcessMiscArgs(self.args)
-        self.assertEqual(self.AvdSpec.fetch_cvd_version, "LKGB")
-
-        self.args.fetch_cvd_build_id = "23456"
-        self.AvdSpec._ProcessMiscArgs(self.args)
-        self.assertEqual(self.AvdSpec.fetch_cvd_version, "23456")
-
         self.args.trusty_branch = "trusty_branch"
         self.args.trusty_build_id = "trusty_build_id"
         self.args.trusty_build_target = "trusty_build_target"
