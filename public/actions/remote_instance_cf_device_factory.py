@@ -79,7 +79,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
                 (instance in self.GetFailures() and
                  not self._avd_spec.no_pull_log))
         except (errors.SubprocessFail, errors.DeviceConnectionError,
-                subprocess.CalledProcessError) as e:
+                subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
             logger.error("Fail to find log files: %s", e)
 
         return instance

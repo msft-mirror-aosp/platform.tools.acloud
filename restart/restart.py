@@ -77,7 +77,8 @@ def RestartDevice(ssh, instance_id):
     ssh_command = "./bin/restart_cvd --instance_num=%d" % (instance_id)
     try:
         ssh.Run(ssh_command)
-    except (subprocess.CalledProcessError, errors.DeviceConnectionError) as e:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired,
+            errors.DeviceConnectionError) as e:
         logger.debug(str(e))
         utils.PrintColorString(str(e), utils.TextColors.FAIL)
 
