@@ -324,7 +324,7 @@ def AddCommonCreateArgs(parser):
         type=str,
         dest="fetch_cvd_build_id",
         required=False,
-        help="'cuttlefish only' Build id of fetch_cvd, e.g. 2145099, P2804227")
+        help="Deprecated - any values input through this param are ignored")
     # TODO(146314062): Remove --multi-stage-launch after infra don't use this
     # args.
     parser.add_argument(
