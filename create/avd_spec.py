@@ -823,7 +823,7 @@ class AVDSpec():
 
         Target = {REPO_PREFIX}{avd_type}_{bitness}_{flavor}-
             {DEFAULT_BUILD_TARGET_TYPE}.
-        Example target: aosp_cf_x86_64_phone-userdebug
+        Example target: aosp_cf_x86_64_phone-trunk_staging-userdebug
 
         Args:
             args: Namespace object from argparse.parse_args.
