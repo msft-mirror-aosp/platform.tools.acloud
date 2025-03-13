@@ -246,9 +246,6 @@ class AcloudConfig():
         self.instance_name_pattern = (
             usr_cfg.instance_name_pattern or
             internal_cfg.default_usr_cfg.instance_name_pattern)
-        self.fetch_cvd_version = (
-            usr_cfg.fetch_cvd_version or
-            internal_cfg.default_usr_cfg.fetch_cvd_version)
         if usr_cfg.HasField("enable_multi_stage") is not None:
             self.enable_multi_stage = usr_cfg.enable_multi_stage
         elif internal_cfg.default_usr_cfg.HasField("enable_multi_stage"):
