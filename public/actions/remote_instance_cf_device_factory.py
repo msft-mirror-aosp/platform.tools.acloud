@@ -112,7 +112,6 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
                      avd_spec.local_image_dir),
                     self._cvd_host_package_artifact)
             elif avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
-                self._compute_client.UpdateFetchCvd(avd_spec.fetch_cvd_version)
                 self._compute_client.FetchBuild(
                     avd_spec.remote_image,
                     avd_spec.system_build_info,
