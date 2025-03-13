@@ -143,7 +143,7 @@ def AddCommonCreateArgs(parser):
         "--build-target",
         type=str,
         dest="build_target",
-        help="Android build target, e.g. aosp_cf_x86_64_phone-userdebug, "
+        help="Android build target, e.g. aosp_cf_x86_64_phone-trunk_staging-userdebug, "
              "or short names: phone, tablet, or tablet_mobile.")
     parser.add_argument(
         "--branch",
@@ -222,14 +222,14 @@ def AddCommonCreateArgs(parser):
         type=str,
         dest="boot_branch",
         required=False,
-        help="Boot image branch, e.g., aosp-gki13-boot-release, aosp-master.")
+        help="Boot image branch, e.g., aosp-gki13-boot-release, aosp-main.")
     parser.add_argument(
         "--boot-build-target",
         type=str,
         dest="boot_build_target",
         required=False,
         help="Boot image build target, "
-        "e.g., gki_x86_64-userdebug, aosp_cf_x86_64_phone-userdebug.")
+        "e.g., gki_x86_64-userdebug, aosp_cf_x86_64_phone-trunk_staging-userdebug.")
     parser.add_argument(
         "--boot-artifact",
         type=str,
@@ -242,7 +242,7 @@ def AddCommonCreateArgs(parser):
         type=str,
         dest="ota_branch",
         required=False,
-        help="'cuttlefish only' OTA tools branch name. e.g. aosp-master")
+        help="'cuttlefish only' OTA tools branch name. e.g. aosp-main")
     parser.add_argument(
         "--ota-build-id",
         type=str,
@@ -255,7 +255,7 @@ def AddCommonCreateArgs(parser):
         dest="ota_build_target",
         required=False,
         help="'cuttlefish only' OTA tools build target, e.g. "
-        "cf_x86_64_phone-userdebug.")
+        "cf_x86_64_phone-trunk_staging-userdebug.")
     parser.add_argument(
         "--host-package-branch", "--host_package_branch",
         type=str,
@@ -276,7 +276,7 @@ def AddCommonCreateArgs(parser):
         dest="host_package_build_target",
         required=False,
         help="'cuttlefish and trusty only' Host package build target, e.g. "
-        "cf_x86_64_phone-userdebug.")
+        "cf_x86_64_phone-trunk_staging-userdebug.")
     parser.add_argument(
         "--system-branch",
         type=str,

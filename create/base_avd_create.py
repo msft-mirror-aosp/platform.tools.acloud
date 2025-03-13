@@ -53,7 +53,7 @@ class BaseAVDCreate():
         Example:
             Creating remote AVD instance with the following details:
             Image:
-              aosp/master - aosp_cf_x86_64_phone-userdebug [1234]
+              aosp-main - aosp_cf_x86_64_phone-trunk_staging-userdebug [1234]
             hw config:
               cpu - 2
               ram - 2GB

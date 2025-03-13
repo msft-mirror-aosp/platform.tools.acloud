@@ -52,7 +52,7 @@ class CvdComputeClientTest(driver_test_lib.BaseDriverTest):
     ZONE = "fake-zone"
     PROJECT = "fake-project"
     BRANCH = "fake-branch"
-    TARGET = "aosp_cf_x86_64_phone-userdebug"
+    TARGET = "aosp_cf_x86_64_phone-trunk_staging-userdebug"
     BUILD_ID = "2263051"
     KERNEL_BRANCH = "fake-kernel-branch"
     KERNEL_BUILD_ID = "1234567"

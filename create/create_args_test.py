@@ -124,7 +124,7 @@ class CreateArgsTest(driver_test_lib.BaseDriverTest):
                           create_args.VerifyArgs, mock_args)
         mock_args.boot_build_target = None
         # System build info without remote_host.
-        mock_args.system_branch = "aosp-master"
+        mock_args.system_branch = "aosp-main"
         mock_args.system_build_target = "aosp_x86_64-userdebug"
         mock_args.system_build_id = "123456"
         mock_args.remote_host = None
@@ -132,10 +132,10 @@ class CreateArgsTest(driver_test_lib.BaseDriverTest):
                           create_args.VerifyArgs, mock_args)
         # Valid build info.
         mock_args.emulator_build_target = "emulator-linux_x64_nolocationui"
-        mock_args.system_branch = "aosp-master"
+        mock_args.system_branch = "aosp-main"
         mock_args.system_build_target = "aosp_x86_64-userdebug"
         mock_args.system_build_id = "123456"
-        mock_args.boot_branch = "aosp-master"
+        mock_args.boot_branch = "aosp-main"
         mock_args.boot_build_target = "aosp_x86_64-userdebug"
         mock_args.boot_build_id = "123456"
         mock_args.boot_artifact = "boot-5.10.img"

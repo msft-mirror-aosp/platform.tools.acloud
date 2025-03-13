@@ -135,7 +135,7 @@ class AndroidBuildClientTest(driver_test_lib.BaseDriverTest):
 
     def testGetBranch(self):
         """Test GetBuild."""
-        build_info = {"branch": "aosp-master"}
+        build_info = {"branch": "aosp-main"}
         mock_api = mock.MagicMock()
         mock_build = mock.MagicMock()
         mock_build.get.return_value = mock_api
