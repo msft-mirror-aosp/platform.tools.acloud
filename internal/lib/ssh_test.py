@@ -18,7 +18,6 @@
 
 import io
 import subprocess
-import threading
 import time
 import unittest
 
@@ -238,47 +237,11 @@ class SshTest(driver_test_lib.BaseDriverTest):
                           timeout=1,
                           max_retry=1)
 
-    def testSshCallWait(self):
-        """Test SshCallWait."""
-        self.Patch(subprocess, "Popen", return_value=self.created_subprocess)
-        self.Patch(threading, "Timer")
-        fake_cmd = "fake command"
-        ssh._SshCallWait(fake_cmd)
-        threading.Timer.assert_not_called()
-
-    def testSshCallWaitTimeout(self):
-        """Test SshCallWait with timeout."""
-        self.Patch(subprocess, "Popen", return_value=self.created_subprocess)
-        self.Patch(threading, "Timer")
-        fake_cmd = "fake command"
-        fake_timeout = 30
-        ssh._SshCallWait(fake_cmd, fake_timeout)
-        threading.Timer.assert_called_once()
-
-    def testSshCall(self):
-        """Test _SshCall."""
-        self.Patch(subprocess, "Popen", return_value=self.created_subprocess)
-        self.Patch(threading, "Timer")
-        fake_cmd = "fake command"
-        ssh._SshCall(fake_cmd)
-        threading.Timer.assert_not_called()
-
-    def testSshCallTimeout(self):
-        """Test SshCallWait with timeout."""
-        self.Patch(subprocess, "Popen", return_value=self.created_subprocess)
-        self.Patch(threading, "Timer")
-        fake_cmd = "fake command"
-        fake_timeout = 30
-        ssh._SshCall(fake_cmd, fake_timeout)
-        threading.Timer.assert_called_once()
-
     def testSshLogOutput(self):
-        """Test _SshCall."""
+        """Test _SshLogOutput."""
         self.Patch(subprocess, "Popen", return_value=self.created_subprocess)
-        self.Patch(threading, "Timer")
         fake_cmd = "fake command"
         ssh._SshLogOutput(fake_cmd)
-        threading.Timer.assert_not_called()
 
         # Test with all kind of exceptions.
         self.created_subprocess.returncode = 255
@@ -302,13 +265,18 @@ class SshTest(driver_test_lib.BaseDriverTest):
                 errors.LaunchCVDFail, ssh._SshLogOutput, fake_cmd)
 
     def testSshLogOutputTimeout(self):
-        """Test SshCallWait with timeout."""
+        """Test SshLogOutput with timeout."""
         self.Patch(subprocess, "Popen", return_value=self.created_subprocess)
-        self.Patch(threading, "Timer")
         fake_cmd = "fake command"
         fake_timeout = 30
-        ssh._SshLogOutput(fake_cmd, fake_timeout)
-        threading.Timer.assert_called_once()
+        self.created_subprocess.communicate.side_effect = [
+            subprocess.TimeoutExpired(fake_cmd, fake_timeout),
+            ("stdout", None)]
+        with self.assertRaises(subprocess.TimeoutExpired) as e:
+            ssh._SshLogOutput(fake_cmd, fake_timeout)
+            self.assertEqual(constants.ERROR_MSG_TIMEOUT, str(e.exception))
+        self.assertEqual(self.created_subprocess.communicate.call_count, 2)
+        self.created_subprocess.kill.assert_called_once()
 
     def testGetErrorMessage(self):
         """Test _GetErrorMessage."""

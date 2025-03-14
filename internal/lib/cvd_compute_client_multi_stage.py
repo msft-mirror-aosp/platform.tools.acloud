@@ -356,7 +356,7 @@ class CvdComputeClient(android_compute_client.AndroidComputeClient):
             try:
                 self._ssh.ScpPushFiles(upload_files, constants.WEBRTC_CERTS_PATH)
                 self._ssh.Run(_TRUST_REMOTE_INSTANCE_COMMAND)
-            except subprocess.CalledProcessError:
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
                 logger.debug("Update WebRTC frontend certificate failed.")
 
     @utils.TimeExecute(function_description="Upload extra files to instance")

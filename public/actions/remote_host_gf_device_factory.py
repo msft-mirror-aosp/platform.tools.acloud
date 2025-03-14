@@ -202,7 +202,8 @@ class RemoteHostGoldfishDeviceFactory(base_device_factory.BaseDeviceFactory):
             self._logs[instance_name] = self._GetEmulatorLogs()
             self._StartEmulator(remote_paths)
             self._WaitForEmulator()
-        except (errors.DriverError, subprocess.CalledProcessError) as e:
+        except (errors.DriverError, subprocess.CalledProcessError,
+                subprocess.TimeoutExpired) as e:
             # Catch the generic runtime error and CalledProcessError which is
             # raised by the ssh module.
             self._failures[instance_name] = e
