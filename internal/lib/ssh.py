@@ -18,7 +18,6 @@ import logging
 import re
 import subprocess
 import sys
-import threading
 
 from acloud import errors
 from acloud.internal import constants
@@ -38,60 +37,6 @@ _ERROR_MSG_TO_QUOTE_RE = r"(\\u2019)|(\\u2018)"
 _ERROR_MSG_DEL_STYLE_RE = r"(<style.+\/style>)"
 _ERROR_MSG_DEL_TAGS_RE = (r"(<[\/]*(a|b|p|span|ins|code|title)>)|"
                           r"(<(a|span|meta|html|!)[^>]*>)")
-
-
-def _SshCallWait(cmd, timeout=None):
-    """Runs a single SSH command.
-
-    - SSH returns code 0 for "Successful execution".
-    - Use wait() until the process is complete without receiving any output.
-
-    Args:
-        cmd: String of the full SSH command to run, including the SSH binary
-             and its arguments.
-        timeout: Optional integer, number of seconds to give
-
-    Returns:
-        An exit status of 0 indicates that it ran successfully.
-    """
-    logger.info("Running command \"%s\"", cmd)
-    process = subprocess.Popen(cmd, shell=True, stdin=None,
-                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    if timeout:
-        # TODO: if process is killed, out error message to log.
-        timer = threading.Timer(timeout, process.kill)
-        timer.start()
-    process.wait()
-    if timeout:
-        timer.cancel()
-    return process.returncode
-
-
-def _SshCall(cmd, timeout=None):
-    """Runs a single SSH command.
-
-    - SSH returns code 0 for "Successful execution".
-    - Use communicate() until the process and the child thread are complete.
-
-    Args:
-        cmd: String of the full SSH command to run, including the SSH binary
-             and its arguments.
-        timeout: Optional integer, number of seconds to give
-
-    Returns:
-        An exit status of 0 indicates that it ran successfully.
-    """
-    logger.info("Running command \"%s\"", cmd)
-    process = subprocess.Popen(cmd, shell=True, stdin=None,
-                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    if timeout:
-        # TODO: if process is killed, out error message to log.
-        timer = threading.Timer(timeout, process.kill)
-        timer.start()
-    process.communicate()
-    if timeout:
-        timer.cancel()
-    return process.returncode
 
 
 def _SshLogOutput(cmd, timeout=None, show_output=False, hide_error_msg=False):
@@ -114,6 +59,7 @@ def _SshLogOutput(cmd, timeout=None, show_output=False, hide_error_msg=False):
     Raises:
         errors.DeviceConnectionError: Failed to connect to the GCE instance.
         subprocess.CalledProcessError: The process exited with an error on the instance.
+        subprocess.TimeoutExpired: The process timed out.
         errors.LaunchCVDFail: Happened on launch_cvd with specific pattern of error message.
     """
     # Use "exec" to let cmd to inherit the shell process, instead of having the
@@ -123,19 +69,22 @@ def _SshLogOutput(cmd, timeout=None, show_output=False, hide_error_msg=False):
     process = subprocess.Popen(cmd, shell=True, stdin=None,
                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                universal_newlines=True)
-    if timeout:
-        # TODO: if process is killed, out error message to log.
-        timer = threading.Timer(timeout, process.kill)
-        timer.start()
-    stdout, _ = process.communicate()
-    if stdout:
-        if (show_output or process.returncode != 0) and not hide_error_msg:
-            print(stdout.strip(), file=sys.stderr)
-        else:
-            # fetch_cvd and launch_cvd can be noisy, so left at debug
-            logger.debug(stdout.strip())
-    if timeout:
-        timer.cancel()
+
+    stdout = None
+    try:
+        stdout, _ = process.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        stdout, _ = process.communicate()
+        raise
+    finally:
+        if stdout:
+            if (show_output or process.returncode != 0) and not hide_error_msg:
+                print(stdout.strip(), file=sys.stderr)
+            else:
+                # fetch_cvd and launch_cvd can be noisy, so left at debug
+                logger.debug(stdout.strip())
+
     if process.returncode == 255:
         error_msg = (f"Failed to send command to instance {cmd}\n"
                      f"Error message: {_GetErrorMessage(stdout)}")
@@ -210,11 +159,13 @@ def ShellCmdWithRetry(cmd, timeout=None, show_output=False,
         errors.DeviceConnectionError: For any non-zero return code of remote_cmd.
         errors.LaunchCVDFail: Happened on launch_cvd with specific pattern of error message.
         subprocess.CalledProcessError: The process exited with an error on the instance.
+        subprocess.TimeoutExpired: The process timed out.
     """
     return utils.RetryExceptionType(
         exception_types=(errors.DeviceConnectionError,
                          errors.LaunchCVDFail,
-                         subprocess.CalledProcessError),
+                         subprocess.CalledProcessError,
+                         subprocess.TimeoutExpired),
         max_retries=retry,
         functor=_SshLogOutput,
         sleep_multiplier=_SSH_CMD_RETRY_SLEEP,
@@ -352,7 +303,7 @@ class Ssh():
         remote_cmd.append("uptime")
         try:
             _SshLogOutput(" ".join(remote_cmd), timeout, hide_error_msg=True)
-        except subprocess.CalledProcessError as e:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
             raise errors.DeviceConnectionError(
                 "Ssh isn't ready in the remote instance.") from e
 
