@@ -164,10 +164,10 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
                 # fetch the kernel image from the android build artifacts
                 self._FetchAndUploadKernelImage()
         if avd_spec.local_trusty_image:
-            self._UploadBuildArtifact(avd_spec.local_trusty_image)
+            self._UploadBuildArchive(avd_spec.local_trusty_image)
         elif avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
             local_trusty_image = _FindTrustyImagePackage()
-            self._UploadBuildArtifact(local_trusty_image)
+            self._UploadBuildArchive(local_trusty_image)
         else:
             self._FetchAndUploadTrustyImages()
 
@@ -278,7 +278,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
                 trusty_image_package,
                 image_local_path,
             )
-            self._UploadBuildArtifact(image_local_path)
+            self._UploadBuildArchive(image_local_path)
 
     @utils.TimeExecute(function_description="Fetching & Uploading Kernel Image")
     def _FetchAndUploadKernelImage(self):
@@ -287,17 +287,24 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         android_build_info = self._avd_spec.remote_image
         build_id = android_build_info[constants.BUILD_ID]
         build_target = android_build_info[constants.BUILD_TARGET]
-        with tempfile.NamedTemporaryFile(suffix="") as image_local_file:
+        with tempfile.NamedTemporaryFile(prefix="kernel") as image_local_file:
             image_local_path = image_local_file.name
-            build_client.DownloadArtifact(
+            logger.debug('DownloadArtifact "kernel" to %s\n', image_local_path)
+            ret = build_client.DownloadArtifact(
                 build_target,
                 build_id,
                 "kernel",
                 image_local_path,
             )
-            self._UploadBuildArtifact(image_local_path)
+            logger.debug("DownloadArtifact to %s Returned %d\n", image_local_path, ret)
+            self._ssh.ScpPushFile(image_local_path, f"{cvd_utils.GCE_BASE_DIR}/kernel")
+            logger.debug(
+                "ScpPushFile from %s to %s\n",
+                image_local_path,
+                f"{cvd_utils.GCE_BASE_DIR}/kernel",
+            )
 
-    def _UploadBuildArtifact(self, archive_path):
+    def _UploadBuildArchive(self, archive_path):
         """Upload Build Artifact (Trusty images archive or Kernel image)"""
         remote_cmd = f"tar -xzf - -C {cvd_utils.GCE_BASE_DIR} < " + archive_path
         logger.debug("remote_cmd:\n %s", remote_cmd)
