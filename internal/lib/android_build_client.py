@@ -41,7 +41,7 @@ BuildInfo = collections.namedtuple("BuildInfo", [
     "build_id",  # The build id string
     "build_target",  # The build target string
     "release_build_id"])  # The release build id string
-_DEFAULT_BRANCH = "aosp-master"
+_DEFAULT_BRANCH = "aosp-main"
 
 
 class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
@@ -64,14 +64,6 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
     ONE_RESULT = 1
     BUILD_SUCCESSFUL = True
     LATEST = "latest"
-    # FETCH_CVD variables.
-    FETCHER_NAME = "fetch_cvd"
-    FETCHER_BUILD_TARGET = "aosp_cf_x86_64_phone-trunk_staging-userdebug"
-    FETCHER_BUILD_TARGET_ARM = "aosp_cf_arm64_only_phone-trunk_staging-userdebug"
-    # TODO(b/297085994): cvd fetch is migrating from AOSP to github artifacts, so
-    # temporary returning hardcoded values instead of LKGB
-    FETCHER_BUILD_ID = 11559438
-    FETCHER_BUILD_ID_ARM = 11559085
     MAX_RETRY = 3
     RETRY_SLEEP_SECS = 3
 
@@ -89,7 +81,7 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
         """Get Android build attempt information.
 
         Args:
-            build_target: Target name, e.g. "aosp_cf_x86_64_phone-userdebug"
+            build_target: Target name, e.g. "aosp_cf_x86_64_phone-trunk_staging-userdebug"
             build_id: Build id, a string, e.g. "2263051", "P2804227"
             resource_id: Id of the resource, e.g "avd-system.tar.gz".
             local_dest: A local path where the artifact should be stored.
@@ -116,53 +108,6 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
         except (OSError, apiclient.errors.HttpError) as e:
             logger.error("Downloading artifact failed: %s", str(e))
             raise errors.DriverError(str(e))
-
-    def DownloadFetchcvd(
-            self,
-            local_dest,
-            fetch_cvd_version,
-            is_arm_version=False):
-        """Get fetch_cvd from Android Build.
-
-        Args:
-            local_dest: A local path where the artifact should be stored.
-                        e.g. "/tmp/fetch_cvd"
-            fetch_cvd_version: String of fetch_cvd version.
-            is_arm_version: is ARM version fetch_cvd.
-        """
-        if fetch_cvd_version == constants.LKGB:
-            fetch_cvd_version = self.GetFetcherVersion(is_arm_version)
-        fetch_cvd_build_target = (
-            self.FETCHER_BUILD_TARGET_ARM if is_arm_version
-            else self.FETCHER_BUILD_TARGET)
-        try:
-            utils.RetryExceptionType(
-                exception_types=(ssl.SSLError, errors.DriverError),
-                max_retries=self.MAX_RETRY,
-                functor=self.DownloadArtifact,
-                sleep_multiplier=self.RETRY_SLEEP_SECS,
-                retry_backoff_factor=utils.DEFAULT_RETRY_BACKOFF_FACTOR,
-                build_target=fetch_cvd_build_target,
-                build_id=fetch_cvd_version,
-                resource_id=self.FETCHER_NAME,
-                local_dest=local_dest,
-                attempt_id=self.LATEST)
-        except Exception:
-            logger.debug("Download fetch_cvd with build id: %s",
-                         constants.FETCH_CVD_SECOND_VERSION)
-            utils.RetryExceptionType(
-                exception_types=(ssl.SSLError, errors.DriverError),
-                max_retries=self.MAX_RETRY,
-                functor=self.DownloadArtifact,
-                sleep_multiplier=self.RETRY_SLEEP_SECS,
-                retry_backoff_factor=utils.DEFAULT_RETRY_BACKOFF_FACTOR,
-                build_target=fetch_cvd_build_target,
-                build_id=constants.FETCH_CVD_SECOND_VERSION,
-                resource_id=self.FETCHER_NAME,
-                local_dest=local_dest,
-                attempt_id=self.LATEST)
-        fetch_cvd_stat = os.stat(local_dest)
-        os.chmod(local_dest, fetch_cvd_stat.st_mode | stat.S_IEXEC)
 
     @staticmethod
     def ProcessBuild(build_info, ignore_artifact=False):
@@ -199,8 +144,8 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
         Each build_info is a dictionary that contains 3 items, for example,
         {
             constants.BUILD_ID: "2263051",
-            constants.BUILD_TARGET: "aosp_cf_x86_64_phone-userdebug",
-            constants.BUILD_BRANCH: "aosp-master",
+            constants.BUILD_TARGET: "aosp_cf_x86_64_phone-trunk_staging-userdebug",
+            constants.BUILD_BRANCH: "aosp-main",
         }
 
         Args:
@@ -331,7 +276,7 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
         """Copy an Android Build artifact to a storage bucket.
 
         Args:
-            build_target: Target name, e.g. "aosp_cf_x86_64_phone-userdebug"
+            build_target: Target name, e.g. "aosp_cf_x86_64_phone-trunk_staging-userdebug"
             build_id: Build id, a string, e.g. "2263051", "P2804227"
             artifact_name: Name of the artifact, e.g "avd-system.tar.gz".
             destination_bucket: String, a google storage bucket name.
@@ -367,7 +312,7 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
         """Derives branch name.
 
         Args:
-            build_target: Target name, e.g. "aosp_cf_x86_64_phone-userdebug"
+            build_target: Target name, e.g. "aosp_cf_x86_64_phone-trunk_staging-userdebug"
             build_id: Build ID, a string, e.g. "2263051", "P2804227"
 
         Returns:
@@ -385,8 +330,8 @@ class AndroidBuildClient(base_cloud_client.BaseCloudApiClient):
         ... u'buildId': u'4949805', u'machineName'...}]}
 
         Args:
-            build_target: String, target name, e.g. "aosp_cf_x86_64_phone-userdebug"
-            build_branch: String, git branch name, e.g. "aosp-master"
+            build_target: String, target name, e.g. "aosp_cf_x86_64_phone-trunk_staging-userdebug"
+            build_branch: String, git branch name, e.g. "aosp-main"
 
         Returns:
             A string, string of build id number.

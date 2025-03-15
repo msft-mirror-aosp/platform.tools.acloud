@@ -103,7 +103,7 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
         try:
             image_args = self._ProcessRemoteHostArtifacts(deadline)
         except (errors.CreateError, errors.DriverError,
-                subprocess.CalledProcessError) as e:
+                subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
             logger.exception("Fail to prepare artifacts.")
             self._all_failures[instance] = str(e)
             # If an SSH error or timeout happens, report the name for the
@@ -125,7 +125,7 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
             self._FindLogFiles(
                 instance, (error_msg and not self._avd_spec.no_pull_log))
         except (errors.SubprocessFail, errors.DeviceConnectionError,
-                subprocess.CalledProcessError) as e:
+                subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
             logger.error("Fail to find log files: %s", e)
 
         return instance

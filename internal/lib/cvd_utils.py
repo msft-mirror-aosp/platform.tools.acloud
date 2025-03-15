@@ -932,10 +932,12 @@ def ExecuteRemoteLaunchCvd(ssh_obj, cmd, boot_timeout_secs):
     """
     try:
         ssh_obj.Run(f"-t '{cmd}'", boot_timeout_secs, retry=0)
-    except (subprocess.CalledProcessError, errors.DeviceConnectionError,
-            errors.LaunchCVDFail) as e:
-        error_msg = ("Device did not finish on boot within "
-                     f"{boot_timeout_secs} secs)")
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired,
+            errors.DeviceConnectionError, errors.LaunchCVDFail) as e:
+        error_msg = "Device did not boot"
+        if isinstance(e, subprocess.TimeoutExpired):
+            error_msg = ("Device did not finish on boot within "
+                         f"{boot_timeout_secs} secs)")
         if constants.ERROR_MSG_VNC_NOT_SUPPORT in str(e):
             error_msg = ("VNC is not supported in the current build. Please "
                          "try WebRTC such as '$acloud create' or "
@@ -970,7 +972,7 @@ def _GetRemoteRuntimeDirs(ssh_obj, remote_dir, base_instance_num,
                                  _REMOTE_RUNTIME_DIR_FORMAT %
                                  {"num": base_instance_num + num})
                 for num in range(num_avds_per_instance)]
-    except subprocess.CalledProcessError:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
         logger.debug("%s is not the runtime directory.", runtime_dir)
 
     legacy_runtime_dirs = [
