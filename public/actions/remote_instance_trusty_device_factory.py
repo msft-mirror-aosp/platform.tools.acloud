@@ -114,7 +114,6 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
     def __init__(self, avd_spec, local_android_image_artifact=None):
         super().__init__(avd_spec, local_android_image_artifact)
         self._all_logs = {}
-        self._host_package_artifact = _FindHostPackage(avd_spec.trusty_host_package)
 
     # pylint: disable=broad-except
     def CreateInstance(self):
@@ -148,11 +147,14 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         """
         avd_spec = self._avd_spec
         if avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
+            host_package_artifact = _FindHostPackage(
+                avd_spec.trusty_host_package
+            )
             cvd_utils.UploadArtifacts(
                 self._ssh,
                 cvd_utils.GCE_BASE_DIR,
                 (self._local_image_artifact or avd_spec.local_image_dir),
-                self._host_package_artifact,
+                host_package_artifact,
             )
         elif avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
             self._FetchBuild()
