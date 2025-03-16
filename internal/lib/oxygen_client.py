@@ -32,9 +32,9 @@ class OxygenClient():
         """Lease one cuttlefish device.
 
         Args:
-            build_target: Target name, e.g. "aosp_cf_x86_64_phone-userdebug"
+            build_target: Target name, e.g. "aosp_cf_x86_64_phone-trunk_staging-userdebug"
             build_id: Build ID, a string, e.g. "2263051", "P2804227"
-            build_branch: Build branch, e.g. "aosp-master"
+            build_branch: Build branch, e.g. "aosp-main"
             system_build_target: Target name of system build
             system_build_id: Build ID of system build
             kernel_build_target: Target name of kernel build

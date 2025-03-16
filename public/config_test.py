@@ -100,7 +100,7 @@ device_default_orientation_map {
 }
 
 valid_branch_and_min_build_id {
-    key: "aosp-master"
+    key: "aosp-main"
     value: 0
 }
 
@@ -233,7 +233,7 @@ common_hw_property_map {
             {"nexus5": "portrait"})
         self.assertEqual(
             dict(cfg.valid_branch_and_min_build_id.items()),
-            {"aosp-master": 0})
+            {"aosp-main": 0})
         self.assertEqual(cfg.default_usr_cfg.stable_host_image_name,
                          "fake_stable_host_image_name")
         self.assertEqual(cfg.default_usr_cfg.stable_host_image_project,

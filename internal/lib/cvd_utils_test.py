@@ -769,7 +769,7 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
         remote_image = {
             "branch": "aosp-android-12-gsi",
             "build_id": "100000",
-            "build_target": "aosp_cf_x86_64_phone-userdebug"}
+            "build_target": "aosp_cf_x86_64_phone-trunk_staging-userdebug"}
         mock_avd_spec = mock.Mock(
             spec=[],
             remote_image=remote_image,
