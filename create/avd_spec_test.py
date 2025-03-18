@@ -264,12 +264,12 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
             self.AvdSpec._GetBuildTarget(self.args, branch),
             "gce_x86_64_iot-userdebug")
 
-        branch = "aosp-master"
+        branch = "aosp-main"
         self.AvdSpec._flavor = constants.FLAVOR_PHONE
         self.args.avd_type = constants.TYPE_CF
         self.assertEqual(
             self.AvdSpec._GetBuildTarget(self.args, branch),
-            "aosp_cf_x86_64_phone-userdebug")
+            "aosp_cf_x86_64_phone-trunk_staging-userdebug")
 
         branch = "aosp-main"
         self.AvdSpec._flavor = constants.FLAVOR_PHONE
@@ -381,7 +381,7 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.assertTrue(self.AvdSpec.avd_type == "gce")
 
         # Verify auto-assigned avd_type if build_targe contains "_cf_".
-        self.args.build_target = "aosp_cf_x86_64_phone-userdebug"
+        self.args.build_target = "aosp_cf_x86_64_phone-trunk_staging-userdebug"
         self.AvdSpec._ProcessRemoteBuildArgs(self.args)
         self.assertTrue(self.AvdSpec.avd_type == "cuttlefish")
 
@@ -572,15 +572,6 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.args.connect_hostname = True
         self.mock_config.connect_hostname = False
         self.assertTrue(self.AvdSpec.connect_hostname)
-
-        # Verify fetch_cvd_version
-        self.args.fetch_cvd_build_id = None
-        self.AvdSpec._ProcessMiscArgs(self.args)
-        self.assertEqual(self.AvdSpec.fetch_cvd_version, "LKGB")
-
-        self.args.fetch_cvd_build_id = "23456"
-        self.AvdSpec._ProcessMiscArgs(self.args)
-        self.assertEqual(self.AvdSpec.fetch_cvd_version, "23456")
 
         self.args.trusty_branch = "trusty_branch"
         self.args.trusty_build_id = "trusty_build_id"

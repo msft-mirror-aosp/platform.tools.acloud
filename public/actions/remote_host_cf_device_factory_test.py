@@ -46,14 +46,13 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_cfg = mock.Mock(spec=[],
                              ssh_private_key_path="/mock/id_rsa",
                              extra_args_ssh_tunnel="extra args",
-                             fetch_cvd_version="123456",
                              creds_cache_file="credential",
                              service_account_json_private_key_path="/mock/key")
         return mock.Mock(spec=[],
                          remote_image={
                              "branch": "aosp-android12-gsi",
                              "build_id": "100000",
-                             "build_target": "aosp_cf_x86_64_phone-userdebug"},
+                             "build_target": "aosp_cf_x86_64_phone-trunk_staging-userdebug"},
                          system_build_info={},
                          kernel_build_info={},
                          boot_build_info={},
@@ -76,7 +75,6 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                          fetch_cvd_wrapper=None,
                          base_instance_num=None,
                          num_avds_per_instance=None,
-                         fetch_cvd_version="123456",
                          openwrt=True,
                          cfg=mock_cfg)
 
@@ -270,7 +268,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         # ProcessRemoteHostArtifacts
         mock_ssh_obj.Run.assert_called_with("mkdir -p acloud_cf_1")
         self._mock_build_api.DownloadArtifact.assert_called_once_with(
-            "aosp_cf_x86_64_phone-userdebug", "100000", "mock.zip", mock.ANY)
+            "aosp_cf_x86_64_phone-trunk_staging-userdebug", "100000", "mock.zip", mock.ANY)
         mock_cvd_utils.ExtractTargetFilesZip.assert_called_once()
         mock_check_call.assert_called_once()
         mock_ssh.ShellCmdWithRetry.assert_called_once()

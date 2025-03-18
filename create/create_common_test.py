@@ -244,10 +244,10 @@ class CreateCommonTest(driver_test_lib.BaseDriverTest):
         self.Patch(auth, "CreateCredentials", return_value=mock.MagicMock())
         avd_spec = mock.MagicMock()
         avd_spec.cfg = mock.MagicMock()
-        avd_spec.remote_image = {"build_target" : "aosp_cf_x86_64_phone-userdebug",
+        avd_spec.remote_image = {"build_target" : "aosp_cf_x86_64_phone-trunk_staging-userdebug",
                                  "build_id": "1234"}
         build_id = "1234"
-        build_target = "aosp_cf_x86_64_phone-userdebug"
+        build_target = "aosp_cf_x86_64_phone-trunk_staging-userdebug"
         checkfile1 = "aosp_cf_x86_phone-img-1234.zip"
         checkfile2 = "cvd-host_package.tar.gz"
         extract_path = "/tmp/1234"

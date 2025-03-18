@@ -158,7 +158,6 @@ class AVDSpec():
         self._webrtc_device_id = None
         self._connect_hostname = None
         self._fetch_cvd_wrapper = None
-        self._fetch_cvd_version = None
         self._enable_fetch_local_caching = None
         self._mix_system_dlkm_into_vendor_ramdisk = None
 
@@ -423,7 +422,6 @@ class AVDSpec():
         self._webrtc_device_id = args.webrtc_device_id
         self._connect_hostname = args.connect_hostname or self._cfg.connect_hostname
         self._fetch_cvd_wrapper = args.fetch_cvd_wrapper
-        self._fetch_cvd_version = self._GetFetchCVDVersion(args)
         self._enable_fetch_local_caching = args.enable_fetch_local_caching
         self._mix_system_dlkm_into_vendor_ramdisk = (
             args.mix_system_dlkm_into_vendor_ramdisk)
@@ -442,21 +440,6 @@ class AVDSpec():
             constants.BUILD_ID: args.trusty_build_id,
             constants.BUILD_BRANCH: args.trusty_branch,
             constants.BUILD_TARGET: args.trusty_build_target}
-
-    def _GetFetchCVDVersion(self, args):
-        """Get the fetch_cvd version.
-
-        Acloud will get the LKGB of fetch_cvd if no version specified.
-
-        Args:
-            args: Namespace object from argparse.parse_args.
-
-        Returns:
-            The build id of fetch_cvd.
-        """
-        if args.fetch_cvd_build_id:
-            return args.fetch_cvd_build_id
-        return constants.LKGB
 
     @staticmethod
     def _GetFlavorFromString(flavor_string):
@@ -840,7 +823,7 @@ class AVDSpec():
 
         Target = {REPO_PREFIX}{avd_type}_{bitness}_{flavor}-
             {DEFAULT_BUILD_TARGET_TYPE}.
-        Example target: aosp_cf_x86_64_phone-userdebug
+        Example target: aosp_cf_x86_64_phone-trunk_staging-userdebug
 
         Args:
             args: Namespace object from argparse.parse_args.
@@ -998,11 +981,6 @@ class AVDSpec():
         Return: Boolean
         """
         return self._enable_fetch_local_caching
-
-    @property
-    def fetch_cvd_version(self):
-        """Return fetch_cvd_version."""
-        return self._fetch_cvd_version
 
     @property
     def num(self):

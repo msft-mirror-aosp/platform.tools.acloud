@@ -79,7 +79,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
                 (instance in self.GetFailures() and
                  not self._avd_spec.no_pull_log))
         except (errors.SubprocessFail, errors.DeviceConnectionError,
-                subprocess.CalledProcessError) as e:
+                subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
             logger.error("Fail to find log files: %s", e)
 
         return instance
@@ -112,7 +112,6 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
                      avd_spec.local_image_dir),
                     self._cvd_host_package_artifact)
             elif avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
-                self._compute_client.UpdateFetchCvd(avd_spec.fetch_cvd_version)
                 self._compute_client.FetchBuild(
                     avd_spec.remote_image,
                     avd_spec.system_build_info,

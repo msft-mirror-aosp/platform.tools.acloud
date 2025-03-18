@@ -49,7 +49,7 @@ class RemoteImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
             return_value=self.build_client)
         self.Patch(auth, "CreateCredentials", return_value=mock.MagicMock())
         self.RemoteImageLocalInstance = remote_image_local_instance.RemoteImageLocalInstance()
-        self._fake_remote_image = {"build_target" : "aosp_cf_x86_64_phone-userdebug",
+        self._fake_remote_image = {"build_target" : "aosp_cf_x86_64_phone-trunk_staging-userdebug",
                                    "build_id": "1234",
                                    "branch": "aosp_master"}
         self._extract_path = "/tmp/acloud_image_artifacts/1234"
@@ -102,7 +102,7 @@ class RemoteImageLocalInstanceTest(driver_test_lib.BaseDriverTest):
                    side_effect=errors.GetCvdLocalHostPackageError("not found"))
         paths = self.RemoteImageLocalInstance.GetImageArtifactsPath(avd_spec)
         create_common.DownloadRemoteArtifact.assert_called_with(
-            avd_spec.cfg, "aosp_cf_x86_64_phone-userdebug", "1234",
+            avd_spec.cfg, "aosp_cf_x86_64_phone-trunk_staging-userdebug", "1234",
             "aosp_cf_x86_64_phone-target_files-1234.zip", "/unit/test/mix_image_1234",
             decompress=True)
         self.assertEqual(paths.image_dir, "/mix_image_1234/IMAGES")
