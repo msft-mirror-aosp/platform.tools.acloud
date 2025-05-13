@@ -60,8 +60,8 @@ _DEFAULT_TRUSTY_BUILD_TARGET = "qemu_generic_arm64_gicv3_test_debug"
 
 
 def _TrustyImagePackageFilename(build_target, build_branch):
-    trusty_target = build_target.replace("_", "-")
     if build_branch == "trusty_manifest":
+        trusty_target = build_target.replace("_", "-")
         return f"{trusty_target}.{_TRUSTY_IMAGE_PACKAGE[build_branch]}"
     if build_branch in _TRUSTY_IMAGE_PACKAGE:
         return _TRUSTY_IMAGE_PACKAGE[build_branch]
@@ -358,6 +358,13 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
     def _StartTrusty(self):
         """Start the model on the GCE instance."""
         self._ssh.Run(f"mkdir -p {_REMOTE_LOG_FOLDER}")
+        # TODO(b/417379600): remove the ln commands when the broken symlink
+        # root cause is identified
+        self._ssh.Run("ln -rsf lk.bin atf/qemu/debug/bl32.bin")
+        self._ssh.Run(
+            "ln -rsf test-runner/external/trusty/bootloader/test-runner/test-runner.bin atf/qemu/debug/bl33.bin"
+        )
+        # prepare launch args
         launch_args = (
             f"--extra-linux-args {self._launch_args.extra_linux_args} "
             if self._launch_args.extra_linux_args
