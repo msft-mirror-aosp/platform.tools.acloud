@@ -322,6 +322,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         kernel_build_info = self._avd_spec.kernel_build_info
         build_branch = kernel_build_info[constants.BUILD_BRANCH]
         if not build_branch:
+            # if kernel branch is not provided we use the kernel prebuilts in Android
             return False
         kernel_ko_dict = {
             "kernel_aarch64": [
@@ -351,10 +352,23 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
                 "trusty-virtio-polling.ko",
             ],
         }
-        build_id = kernel_build_info[constants.BUILD_ID]
         build_client = self._compute_client.build_api
-        if not build_id:
-            build_id = build_client.GetLKGB("kernel_aarch64", build_branch)
+
+        build_id_list = [
+            value
+            for value in [
+                self._launch_args.kernel_trusty_build_id
+                or build_client.GetLKGB("trusty_aarch64", build_branch),
+                self._launch_args.kernel_virt_build_id
+                or build_client.GetLKGB("kernel_virt_aarch64", build_branch),
+                kernel_build_info[constants.BUILD_ID]
+                or build_client.GetLKGB("kernel_aarch64", build_branch),
+            ]
+            if value is not None
+        ]
+        # we use the oldest build_id in the hope that the oldest LKGB
+        # has all the necessary targets
+        build_id = min(build_id_list)
         def _fetchAndUpload(
             build_target, file_name, dest_dir=None, dest_file_name=None
         ):
@@ -380,7 +394,6 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
                 )
 
         dlkm_staging_path = remote_path.join(cvd_utils.GCE_BASE_DIR, _DLKM_STAGING)
-        kernel_staging_path = remote_path.join(cvd_utils.GCE_BASE_DIR, _KERNEL_STAGING)
         self._SshRun(f"mkdir -p {dlkm_staging_path}")
 
         def _uploadDlkm(build_target):
@@ -481,6 +494,20 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             default=None,
             help="Trusty QEMU run.py option\n"
             "allowing to add extra arguments to the linux kernel command line.\n",
+        )
+        parser.add_argument(
+            "--kernel-virt-build-id",
+            type=str,
+            default=None,
+            help="Trusty acloud driver option\n"
+            "provide an extra build id for the out-of-band kernel virtual driver modules.\n",
+        )
+        parser.add_argument(
+            "--kernel-trusty-build-id",
+            type=str,
+            default=None,
+            help="Trusty acloud driver option\n"
+            "provide an extra build id for the out-of-band kernel Trusty driver modules.\n",
         )
         # see CVD Launch Args
         # exhaustive list at tools/acloud/internal/lib/cvd_utils.py
