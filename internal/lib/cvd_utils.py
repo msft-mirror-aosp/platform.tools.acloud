@@ -1112,6 +1112,20 @@ def FindLocalLogs(runtime_dir, instance_num):
             logs.append(report.LogFile(log_path, log_type))
     return logs
 
+def FindLocalFetchLog(image_directory):
+    """Find fetch.log file, if it exists.
+
+    Args:
+        image_directory: directory images were fetched to, if fetched
+
+    Returns:
+        None or a report.LogFile instance
+    """
+    fetch_log_path = os.path.join(image_directory, "fetch.log")
+    if not os.path.isfile(fetch_log_path):
+        return None
+
+    return report.LogFile(fetch_log_path, constants.LOG_TYPE_CUTTLEFISH_LOG)
 
 def GetOpenWrtInfoDict(ssh_obj, remote_dir):
     """Return the commands to connect to a remote OpenWrt console.

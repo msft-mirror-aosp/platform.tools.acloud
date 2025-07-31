@@ -137,7 +137,7 @@ EOF"""
         mock_utils.IsSupportedPlatform.return_value = True
         mock_get_image.return_value = local_image_local_instance.ArtifactPaths(
             "/image/path", "/host/bin/path", "host/usr/path",
-            None, None,  # misc_info
+            None, None, None,  # misc_info
             None, None, None,  # system
             None, None, None, None,  # boot
             None, None, None, None)  # vendor
@@ -255,7 +255,7 @@ EOF"""
         mock_cvd_utils.FindLocalLogs.return_value = [
             {'path': '/log/launcher.log', 'type': 'TEXT'}]
         artifact_paths = local_image_local_instance.ArtifactPaths(
-            "/image/path", "/host/bin/path", "/host/usr/path",
+            "/image/path", "/host/bin/path", "/host/usr/path", None,
             "/misc/info/path", "/ota/tools/dir", "/system/image/path",
             "/system_ext/image/path", "/product/image/path", "/boot/image/path",
             "/vendor_boot/image/path", "/kernel/image/path",
@@ -379,10 +379,10 @@ EOF"""
         self.assertEqual(
             paths,
             (image_dir, cvd_dir, cvd_dir,
-             None, None,  # misc_info
-             None, None, None,  # system
-             None, None, None, None,  # boot
-             None, None, None, None))  # vendor
+             None, None, None,  # fetch_dir, misc_info, ota_tools_dir
+             None, None, None,  # system, system_ext, product
+             None, None, None, None,  # boot, vendor_boot, kernel, initramfs
+             None, None, None, None))  # vendor, vendor_dlkm, odm, odm_dlkm
 
     # pylint: disable=too-many-locals
     @mock.patch("acloud.create.local_image_local_instance.ota_tools")
@@ -391,13 +391,14 @@ EOF"""
         with tempfile.TemporaryDirectory() as temp_dir:
             image_dir = os.path.join(temp_dir, "image")
             cvd_dir = os.path.join(temp_dir, "cvd-host_package")
+            fetch_dir = None
+            misc_info_path = os.path.join(image_dir, "misc_info.txt")
             mock_ota_tools.FindOtaToolsDir.return_value = cvd_dir
             extra_image_dir = os.path.join(temp_dir, "extra_image")
             system_image_path = os.path.join(extra_image_dir, "system.img")
             system_ext_image_path = os.path.join(extra_image_dir,
                                                  "system_ext.img")
             product_image_path = os.path.join(extra_image_dir, "product.img")
-            misc_info_path = os.path.join(image_dir, "misc_info.txt")
             boot_image_path = os.path.join(extra_image_dir, "boot.img")
             vendor_boot_image_path = os.path.join(extra_image_dir,
                                                   "vendor_boot.img")
@@ -440,7 +441,7 @@ EOF"""
         mock_ota_tools.FindOtaToolsDir.assert_called_with([cvd_dir, "/cvd"])
         self.assertEqual(
             paths,
-            (image_dir, cvd_dir, cvd_dir, misc_info_path, cvd_dir,
+            (image_dir, cvd_dir, cvd_dir, fetch_dir, misc_info_path, cvd_dir,
              system_image_path, system_ext_image_path, product_image_path,
              boot_image_path, vendor_boot_image_path, None, None,
              vendor_image_path, vendor_dlkm_image_path,
@@ -454,6 +455,7 @@ EOF"""
         with tempfile.TemporaryDirectory() as temp_dir:
             image_dir = os.path.join(temp_dir, "image")
             cvd_dir = os.path.join(temp_dir, "cvd-host_package")
+            fetch_dir = None
             system_image_path = os.path.join(temp_dir, "system", "test.img")
             misc_info_path = os.path.join(image_dir, "META", "misc_info.txt")
             kernel_image_dir = os.path.join(temp_dir, "kernel_image")
@@ -490,7 +492,7 @@ EOF"""
         self.assertEqual(
             paths,
             (os.path.join(image_dir, "IMAGES"), cvd_dir, cvd_dir,
-             misc_info_path, ota_tools_dir,
+             fetch_dir, misc_info_path, ota_tools_dir,
              system_image_path, None, None,
              None, None, kernel_image_path, initramfs_image_path,
              None, None, None, None))
