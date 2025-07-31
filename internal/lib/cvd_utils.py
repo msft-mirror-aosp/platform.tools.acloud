@@ -984,6 +984,19 @@ def _GetRemoteRuntimeDirs(ssh_obj, remote_dir, base_instance_num,
         for num in range(1, num_avds_per_instance))
     return legacy_runtime_dirs
 
+def GetRemoteFetchLog(remote_image_dir):
+    """Get the fetch.log created by fetch_cvd on a remote host or a GCE instance.
+
+    Args:
+        remote_image_dir: The remote image directory.
+
+    Returns:
+        An object of report.LogFile.
+    """
+    return report.LogFile(
+        remote_path.join(remote_image_dir, "fetch.log"),
+        constants.LOG_TYPE_CUTTLEFISH_LOG)
+
 
 def GetRemoteFetcherConfigJson(remote_image_dir):
     """Get the config created by fetch_cvd on a remote host or a GCE instance.
