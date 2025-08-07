@@ -16,6 +16,7 @@
 import glob
 import logging
 import os
+import shlex
 import tempfile
 import unittest
 import uuid
@@ -101,7 +102,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             fake_host_package_name)
         mock_ssh.Run.assert_called_once_with(
             f"tar -xzf - -C {mock_cvd_utils.GCE_BASE_DIR} "
-            f"< {fake_emulator_package}")
+            f"< {fake_emulator_package}", show_output=True, timeout=constants.DEFAULT_SSH_TIMEOUT)
         self.assertEqual(temp_config, _EXPECTED_CONFIG_JSON)
         mock_ssh.ScpPushFile.assert_called_with(
             fake_tmp_path, f"{mock_cvd_utils.GCE_BASE_DIR}/config.json")
@@ -144,29 +145,40 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
 
         factory_remote_img._ProcessArtifacts()
 
-        # Download trusty image package
-        factory_remote_img.GetComputeClient().build_api.DownloadArtifact.called_once()
-
         mock_ssh.Run.assert_has_calls(
             [
                 mock.call(
-                    "cvd fetch -credential_source=gce "
+                    shlex.quote("cvd fetch -credential_source=gce "
                     "-default_build=default_build_id/default_target "
                     "-kernel_build=kernel_build_id/kernel_target "
-                    "-host_package_build=default_build_id/default_target{trusty-host_package.tar.gz}",
-                    timeout=300,
+                    "-host_package_build=default_build_id/default_target{trusty-host_package.tar.gz}"),
+                    show_output=True, timeout=300,
                 ),
                 mock.call(
-                    f"cd {mock_cvd_utils.GCE_BASE_DIR}/bin && "
-                    "./replace_ramdisk_modules "
-                    f"--android-ramdisk={mock_cvd_utils.GCE_BASE_DIR}/ramdisk.img "
-                    f"--kernel-ramdisk={mock_cvd_utils.GCE_BASE_DIR}/initramfs.img "
-                    f"--output-ramdisk={mock_cvd_utils.GCE_BASE_DIR}/ramdisk.img",
+                    shlex.quote(f"mkdir -p {mock_cvd_utils.GCE_BASE_DIR}/{remote_instance_trusty_device_factory._DLKM_STAGING}"),
+                    show_output=True, timeout=300,
+                ),
+                mock.call(
+                    f"tar -xzf - -C {mock_cvd_utils.GCE_BASE_DIR}/{remote_instance_trusty_device_factory._DLKM_STAGING} "
+                    f"< {fake_tmp_path}",
+                    show_output=True, timeout=300,
+                ),
+                mock.call(
+                    shlex.quote(f"rm {remote_instance_trusty_device_factory._KERNEL_STAGING}/modules.*"),
+                    show_output=True, timeout=300,
+                ),
+                mock.call(
+                    shlex.quote("PATH=$(pwd)/bin:$PATH ./bin/replace_ramdisk_modules "
+                    "--android-ramdisk=ramdisk.img "
+                    f"--kernel-ramdisk={remote_instance_trusty_device_factory._KERNEL_STAGING} "
+                    "--output-ramdisk=ramdisk.img "
+                    f"--override-modules-load {remote_instance_trusty_device_factory._MODULES_LOAD}"),
+                    show_output=True,
                     timeout=300,
                 ),
                 mock.call(
                     f"tar -xzf - -C {mock_cvd_utils.GCE_BASE_DIR} "
-                    f"< {fake_tmp_path}"
+                    f"< {fake_tmp_path}", show_output=True, timeout=300
                 ),
             ]
         )
@@ -201,10 +213,12 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         factory.CreateInstance()
         mock_create_gce_instance.assert_called_once()
         mock_cvd_utils.UploadArtifacts.assert_called_once()
-        # First call is unpacking host package
-        # then unpacking image archive
+        # cvd_utils.UploadArtifacts
+        # make remote log directory
+        # unpacking host package
+        # unpacking image archive
         # and finally run
-        self.assertEqual(mock_ssh.Run.call_count, 3)
+        self.assertEqual(mock_ssh.Run.call_count, 5)
         self.assertIn(
             "gce_base_dir/run.py --verbose --config=config.json",
             mock_ssh.Run.call_args[0][0],
