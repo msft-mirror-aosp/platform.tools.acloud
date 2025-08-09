@@ -313,6 +313,7 @@ class RemoteImageLocalInstance(local_image_local_instance.LocalImageLocalInstanc
             image_dir=mix_image_dir or image_dir,
             host_bins=host_bins_path,
             host_artifacts=image_dir,
+            fetch_dir=image_dir,
             misc_info=misc_info_path,
             ota_tools_dir=ota_tools_dir,
             system_image=system_image_path,

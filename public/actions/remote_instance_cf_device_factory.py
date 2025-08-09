@@ -191,6 +191,8 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         if self._avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
             logs.append(
                 cvd_utils.GetRemoteFetcherConfigJson(cvd_utils.GCE_BASE_DIR))
+            logs.append(
+                cvd_utils.GetRemoteFetchLog(cvd_utils.GCE_BASE_DIR))
         logs.extend(cvd_utils.FindRemoteLogs(
             self._ssh,
             cvd_utils.GCE_BASE_DIR,

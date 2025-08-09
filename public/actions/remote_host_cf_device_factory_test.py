@@ -302,12 +302,14 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         factory = remote_host_cf_device_factory.RemoteHostDeviceFactory(
             mock_avd_spec)
 
-        log = {"path": "/log.txt"}
         mock_cvd_utils.GetRemoteHostBaseDir.return_value = "acloud_cf_1"
         mock_cvd_utils.FormatRemoteHostInstanceName.return_value = "inst"
         mock_cvd_utils.AreTargetFilesRequired.return_value = False
         mock_cvd_utils.ExecuteRemoteLaunchCvd.return_value = ""
         mock_cvd_utils.FindRemoteLogs.return_value = []
+        fetch_log = {"fetch_path": "fetch.log"}
+        mock_cvd_utils.GetRemoteFetchLog.return_value = fetch_log
+        log = {"path": "/log.txt"}
         mock_cvd_utils.GetRemoteFetcherConfigJson.return_value = log
 
         self._mock_build_api.GetFetchBuildArgs.return_value = ["-test"]
@@ -329,7 +331,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_pull.GetAllLogFilePaths.assert_not_called()
         mock_pull.PullLogs.assert_not_called()
         self.assertFalse(factory.GetFailures())
-        self.assertDictEqual({"inst": [log]}, factory.GetLogs())
+        self.assertDictEqual({"inst": [log, fetch_log]}, factory.GetLogs())
 
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory.ssh")
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory."
@@ -355,12 +357,14 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         factory = remote_host_cf_device_factory.RemoteHostDeviceFactory(
             mock_avd_spec)
 
-        log = {"path": "/log.txt"}
         mock_cvd_utils.GetRemoteHostBaseDir.return_value = "acloud_cf_1"
         mock_cvd_utils.FormatRemoteHostInstanceName.return_value = "inst"
         mock_cvd_utils.AreTargetFilesRequired.return_value = False
         mock_cvd_utils.ExecuteRemoteLaunchCvd.return_value = ""
         mock_cvd_utils.FindRemoteLogs.return_value = []
+        fetch_log = {"fetch_path": "fetch.log"}
+        mock_cvd_utils.GetRemoteFetchLog.return_value = fetch_log
+        log = {"path": "/log.txt"}
         mock_cvd_utils.GetRemoteFetcherConfigJson.return_value = log
 
         self._mock_build_api.GetFetchBuildArgs.return_value = ["-test"]
@@ -387,7 +391,7 @@ class RemoteHostDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_pull.GetAllLogFilePaths.assert_not_called()
         mock_pull.PullLogs.assert_not_called()
         self.assertFalse(factory.GetFailures())
-        self.assertDictEqual({"inst": [log]}, factory.GetLogs())
+        self.assertDictEqual({"inst": [log, fetch_log]}, factory.GetLogs())
 
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory.ssh")
     @mock.patch("acloud.public.actions.remote_host_cf_device_factory."

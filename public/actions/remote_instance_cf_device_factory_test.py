@@ -332,6 +332,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         mock_cvd_utils.AreTargetFilesRequired.return_value = False
         mock_cvd_utils.FindRemoteLogs.return_value = [{"path": "/logcat"}]
         mock_cvd_utils.UploadExtraImages.return_value = []
+        mock_cvd_utils.GetRemoteFetchLog.return_value = {"fetch_path", "fetch.log"}
 
         factory = remote_instance_cf_device_factory.RemoteInstanceDeviceFactory(
             fake_avd_spec)
@@ -350,7 +351,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         factory.GetVncPorts()
         mock_cvd_utils.GetVncPorts.assert_called_with(2, 3)
         self.assertFalse(factory.GetFailures())
-        self.assertEqual(3, len(factory.GetLogs().get("instance")))
+        self.assertEqual(4, len(factory.GetLogs().get("instance")))
 
     @mock.patch("acloud.public.actions.remote_instance_cf_device_factory."
                 "cvd_utils")

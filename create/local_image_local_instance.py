@@ -124,7 +124,7 @@ _CONFIRM_RELAUNCH = ("\nCuttlefish AVD[id:%d] is already running. \n"
 # are optional. They are set when the AVD spec requires to mix images.
 ArtifactPaths = collections.namedtuple(
     "ArtifactPaths",
-    ["image_dir", "host_bins", "host_artifacts", "misc_info", "ota_tools_dir",
+    ["image_dir", "host_bins", "host_artifacts", "fetch_dir", "misc_info", "ota_tools_dir",
      "system_image", "system_ext_image", "product_image",
      "boot_image", "vendor_boot_image", "kernel_image", "initramfs_image",
      "vendor_image", "vendor_dlkm_image", "odm_image", "odm_dlkm_image"])
@@ -319,8 +319,18 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                             cvd_home_dir, (avd_spec.boot_timeout_secs or
                                            constants.DEFAULT_CF_BOOT_TIMEOUT))
             logs = cvd_utils.FindLocalLogs(runtime_dir, local_instance_id)
+            # if remote_image_local_instance fetched
+            if artifact_paths.fetch_dir:
+                fetch_logfile = cvd_utils.FindLocalFetchLog(artifact_paths.fetch_dir)
+                if fetch_logfile:
+                    logs.append(fetch_logfile)
         except errors.LaunchCVDFail as launch_error:
             logs = cvd_utils.FindLocalLogs(runtime_dir, local_instance_id)
+            # if remote_image_local_instance fetched
+            if artifact_paths.fetch_dir:
+                fetch_logfile = cvd_utils.FindLocalFetchLog(artifact_paths.fetch_dir)
+                if fetch_logfile:
+                    logs.append(fetch_logfile)
             err_msg = ("Cannot create cuttlefish instance: %s\n"
                        "For more detail: %s/launcher.log" %
                        (launch_error, runtime_dir))
@@ -541,6 +551,7 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
 
         return ArtifactPaths(image_dir, host_bins_path,
                              host_artifacts=host_artifacts_path,
+                             fetch_dir=None,
                              misc_info=misc_info_path,
                              ota_tools_dir=ota_tools_dir,
                              system_image=system_image_path,

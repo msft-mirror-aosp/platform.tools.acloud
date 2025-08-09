@@ -549,6 +549,8 @@ class RemoteHostDeviceFactory(base_device_factory.BaseDeviceFactory):
                 self._avd_spec.remote_fetch):
             logs.append(
                 cvd_utils.GetRemoteFetcherConfigJson(self._GetArtifactPath()))
+            logs.append(
+                cvd_utils.GetRemoteFetchLog(self._GetArtifactPath()))
         logs.extend(cvd_utils.FindRemoteLogs(
             self._ssh,
             self._GetInstancePath(),

@@ -579,6 +579,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         logs = [cvd_utils.HOST_KERNEL_LOG]
         if self._avd_spec.image_source == constants.IMAGE_SRC_REMOTE:
             logs.append(cvd_utils.GetRemoteFetcherConfigJson(cvd_utils.GCE_BASE_DIR))
+            logs.append(cvd_utils.GetRemoteFetchLog(cvd_utils.GCE_BASE_DIR))
         logs.append(report.LogFile(_REMOTE_STDOUT_PATH, constants.LOG_TYPE_KERNEL_LOG))
         logs.append(report.LogFile(_REMOTE_STDERR_PATH, constants.LOG_TYPE_TEXT))
         self._all_logs[instance] = logs
