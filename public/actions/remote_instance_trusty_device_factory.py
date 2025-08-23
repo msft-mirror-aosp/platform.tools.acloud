@@ -166,9 +166,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         """
         avd_spec = self._avd_spec
         if avd_spec.image_source == constants.IMAGE_SRC_LOCAL:
-            host_package_artifact = _FindHostPackage(
-                avd_spec.trusty_host_package
-            )
+            host_package_artifact = _FindHostPackage(avd_spec.trusty_host_package)
             cvd_utils.UploadArtifacts(
                 self._ssh,
                 cvd_utils.GCE_BASE_DIR,
@@ -369,6 +367,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         # we use the oldest build_id in the hope that the oldest LKGB
         # has all the necessary targets
         build_id = min(build_id_list)
+
         def _fetchAndUpload(
             build_target, file_name, dest_dir=None, dest_file_name=None
         ):
@@ -472,6 +471,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         # the Trusty QEMU specific modules.load
         self._SshRun(
             "PATH=$(pwd)/bin:$PATH ./bin/replace_ramdisk_modules "
+            f"--depmod=depmod "
             f"--android-ramdisk=ramdisk.img "
             f"--kernel-ramdisk={_KERNEL_STAGING} "
             f"--output-ramdisk=ramdisk.img "
@@ -490,8 +490,8 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         parser = argparse.ArgumentParser(prog="AVD Launch Args")
         parser.add_argument(
             "--extra-linux-args",
-            type=str,
-            default=None,
+            nargs="+",
+            default=[],
             help="Trusty QEMU run.py option\n"
             "allowing to add extra arguments to the linux kernel command line.\n",
         )
@@ -551,8 +551,8 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         )
         # prepare launch args
         launch_args = (
-            f"--extra-linux-args {self._launch_args.extra_linux_args} "
-            if self._launch_args.extra_linux_args
+            f"--extra-linux-args {' '.join(self._launch_args.extra_linux_args)} "
+            if len(self._launch_args.extra_linux_args) > 0
             else ""
         )
         # We use an explicit subshell so we can run this command in the
