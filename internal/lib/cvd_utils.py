@@ -145,6 +145,9 @@ _TARGET_FILES_ENTRIES = [
 # Represents a 64-bit ARM architecture.
 _ARM_MACHINE_TYPE = "aarch64"
 
+_USE_CVD_TARGETS = [
+    "cf_x86_64_phone-trunk_staging-userdebug",
+]
 
 def GetAdbPorts(base_instance_num, num_avds_per_instance):
     """Get ADB ports of cuttlefish.
@@ -908,13 +911,29 @@ def GetRemoteLaunchCvdCmd(remote_dir, avd_spec, config, extra_args):
     Returns:
         A string, the launch_cvd command.
     """
+    logger.debug("avd_spec: %s", avd_spec)
+    build_info_dict = GetRemoteBuildInfoDict(avd_spec)
+    logger.debug("build_info_dict: %s", build_info_dict)
+    build_target = build_info_dict.get("build_target", "")
+    use_cvd = build_target in _USE_CVD_TARGETS
+    cvd_bin_name = (
+        "cvd" if use_cvd
+        else remote_path.join(remote_dir, "bin", "launch_cvd")
+    )
     # FIXME: Use the images and launch_cvd in avd_spec.remote_image_dir when
     # cuttlefish can reliably share images.
-    cmd = ["HOME=" + remote_path.join("$HOME", remote_dir),
-           remote_path.join(remote_dir, "bin", "launch_cvd"),
-           "-daemon"]
-    cmd.extend(extra_args)
-    cmd.extend(_GetLaunchCvdArgs(avd_spec, config))
+    cmd = ["HOME=" + remote_path.join("$HOME", remote_dir), cvd_bin_name]
+    all_args = []
+    if use_cvd:
+        all_args.append("create")
+    else:
+        all_args.append("-daemon")
+    logger.debug("extra_args: %s", extra_args)
+    all_args.extend(extra_args)
+    launch_cvd_args = _GetLaunchCvdArgs(avd_spec, config)
+    logger.debug("launch_cvd_args: %s", launch_cvd_args)
+    all_args.extend(launch_cvd_args)
+    cmd.extend(all_args)
     return " ".join(cmd)
 
 
@@ -1152,29 +1171,37 @@ def GetRemoteBuildInfoDict(avd_spec):
     Returns:
         A dict containing the build infos.
     """
-    build_info_dict = {
-        key: val for key, val in avd_spec.remote_image.items() if val}
+    build_info_dict = {}
 
-    # kernel_target has a default value. If the user provides kernel_build_id
-    # or kernel_branch, then convert kernel build info.
-    if (avd_spec.kernel_build_info.get(constants.BUILD_ID) or
-            avd_spec.kernel_build_info.get(constants.BUILD_BRANCH)):
+    if hasattr(avd_spec, 'remote_image'):
+        build_info_dict = {
+            key: val for key, val in avd_spec.remote_image.items() if val}
+
+    if hasattr(avd_spec, "kernel_build_info"):
+        # kernel_target has a default value. If the user provides kernel_build_id
+        # or kernel_branch, then convert kernel build info.
+        if (avd_spec.kernel_build_info.get(constants.BUILD_ID) or
+                avd_spec.kernel_build_info.get(constants.BUILD_BRANCH)):
+            build_info_dict.update(
+                {"kernel_" + key: val
+                 for key, val in avd_spec.kernel_build_info.items() if val}
+            )
+    if hasattr(avd_spec, "system_build_info"):
         build_info_dict.update(
-            {"kernel_" + key: val
-             for key, val in avd_spec.kernel_build_info.items() if val}
+            {"system_" + key: val
+             for key, val in avd_spec.system_build_info.items() if val}
         )
-    build_info_dict.update(
-        {"system_" + key: val
-         for key, val in avd_spec.system_build_info.items() if val}
-    )
-    build_info_dict.update(
-        {"bootloader_" + key: val
-         for key, val in avd_spec.bootloader_build_info.items() if val}
-    )
-    build_info_dict.update(
-        {"android_efi_loader_" + key: val
-         for key, val in avd_spec.android_efi_loader_build_info.items() if val}
-    )
+    if hasattr(avd_spec, "bootloader_build_info"):
+        build_info_dict.update(
+            {"bootloader_" + key: val
+             for key, val in avd_spec.bootloader_build_info.items() if val}
+        )
+    if hasattr(avd_spec, "android_efi_loader_build_info"):
+        build_info_dict.update(
+            {"android_efi_loader_" + key: val
+             for key, val in avd_spec.android_efi_loader_build_info.items() if val}
+        )
+
     return build_info_dict
 
 
