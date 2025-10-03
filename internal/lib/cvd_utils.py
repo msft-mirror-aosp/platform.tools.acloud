@@ -147,6 +147,7 @@ _ARM_MACHINE_TYPE = "aarch64"
 
 _USE_CVD_TARGETS = [
     "cf_x86_64_phone-trunk_staging-userdebug",
+    "aosp_cf_x86_64_phone-trunk_staging-userdebug",
 ]
 
 def GetAdbPorts(base_instance_num, num_avds_per_instance):
@@ -936,6 +937,70 @@ def GetRemoteLaunchCvdCmd(remote_dir, avd_spec, config, extra_args):
     cmd.extend(all_args)
     return " ".join(cmd)
 
+def _SymlinkDirsForCvdCreate(ssh_obj):
+    """symlink directories when using cvd create.
+
+    When Tradefed uses `acloud` it expects instance
+    runtime directory at:
+
+    $HOME/cuttlefish/instances/cvd-1
+
+    When `acloud` uses `cvd create` rather `launch_cvd`
+    that directory does not exist.
+
+    Args:
+        ssh_obj: An Ssh object.
+    """
+    try:
+        cvd_version = ssh_obj.Run("'cvd version'", 30, retry=0)
+        logger.debug("cvd version: %s", cvd_version)
+        # cvd fleet output example
+        # {
+        #   "groups": [
+        #     {
+        #       "group_name": "cvd_1",
+        #       "instances": [
+        #         {
+        #           "adb_port": 6520,
+        #           "adb_serial": "0.0.0.0:6520",
+        #           "assembly_dir": "/tmp/cvd/1001/178059/home/cuttlefish/assembly",
+        #           "displays": [
+        #             "720 x 1280 ( 320 )"
+        #           ],
+        #           "instance_dir": "/tmp/cvd/1001/178059/home/cuttlefish/instances/cvd-1",
+        #           "instance_name": "1",
+        #           "status": "Running",
+        #           "web_access": "https://localhost:1443/devices/cvd_1-1-1/files/client.html",
+        #           "webrtc_device_id": "cvd_1-1-1",
+        #           "webrtc_port": "8443"
+        #         }
+        #       ],
+        #       "start_time": "2025-10-03 19:43:28"
+        #     }
+        #   ]
+        # }
+        cmd = "cvd fleet 2>/dev/null"
+        cvd_fleet_str = ssh_obj.Run(f"'{cmd}'", 30, retry=0)
+        logger.debug("cvd fleet output:\n\n%s\n\n", cvd_fleet_str)
+        cvd_fleet = json.loads(cvd_fleet_str)
+        groups = cvd_fleet.get("groups", [])
+        if len(groups) != 1:
+            return
+        group = groups[0]
+        instances = group.get("instances", [])
+        if len(instances) != 1:
+            return
+        instance = instances[0]
+        logger.debug("instance: %s", instance)
+        instance_dir = instance.get("instance_dir", "")
+        if instance_dir == "":
+            return
+        cmd = "mkdir -p $HOME/cuttlefish/instances"
+        ssh_obj.Run(f"'{cmd}'", 30, retry=0)
+        cmd = f"ln -s {instance_dir} $HOME/cuttlefish/instances/cvd-1"
+        ssh_obj.Run(f"'{cmd}'", 30, retry=0)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        utils.PrintColorString(str(e), utils.TextColors.FAIL)
 
 def ExecuteRemoteLaunchCvd(ssh_obj, cmd, boot_timeout_secs):
     """launch_cvd command on a remote host or a GCE instance.
@@ -967,6 +1032,10 @@ def ExecuteRemoteLaunchCvd(ssh_obj, cmd, boot_timeout_secs):
                          "'$acloud create --autoconnect vnc'")
         utils.PrintColorString(str(e), utils.TextColors.FAIL)
         return error_msg
+    finally:
+        if "cvd create" in cmd:
+            logger.debug("used `cvd create`: symlink dirs")
+            _SymlinkDirsForCvdCreate(ssh_obj)
     return ""
 
 
