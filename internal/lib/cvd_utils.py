@@ -145,6 +145,10 @@ _TARGET_FILES_ENTRIES = [
 # Represents a 64-bit ARM architecture.
 _ARM_MACHINE_TYPE = "aarch64"
 
+# This arg won't be passed to `cvd create` or `launch_cvd` command.
+# Used only by acloud to determine whether to use `cvd create` or `launch_cvd`.
+_LAUNCH_ARG_USE_LAUNCH_CVD="-acloud_only_use_launch_cvd"
+
 _USE_CVD_TARGETS = [
     "cf_x86_64_phone-trunk_staging-userdebug",
     "aosp_cf_x86_64_phone-trunk_staging-userdebug",
@@ -912,7 +916,13 @@ def GetRemoteLaunchCvdCmd(remote_dir, avd_spec, config, extra_args):
     Returns:
         A string, the launch_cvd command.
     """
-    logger.debug("avd_spec: %s", avd_spec)
+    for attr in dir(avd_spec):
+        logger.debug(f"avd_spec.{attr} = %r", getattr(avd_spec, attr))
+    launch_cvd_args = _GetLaunchCvdArgs(avd_spec, config)
+    logger.debug("launch_cvd_args: %s", launch_cvd_args)
+    if _LAUNCH_ARG_USE_LAUNCH_CVD in launch_cvd_args:
+        logger.debug("launch_cvd_args: removing %s", _LAUNCH_ARG_USE_LAUNCH_CVD)
+        launch_cvd_args.remove(_LAUNCH_ARG_USE_LAUNCH_CVD)
     build_info_dict = GetRemoteBuildInfoDict(avd_spec)
     logger.debug("build_info_dict: %s", build_info_dict)
     build_target = build_info_dict.get("build_target", "")
@@ -931,9 +941,8 @@ def GetRemoteLaunchCvdCmd(remote_dir, avd_spec, config, extra_args):
         all_args.append("-daemon")
     logger.debug("extra_args: %s", extra_args)
     all_args.extend(extra_args)
-    launch_cvd_args = _GetLaunchCvdArgs(avd_spec, config)
-    logger.debug("launch_cvd_args: %s", launch_cvd_args)
     all_args.extend(launch_cvd_args)
+    logger.debug("all args: %s", all_args)
     cmd.extend(all_args)
     return " ".join(cmd)
 
