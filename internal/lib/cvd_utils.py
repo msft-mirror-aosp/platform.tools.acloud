@@ -145,6 +145,14 @@ _TARGET_FILES_ENTRIES = [
 # Represents a 64-bit ARM architecture.
 _ARM_MACHINE_TYPE = "aarch64"
 
+# This arg won't be passed to `cvd create` or `launch_cvd` command.
+# Used only by acloud to determine whether to use `cvd create` or `launch_cvd`.
+_LAUNCH_ARG_USE_LAUNCH_CVD="-acloud_only_use_launch_cvd"
+
+_USE_CVD_TARGETS = [
+    "cf_x86_64_phone-trunk_staging-userdebug",
+    "aosp_cf_x86_64_phone-trunk_staging-userdebug",
+]
 
 def GetAdbPorts(base_instance_num, num_avds_per_instance):
     """Get ADB ports of cuttlefish.
@@ -908,15 +916,100 @@ def GetRemoteLaunchCvdCmd(remote_dir, avd_spec, config, extra_args):
     Returns:
         A string, the launch_cvd command.
     """
+    for attr in dir(avd_spec):
+        logger.debug(f"avd_spec.{attr} = %r", getattr(avd_spec, attr))
+    launch_cvd_args = _GetLaunchCvdArgs(avd_spec, config)
+    logger.debug("launch_cvd_args: %s", launch_cvd_args)
+    if _LAUNCH_ARG_USE_LAUNCH_CVD in launch_cvd_args:
+        logger.debug("launch_cvd_args: removing %s", _LAUNCH_ARG_USE_LAUNCH_CVD)
+        launch_cvd_args.remove(_LAUNCH_ARG_USE_LAUNCH_CVD)
+    build_info_dict = GetRemoteBuildInfoDict(avd_spec)
+    logger.debug("build_info_dict: %s", build_info_dict)
+    build_target = build_info_dict.get("build_target", "")
+    use_cvd = build_target in _USE_CVD_TARGETS
+    cvd_bin_name = (
+        "cvd" if use_cvd
+        else remote_path.join(remote_dir, "bin", "launch_cvd")
+    )
     # FIXME: Use the images and launch_cvd in avd_spec.remote_image_dir when
     # cuttlefish can reliably share images.
-    cmd = ["HOME=" + remote_path.join("$HOME", remote_dir),
-           remote_path.join(remote_dir, "bin", "launch_cvd"),
-           "-daemon"]
-    cmd.extend(extra_args)
-    cmd.extend(_GetLaunchCvdArgs(avd_spec, config))
+    cmd = ["HOME=" + remote_path.join("$HOME", remote_dir), cvd_bin_name]
+    all_args = []
+    if use_cvd:
+        all_args.append("create")
+    else:
+        all_args.append("-daemon")
+    logger.debug("extra_args: %s", extra_args)
+    all_args.extend(extra_args)
+    all_args.extend(launch_cvd_args)
+    logger.debug("all args: %s", all_args)
+    cmd.extend(all_args)
     return " ".join(cmd)
 
+def _SymlinkDirsForCvdCreate(ssh_obj):
+    """symlink directories when using cvd create.
+
+    When Tradefed uses `acloud` it expects instance
+    runtime directory at:
+
+    $HOME/cuttlefish/instances/cvd-1
+
+    When `acloud` uses `cvd create` rather `launch_cvd`
+    that directory does not exist.
+
+    Args:
+        ssh_obj: An Ssh object.
+    """
+    try:
+        cvd_version = ssh_obj.Run("'cvd version'", 30, retry=0)
+        logger.debug("cvd version: %s", cvd_version)
+        # cvd fleet output example
+        # {
+        #   "groups": [
+        #     {
+        #       "group_name": "cvd_1",
+        #       "instances": [
+        #         {
+        #           "adb_port": 6520,
+        #           "adb_serial": "0.0.0.0:6520",
+        #           "assembly_dir": "/tmp/cvd/1001/178059/home/cuttlefish/assembly",
+        #           "displays": [
+        #             "720 x 1280 ( 320 )"
+        #           ],
+        #           "instance_dir": "/tmp/cvd/1001/178059/home/cuttlefish/instances/cvd-1",
+        #           "instance_name": "1",
+        #           "status": "Running",
+        #           "web_access": "https://localhost:1443/devices/cvd_1-1-1/files/client.html",
+        #           "webrtc_device_id": "cvd_1-1-1",
+        #           "webrtc_port": "8443"
+        #         }
+        #       ],
+        #       "start_time": "2025-10-03 19:43:28"
+        #     }
+        #   ]
+        # }
+        cmd = "cvd fleet 2>/dev/null"
+        cvd_fleet_str = ssh_obj.Run(f"'{cmd}'", 30, retry=0)
+        logger.debug("cvd fleet output:\n\n%s\n\n", cvd_fleet_str)
+        cvd_fleet = json.loads(cvd_fleet_str)
+        groups = cvd_fleet.get("groups", [])
+        if len(groups) != 1:
+            return
+        group = groups[0]
+        instances = group.get("instances", [])
+        if len(instances) != 1:
+            return
+        instance = instances[0]
+        logger.debug("instance: %s", instance)
+        instance_dir = instance.get("instance_dir", "")
+        if instance_dir == "":
+            return
+        cmd = "mkdir -p $HOME/cuttlefish/instances"
+        ssh_obj.Run(f"'{cmd}'", 30, retry=0)
+        cmd = f"ln -s {instance_dir} $HOME/cuttlefish/instances/cvd-1"
+        ssh_obj.Run(f"'{cmd}'", 30, retry=0)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        utils.PrintColorString(str(e), utils.TextColors.FAIL)
 
 def ExecuteRemoteLaunchCvd(ssh_obj, cmd, boot_timeout_secs):
     """launch_cvd command on a remote host or a GCE instance.
@@ -948,6 +1041,10 @@ def ExecuteRemoteLaunchCvd(ssh_obj, cmd, boot_timeout_secs):
                          "'$acloud create --autoconnect vnc'")
         utils.PrintColorString(str(e), utils.TextColors.FAIL)
         return error_msg
+    finally:
+        if "cvd create" in cmd:
+            logger.debug("used `cvd create`: symlink dirs")
+            _SymlinkDirsForCvdCreate(ssh_obj)
     return ""
 
 
@@ -1152,29 +1249,37 @@ def GetRemoteBuildInfoDict(avd_spec):
     Returns:
         A dict containing the build infos.
     """
-    build_info_dict = {
-        key: val for key, val in avd_spec.remote_image.items() if val}
+    build_info_dict = {}
 
-    # kernel_target has a default value. If the user provides kernel_build_id
-    # or kernel_branch, then convert kernel build info.
-    if (avd_spec.kernel_build_info.get(constants.BUILD_ID) or
-            avd_spec.kernel_build_info.get(constants.BUILD_BRANCH)):
+    if hasattr(avd_spec, 'remote_image'):
+        build_info_dict = {
+            key: val for key, val in avd_spec.remote_image.items() if val}
+
+    if hasattr(avd_spec, "kernel_build_info"):
+        # kernel_target has a default value. If the user provides kernel_build_id
+        # or kernel_branch, then convert kernel build info.
+        if (avd_spec.kernel_build_info.get(constants.BUILD_ID) or
+                avd_spec.kernel_build_info.get(constants.BUILD_BRANCH)):
+            build_info_dict.update(
+                {"kernel_" + key: val
+                 for key, val in avd_spec.kernel_build_info.items() if val}
+            )
+    if hasattr(avd_spec, "system_build_info"):
         build_info_dict.update(
-            {"kernel_" + key: val
-             for key, val in avd_spec.kernel_build_info.items() if val}
+            {"system_" + key: val
+             for key, val in avd_spec.system_build_info.items() if val}
         )
-    build_info_dict.update(
-        {"system_" + key: val
-         for key, val in avd_spec.system_build_info.items() if val}
-    )
-    build_info_dict.update(
-        {"bootloader_" + key: val
-         for key, val in avd_spec.bootloader_build_info.items() if val}
-    )
-    build_info_dict.update(
-        {"android_efi_loader_" + key: val
-         for key, val in avd_spec.android_efi_loader_build_info.items() if val}
-    )
+    if hasattr(avd_spec, "bootloader_build_info"):
+        build_info_dict.update(
+            {"bootloader_" + key: val
+             for key, val in avd_spec.bootloader_build_info.items() if val}
+        )
+    if hasattr(avd_spec, "android_efi_loader_build_info"):
+        build_info_dict.update(
+            {"android_efi_loader_" + key: val
+             for key, val in avd_spec.android_efi_loader_build_info.items() if val}
+        )
+
     return build_info_dict
 
 

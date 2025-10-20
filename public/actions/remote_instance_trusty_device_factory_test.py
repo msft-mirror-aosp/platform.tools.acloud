@@ -168,7 +168,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                     show_output=True, timeout=300,
                 ),
                 mock.call(
-                    shlex.quote("PATH=$(pwd)/bin:$PATH ./bin/replace_ramdisk_modules "
+                    shlex.quote("PATH=$(pwd)/bin:$PATH ./bin/replace_ramdisk_modules --depmod=depmod "
                     "--android-ramdisk=ramdisk.img "
                     f"--kernel-ramdisk={remote_instance_trusty_device_factory._KERNEL_STAGING} "
                     "--output-ramdisk=ramdisk.img "
