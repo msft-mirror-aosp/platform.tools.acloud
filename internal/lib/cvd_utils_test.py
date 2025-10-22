@@ -631,8 +631,37 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
                                               config=None, extra_args=())
         self.assertEqual(cmd, expected_cmd)
 
-    def testGetRemoteLaunchCvdCmdLArg(self):
-        """Test testGetRemoteLaunchCvdCmdLArg."""
+    def testGetRemoteLaunchCvdCmdTwoLArg(self):
+        """Test testGetRemoteLaunchCvdCmd."""
+        # Minimum arguments
+        mock_cfg = mock.Mock(extra_data_disk_size_gb=0)
+        hw_property = {
+            constants.HW_X_RES: "1080",
+            constants.HW_Y_RES: "1920",
+            constants.HW_ALIAS_DPI: "240"}
+        mock_avd_spec = mock.Mock(
+            spec=[],
+            cfg=mock_cfg,
+            hw_customize=False,
+            hw_property=hw_property,
+            connect_webrtc=False,
+            connect_vnc=False,
+            openwrt=False,
+            num_avds_per_instance=1,
+            base_instance_num=0,
+            launch_args="--setupwizard_mode=REQUIRED -acloud_only_use_launch_cvd")
+        expected_cmd = (
+            "HOME=$HOME/dir dir/bin/launch_cvd -daemon "
+            "-x_res=1080 -y_res=1920 -dpi=240 "
+            "--setupwizard_mode=REQUIRED  "
+            "-undefok=report_anonymous_usage_stats,config "
+            "-report_anonymous_usage_stats=y")
+        cmd = cvd_utils.GetRemoteLaunchCvdCmd("dir", mock_avd_spec,
+                                              config=None, extra_args=())
+        self.assertEqual(cmd, expected_cmd)
+
+    def testGetRemoteLaunchCvdCmdOneLArg(self):
+        """Test testGetRemoteLaunchCvdCmd."""
         # Minimum arguments
         mock_cfg = mock.Mock(extra_data_disk_size_gb=0)
         hw_property = {
@@ -653,6 +682,7 @@ class CvdUtilsTest(driver_test_lib.BaseDriverTest):
         expected_cmd = (
             "HOME=$HOME/dir dir/bin/launch_cvd -daemon "
             "-x_res=1080 -y_res=1920 -dpi=240 "
+            " "
             "-undefok=report_anonymous_usage_stats,config "
             "-report_anonymous_usage_stats=y")
         cmd = cvd_utils.GetRemoteLaunchCvdCmd("dir", mock_avd_spec,
