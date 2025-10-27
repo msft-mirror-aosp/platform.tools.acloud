@@ -920,9 +920,12 @@ def GetRemoteLaunchCvdCmd(remote_dir, avd_spec, config, extra_args):
         logger.debug(f"avd_spec.{attr} = %r", getattr(avd_spec, attr))
     launch_cvd_args = _GetLaunchCvdArgs(avd_spec, config)
     logger.debug("launch_cvd_args: %s", launch_cvd_args)
-    if _LAUNCH_ARG_USE_LAUNCH_CVD in launch_cvd_args:
-        logger.debug("launch_cvd_args: removing %s", _LAUNCH_ARG_USE_LAUNCH_CVD)
-        launch_cvd_args.remove(_LAUNCH_ARG_USE_LAUNCH_CVD)
+    for i, arg in enumerate(launch_cvd_args):
+        if _LAUNCH_ARG_USE_LAUNCH_CVD in arg:
+            logger.debug("launch cvd arg: %s, removing %s", arg, _LAUNCH_ARG_USE_LAUNCH_CVD)
+            arg = arg.replace(_LAUNCH_ARG_USE_LAUNCH_CVD, "")
+            launch_cvd_args[i] = arg
+
     build_info_dict = GetRemoteBuildInfoDict(avd_spec)
     logger.debug("build_info_dict: %s", build_info_dict)
     build_target = build_info_dict.get("build_target", "")
