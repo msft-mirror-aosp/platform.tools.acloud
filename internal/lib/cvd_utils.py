@@ -149,6 +149,13 @@ _ARM_MACHINE_TYPE = "aarch64"
 # Used only by acloud to determine whether to use `cvd create` or `launch_cvd`.
 _LAUNCH_ARG_USE_LAUNCH_CVD="-acloud_only_use_launch_cvd"
 
+# Replaces `bin/powerwash_cvd` for Tradefed client when
+# instance is created via `cvd create`
+_CVD_POWERWASH_SCRIPT = """#!/bin/bash
+set -e -x
+cvd powerwash
+"""
+
 def GetAdbPorts(base_instance_num, num_avds_per_instance):
     """Get ADB ports of cuttlefish.
 
@@ -998,6 +1005,24 @@ def _SymlinkDirsForCvdCreate(ssh_obj):
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
         utils.PrintColorString(str(e), utils.TextColors.FAIL)
 
+def _HandleTFPowerwashForCvdCreate(ssh_obj):
+    """handle powerwash for TF client when using `cvd create`.
+
+    Tradefed uses hardcoded path `bin/powerwash_cvd` for
+    powerwashing. When the device is created via
+    `cvd create` calling powerwash this way fails.
+
+    Args:
+        ssh_obj: An Ssh object.
+    """
+    try:
+        ssh_obj.Run("'rm bin/powerwash_cvd'")
+        ssh_obj.Run(f"'echo \"{_CVD_POWERWASH_SCRIPT}\" > bin/powerwash_cvd'")
+        ssh_obj.Run("cat bin/powerwash_cvd")
+        ssh_obj.Run("chmod +x bin/powerwash_cvd")
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        utils.PrintColorString(str(e), utils.TextColors.FAIL)
+
 def ExecuteRemoteLaunchCvd(ssh_obj, cmd, boot_timeout_secs):
     """launch_cvd command on a remote host or a GCE instance.
 
@@ -1032,6 +1057,7 @@ def ExecuteRemoteLaunchCvd(ssh_obj, cmd, boot_timeout_secs):
         if "cvd create" in cmd:
             logger.debug("used `cvd create`: symlink dirs")
             _SymlinkDirsForCvdCreate(ssh_obj)
+            _HandleTFPowerwashForCvdCreate(ssh_obj)
     return ""
 
 
