@@ -119,6 +119,10 @@ _CONFIRM_RELAUNCH = ("\nCuttlefish AVD[id:%d] is already running. \n"
                      "Enter 'y' to terminate current instance and launch a "
                      "new instance, enter anything else to exit out[y/N]: ")
 
+# No-op.
+# It must removed from the final `launch_cvd` command if passed.
+_LAUNCH_ARG_USE_LAUNCH_CVD="-acloud_only_use_launch_cvd"
+
 # The first two fields of this named tuple are image folder and CVD host
 # package folder which are essential for local instances. The following fields
 # are optional. They are set when the AVD spec requires to mix images.
@@ -310,6 +314,11 @@ class LocalImageLocalInstance(base_avd_create.BaseAVDCreate):
                                        instance_ids,
                                        avd_spec.webrtc_device_id,
                                        vbmeta_image_path)
+
+        if _LAUNCH_ARG_USE_LAUNCH_CVD in cmd:
+            logger.debug("removing %s", _LAUNCH_ARG_USE_LAUNCH_CVD)
+            cmd = cmd.replace(_LAUNCH_ARG_USE_LAUNCH_CVD, "")
+        logger.debug("cmd: %s", cmd)
 
         result_report = report.Report(command="create")
         instance_name = instance.GetLocalInstanceName(local_instance_id)

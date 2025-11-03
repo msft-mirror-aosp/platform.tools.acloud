@@ -149,11 +149,6 @@ _ARM_MACHINE_TYPE = "aarch64"
 # Used only by acloud to determine whether to use `cvd create` or `launch_cvd`.
 _LAUNCH_ARG_USE_LAUNCH_CVD="-acloud_only_use_launch_cvd"
 
-_USE_CVD_TARGETS = [
-    "cf_x86_64_phone-trunk_staging-userdebug",
-    "aosp_cf_x86_64_phone-trunk_staging-userdebug",
-]
-
 def GetAdbPorts(base_instance_num, num_avds_per_instance):
     """Get ADB ports of cuttlefish.
 
@@ -920,33 +915,22 @@ def GetRemoteLaunchCvdCmd(remote_dir, avd_spec, config, extra_args):
         logger.debug(f"avd_spec.{attr} = %r", getattr(avd_spec, attr))
     launch_cvd_args = _GetLaunchCvdArgs(avd_spec, config)
     logger.debug("launch_cvd_args: %s", launch_cvd_args)
+    use_cvd_create = True
     for i, arg in enumerate(launch_cvd_args):
         if _LAUNCH_ARG_USE_LAUNCH_CVD in arg:
+            use_cvd_create = False
             logger.debug("launch cvd arg: %s, removing %s", arg, _LAUNCH_ARG_USE_LAUNCH_CVD)
             arg = arg.replace(_LAUNCH_ARG_USE_LAUNCH_CVD, "")
             launch_cvd_args[i] = arg
-
-    build_info_dict = GetRemoteBuildInfoDict(avd_spec)
-    logger.debug("build_info_dict: %s", build_info_dict)
-    build_target = build_info_dict.get("build_target", "")
-    use_cvd = build_target in _USE_CVD_TARGETS
-    cvd_bin_name = (
-        "cvd" if use_cvd
-        else remote_path.join(remote_dir, "bin", "launch_cvd")
-    )
-    # FIXME: Use the images and launch_cvd in avd_spec.remote_image_dir when
-    # cuttlefish can reliably share images.
-    cmd = ["HOME=" + remote_path.join("$HOME", remote_dir), cvd_bin_name]
-    all_args = []
-    if use_cvd:
-        all_args.append("create")
+    cmd = ["HOME=" + remote_path.join("$HOME", remote_dir)]
+    if use_cvd_create:
+        cmd.extend(["cvd", "create"])
     else:
-        all_args.append("-daemon")
+        cmd.extend([remote_path.join(remote_dir, "bin", "launch_cvd"), "-daemon"])
     logger.debug("extra_args: %s", extra_args)
-    all_args.extend(extra_args)
-    all_args.extend(launch_cvd_args)
-    logger.debug("all args: %s", all_args)
-    cmd.extend(all_args)
+    cmd.extend(extra_args)
+    cmd.extend(launch_cvd_args)
+    logger.debug("cmd: %s", cmd)
     return " ".join(cmd)
 
 def _SymlinkDirsForCvdCreate(ssh_obj):
