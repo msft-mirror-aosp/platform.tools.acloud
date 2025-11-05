@@ -512,7 +512,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         # see CVD Launch Args
         # exhaustive list at tools/acloud/internal/lib/cvd_utils.py
         # not yet used by Trusty QEMU run.py
-        for arg_str in ["data_policy", "config"]:
+        for arg_str in ["data_policy", "config", "acloud_only_use_launch_cvd"]:
             parser.add_argument(
                 f"-{arg_str}",
                 type=str,
