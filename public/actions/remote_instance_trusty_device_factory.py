@@ -512,6 +512,14 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
         # see CVD Launch Args
         # exhaustive list at tools/acloud/internal/lib/cvd_utils.py
         # not yet used by Trusty QEMU run.py
+        for arg_bool in ["acloud_only_use_launch_cvd"]:
+            parser.add_argument(
+                f"-{arg_bool}",
+                action='store_true',
+                default=False,
+                help="CVD specific launch arg\n"
+                "not yet used by Trusty QEMU run.py.\n",
+            )
         for arg_str in ["data_policy", "config"]:
             parser.add_argument(
                 f"-{arg_str}",
@@ -537,7 +545,12 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
                 help="CVD specific launch arg\n"
                 "not yet used by Trusty QEMU run.py.\n",
             )
-        return parser.parse_args(self._avd_spec.launch_args.split())
+        args, unknown = parser.parse_known_args(self._avd_spec.launch_args.split())
+        if unknown:
+            logger.warning(
+                "WARNING UNKNOWN LAUNCH AVD ARGS (DO WE NEED TO HANDLE THEM?): %s", unknown
+            )
+        return args
 
     @utils.TimeExecute(function_description="Starting Trusty")
     def _StartTrusty(self):

@@ -61,9 +61,21 @@ def PowerwashDevice(ssh, instance_id):
         ssh: Ssh object.
         instance_id: Integer of the instance id.
     """
-    ssh_command = "./bin/powerwash_cvd --instance_num=%d" % (instance_id)
     try:
-        ssh.Run(ssh_command)
+        logger.debug("powerwash: check if device was created with `cvd create`")
+        file_cmd = "file cuttlefish/instances/cvd-1"
+        output = ssh.Run(file_cmd, show_output=True)
+        used_cvd_create = False
+        if output.startswith("cuttlefish/instances/cvd-1: symbolic link to"):
+            logger.debug("powerwash: devices was created with `cvd create`")
+            used_cvd_create = True
+        powerwash_cmd = ""
+        if used_cvd_create:
+            powerwash_cmd = f"cvd -group_name cvd_1 --instance_name {instance_id} powerwash"
+        else:
+            powerwash_cmd = f"./bin/powerwash_cvd --instance_num={instance_id}"
+        logger.debug("powerwash: command: %s", powerwash_cmd)
+        ssh.Run(powerwash_cmd)
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired,
             errors.DeviceConnectionError) as e:
         logger.debug(str(e))
