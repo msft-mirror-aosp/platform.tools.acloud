@@ -314,6 +314,28 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
                 f"{cvd_utils.GCE_BASE_DIR}/kernel",
             )
 
+    def _GetValidBuildId(self, build_id_list, gki_build_targets):
+        """Get a valid build id for all GKI targets."""
+        build_client = self._compute_client.build_api
+
+        def IsBuildSuccessful(build_id, target):
+            req = build_client.service.build().get(
+                buildId=build_id, target=target
+            )
+            return (build_client.Execute(req) or {}).get("successful")
+
+        for candidate_build_id in sorted(set(build_id_list)):
+            is_valid = all(
+                IsBuildSuccessful(candidate_build_id, target) for target in gki_build_targets
+            )
+            if is_valid:
+                logger.debug(
+                    "Found valid build_id %s for all GKI targets.",
+                    candidate_build_id,
+                )
+                return candidate_build_id
+        return None
+
     @utils.TimeExecute(function_description="Fetching & Uploading GKI Artifacts")
     def _FetchAndUploadGKIArtifacts(self):
         """Fetch GKI Build artifacts from the kernel and its dynamic module Targets"""
@@ -364,10 +386,14 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             ]
             if value is not None
         ]
-        # we use the oldest build_id in the hope that the oldest LKGB
-        # has all the necessary targets
-        build_id = min(build_id_list)
-
+        build_id = self._GetValidBuildId(
+            build_id_list,
+            ["kernel_aarch64", "kernel_virt_aarch64", "trusty_aarch64"],
+        )
+        if not build_id:
+            raise errors.GetBuildIDError(
+            "Failed to fetch the build ID which contains all GKI builds",
+        )
         def _fetchAndUpload(
             build_target, file_name, dest_dir=None, dest_file_name=None
         ):
