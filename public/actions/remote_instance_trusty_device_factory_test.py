@@ -19,7 +19,6 @@ import os
 import shlex
 import tempfile
 import unittest
-import uuid
 
 from unittest import mock
 
@@ -91,8 +90,8 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
             nonlocal temp_config
             temp_config += s
         temp_config_mock = mock.MagicMock()
-        temp_config_mock.__enter__().name = fake_tmp_path
-        temp_config_mock.__enter__().write.side_effect = WriteTempConfig
+        temp_config_mock.__enter__.return_value.name = fake_tmp_path
+        temp_config_mock.__enter__.return_value.write.side_effect = WriteTempConfig
         self.Patch(tempfile, "NamedTemporaryFile", return_value=temp_config_mock)
 
         factory_local_img._ProcessArtifacts()
@@ -140,9 +139,8 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         factory_remote_img._ssh = mock_ssh
 
         temp_file_mock = mock.MagicMock()
-        temp_file_mock.__enter__().name = fake_tmp_path
+        temp_file_mock.__enter__.return_value.name = fake_tmp_path
         self.Patch(tempfile, "NamedTemporaryFile", return_value=temp_file_mock)
-
         factory_remote_img._ProcessArtifacts()
 
         mock_ssh.Run.assert_has_calls(
@@ -151,28 +149,32 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
                     shlex.quote("cvd fetch -credential_source=gce "
                     "-default_build=default_build_id/default_target "
                     "-kernel_build=kernel_build_id/kernel_target "
-                    "-host_package_build=default_build_id/default_target{trusty-host_package.tar.gz}"),
+                    "-host_package_build=default_build_id/default_target"
+                    "{trusty-host_package.tar.gz}"),
                     show_output=True, timeout=300,
                 ),
                 mock.call(
-                    shlex.quote(f"mkdir -p {mock_cvd_utils.GCE_BASE_DIR}/{remote_instance_trusty_device_factory._DLKM_STAGING}"),
+                    shlex.quote(f"mkdir -p {mock_cvd_utils.GCE_BASE_DIR}/"
+                                f"{remote_instance_trusty_device_factory._DLKM_STAGING}"),
                     show_output=True, timeout=300,
                 ),
                 mock.call(
-                    f"tar -xzf - -C {mock_cvd_utils.GCE_BASE_DIR}/{remote_instance_trusty_device_factory._DLKM_STAGING} "
+                    f"tar -xzf - -C {mock_cvd_utils.GCE_BASE_DIR}/"
+                    f"{remote_instance_trusty_device_factory._DLKM_STAGING} "
                     f"< {fake_tmp_path}",
                     show_output=True, timeout=300,
                 ),
                 mock.call(
-                    shlex.quote(f"rm {remote_instance_trusty_device_factory._KERNEL_STAGING}/modules.*"),
+                    shlex.quote(f"rm {remote_instance_trusty_device_factory._KERNEL_STAGING}/"
+                                "modules.*"),
                     show_output=True, timeout=300,
                 ),
                 mock.call(
-                    shlex.quote("PATH=$(pwd)/bin:$PATH ./bin/replace_ramdisk_modules --depmod=depmod "
-                    "--android-ramdisk=ramdisk.img "
+                    shlex.quote("PATH=$(pwd)/bin:$PATH ./bin/replace_ramdisk_modules "
+                    "--depmod=depmod --android-ramdisk=ramdisk.img "
                     f"--kernel-ramdisk={remote_instance_trusty_device_factory._KERNEL_STAGING} "
-                    "--output-ramdisk=ramdisk.img "
-                    f"--override-modules-load {remote_instance_trusty_device_factory._MODULES_LOAD}"),
+                    f"--output-ramdisk=ramdisk.img --override-modules-load "
+                    f"{remote_instance_trusty_device_factory._MODULES_LOAD}"),
                     show_output=True,
                     timeout=300,
                 ),
