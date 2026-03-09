@@ -141,6 +141,7 @@ class RemoteInstanceDeviceFactoryTest(driver_test_lib.BaseDriverTest):
         temp_file_mock = mock.MagicMock()
         temp_file_mock.__enter__.return_value.name = fake_tmp_path
         self.Patch(tempfile, "NamedTemporaryFile", return_value=temp_file_mock)
+        self.Patch(factory_remote_img, "_GetValidBuildId", return_value="fake_gki_build_id")
         factory_remote_img._ProcessArtifacts()
 
         mock_ssh.Run.assert_has_calls(
