@@ -322,7 +322,7 @@ class RemoteInstanceDeviceFactory(gce_device_factory.GCEDeviceFactory):
             req = build_client.service.build().get(
                 buildId=build_id, target=target
             )
-            return (build_client.Execute(req) or {}).get("successful")
+            return (build_client.Execute(req) or {}).get("buildAttemptStatus") == "complete"
 
         for candidate_build_id in sorted(set(build_id_list)):
             is_valid = all(
