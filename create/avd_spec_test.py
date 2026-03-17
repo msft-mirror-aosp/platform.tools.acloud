@@ -97,15 +97,6 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(self.AvdSpec._local_image_dir, "test_environ")
         self.assertEqual(self.AvdSpec.local_image_artifact, expected_image_artifact)
 
-        # Specified --avd-type=goldfish --local-image with a dir
-        self.Patch(utils, "GetBuildEnvironmentVariable",
-                   return_value="test_environ")
-        self.args.local_image = "/path-to-image-dir"
-        self.AvdSpec._avd_type = constants.TYPE_GF
-        self.AvdSpec._instance_type = constants.INSTANCE_TYPE_LOCAL
-        self.AvdSpec._ProcessLocalImageArgs(self.args)
-        self.assertEqual(self.AvdSpec._local_image_dir, expected_image_dir)
-
     def testProcessLocalMixedImageArgs(self):
         """Test process args.local_kernel_image and args.local_system_image."""
         expected_image_dir = "/path-to-image-dir"
@@ -166,11 +157,6 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.assertEqual(self.AvdSpec._autoconnect, "webrtc")
 
         self.AvdSpec._autoconnect = "vnc"
-        self.AvdSpec._ProcessAutoconnect()
-        self.assertEqual(self.AvdSpec._autoconnect, "vnc")
-
-        self.AvdSpec._avd_type = constants.TYPE_GF
-        self.AvdSpec._autoconnect = "webrtc"
         self.AvdSpec._ProcessAutoconnect()
         self.assertEqual(self.AvdSpec._autoconnect, "vnc")
 
@@ -389,16 +375,6 @@ class AvdSpecTest(driver_test_lib.BaseDriverTest):
         self.args.build_target = "cf_x86_phone-userdebug"
         self.AvdSpec._ProcessRemoteBuildArgs(self.args)
         self.assertTrue(self.AvdSpec.avd_type == "cuttlefish")
-
-        # Verify auto-assigned avd_type if build_targe contains "sdk_".
-        self.args.build_target = "sdk_phone_armv7-sdk"
-        self.AvdSpec._ProcessRemoteBuildArgs(self.args)
-        self.assertTrue(self.AvdSpec.avd_type == "goldfish")
-
-        # Verify auto-assigned avd_type if build_targe contains "_sdk_".
-        self.args.build_target = "aosp_sdk_phone_armv7-sdk"
-        self.AvdSpec._ProcessRemoteBuildArgs(self.args)
-        self.assertTrue(self.AvdSpec.avd_type == "goldfish")
 
         # Verify auto-assigned avd_type if build_target contains "_trusty_".
         self.args.build_target = "qemu_trusty_arm64-trunk_staging-userdebug"

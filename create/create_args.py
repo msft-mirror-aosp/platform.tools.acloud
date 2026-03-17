@@ -67,8 +67,7 @@ def AddCommonCreateArgs(parser):
              "then launch vnc if --autoconnect vnc is provided. Establish a "
              "tunnel forwarding adb if --autoconnect adb is provided. "
              "Establish a tunnel forwarding adb and auto-launch on the browser "
-             "if --autoconnect webrtc is provided. For local goldfish "
-             "instance, create a window.")
+             "if --autoconnect webrtc is provided.")
     parser.add_argument(
         "--no-autoconnect",
         action="store_false",
@@ -581,7 +580,7 @@ def GetCreateArgParser(subparser):
         type=str,
         dest="avd_type",
         default=constants.TYPE_CF,
-        choices=[constants.TYPE_GCE, constants.TYPE_CF, constants.TYPE_GF, constants.TYPE_CHEEPS,
+        choices=[constants.TYPE_GCE, constants.TYPE_CF, constants.TYPE_CHEEPS,
                  constants.TYPE_FVP, constants.TYPE_TRUSTY],
         help="Android Virtual Device type (default %s)." % constants.TYPE_CF)
     create_parser.add_argument(
@@ -769,27 +768,6 @@ def GetCreateArgParser(subparser):
               "are launched. If specified here, the value set in Acloud config "
               "file will be overridden."))
 
-    # Arguments for goldfish type.
-    create_parser.add_argument(
-        "--emulator-build-id",
-        type=str,
-        dest="emulator_build_id",
-        required=False,
-        help="'goldfish only' Emulator build ID used to run the images. "
-        "e.g. 4669466.")
-    create_parser.add_argument(
-        "--emulator-build-target",
-        dest="emulator_build_target",
-        required=False,
-        help="'goldfish remote host only' Emulator build target used to run "
-        "the images. e.g. emulator-linux_x64_nolocationui.")
-    create_parser.add_argument(
-        "--emulator-zip",
-        dest="emulator_zip",
-        required=False,
-        help="'goldfish remote host only' Emulator zip used to run the "
-        "images. e.g., /path/sdk-repo-linux-emulator-1234567.zip.")
-
     # Arguments for cheeps type.
     create_parser.add_argument(
         "--stable-cheeps-host-image-name",
@@ -926,7 +904,7 @@ def _VerifyLocalArgs(args):
             "specified.")
 
     if not (args.local_system_image is None or
-            args.avd_type in (constants.TYPE_CF, constants.TYPE_GF)):
+            args.avd_type is constants.TYPE_CF):
         raise errors.UnsupportedCreateArgs("%s instance does not support "
                                            "--local-system-image" %
                                            args.avd_type)
@@ -975,68 +953,6 @@ def _VerifyHostArgs(args):
                 remote_path.normpath(args.remote_image_dir)) in ("..", "."):
             raise errors.UnsupportedCreateArgs(
                 "--remote-image-dir must not include the working directory.")
-
-
-def _VerifyGoldfishArgs(args):
-    """Verify goldfish args.
-
-    Args:
-        args: Namespace object from argparse.parse_args.
-
-    Raises:
-        errors.UnsupportedCreateArgs: When a create arg is specified but
-                                      unsupported for goldfish.
-    """
-    goldfish_only_flags = [
-        args.emulator_build_id,
-        args.emulator_build_target,
-        args.emulator_zip,
-        args.mix_system_dlkm_into_vendor_ramdisk,
-    ]
-    if args.avd_type != constants.TYPE_GF and any(goldfish_only_flags):
-        raise errors.UnsupportedCreateArgs(
-            "--emulator-* and --mix-system_dlkm-into-vendor-ramdisk are only "
-            f"valid with avd_type == {constants.TYPE_GF}")
-
-    # Exclude kernel_build_target because the default value isn't empty.
-    remote_kernel_flags = [
-        args.kernel_build_id,
-        args.kernel_branch,
-    ]
-    if args.avd_type == constants.TYPE_GF and any(remote_kernel_flags):
-        raise errors.UnsupportedCreateArgs(
-            "--kernel-* is not supported for goldfish.")
-
-    remote_boot_flags = [
-        args.boot_build_id,
-        args.boot_build_target,
-        args.boot_branch,
-        args.boot_artifact,
-    ]
-    if (args.avd_type == constants.TYPE_GF and any(remote_boot_flags) and
-            not all(remote_boot_flags)):
-        raise errors.UnsupportedCreateArgs(
-            "Either none or all of --boot-branch, --boot-build-target, "
-            "--boot-build-id, and --boot-artifact must be specified for "
-            "goldfish.")
-
-    remote_system_flags = [
-        args.system_build_target,
-        args.system_build_id,
-        args.system_branch,
-    ]
-    if (args.avd_type == constants.TYPE_GF and any(remote_system_flags) and
-            not all(remote_system_flags)):
-        raise errors.UnsupportedCreateArgs(
-            "Either none or all of --system-branch, --system-build-target, "
-            "and --system-build-id must be specified for goldfish.")
-
-    remote_host_only_flags = remote_boot_flags + remote_system_flags
-    if args.avd_type == constants.TYPE_GF and args.remote_host is None and any(
-            remote_host_only_flags):
-        raise errors.UnsupportedCreateArgs(
-            "--boot-* and --system-* for goldfish are only supported for "
-            "remote host.")
 
 
 def _VerifyTrustyArgs(args):
@@ -1135,7 +1051,7 @@ def VerifyArgs(args):
         logger.debug("Flavor[%s] isn't in default support list: %s",
                      args.flavor, constants.ALL_FLAVORS)
 
-    if args.avd_type not in (constants.TYPE_CF, constants.TYPE_GF):
+    if args.avd_type is not constants.TYPE_CF:
         if args.system_branch or args.system_build_id or args.system_build_target:
             raise errors.UnsupportedCreateArgs(
                 "--system-* args are not supported for AVD type: %s"
@@ -1181,7 +1097,6 @@ def VerifyArgs(args):
         raise ValueError("--no-autoconnect and --unlock couldn't be "
                          "passed in together.")
 
-    _VerifyGoldfishArgs(args)
     _VerifyTrustyArgs(args)
     _VerifyLocalArgs(args)
     _VerifyHostArgs(args)

@@ -330,13 +330,9 @@ class ReconnectTest(driver_test_lib.BaseDriverTest):
         fake_ins2 = mock.MagicMock()
         fake_ins2.avd_type = "cuttlefish"
         fake_ins2.islocal = False
-        fake_ins_gf = mock.MagicMock()
-        fake_ins_gf.avd_type = "goldfish"
-        fake_ins_gf.islocal = False
-        fake_ins_gf.vnc_port = 1234
         ins_to_reconnect = [fake_ins1]
         # mock args.all equal to True and return 3 instances.
-        all_ins_to_reconnect = [fake_ins1, fake_ins2, fake_ins_gf]
+        all_ins_to_reconnect = [fake_ins1, fake_ins2]
         cfg = mock.MagicMock()
         cfg.ssh_private_key_path = None
         cfg.extra_args_ssh_tunnel = None
@@ -360,7 +356,7 @@ class ReconnectTest(driver_test_lib.BaseDriverTest):
         fake_args.instance_names = None
         reconnect.Run(fake_args)
         list_instance.ChooseInstances.assert_called_once()
-        self.assertEqual(reconnect.ReconnectInstance.call_count, 3)
+        self.assertEqual(reconnect.ReconnectInstance.call_count, 2)
         reconnect.ReconnectInstance.reset_mock()
 
         fake_ins1.islocal = True

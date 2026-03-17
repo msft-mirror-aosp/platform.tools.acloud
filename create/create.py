@@ -32,9 +32,6 @@ from acloud.create import avd_spec
 from acloud.create import cheeps_remote_image_remote_instance
 from acloud.create import gce_local_image_remote_instance
 from acloud.create import gce_remote_image_remote_instance
-from acloud.create import goldfish_local_image_local_instance
-from acloud.create import goldfish_remote_host
-from acloud.create import goldfish_remote_image_remote_instance
 from acloud.create import local_image_local_instance
 from acloud.create import local_image_remote_instance
 from acloud.create import local_image_remote_host
@@ -76,15 +73,6 @@ _CREATOR_CLASS_DICT = {
     # Cheeps types
     (constants.TYPE_CHEEPS, constants.IMAGE_SRC_REMOTE, constants.INSTANCE_TYPE_REMOTE):
         cheeps_remote_image_remote_instance.CheepsRemoteImageRemoteInstance,
-    # GF types
-    (constants.TYPE_GF, constants.IMAGE_SRC_REMOTE, constants.INSTANCE_TYPE_REMOTE):
-        goldfish_remote_image_remote_instance.GoldfishRemoteImageRemoteInstance,
-    (constants.TYPE_GF, constants.IMAGE_SRC_LOCAL, constants.INSTANCE_TYPE_LOCAL):
-        goldfish_local_image_local_instance.GoldfishLocalImageLocalInstance,
-    (constants.TYPE_GF, constants.IMAGE_SRC_REMOTE, constants.INSTANCE_TYPE_HOST):
-        goldfish_remote_host.GoldfishRemoteHost,
-    (constants.TYPE_GF, constants.IMAGE_SRC_LOCAL, constants.INSTANCE_TYPE_HOST):
-        goldfish_remote_host.GoldfishRemoteHost,
     # FVP types
     (constants.TYPE_FVP, constants.IMAGE_SRC_LOCAL, constants.INSTANCE_TYPE_REMOTE):
         local_image_remote_instance.LocalImageRemoteInstance,

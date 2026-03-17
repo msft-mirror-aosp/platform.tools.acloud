@@ -32,8 +32,7 @@ class AdbToolsTest(driver_test_lib.BaseDriverTest):
     DEVICE_OFFLINE = ("List of devices attached\n"
                       "127.0.0.1:48451 offline").encode()
     DEVICE_STATE_ONLY = ("List of devices attached\n"
-                         "127.0.0.1:48451\toffline\n"
-                         "emulator-5554\tdevice\n").encode()
+                         "127.0.0.1:48451\toffline\n").encode()
     DEVICE_NONE = b"List of devices attached"
 
     def setUp(self):
@@ -116,7 +115,7 @@ class AdbToolsTest(driver_test_lib.BaseDriverTest):
         self.Patch(subprocess, "check_output",
                    return_value=self.DEVICE_STATE_ONLY)
         serials = adb_tools.AdbTools.GetDeviceSerials()
-        self.assertEqual(serials, ["127.0.0.1:48451", "emulator-5554"])
+        self.assertEqual(serials, ["127.0.0.1:48451"])
 
     # pylint: disable=no-member,protected-access
     def testConnectAdb(self):
@@ -176,27 +175,6 @@ class AdbToolsTest(driver_test_lib.BaseDriverTest):
         adb_cmd = adb_tools.AdbTools(fake_adb_port)
         with self.assertRaises(errors.AdbDisconnectFailed):
             adb_cmd.DisconnectAdb()
-
-    def testEmuCommand(self):
-        """Test emu command."""
-        fake_adb_port = "48451"
-        fake_device_serial = "fake_device_serial"
-        self.Patch(subprocess, "check_output", return_value=self.DEVICE_NONE)
-
-        mock_popen_obj = mock.Mock(returncode=1)
-        self.Patch(subprocess, "Popen", return_value=mock_popen_obj)
-
-        adb_cmd = adb_tools.AdbTools(adb_port=fake_adb_port,
-                                     device_serial=fake_device_serial)
-        returncode = adb_cmd.EmuCommand("unit", "test")
-        self.assertEqual(returncode, 1)
-        subprocess.Popen.assert_called_once_with(
-            ["path/adb", "-s", "fake_device_serial", "emu", "unit", "test"],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE)
-        mock_popen_obj.communicate.assert_called_once_with()
-
 
 if __name__ == "__main__":
     unittest.main()

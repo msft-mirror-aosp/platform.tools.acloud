@@ -76,63 +76,6 @@ class DeleteTest(driver_test_lib.BaseDriverTest):
         mock_lock.SetInUse.assert_called_once_with(False)
         mock_lock.Unlock.assert_called_once()
 
-    def testDeleteLocalGoldfishInstanceSuccess(self):
-        """Test DeleteLocalGoldfishInstance."""
-        mock_adb_tools = mock.Mock()
-        mock_adb_tools.EmuCommand.return_value = 0
-        mock_instance = mock.Mock(adb=mock_adb_tools,
-                                  adb_port=5555,
-                                  device_serial="serial",
-                                  instance_dir="/unit/test")
-        # name is a positional argument of Mock().
-        mock_instance.name = "unittest"
-        mock_lock = mock.Mock()
-        mock_lock.Lock.return_value = True
-        mock_instance.GetLock.return_value = mock_lock
-
-        delete_report = report.Report(command="delete")
-        delete.DeleteLocalGoldfishInstance(mock_instance, delete_report)
-
-        mock_adb_tools.EmuCommand.assert_called_with("kill")
-        self.assertEqual(delete_report.data, {
-            "deleted": [
-                {
-                    "type": "instance",
-                    "name": "unittest",
-                },
-            ],
-        })
-        self.assertEqual(delete_report.status, "SUCCESS")
-        mock_lock.SetInUse.assert_called_once_with(False)
-        mock_lock.Unlock.assert_called_once()
-
-        mock_lock.Lock.return_value = False
-        delete.DeleteLocalGoldfishInstance(mock_instance, delete_report)
-        self.assertEqual(delete_report.status, "FAIL")
-
-    def testDeleteLocalGoldfishInstanceFailure(self):
-        """Test DeleteLocalGoldfishInstance with adb command failure."""
-        mock_adb_tools = mock.Mock()
-        mock_adb_tools.EmuCommand.return_value = 1
-        mock_instance = mock.Mock(adb=mock_adb_tools,
-                                  adb_port=5555,
-                                  device_serial="serial",
-                                  instance_dir="/unit/test")
-        # name is a positional argument of Mock().
-        mock_instance.name = "unittest"
-        mock_lock = mock.Mock()
-        mock_lock.Lock.return_value = True
-        mock_instance.GetLock.return_value = mock_lock
-
-        delete_report = report.Report(command="delete")
-        delete.DeleteLocalGoldfishInstance(mock_instance, delete_report)
-
-        mock_adb_tools.EmuCommand.assert_called_with("kill")
-        self.assertTrue(len(delete_report.errors) > 0)
-        self.assertEqual(delete_report.status, "FAIL")
-        mock_lock.SetInUse.assert_called_once_with(False)
-        mock_lock.Unlock.assert_called_once()
-
     def testResetLocalInstanceLockByName(self):
         """test ResetLocalInstanceLockByName."""
         mock_lock = mock.Mock()
@@ -167,45 +110,6 @@ class DeleteTest(driver_test_lib.BaseDriverTest):
 
         self.assertTrue(len(delete_report.errors) > 0)
         self.assertEqual(delete_report.status, "FAIL")
-
-    @mock.patch("acloud.delete.delete.emulator_console.RemoteEmulatorConsole")
-    def testDeleteHostGoldfishInstance(self, mock_console):
-        """test DeleteHostGoldfishInstance."""
-        mock_console_obj = mock.MagicMock()
-        mock_console.return_value = mock_console_obj
-        mock_console_obj.__enter__.return_value = mock_console_obj
-
-        cfg_attrs = {"ssh_private_key_path": "cfg_key_path",
-                     "extra_args_ssh_tunnel": "extra args"}
-        mock_cfg = mock.Mock(spec_set=list(cfg_attrs.keys()), **cfg_attrs)
-        instance_name = "host-goldfish-192.0.2.1-5554-123456-sdk_x86_64-sdk"
-        delete_report = report.Report(command="delete")
-
-        delete.DeleteHostGoldfishInstance(mock_cfg, instance_name,
-                                          None, None, delete_report)
-        mock_console.assert_called_with("192.0.2.1", 5554, "vsoc-01",
-                                        "cfg_key_path", "extra args")
-        mock_console_obj.Kill.assert_called()
-        self.assertEqual(delete_report.status, "SUCCESS")
-        self.assertEqual(delete_report.data, {
-            "deleted": [
-                {
-                    "type": "instance",
-                    "name": instance_name,
-                },
-            ],
-        })
-
-        mock_console_obj.reset_mock()
-        mock_console_obj.Kill.side_effect = errors.DeviceConnectionError
-        delete_report = report.Report(command="delete")
-
-        delete.DeleteHostGoldfishInstance(mock_cfg, instance_name,
-                                          "user", "key_path", delete_report)
-        mock_console.assert_called_with("192.0.2.1", 5554, "user",
-                                        "key_path", "extra args")
-        self.assertEqual(delete_report.status, "FAIL")
-        self.assertEqual(len(delete_report.errors), 1)
 
     @mock.patch.object(delete, "ssh")
     @mock.patch.object(delete, "cvd_utils")
@@ -260,10 +164,8 @@ class DeleteTest(driver_test_lib.BaseDriverTest):
     @mock.patch.object(delete, "DeleteInstances", return_value="")
     @mock.patch.object(delete, "ResetLocalInstanceLockByName")
     @mock.patch.object(delete, "CleanUpRemoteHost")
-    @mock.patch.object(delete, "DeleteHostGoldfishInstance")
     @mock.patch.object(delete, "DeleteRemoteInstances", return_value="")
     def testDeleteInstanceByNames(self, mock_delete_remote_ins,
-                                  mock_delete_host_gf_ins,
                                   mock_clean_up_remote_host, mock_reset_lock,
                                   mock_delete_local_ins):
         """test DeleteInstanceByNames."""
@@ -282,8 +184,6 @@ class DeleteTest(driver_test_lib.BaseDriverTest):
         instances = ["host-goldfish-192.0.2.1-5554-123456-sdk_x86_64-sdk",
                      "host-192.0.2.2-3-123456-aosp_cf_x86_64_phone"]
         delete.DeleteInstanceByNames(cfg, instances, "user", "key")
-        mock_delete_host_gf_ins.assert_called_with(
-            cfg, instances[0], "user", "key", mock.ANY)
         mock_clean_up_remote_host.assert_called_with(
             cfg, "192.0.2.2", "user", "key", "acloud_cf_3", mock.ANY)
 
@@ -334,15 +234,9 @@ class DeleteTest(driver_test_lib.BaseDriverTest):
 
         fake_ins3 = mock.MagicMock()
         fake_ins3.islocal = True
-        fake_ins3.avd_type = "goldfish"
-        fake_ins3.vnc_port = None
+        fake_ins3.avd_type = "unknown"
+        fake_ins3.vnc_port = 12345
 
-        fake_ins4 = mock.MagicMock()
-        fake_ins4.islocal = True
-        fake_ins4.avd_type = "unknown"
-        fake_ins4.vnc_port = 12345
-
-        self.Patch(delete, "DeleteLocalGoldfishInstance")
         self.Patch(delete, "DeleteLocalCuttlefishInstance")
         self.Patch(delete, "DeleteRemoteInstances")
         self.Patch(utils, "CleanupSSVncviewer")
@@ -352,10 +246,9 @@ class DeleteTest(driver_test_lib.BaseDriverTest):
         delete.DeleteRemoteInstances.assert_not_called()
 
         fake_instances_to_delete = [
-            fake_ins, fake_ins2, fake_ins3, fake_ins4]
+            fake_ins, fake_ins2, fake_ins3]
         delete.DeleteInstances(None, fake_instances_to_delete)
         delete.DeleteRemoteInstances.assert_called_once()
-        delete.DeleteLocalGoldfishInstance.assert_called_once()
         delete.DeleteLocalCuttlefishInstance.assert_called_once()
         utils.CleanupSSVncviewer.assert_called_once()
 

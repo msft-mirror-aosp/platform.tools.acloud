@@ -218,14 +218,6 @@ class AcloudConfig():
             internal_cfg.default_usr_cfg.stable_host_image_project)
         self.kernel_build_target = internal_cfg.kernel_build_target
 
-        self.emulator_build_target = internal_cfg.emulator_build_target
-        self.stable_goldfish_host_image_name = (
-            usr_cfg.stable_goldfish_host_image_name or
-            internal_cfg.default_usr_cfg.stable_goldfish_host_image_name)
-        self.stable_goldfish_host_image_project = (
-            usr_cfg.stable_goldfish_host_image_project or
-            internal_cfg.default_usr_cfg.stable_goldfish_host_image_project)
-
         self.stable_cheeps_host_image_name = (
             usr_cfg.stable_cheeps_host_image_name or
             internal_cfg.default_usr_cfg.stable_cheeps_host_image_name)
@@ -278,8 +270,6 @@ class AcloudConfig():
         if parsed_args.service_account_json_private_key_path:
             self.service_account_json_private_key_path = (
                 parsed_args.service_account_json_private_key_path)
-        if parsed_args.which == "create_gf" and parsed_args.base_image:
-            self.stable_goldfish_host_image_name = parsed_args.base_image
         if parsed_args.which in [create_args.CMD_CREATE, "create_cf"]:
             if parsed_args.network:
                 self.network = parsed_args.network

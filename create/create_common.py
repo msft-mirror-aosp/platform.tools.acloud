@@ -291,7 +291,7 @@ def DownloadRemoteArtifact(cfg, build_target, build_id, artifact, extract_path,
 
 
 def PrepareLocalInstanceDir(instance_dir, avd_spec):
-    """Create a directory for a local cuttlefish or goldfish instance.
+    """Create a directory for a local cuttlefish instance.
 
     If avd_spec has the local instance directory, this method creates a
     symbolic link from instance_dir to the directory. Otherwise, it creates an
