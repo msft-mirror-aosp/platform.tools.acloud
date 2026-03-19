@@ -90,7 +90,7 @@ Additional helpful create options are:
 * `--config`: This can be one of phone, auto, tablet, tv. This wil be used to configure different types of hardware properties and infer build target if not specified.
 
 * `--autoconnect`:&ensp;Cuttlefish AVD defaults to webrtc and acloud will automatically open the browser upon creation of a remote or local instance.
-Acloud will also create a ssh tunnel to enable adb and webrtc connection to the instance. Other AVD types(such as goldfish, cheeps...) still default to vnc.
+Acloud will also create a ssh tunnel to enable adb and webrtc connection to the instance. Only cheeps defaults to vnc.
 
     *   If you want to invoke vnc client, you can pass in `--autoconnect vnc`.
     *   If you don't want autoconnect, you can pass in `--no-autoconnect`.

@@ -50,8 +50,7 @@ class AdbTools:
         _device_address: String, the device's host and port for adb to connect
                          to. For example, adb connect 127.0.0.1:5555.
         _device_serial: String, adb device's serial number. The value can be
-                        different from _device_address. For example,
-                        adb -s emulator-5554 shell.
+                        different from _device_address.
         _device_information: Dict, will be added to adb information include usb,
                             product model, device and transport_id
     """
@@ -279,25 +278,6 @@ class AdbTools:
             utils.PrintColorString("Failed to unlock screen."
                                    "(adb_port: %s)" % self._adb_port,
                                    utils.TextColors.WARNING)
-
-    def EmuCommand(self, *args):
-        """Send an emulator command to the device.
-
-        Args:
-            args: List of strings, the emulator command.
-
-        Returns:
-            Integer, the return code of the adb command.
-            The return code is 0 if adb successfully sends the command to
-            emulator. It is irrelevant to the result of the command.
-        """
-        adb_cmd = [self._adb_command, "-s", self._device_serial, "emu"]
-        adb_cmd.extend(args)
-        proc = subprocess.Popen(adb_cmd, stdin=subprocess.PIPE,
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE)
-        proc.communicate()
-        return proc.returncode
 
     @property
     def device_information(self):

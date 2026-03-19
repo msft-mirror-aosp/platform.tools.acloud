@@ -16,7 +16,7 @@
 """This module holds constants used by the driver."""
 BRANCH_PREFIX = "git_"
 BUILD_TARGET_MAPPING = {
-    # TODO: Add aosp goldfish targets and internal cf targets to vendor code
+    # TODO: Add internal cf targets to vendor code
     # base.
     "aosp_phone": "aosp_cf_x86_64_phone-trunk_staging-userdebug",
     "aosp_tablet": "aosp_cf_x86_tablet-userdebug",
@@ -41,7 +41,6 @@ FIND_IN_BUILD_ENV = ""
 TYPE_CHEEPS = "cheeps"
 TYPE_CF = "cuttlefish"
 TYPE_GCE = "gce"
-TYPE_GF = "goldfish"
 TYPE_FVP = "fvp"
 TYPE_TRUSTY = "trusty"
 
@@ -53,7 +52,6 @@ IMAGE_SRC_LOCAL = "local_image"
 AVD_TYPES_MAPPING = {
     TYPE_GCE: "gce",
     TYPE_CF: "cf",
-    TYPE_GF: "sdk",
     # Cheeps uses the cheets target.
     TYPE_CHEEPS: "cheets",
     TYPE_TRUSTY: "trusty",
@@ -130,9 +128,6 @@ GCE_ADB_PORT = 5555
 GCE_VNC_PORT = 6444
 # For ssh connect with GCE hostname
 GCE_HOSTNAME = "gce_hostname"
-# For goldfish remote instances
-GF_ADB_PORT = 5555
-GF_VNC_PORT = 6444
 # For FVP remote instances (no VNC support)
 FVP_ADB_PORT = 5555
 # For Trusty remote instances (no VNC support)

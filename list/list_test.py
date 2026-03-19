@@ -123,14 +123,10 @@ class ListTest(driver_test_lib.BaseDriverTest):
         mock_get_cf = self.Patch(list_instance,
                                  "_GetLocalCuttlefishInstances",
                                  return_value=[mock_cf_ins])
-        mock_gf_ins = mock.Mock()
-        mock_gf_ins.name = "local-goldfish-instance-1"
-        self.Patch(instance.LocalGoldfishInstance, "GetExistingInstances",
-                   return_value=[mock_gf_ins])
 
         ins_list = list_instance.GetLocalInstancesByNames([
-            mock_cf_ins.name, "local-instance-6", mock_gf_ins.name])
-        self.assertEqual([mock_cf_ins, mock_gf_ins], ins_list)
+            mock_cf_ins.name, "local-instance-6"])
+        self.assertEqual([mock_cf_ins], ins_list)
         mock_get_cf.assert_called_with([(1, "path1"), (1, "path2")])
 
     # pylint: disable=attribute-defined-outside-init
@@ -234,14 +230,11 @@ class ListTest(driver_test_lib.BaseDriverTest):
         self.Patch(instance, "GetAllLocalInstanceConfigs")
         fake_local_ins1 = "local_ins1"
         fake_local_ins2 = "local_ins2"
-        fake_local_gf_ins1 = "local_gf_ins1"
         self.Patch(list_instance, "_GetLocalCuttlefishInstances",
                    return_value=[fake_local_ins1, fake_local_ins2])
-        self.Patch(instance.LocalGoldfishInstance, "GetExistingInstances",
-                   return_value=[fake_local_gf_ins1])
         list_instance.Run(args)
         list_instance.PrintInstancesDetails.assert_called_with(
-            [fake_local_ins1, fake_local_ins2, fake_local_gf_ins1], False)
+            [fake_local_ins1, fake_local_ins2], False)
 
         # remote instance
         args.local_only = False
@@ -251,7 +244,7 @@ class ListTest(driver_test_lib.BaseDriverTest):
                    return_value=[fake_remote_ins1, fake_remote_ins2])
         list_instance.Run(args)
         list_instance.PrintInstancesDetails.assert_called_with(
-            [fake_local_ins1, fake_local_ins2, fake_local_gf_ins1,
+            [fake_local_ins1, fake_local_ins2,
              fake_remote_ins1, fake_remote_ins2], False)
 
     def testGetRemoteInstances(self):
@@ -274,15 +267,15 @@ class ListTest(driver_test_lib.BaseDriverTest):
                             "avd_type": "cuttlefish",
                             "creationTimestamp": "2021-01-14T13:00:00.000-07:00",
                             "status": "Active"}
-        fake_remote_ins2 = {"name": "nonecf-fake_remote_ins2_name",
-                            "avd_type": "goldfish",
+        fake_remote_ins2 = {"name": "cf-fake_remote_ins2_name",
+                            "avd_type": "cuttlefish",
                             "creationTimestamp": "2021-01-14T13:00:00.000-07:00",
                             "status": "Active"}
         remote_ins_list = [instance.RemoteInstance(fake_remote_ins1),
                            instance.RemoteInstance(fake_remote_ins2)]
         self.Patch(list_instance, "GetRemoteInstances",
                    return_value=remote_ins_list)
-        self.assertEqual(len(list_instance.GetCFRemoteInstances(None)), 1)
+        self.assertEqual(len(list_instance.GetCFRemoteInstances(None)), 2)
 
     def testGetActiveCVD(self):
         """test GetActiveCVD."""
@@ -341,14 +334,8 @@ class ListTest(driver_test_lib.BaseDriverTest):
         instance.GetLocalInstanceLock.assert_called_once()
 
         instance.GetLocalInstanceIdByName.return_value = None
-        self.Patch(instance.LocalGoldfishInstance,
-                   "GetIdByName", return_value="gf_ins_id")
-        self.Patch(instance.LocalGoldfishInstance, "GetLockById")
         list_instance.GetLocalInstanceLockByName("query_name")
-        instance.LocalGoldfishInstance.GetLockById.assert_called_once()
 
-        self.Patch(instance.LocalGoldfishInstance,
-                   "GetIdByName", return_value= None)
         self.assertEqual(
             list_instance.GetLocalInstanceLockByName("query_name"), None)
 

@@ -89,8 +89,6 @@ AVD_PORT_DICT = {
                                        constants.GCE_ADB_PORT),
     constants.TYPE_CF: ForwardedPorts(constants.CF_VNC_PORT,
                                       constants.CF_ADB_PORT),
-    constants.TYPE_GF: ForwardedPorts(constants.GF_VNC_PORT,
-                                      constants.GF_ADB_PORT),
     constants.TYPE_CHEEPS: ForwardedPorts(constants.CHEEPS_VNC_PORT,
                                           constants.CHEEPS_ADB_PORT),
     constants.TYPE_FVP: ForwardedPorts(None, constants.FVP_ADB_PORT),

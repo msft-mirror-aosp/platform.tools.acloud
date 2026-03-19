@@ -180,52 +180,6 @@ class InstanceTest(driver_test_lib.BaseDriverTest):
             stderr=subprocess.STDOUT, shell=True, env=expected_env)
         mock_adb_tools_object.DisconnectAdb.assert_called()
 
-    @mock.patch("acloud.list.instance.tempfile")
-    @mock.patch("acloud.list.instance.AdbTools")
-    def testCreateLocalGoldfishInstance(self, mock_adb_tools, mock_tempfile):
-        """"Test the attributes of LocalGoldfishInstance."""
-        mock_tempfile.gettempdir.return_value = "/unit/test"
-        mock_adb_tools.return_value = mock.Mock(device_information={})
-
-        inst = instance.LocalGoldfishInstance(1)
-
-        self.assertEqual(inst.name, "local-goldfish-instance-1")
-        self.assertEqual(inst.avd_type, constants.TYPE_GF)
-        self.assertEqual(inst.adb_port, 5555)
-        self.assertTrue(inst.islocal)
-        self.assertEqual(inst.console_port, 5554)
-        self.assertEqual(inst.device_serial, "emulator-5554")
-        self.assertEqual(inst.instance_dir,
-                         "/unit/test/acloud_gf_temp/local-goldfish-instance-1")
-
-    @mock.patch("acloud.list.instance.AdbTools")
-    def testGetLocalGoldfishInstances(self, mock_adb_tools):
-        """Test LocalGoldfishInstance.GetExistingInstances."""
-        mock_adb_tools.GetDeviceSerials.return_value = [
-            "127.0.0.1:6520", "emulator-5554", "ABCD", "emulator-5558"]
-
-        instances = instance.LocalGoldfishInstance.GetExistingInstances()
-
-        self.assertEqual(len(instances), 2)
-        self.assertEqual(instances[0].console_port, 5554)
-        self.assertEqual(instances[0].name, "local-goldfish-instance-1")
-        self.assertEqual(instances[1].console_port, 5558)
-        self.assertEqual(instances[1].name, "local-goldfish-instance-3")
-
-    def testGetMaxNumberOfGoldfishInstances(self):
-        """Test LocalGoldfishInstance.GetMaxNumberOfInstances."""
-        mock_environ = {}
-        with mock.patch.dict("acloud.list.instance.os.environ",
-                             mock_environ, clear=True):
-            num = instance.LocalGoldfishInstance.GetMaxNumberOfInstances()
-        self.assertEqual(num, 16)
-
-        mock_environ["ADB_LOCAL_TRANSPORT_MAX_PORT"] = "5565"
-        with mock.patch.dict("acloud.list.instance.os.environ",
-                             mock_environ, clear=True):
-            num = instance.LocalGoldfishInstance.GetMaxNumberOfInstances()
-        self.assertEqual(num, 6)
-
     # pylint: disable=protected-access
     def testGetElapsedTime(self):
         """Test _GetElapsedTime"""

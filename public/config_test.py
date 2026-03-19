@@ -240,7 +240,7 @@ common_hw_property_map {
                          "fake_stable_host_image_project")
         self.assertEqual(cfg.kernel_build_target, "kernel")
 
-        # Emulator related
+        # Emulator related - all deprecated
         self.assertEqual(cfg.default_usr_cfg.stable_goldfish_host_image_name,
                          "fake_stable_goldfish_host_image_name")
         self.assertEqual(cfg.default_usr_cfg.stable_goldfish_host_image_project,

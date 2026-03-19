@@ -107,7 +107,6 @@ from acloud.powerwash import powerwash_args
 from acloud.public import acloud_common
 from acloud.public import config
 from acloud.public import report
-from acloud.public.actions import create_goldfish_action
 from acloud.pull import pull
 from acloud.pull import pull_args
 from acloud.restart import restart
@@ -156,8 +155,7 @@ def _ParseArgs(args):
         powerwash_args.CMD_POWERWASH,
         pull_args.CMD_PULL,
         restart_args.CMD_RESTART,
-        hostcleanup_args.CMD_HOSTCLEANUP,
-        CMD_CREATE_GOLDFISH]
+        hostcleanup_args.CMD_HOSTCLEANUP]
     usage = ",".join(acloud_cmds)
     parser = argparse.ArgumentParser(
         description=__doc__,
@@ -168,72 +166,6 @@ def _ParseArgs(args):
         '%(prog)s ' + config.GetVersion()))
     subparsers = parser.add_subparsers(metavar="{" + usage + "}")
     subparser_list = []
-
-    # Command "create_gf", create goldfish instances
-    # In order to create a goldfish device we need the following parameters:
-    # 1. The emulator build we wish to use, this is the binary that emulates
-    #    an android device. See go/emu-dev for more
-    # 2. A system-image. This is the android release we wish to run on the
-    #    emulated hardware.
-    create_gf_parser = subparsers.add_parser(CMD_CREATE_GOLDFISH)
-    create_gf_parser.required = False
-    create_gf_parser.set_defaults(which=CMD_CREATE_GOLDFISH)
-    create_gf_parser.add_argument(
-        "--emulator-build-id",
-        type=str,
-        dest="emulator_build_id",
-        required=False,
-        help="Emulator build used to run the images. e.g. 4669466.")
-    create_gf_parser.add_argument(
-        "--emulator-branch",
-        type=str,
-        dest="emulator_branch",
-        required=False,
-        help="Emulator build branch name, e.g. aosp-emu-master-dev. If specified"
-        " without emulator-build-id, the last green build will be used.")
-    create_gf_parser.add_argument(
-        "--emulator-build-target",
-        dest="emulator_build_target",
-        required=False,
-        help="Emulator build target used to run the images. e.g. "
-        "emulator-linux_x64_nolocationui.")
-    create_gf_parser.add_argument(
-        "--base-image",
-        type=str,
-        dest="base_image",
-        required=False,
-        help="Name of the goldfish base image to be used to create the instance. "
-        "This will override stable_goldfish_host_image_name from config. "
-        "e.g. emu-dev-cts-061118")
-    create_gf_parser.add_argument(
-        "--tags",
-        dest="tags",
-        nargs="*",
-        required=False,
-        default=None,
-        help="Tags to be set on to the created instance. e.g. https-server.")
-    # Arguments in old format
-    create_gf_parser.add_argument(
-        "--emulator_build_id",
-        type=str,
-        dest="emulator_build_id",
-        required=False,
-        help=argparse.SUPPRESS)
-    create_gf_parser.add_argument(
-        "--emulator_branch",
-        type=str,
-        dest="emulator_branch",
-        required=False,
-        help=argparse.SUPPRESS)
-    create_gf_parser.add_argument(
-        "--base_image",
-        type=str,
-        dest="base_image",
-        required=False,
-        help=argparse.SUPPRESS)
-
-    create_args.AddCommonCreateArgs(create_gf_parser)
-    subparser_list.append(create_gf_parser)
 
     # Command "create"
     subparser_list.append(create_args.GetCreateArgParser(subparsers))
@@ -291,22 +223,8 @@ def _VerifyArgs(parsed_args):
         create_args.VerifyArgs(parsed_args)
     if parsed_args.which == setup_args.CMD_SETUP:
         setup_args.VerifyArgs(parsed_args)
-    if parsed_args.which == CMD_CREATE_GOLDFISH:
-        if not parsed_args.emulator_build_id and not parsed_args.build_id and (
-                not parsed_args.emulator_branch and not parsed_args.branch):
-            raise errors.CommandArgError(
-                "Must specify either --build-id or --branch or "
-                "--emulator-branch or --emulator-build-id")
-        if not parsed_args.build_target:
-            raise errors.CommandArgError("Must specify --build-target")
-        if (parsed_args.system_branch
-                or parsed_args.system_build_id
-                or parsed_args.system_build_target):
-            raise errors.UnsupportedCreateArgs(
-                "--system-* args are not supported for AVD type: %s"
-                % constants.TYPE_GF)
 
-    if parsed_args.which in [create_args.CMD_CREATE, CMD_CREATE_GOLDFISH]:
+    if parsed_args.which == create_args.CMD_CREATE:
         if (parsed_args.serial_log_file
                 and not parsed_args.serial_log_file.endswith(".tar.gz")):
             raise errors.CommandArgError(
@@ -437,24 +355,9 @@ def main(argv=None):
     elif args.which == create_args.CMD_CREATE:
         reporter = create.Run(args)
     elif args.which == CMD_CREATE_GOLDFISH:
-        reporter = create_goldfish_action.CreateDevices(
-            cfg=cfg,
-            build_target=args.build_target,
-            branch=args.branch,
-            build_id=args.build_id,
-            emulator_build_id=args.emulator_build_id,
-            emulator_branch=args.emulator_branch,
-            emulator_build_target=args.emulator_build_target,
-            kernel_build_id=args.kernel_build_id,
-            kernel_branch=args.kernel_branch,
-            kernel_build_target=args.kernel_build_target,
-            gpu=args.gpu,
-            num=args.num,
-            serial_log_file=args.serial_log_file,
-            autoconnect=args.autoconnect,
-            tags=args.tags,
-            report_internal_ip=args.report_internal_ip,
-            boot_timeout_secs=args.boot_timeout_secs)
+        error_msg = "Goldfish support is deprecated - b/396350461"
+        sys.stderr.write(error_msg)
+        return constants.EXIT_BY_WRONG_CMD, error_msg
     elif args.which == delete_args.CMD_DELETE:
         reporter = delete.Run(args)
     elif args.which == list_args.CMD_LIST:

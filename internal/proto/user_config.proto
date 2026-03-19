@@ -69,11 +69,11 @@ message UserConfig {
 
   // [GOLDFISH only] The name of the stable host image released by Android
   // Emulator (emu-dev) team
-  optional string stable_goldfish_host_image_name = 19;
+  optional string stable_goldfish_host_image_name = 19 [deprecated = true];
   // [GOLDFISH only] The project that the stable goldfish host image is
   // released to (emu-dev-cts)
 
-  optional string stable_goldfish_host_image_project = 20;
+  optional string stable_goldfish_host_image_project = 20 [deprecated = true];
 
   // Account information for accessing Cloud API
   // This is the new way to provide service account auth.
